@@ -17,7 +17,10 @@ Usage:
 """
 
 import pathlib
+import os
+import shutil
 import sys
+import tempfile
 import unittest
 
 
@@ -25,14 +28,33 @@ def main() -> int:
     root = pathlib.Path(__file__).resolve().parent
     sys.path.insert(0, str(root))
 
-    loader = unittest.TestLoader()
-    suite = unittest.TestSuite()
-    for file in sorted(root.glob("test_*.py")):
-        suite.addTests(loader.loadTestsFromName(file.stem))
+    staging_db = None
+    inherited_db = os.environ.get("PHARMACY_DB")
+    if not inherited_db:
+        source_db = root / "data" / "pharmacy.db"
+        staging_db = pathlib.Path(tempfile.gettempdir()) / (
+            f"pharmacy_full_suite_{os.getpid()}.db"
+        )
+        shutil.copy2(source_db, staging_db)
+        os.environ["PHARMACY_DB"] = str(staging_db)
 
-    runner = unittest.TextTestRunner(verbosity=2)
-    result = runner.run(suite)
-    return 0 if result.wasSuccessful() else 1
+    try:
+        loader = unittest.TestLoader()
+        suite = unittest.TestSuite()
+        for file in sorted(root.glob("test_*.py")):
+            suite.addTests(loader.loadTestsFromName(file.stem))
+
+        runner = unittest.TextTestRunner(verbosity=2)
+        result = runner.run(suite)
+        return 0 if result.wasSuccessful() else 1
+    finally:
+        if staging_db:
+            for path in (staging_db, pathlib.Path(f"{staging_db}-wal"),
+                         pathlib.Path(f"{staging_db}-shm")):
+                try:
+                    path.unlink()
+                except FileNotFoundError:
+                    pass
 
 
 if __name__ == "__main__":

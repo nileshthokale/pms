@@ -58,6 +58,26 @@ def init_database():
             )
             """
         )
+        # Category is normal item master data.  It deliberately has no
+        # accounting or stock-side relationship of its own.
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS categories (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                category_name TEXT    NOT NULL,
+                description   TEXT,
+                is_active     INTEGER NOT NULL DEFAULT 1,
+                created_at    TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at    TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        # SQLite's ordinary UNIQUE constraint is case-sensitive and retains
+        # surrounding whitespace.  This index protects normalized names too.
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_normalized_name "
+            "ON categories(lower(trim(category_name)))"
+        )
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS suppliers (
@@ -113,6 +133,7 @@ def init_database():
                 item_name           TEXT    NOT NULL UNIQUE,
                 unit_id             INTEGER REFERENCES units(id) ON DELETE SET NULL,
                 company_id          INTEGER REFERENCES companies(id) ON DELETE SET NULL,
+                category_id         INTEGER REFERENCES categories(id) ON DELETE SET NULL,
                 pack_size           TEXT    DEFAULT '',
                 tax_structure       TEXT    DEFAULT '',
                 discount            REAL    DEFAULT 0.0,
@@ -400,10 +421,37 @@ def init_database():
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS financial_years (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                start_date TEXT NOT NULL,
+                end_date TEXT NOT NULL,
+                is_active INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_financial_year_active "
+            "ON financial_years(is_active) WHERE is_active = 1"
+        )
 
         # ── Phase 1: Customer/Supplier → Account Ledger mapping ──
         # Safe migration: only adds columns if they don't already exist.
         cur = conn.cursor()
+
+        # Phase 6B-7: category is an optional item relationship.  ALTER TABLE
+        # only adds the nullable column; it never rebuilds items or touches
+        # stock, invoices, ledgers, or existing item values.
+        cur.execute("PRAGMA table_info(items)")
+        item_cols = {row[1] for row in cur.fetchall()}
+        if "category_id" not in item_cols:
+            cur.execute(
+                "ALTER TABLE items ADD COLUMN category_id "
+                "INTEGER REFERENCES categories(id) ON DELETE SET NULL"
+            )
 
         # customers.ledger_id
         cur.execute("PRAGMA table_info(customers)")

@@ -1,0 +1,111 @@
+{
+  "phase": "6C",
+  "audit_date": "2026-09-17",
+  "mode": "read_only",
+  "verified_baseline": {
+    "tests": 1700,
+    "failures": 0,
+    "errors": 0,
+    "full_suite_runs": 2
+  },
+  "menu_audit": {
+    "entries": 37,
+    "unreachable_current_placeholders": 0,
+    "duplicate_entries": 0,
+    "partial_entries": [
+      "Sales History reuses CounterSalePage",
+      "Purchase History reuses PurchaseInvoicePage"
+    ]
+  },
+  "production_database": {
+    "path": "data/pharmacy.db",
+    "inspection_mode": "sqlite read-only URI",
+    "size_bytes": 229376,
+    "table_count": 27,
+    "active_financial_year": {
+      "name": "2026-2027",
+      "start_date": "2026-04-01",
+      "end_date": "2027-03-31"
+    },
+    "user_count": 1,
+    "master_counts": {
+      "companies": 1,
+      "units": 1,
+      "drugs": 1,
+      "suppliers": 1,
+      "customers": 1,
+      "doctors": 1,
+      "items": 1,
+      "account_ledgers": 8,
+      "account_groups": 0,
+      "categories": null
+    },
+    "transaction_counts": {
+      "purchase_invoices": 0,
+      "sales_invoices": 0,
+      "credit_notes": 0,
+      "debit_notes": 0,
+      "supplier_payments": 0,
+      "customer_receipts": 0,
+      "journal_entries": 0,
+      "ledger_transactions": 0,
+      "hold_bills": null
+    },
+    "foreign_key_count": 30,
+    "orphan_references_detected": 0,
+    "schema_observations": [
+      "categories is absent until current startup migration runs",
+      "hold_bills and hold_bill_items are lazily created on first feature use",
+      "import_history is lazily created when import history is used",
+      "date and foreign-key indexes are sparse for larger production volumes"
+    ]
+  },
+  "complete_features": [
+    "explicit menu mappings",
+    "supplier and customer masters",
+    "user management and two-role authentication",
+    "account ledger and account groups",
+    "counter sale and credit note data/posting flows",
+    "hold bill lifecycle",
+    "purchase invoice and debit note data/posting flows",
+    "seven PostingEngine transaction types",
+    "trial balance, profit and loss, balance sheet",
+    "cash book, bank book, day end",
+    "backup and restore",
+    "financial year controls"
+  ],
+  "partial_features": [
+    "sales and purchase history navigation",
+    "item/company/unit/drug/doctor lifecycle management",
+    "category master import",
+    "report PDF export",
+    "production database migration verification",
+    "manual desktop and printer acceptance"
+  ],
+  "missing_features": [
+    "macOS package/sign/install evidence",
+    "Category Master as an independent Import Data target"
+  ],
+  "broken_features": [],
+  "release_blockers": [
+    "controlled backup and first-start migration verification for the current production SQLite file",
+    "real-world desktop acceptance of transaction, role, backup/restore, financial-year, and PDF workflows"
+  ],
+  "ui_only_work": [
+    "dedicated history landing states",
+    "consistent refresh/search/empty states",
+    "large-table and narrow-window visual QA",
+    "PDF layout QA"
+  ],
+  "future_enhancements": [
+    "macOS packaging and signing",
+    "year-end closing under a separate accounting specification",
+    "category reporting and controlled reassignment"
+  ],
+  "safety_confirmations": {
+    "application_code_changed": false,
+    "production_database_modified": false,
+    "posting_engine_modified": false,
+    "old_pharma_winner_or_mysql_accessed": false
+  }
+}

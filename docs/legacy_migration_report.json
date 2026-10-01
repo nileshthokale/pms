@@ -1,0 +1,455 @@
+{
+  "source_dump": "PharmaWinner202609142001.sql",
+  "source_bytes": 35325237,
+  "target_db": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\data\\pharmacy.db",
+  "backup": {
+    "path": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\data\\backups\\pharmacy_backup_20260918_102219.db",
+    "sha256": "93258007b42484dedab9e6eed029664b91a706c373317c3e4483dfe90329f2d8",
+    "size_bytes": 42602496,
+    "created_at": "2026-09-18T10:22:19",
+    "table_count": 32,
+    "validated": true,
+    "integrity": "ok"
+  },
+  "cleared": {
+    "sales_invoice_items": 232707,
+    "sales_invoices": 71803,
+    "credit_note_items": 3318,
+    "credit_notes": 1345,
+    "debit_note_items": 19,
+    "debit_notes": 13,
+    "purchase_invoice_items": 11829,
+    "purchase_invoices": 5681,
+    "supplier_payments": 785,
+    "customer_receipts": 44,
+    "ledger_transactions": 156716,
+    "stock_batches": 7765,
+    "item_ingredients": 402,
+    "items": 938,
+    "customers": 29,
+    "suppliers": 85,
+    "doctors": 7,
+    "drugs": 147,
+    "units": 16,
+    "companies": 1218,
+    "financial_years": 12,
+    "account_ledgers": 117
+  },
+  "pre_state": {
+    "path": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\data\\pharmacy.db",
+    "tables": 33,
+    "rows": {
+      "companies": 1218,
+      "units": 16,
+      "drugs": 147,
+      "doctors": 7,
+      "items": 938,
+      "item_ingredients": 402,
+      "customers": 29,
+      "suppliers": 85,
+      "account_ledgers": 123,
+      "ledger_transactions": 156716,
+      "purchase_invoices": 5681,
+      "purchase_invoice_items": 11829,
+      "sales_invoices": 71803,
+      "sales_invoice_items": 232707,
+      "credit_notes": 1345,
+      "credit_note_items": 3318,
+      "debit_notes": 13,
+      "debit_note_items": 19,
+      "customer_receipts": 44,
+      "supplier_payments": 785,
+      "stock_batches": 7765,
+      "financial_years": 12
+    },
+    "sha256": "7ffc9f1eccb893fed4543d5f0632fdbbb07032a43cfe798fbf5233de735510b9",
+    "size_bytes": 42602496
+  },
+  "post_state": {
+    "path": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\data\\pharmacy.db",
+    "tables": 33,
+    "rows": {
+      "companies": 1218,
+      "units": 16,
+      "drugs": 147,
+      "doctors": 7,
+      "items": 938,
+      "item_ingredients": 402,
+      "customers": 29,
+      "suppliers": 85,
+      "account_ledgers": 123,
+      "ledger_transactions": 156716,
+      "purchase_invoices": 5681,
+      "purchase_invoice_items": 11829,
+      "sales_invoices": 71803,
+      "sales_invoice_items": 232707,
+      "credit_notes": 1345,
+      "credit_note_items": 3318,
+      "debit_notes": 13,
+      "debit_note_items": 19,
+      "customer_receipts": 44,
+      "supplier_payments": 785,
+      "stock_batches": 7765,
+      "financial_years": 12
+    },
+    "sha256": "8b22a819afe500eb9b824fa173fd61b7cb42d4984b972aa2339a0511bfd7ceb9",
+    "size_bytes": 42864640
+  },
+  "tables": [
+    {
+      "source": "acyear",
+      "target": "financial_years",
+      "source_rows": 12,
+      "imported": 12,
+      "skipped": 0,
+      "failed": 0
+    },
+    {
+      "source": "companymst",
+      "target": "companies",
+      "source_rows": 1221,
+      "imported": 1218,
+      "skipped": 3,
+      "failed": 0
+    },
+    {
+      "source": "unitmst",
+      "target": "units",
+      "source_rows": 16,
+      "imported": 16,
+      "skipped": 0,
+      "failed": 0
+    },
+    {
+      "source": "drugmst",
+      "target": "drugs",
+      "source_rows": 147,
+      "imported": 147,
+      "skipped": 0,
+      "failed": 0
+    },
+    {
+      "source": "doctormst",
+      "target": "doctors",
+      "source_rows": 8,
+      "imported": 7,
+      "skipped": 1,
+      "failed": 0
+    },
+    {
+      "source": "itemmst",
+      "target": "items",
+      "source_rows": 941,
+      "imported": 938,
+      "skipped": 3,
+      "failed": 0
+    },
+    {
+      "source": "itemdrugs",
+      "target": "item_ingredients",
+      "source_rows": 402,
+      "imported": 402,
+      "skipped": 0,
+      "failed": 0
+    },
+    {
+      "source": "ledger",
+      "target": "account_ledgers",
+      "source_rows": 123,
+      "imported": 117,
+      "skipped": 6,
+      "failed": 0
+    },
+    {
+      "source": "sundaryinfo",
+      "target": "customers / suppliers",
+      "source_rows": 113,
+      "imported": 114,
+      "skipped": 0,
+      "failed": 0
+    },
+    {
+      "source": "stockbalance",
+      "target": "stock_batches",
+      "source_rows": 7764,
+      "imported": 7763,
+      "skipped": 1,
+      "failed": 0
+    },
+    {
+      "source": "invoicevhheader",
+      "target": "purchase_invoices",
+      "source_rows": 5681,
+      "imported": 5681,
+      "skipped": 0,
+      "failed": 0
+    },
+    {
+      "source": "invoiceitemdetail",
+      "target": "purchase_invoice_items",
+      "source_rows": 11829,
+      "imported": 11829,
+      "skipped": 0,
+      "failed": 0
+    },
+    {
+      "source": "invoicevhdetail",
+      "target": "ledger_transactions",
+      "source_rows": 11362,
+      "imported": 11362,
+      "skipped": 0,
+      "failed": 0
+    },
+    {
+      "source": "salesvhheader",
+      "target": "sales_invoices",
+      "source_rows": 71803,
+      "imported": 71803,
+      "skipped": 0,
+      "failed": 0
+    },
+    {
+      "source": "salesitemdetail",
+      "target": "sales_invoice_items",
+      "source_rows": 232707,
+      "imported": 232707,
+      "skipped": 0,
+      "failed": 0
+    },
+    {
+      "source": "salesvhdetail",
+      "target": "ledger_transactions",
+      "source_rows": 143624,
+      "imported": 143624,
+      "skipped": 0,
+      "failed": 0
+    },
+    {
+      "source": "creditnotevhheader",
+      "target": "credit_notes",
+      "source_rows": 1345,
+      "imported": 1345,
+      "skipped": 0,
+      "failed": 0
+    },
+    {
+      "source": "creditnoteitemdetail",
+      "target": "credit_note_items",
+      "source_rows": 3318,
+      "imported": 3318,
+      "skipped": 0,
+      "failed": 0
+    },
+    {
+      "source": "creditnotevhdetail",
+      "target": "ledger_transactions",
+      "source_rows": 42,
+      "imported": 42,
+      "skipped": 0,
+      "failed": 0
+    },
+    {
+      "source": "debitnotevhheader",
+      "target": "debit_notes",
+      "source_rows": 13,
+      "imported": 13,
+      "skipped": 0,
+      "failed": 0
+    },
+    {
+      "source": "debitnoteitemdetail",
+      "target": "debit_note_items",
+      "source_rows": 19,
+      "imported": 19,
+      "skipped": 0,
+      "failed": 0
+    },
+    {
+      "source": "debitnotevhdetail",
+      "target": "ledger_transactions",
+      "source_rows": 2,
+      "imported": 2,
+      "skipped": 0,
+      "failed": 0
+    },
+    {
+      "source": "receiptvhheader",
+      "target": "customer_receipts",
+      "source_rows": 44,
+      "imported": 44,
+      "skipped": 0,
+      "failed": 0
+    },
+    {
+      "source": "receiptvhdetail",
+      "target": "ledger_transactions",
+      "source_rows": 88,
+      "imported": 88,
+      "skipped": 0,
+      "failed": 0
+    },
+    {
+      "source": "paymentvhheader",
+      "target": "supplier_payments",
+      "source_rows": 785,
+      "imported": 785,
+      "skipped": 0,
+      "failed": 0
+    },
+    {
+      "source": "paymentvhdetail",
+      "target": "ledger_transactions",
+      "source_rows": 1598,
+      "imported": 1598,
+      "skipped": 0,
+      "failed": 0
+    }
+  ],
+  "imported_rows": 494994,
+  "skipped_rows": 14,
+  "warnings": [
+    {
+      "kind": "duplicate_company_name",
+      "detail": "'ALKEM' legacy id 2541 merged into 12953"
+    },
+    {
+      "kind": "duplicate_company_name",
+      "detail": "'JAGSAM PHARMA' legacy id 2568 merged into 12979"
+    },
+    {
+      "kind": "duplicate_company_name",
+      "detail": "'JAGSAM PHARMA' legacy id 2569 merged into 12979"
+    },
+    {
+      "kind": "duplicate_doctor_name",
+      "detail": "'SELF' legacy id 6 merged into 10273"
+    },
+    {
+      "kind": "duplicate_item_name",
+      "detail": "'VITOMIN-Z' legacy id 303 merged into 11462"
+    },
+    {
+      "kind": "duplicate_item_name",
+      "detail": "'CALTONVIT' legacy id 869 merged into 11852"
+    },
+    {
+      "kind": "duplicate_item_name",
+      "detail": "'POWERGESIC' legacy id 920 merged into 11224"
+    },
+    {
+      "kind": "ledger_merged_into_system_role",
+      "detail": "'CASH' \u2192 role CASH"
+    },
+    {
+      "kind": "ledger_merged_into_system_role",
+      "detail": "'CASH PURCHASE' \u2192 role PURCHASE"
+    },
+    {
+      "kind": "ledger_merged_into_system_role",
+      "detail": "'CREDIT PURCHASE' \u2192 role PURCHASE"
+    },
+    {
+      "kind": "ledger_merged_into_system_role",
+      "detail": "'CASH SALE' \u2192 role SALES"
+    },
+    {
+      "kind": "ledger_merged_into_system_role",
+      "detail": "'CREDIT SALE' \u2192 role SALES"
+    },
+    {
+      "kind": "ledger_merged_into_system_role",
+      "detail": "'SBI AC NO 33822385323' \u2192 role BANK (primary bank account)"
+    },
+    {
+      "kind": "duplicate_stock_balance_row",
+      "detail": "item=238 batch=CARE"
+    }
+  ],
+  "item_duplicates_merged": [
+    {
+      "source": "companymst",
+      "legacy_id": 2541,
+      "name": "ALKEM",
+      "merged_into": 12953
+    },
+    {
+      "source": "companymst",
+      "legacy_id": 2568,
+      "name": "JAGSAM PHARMA",
+      "merged_into": 12979
+    },
+    {
+      "source": "companymst",
+      "legacy_id": 2569,
+      "name": "JAGSAM PHARMA",
+      "merged_into": 12979
+    },
+    {
+      "source": "doctormst",
+      "legacy_id": 6,
+      "name": "SELF",
+      "merged_into": 10273
+    },
+    {
+      "source": "itemmst",
+      "legacy_id": 303,
+      "name": "VITOMIN-Z",
+      "merged_into": 11462
+    },
+    {
+      "source": "itemmst",
+      "legacy_id": 869,
+      "name": "CALTONVIT",
+      "merged_into": 11852
+    },
+    {
+      "source": "itemmst",
+      "legacy_id": 920,
+      "name": "POWERGESIC",
+      "merged_into": 11224
+    },
+    {
+      "source": "ledger",
+      "legacy_id": 2,
+      "name": "CASH",
+      "merged_into": 69273
+    },
+    {
+      "source": "ledger",
+      "legacy_id": 3,
+      "name": "CASH PURCHASE",
+      "merged_into": 69276
+    },
+    {
+      "source": "ledger",
+      "legacy_id": 4,
+      "name": "CREDIT PURCHASE",
+      "merged_into": 69276
+    },
+    {
+      "source": "ledger",
+      "legacy_id": 5,
+      "name": "CASH SALE",
+      "merged_into": 69275
+    },
+    {
+      "source": "ledger",
+      "legacy_id": 6,
+      "name": "CREDIT SALE",
+      "merged_into": 69275
+    },
+    {
+      "source": "ledger",
+      "legacy_id": 36,
+      "name": "SBI AC NO 33822385323",
+      "merged_into": 69274
+    }
+  ],
+  "unsupported_fields": {
+    "itemmst.SellLoose": 941,
+    "itemmst.BillCompulsory": 941,
+    "creditnoteitemdetail.ReasonID": 3318,
+    "debitnoteitemdetail.ReasonID": 19
+  },
+  "demo_rows_excluded": 934
+}

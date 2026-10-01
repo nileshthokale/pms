@@ -1,0 +1,100 @@
+{
+  "phase": "6A",
+  "date": "2026-09-16",
+  "audit_only": true,
+  "application_changes_made": false,
+  "legacy_database_accessed": false,
+  "counts": {
+    "implemented": 24,
+    "partial": 17,
+    "missing": 7,
+    "implemented_but_different": 5,
+    "needs_additional_testing": 11,
+    "not_applicable": 3
+  },
+  "critical_gaps": [
+    {
+      "feature": "User Master",
+      "status": "MISSING_FROM_MENU",
+      "evidence": "screens/user_management.py exists but Master > User Master falls through to PlaceholderPage",
+      "next_action": "Wire User Master to UserManagementPage and preserve ADMIN enforcement"
+    }
+  ],
+  "high_gaps": [
+    {"feature": "Hold Bill", "status": "MISSING"},
+    {"feature": "Day End", "status": "MISSING"},
+    {"feature": "Cash Book", "status": "MISSING"},
+    {"feature": "Bank Book", "status": "MISSING"},
+    {"feature": "Category Master", "status": "MISSING"},
+    {"feature": "Account Group menu access", "status": "MISSING_FROM_MENU"},
+    {"feature": "Purchase delete workflow", "status": "PARTIAL"}
+  ],
+  "medium_gaps": [
+    {"feature": "FY refresh of already-open screens", "status": "PARTIAL"},
+    {"feature": "Report FY semantics", "status": "PARTIAL"},
+    {"feature": "Journal/report printing", "status": "PARTIAL"},
+    {"feature": "Master search/delete consistency", "status": "PARTIAL"},
+    {"feature": "Backup validation of auth tables", "status": "PARTIAL"}
+  ],
+  "security": {
+    "roles": ["ADMIN", "PHARMACIST/STAFF"],
+    "forbidden_roles_found_in_auth_implementation": [],
+    "admin_only": ["user_management", "backup", "restore", "import_data", "edit_transactions", "delete_transactions", "financial_year_management"],
+    "staff_allowed": ["operational_transactions", "normal_reports", "print_pdf"]
+  },
+  "production_database": {
+    "path": "data/pharmacy.db",
+    "table_count": 27,
+    "size_bytes": 229376,
+    "financial_years_exists": true,
+    "app_users_exists": true,
+    "active_financial_year": "2026-2027",
+    "active_start_date": "2026-04-01",
+    "active_end_date": "2027-03-31",
+    "application_user_rows": 0,
+    "transaction_rows": {
+      "purchase_invoices": 0,
+      "sales_invoices": 0,
+      "credit_notes": 0,
+      "debit_notes": 0,
+      "customer_receipts": 0,
+      "supplier_payments": 0,
+      "journal_entries": 0,
+      "ledger_transactions": 0
+    },
+    "master_rows": {
+      "companies": 1,
+      "units": 1,
+      "drugs": 1,
+      "suppliers": 1,
+      "customers": 1,
+      "doctors": 1,
+      "items": 1
+    }
+  },
+  "tests": {
+    "full_suite_count": 1327,
+    "failures": 0,
+    "errors": 0,
+    "pyside6_skips": 22,
+    "coverage_weaknesses": [
+      "GUI workflows skipped without PySide6",
+      "Placeholder menu items have no functional tests",
+      "Master delete/search consistency is not comprehensive",
+      "Journal/report print GUI coverage is absent",
+      "FY switch refresh behavior is not tested",
+      "Live database has no transaction rows or users"
+    ]
+  },
+  "database_observations": {
+    "foreign_keys_enabled_by_connection": true,
+    "duplicate_feature_tables_observed": false,
+    "orphan_check_limited_by_empty_transaction_state": true,
+    "backup_includes_financial_years": true,
+    "auth_tables_required_by_backup_validator": false
+  },
+  "files_created": [
+    "docs/phase6_feature_gap_audit.md",
+    "docs/phase6_feature_gap_audit.json"
+  ]
+}

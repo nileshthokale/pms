@@ -1,0 +1,611 @@
+{
+  "dump_path": "PharmaWinner202609142001.sql",
+  "dump_bytes": 35325237,
+  "source_tables": 52,
+  "source_rows": 502534,
+  "demo_rows_excluded": 934,
+  "counts": {
+    "accompany": 0,
+    "acyear": 12,
+    "billsetting": 1,
+    "challanitemdetail": 142,
+    "challanvhheader": 80,
+    "companymst": 1221,
+    "countersaleitems": 2,
+    "creditnoteitemdetail": 3318,
+    "creditnotevhdetail": 42,
+    "creditnotevhheader": 1345,
+    "debitnoteitemdetail": 19,
+    "debitnotevhdetail": 2,
+    "debitnotevhheader": 13,
+    "demosalescreditnote": 0,
+    "demosalesitemdetail": 463,
+    "demosalesvhdetail": 314,
+    "demosalesvhheader": 157,
+    "doctormst": 8,
+    "drugmst": 147,
+    "entryinvoicevhitem": 0,
+    "entryinvoicevhmst": 0,
+    "gpmst": 22,
+    "invoicedebitnote": 10,
+    "invoiceitemdetail": 11829,
+    "invoicevhdetail": 11362,
+    "invoicevhheader": 5681,
+    "itemdrugs": 402,
+    "itemmst": 941,
+    "journalvhdetail": 0,
+    "journalvhheader": 0,
+    "ledger": 123,
+    "ledgeropbal": 551,
+    "pathymst": 6,
+    "patientmaster": 0,
+    "paymentinvoice": 2671,
+    "paymentvhdetail": 1598,
+    "paymentvhheader": 785,
+    "receiptinvoice": 114,
+    "receiptvhdetail": 88,
+    "receiptvhheader": 44,
+    "salescreditnote": 527,
+    "salesitemdetail": 232707,
+    "salesvhdetail": 143624,
+    "salesvhheader": 71803,
+    "softmaster": 1,
+    "statemst": 1,
+    "stockadjusted": 3397,
+    "stockbalance": 7764,
+    "sundaryinfo": 113,
+    "sundrybillbybillopbal": 0,
+    "unitmst": 16,
+    "userinfo": 2,
+    "_item_ids": 941,
+    "_duplicate_item_names": 3,
+    "_unit_ids": 16,
+    "_company_ids": 1221,
+    "_pathy_values": 6,
+    "_drug_ids": 147,
+    "_ledgers": 123,
+    "_debtor_ledgers": 29,
+    "_creditor_ledgers": 85,
+    "_sales_headers": 71803,
+    "_sales_items_unresolved": 0,
+    "_purchase_headers": 5681,
+    "_purchase_items_unresolved": 0,
+    "_creditnoteitemdetail_orphans": 0,
+    "_debitnoteitemdetail_orphans": 0,
+    "_salesvhdetail_unmapped_ledgers": 0,
+    "_invoicevhdetail_unmapped_ledgers": 0,
+    "_creditnotevhdetail_unmapped_ledgers": 0,
+    "_debitnotevhdetail_unmapped_ledgers": 0,
+    "_receiptvhdetail_unmapped_ledgers": 0,
+    "_paymentvhdetail_unmapped_ledgers": 0,
+    "_stock_batches": 7764,
+    "_stock_negative": 14,
+    "_stock_adjustments": 3397,
+    "_stock_adjustment_keys": 1742,
+    "_stock_adjustment_keys_not_in_balance": 10,
+    "_sales_batches": 7446,
+    "_sales_batches_missing_from_stockbalance": 2,
+    "_financial_years_valid": 12
+  },
+  "findings": {
+    "duplicate_item_names": [
+      {
+        "name": "POWERGESIC",
+        "legacy_ids": [
+          51,
+          920
+        ]
+      },
+      {
+        "name": "VITOMIN-Z",
+        "legacy_ids": [
+          290,
+          303
+        ]
+      },
+      {
+        "name": "CALTONVIT",
+        "legacy_ids": [
+          681,
+          869
+        ]
+      }
+    ],
+    "no_journal_records": [
+      "No journal records to migrate."
+    ],
+    "stock_negative_batches": [
+      {
+        "item_id": 47,
+        "batch": "D300311",
+        "qty": -2.0
+      },
+      {
+        "item_id": 72,
+        "batch": "146005EH",
+        "qty": -42.0
+      },
+      {
+        "item_id": 245,
+        "batch": "466",
+        "qty": -2.0
+      },
+      {
+        "item_id": 511,
+        "batch": "3115522",
+        "qty": -3.0
+      },
+      {
+        "item_id": 153,
+        "batch": "CARE 1",
+        "qty": -1.0
+      },
+      {
+        "item_id": 89,
+        "batch": "DH5004",
+        "qty": -1.0
+      },
+      {
+        "item_id": 600,
+        "batch": "ST16-2195",
+        "qty": -138.0
+      },
+      {
+        "item_id": 642,
+        "batch": "BT-286",
+        "qty": -2.0
+      },
+      {
+        "item_id": 629,
+        "batch": "N022",
+        "qty": -9.0
+      },
+      {
+        "item_id": 670,
+        "batch": "011E7ALB",
+        "qty": -14.0
+      },
+      {
+        "item_id": 630,
+        "batch": "LMI931A",
+        "qty": -3.0
+      },
+      {
+        "item_id": 659,
+        "batch": "E2000936",
+        "qty": -60.0
+      },
+      {
+        "item_id": 291,
+        "batch": "4SB0416",
+        "qty": -3.0
+      },
+      {
+        "item_id": 885,
+        "batch": "BR1E1445",
+        "qty": -1.0
+      }
+    ],
+    "elapsed_seconds": [
+      22.24
+    ]
+  },
+  "tables": [
+    {
+      "source": "accompany",
+      "target": "unsupported (legacy accounting company profile; no data)",
+      "rows": 0,
+      "demo": false,
+      "unsupported": true,
+      "note": "Legacy accounting company profile; no target table."
+    },
+    {
+      "source": "acyear",
+      "target": "financial_years",
+      "rows": 12,
+      "demo": false,
+      "unsupported": false,
+      "note": ""
+    },
+    {
+      "source": "billsetting",
+      "target": "unsupported (print layout configuration)",
+      "rows": 1,
+      "demo": false,
+      "unsupported": true,
+      "note": "Legacy bill print-layout configuration; not migrated."
+    },
+    {
+      "source": "challanitemdetail",
+      "target": "unsupported (challan document type)",
+      "rows": 142,
+      "demo": false,
+      "unsupported": true,
+      "note": "The new application has no challan document type."
+    },
+    {
+      "source": "challanvhheader",
+      "target": "unsupported (challan document type)",
+      "rows": 80,
+      "demo": false,
+      "unsupported": true,
+      "note": "The new application has no challan document type."
+    },
+    {
+      "source": "companymst",
+      "target": "companies",
+      "rows": 1221,
+      "demo": false,
+      "unsupported": false,
+      "note": ""
+    },
+    {
+      "source": "countersaleitems",
+      "target": "unsupported (headerless counter-sale lines)",
+      "rows": 2,
+      "demo": false,
+      "unsupported": true,
+      "note": "Headerless counter-sale lines dated before the first legacy financial year; no safe purchase/sale header to attach them to."
+    },
+    {
+      "source": "creditnoteitemdetail",
+      "target": "credit_note_items",
+      "rows": 3318,
+      "demo": false,
+      "unsupported": false,
+      "note": ""
+    },
+    {
+      "source": "creditnotevhdetail",
+      "target": "ledger_transactions",
+      "rows": 42,
+      "demo": false,
+      "unsupported": false,
+      "note": ""
+    },
+    {
+      "source": "creditnotevhheader",
+      "target": "credit_notes",
+      "rows": 1345,
+      "demo": false,
+      "unsupported": false,
+      "note": ""
+    },
+    {
+      "source": "debitnoteitemdetail",
+      "target": "debit_note_items",
+      "rows": 19,
+      "demo": false,
+      "unsupported": false,
+      "note": ""
+    },
+    {
+      "source": "debitnotevhdetail",
+      "target": "ledger_transactions",
+      "rows": 2,
+      "demo": false,
+      "unsupported": false,
+      "note": ""
+    },
+    {
+      "source": "debitnotevhheader",
+      "target": "debit_notes",
+      "rows": 13,
+      "demo": false,
+      "unsupported": false,
+      "note": ""
+    },
+    {
+      "source": "demosalescreditnote",
+      "target": "excluded (demo)",
+      "rows": 0,
+      "demo": true,
+      "unsupported": false,
+      "note": "Demo rows excluded."
+    },
+    {
+      "source": "demosalesitemdetail",
+      "target": "excluded (demo)",
+      "rows": 463,
+      "demo": true,
+      "unsupported": false,
+      "note": "Demo rows excluded."
+    },
+    {
+      "source": "demosalesvhdetail",
+      "target": "excluded (demo)",
+      "rows": 314,
+      "demo": true,
+      "unsupported": false,
+      "note": "Demo rows excluded."
+    },
+    {
+      "source": "demosalesvhheader",
+      "target": "excluded (demo)",
+      "rows": 157,
+      "demo": true,
+      "unsupported": false,
+      "note": "Demo rows excluded."
+    },
+    {
+      "source": "doctormst",
+      "target": "doctors",
+      "rows": 8,
+      "demo": false,
+      "unsupported": false,
+      "note": ""
+    },
+    {
+      "source": "drugmst",
+      "target": "drugs",
+      "rows": 147,
+      "demo": false,
+      "unsupported": false,
+      "note": ""
+    },
+    {
+      "source": "entryinvoicevhitem",
+      "target": "unsupported (no data / draft-entry document)",
+      "rows": 0,
+      "demo": false,
+      "unsupported": true,
+      "note": "Draft entry-invoice document; not mapped."
+    },
+    {
+      "source": "entryinvoicevhmst",
+      "target": "unsupported (no data / draft-entry document)",
+      "rows": 0,
+      "demo": false,
+      "unsupported": true,
+      "note": "Draft entry-invoice document; not mapped."
+    },
+    {
+      "source": "gpmst",
+      "target": "account_groups (classification)",
+      "rows": 22,
+      "demo": false,
+      "unsupported": false,
+      "note": ""
+    },
+    {
+      "source": "invoicedebitnote",
+      "target": "unsupported (no allocation table)",
+      "rows": 10,
+      "demo": false,
+      "unsupported": true,
+      "note": "No allocation table exists in the new schema."
+    },
+    {
+      "source": "invoiceitemdetail",
+      "target": "purchase_invoice_items",
+      "rows": 11829,
+      "demo": false,
+      "unsupported": false,
+      "note": ""
+    },
+    {
+      "source": "invoicevhdetail",
+      "target": "ledger_transactions",
+      "rows": 11362,
+      "demo": false,
+      "unsupported": false,
+      "note": ""
+    },
+    {
+      "source": "invoicevhheader",
+      "target": "purchase_invoices",
+      "rows": 5681,
+      "demo": false,
+      "unsupported": false,
+      "note": ""
+    },
+    {
+      "source": "itemdrugs",
+      "target": "item_ingredients",
+      "rows": 402,
+      "demo": false,
+      "unsupported": false,
+      "note": ""
+    },
+    {
+      "source": "itemmst",
+      "target": "items",
+      "rows": 941,
+      "demo": false,
+      "unsupported": false,
+      "note": ""
+    },
+    {
+      "source": "journalvhdetail",
+      "target": "journal_entry_items",
+      "rows": 0,
+      "demo": false,
+      "unsupported": false,
+      "note": ""
+    },
+    {
+      "source": "journalvhheader",
+      "target": "journal_entries",
+      "rows": 0,
+      "demo": false,
+      "unsupported": false,
+      "note": ""
+    },
+    {
+      "source": "ledger",
+      "target": "account_ledgers",
+      "rows": 123,
+      "demo": false,
+      "unsupported": false,
+      "note": ""
+    },
+    {
+      "source": "ledgeropbal",
+      "target": "unsupported (per-FY opening balances)",
+      "rows": 551,
+      "demo": false,
+      "unsupported": true,
+      "note": "The new account_ledgers stores a single opening balance; the legacy per-financial-year/month opening-balance grid has no target. ledger.OpeningBal is preserved as the opening balance."
+    },
+    {
+      "source": "pathymst",
+      "target": "items.pathy (value lookup)",
+      "rows": 6,
+      "demo": false,
+      "unsupported": false,
+      "note": ""
+    },
+    {
+      "source": "patientmaster",
+      "target": "patients (no target table; no data)",
+      "rows": 0,
+      "demo": false,
+      "unsupported": false,
+      "note": "The new application has no patient master table."
+    },
+    {
+      "source": "paymentinvoice",
+      "target": "unsupported (no allocation table)",
+      "rows": 2671,
+      "demo": false,
+      "unsupported": true,
+      "note": "No allocation table exists in the new schema."
+    },
+    {
+      "source": "paymentvhdetail",
+      "target": "ledger_transactions",
+      "rows": 1598,
+      "demo": false,
+      "unsupported": false,
+      "note": ""
+    },
+    {
+      "source": "paymentvhheader",
+      "target": "supplier_payments",
+      "rows": 785,
+      "demo": false,
+      "unsupported": false,
+      "note": ""
+    },
+    {
+      "source": "receiptinvoice",
+      "target": "unsupported (no allocation table)",
+      "rows": 114,
+      "demo": false,
+      "unsupported": true,
+      "note": "No allocation table exists in the new schema."
+    },
+    {
+      "source": "receiptvhdetail",
+      "target": "ledger_transactions",
+      "rows": 88,
+      "demo": false,
+      "unsupported": false,
+      "note": ""
+    },
+    {
+      "source": "receiptvhheader",
+      "target": "customer_receipts",
+      "rows": 44,
+      "demo": false,
+      "unsupported": false,
+      "note": ""
+    },
+    {
+      "source": "salescreditnote",
+      "target": "unsupported (no allocation table)",
+      "rows": 527,
+      "demo": false,
+      "unsupported": true,
+      "note": "No allocation table exists in the new schema."
+    },
+    {
+      "source": "salesitemdetail",
+      "target": "sales_invoice_items",
+      "rows": 232707,
+      "demo": false,
+      "unsupported": false,
+      "note": ""
+    },
+    {
+      "source": "salesvhdetail",
+      "target": "ledger_transactions",
+      "rows": 143624,
+      "demo": false,
+      "unsupported": false,
+      "note": ""
+    },
+    {
+      "source": "salesvhheader",
+      "target": "sales_invoices",
+      "rows": 71803,
+      "demo": false,
+      "unsupported": false,
+      "note": ""
+    },
+    {
+      "source": "softmaster",
+      "target": "unsupported (firm profile \u2014 no target table)",
+      "rows": 1,
+      "demo": false,
+      "unsupported": true,
+      "note": "The new application has no firm-profile table."
+    },
+    {
+      "source": "statemst",
+      "target": "customers.state / suppliers.state (value lookup)",
+      "rows": 1,
+      "demo": false,
+      "unsupported": false,
+      "note": ""
+    },
+    {
+      "source": "stockadjusted",
+      "target": "stock_batches (already reflected in stockbalance)",
+      "rows": 3397,
+      "demo": false,
+      "unsupported": false,
+      "note": "Adjustments are already reflected in stockbalance totals (verified: batches exist whose TotalPurchaseQty equals their total adjustment with no purchases); imported as stock only."
+    },
+    {
+      "source": "stockbalance",
+      "target": "stock_batches",
+      "rows": 7764,
+      "demo": false,
+      "unsupported": false,
+      "note": ""
+    },
+    {
+      "source": "sundaryinfo",
+      "target": "customers / suppliers",
+      "rows": 113,
+      "demo": false,
+      "unsupported": false,
+      "note": ""
+    },
+    {
+      "source": "sundrybillbybillopbal",
+      "target": "unsupported (bill-by-bill opening balances)",
+      "rows": 0,
+      "demo": false,
+      "unsupported": true,
+      "note": "Bill-by-bill opening balances have no target in the new schema."
+    },
+    {
+      "source": "unitmst",
+      "target": "units",
+      "rows": 16,
+      "demo": false,
+      "unsupported": false,
+      "note": ""
+    },
+    {
+      "source": "userinfo",
+      "target": "app_users (usernames only, opt-in, inactive)",
+      "rows": 2,
+      "demo": false,
+      "unsupported": false,
+      "note": ""
+    }
+  ]
+}
