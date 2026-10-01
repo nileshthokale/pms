@@ -1,0 +1,11 @@
+[12:51:18] imports start
+[12:51:18] QtWidgets ok
+[12:51:18] QtTest ok
+[12:51:18] QtCore ok
+[12:51:18] QApplication created
+[12:51:18] style set
+[12:51:19] stylesheet applied
+[12:51:19] init_database done
+[12:51:19] auth schema done
+[12:51:19] financial year done
+[12:51:19] import main window

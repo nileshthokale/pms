@@ -10,10 +10,13 @@ class ItemDAO:
                 """SELECT
                     i.id,
                     i.item_name,
+                    COALESCE(generic_names.generic_name, '') AS generic_name,
                     i.unit_id,
                     u.unit_name,
                     i.company_id,
                     c.company_name,
+                    i.category_id,
+                    cat.category_name,
                     i.pack_size,
                     i.tax_structure,
                     i.discount,
@@ -27,6 +30,13 @@ class ItemDAO:
                 FROM items i
                 LEFT JOIN units u ON i.unit_id = u.id
                 LEFT JOIN companies c ON i.company_id = c.id
+                LEFT JOIN categories cat ON i.category_id = cat.id
+                LEFT JOIN (
+                    SELECT ii.item_id, GROUP_CONCAT(DISTINCT d.drug_name) AS generic_name
+                    FROM item_ingredients ii
+                    JOIN drugs d ON d.id = ii.drug_id
+                    GROUP BY ii.item_id
+                ) generic_names ON generic_names.item_id = i.id
                 ORDER BY i.item_name"""
             ).fetchall()
             return [dict(row) for row in rows]
@@ -45,6 +55,8 @@ class ItemDAO:
                     u.unit_name,
                     i.company_id,
                     c.company_name,
+                    i.category_id,
+                    cat.category_name,
                     i.pack_size,
                     i.tax_structure,
                     i.discount,
@@ -58,6 +70,7 @@ class ItemDAO:
                 FROM items i
                 LEFT JOIN units u ON i.unit_id = u.id
                 LEFT JOIN companies c ON i.company_id = c.id
+                LEFT JOIN categories cat ON i.category_id = cat.id
                 WHERE i.id = ?""",
                 (item_id,),
             ).fetchone()
@@ -84,7 +97,7 @@ class ItemDAO:
             conn.close()
 
     @staticmethod
-    def search(name: str) -> list[dict]:
+    def search(name: str, category_id: int | None = None) -> list[dict]:
         conn = get_connection()
         try:
             rows = conn.execute(
@@ -95,6 +108,8 @@ class ItemDAO:
                     u.unit_name,
                     i.company_id,
                     c.company_name,
+                    i.category_id,
+                    cat.category_name,
                     i.pack_size,
                     i.tax_structure,
                     i.discount,
@@ -108,9 +123,11 @@ class ItemDAO:
                 FROM items i
                 LEFT JOIN units u ON i.unit_id = u.id
                 LEFT JOIN companies c ON i.company_id = c.id
+                LEFT JOIN categories cat ON i.category_id = cat.id
                 WHERE i.item_name LIKE ?
+                AND (? IS NULL OR i.category_id = ?)
                 ORDER BY i.item_name""",
-                (f"%{name}%",),
+                (f"%{name}%", category_id, category_id),
             ).fetchall()
             return [dict(row) for row in rows]
         finally:
@@ -131,17 +148,19 @@ class ItemDAO:
         location: str = "",
         pathy: str = "",
         dpco: str = "",
+        category_id: int | None = None,
     ) -> int:
         conn = get_connection()
         try:
+            ItemDAO._validate_category_assignment(conn, category_id)
             cursor = conn.execute(
                 """INSERT INTO items (
-                    item_name, unit_id, company_id, pack_size,
+                    item_name, unit_id, company_id, category_id, pack_size,
                     tax_structure, discount, mrp, rate,
                     reorder_stock_level, scheduled, location, pathy, dpco
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
-                    item_name, unit_id, company_id, pack_size,
+                    item_name, unit_id, company_id, category_id, pack_size,
                     tax_structure, discount, mrp, rate,
                     reorder_stock_level, scheduled, location, pathy, dpco,
                 ),
@@ -167,14 +186,20 @@ class ItemDAO:
         location: str = "",
         pathy: str = "",
         dpco: str = "",
+        category_id: int | None = None,
     ) -> None:
         conn = get_connection()
         try:
+            existing = conn.execute("SELECT category_id FROM items WHERE id = ?", (item_id,)).fetchone()
+            if not existing:
+                raise ValueError("Item not found.")
+            ItemDAO._validate_category_assignment(conn, category_id, existing["category_id"])
             conn.execute(
                 """UPDATE items SET
                     item_name = ?,
                     unit_id = ?,
                     company_id = ?,
+                    category_id = ?,
                     pack_size = ?,
                     tax_structure = ?,
                     discount = ?,
@@ -187,7 +212,7 @@ class ItemDAO:
                     dpco = ?
                 WHERE id = ?""",
                 (
-                    item_name, unit_id, company_id, pack_size,
+                    item_name, unit_id, company_id, category_id, pack_size,
                     tax_structure, discount, mrp, rate,
                     reorder_stock_level, scheduled, location, pathy, dpco,
                     item_id,
@@ -196,6 +221,22 @@ class ItemDAO:
             conn.commit()
         finally:
             conn.close()
+
+    @staticmethod
+    def _validate_category_assignment(conn, category_id: int | None, existing_category_id: int | None = None) -> None:
+        """Allow blank categories and preserve an existing inactive selection.
+
+        New items can only select active categories.  An item already linked to
+        a category remains editable after that category is deactivated, but it
+        cannot be changed to a different inactive category.
+        """
+        if category_id is None:
+            return
+        category = conn.execute("SELECT is_active FROM categories WHERE id = ?", (category_id,)).fetchone()
+        if not category:
+            raise ValueError("Selected category does not exist.")
+        if not category["is_active"] and category_id != existing_category_id:
+            raise ValueError("Inactive categories cannot be selected for a new item.")
 
     @staticmethod
     def get_ingredients(item_id: int) -> list[dict]:

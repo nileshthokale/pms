@@ -3,9 +3,16 @@ from __future__ import annotations
 import sqlite3
 from database.connection import get_connection
 from database.accounting_posting import (
+    PostingError,
     SOURCE_PURCHASE_INVOICE,
     posting_engine,
 )
+from database import auth
+
+
+def _require_delete_permission(actor: dict | None) -> None:
+    if not auth.has_permission(actor, auth.PERM_DELETE_TRANSACTIONS):
+        raise auth.PermissionDenied("Permission required: delete_transactions")
 
 
 class PurchaseDAO:
@@ -357,12 +364,27 @@ class PurchaseDAO:
             conn.close()
 
     @staticmethod
-    def delete_invoice(invoice_id: int) -> None:
-        """Delete invoice, reverse stock, and reverse accounting in a single transaction."""
+    def delete_invoice(invoice_id: int, *, actor: dict | None = None) -> None:
+        """Delete one purchase atomically after reversing its stored effects.
+
+        The purchase lines are authoritative for the quantity to reverse.
+        Stock batches are never globally cleaned up here because historical
+        sales/return rows may still reference a zero-stock batch.
+        """
+        if actor is not None:
+            _require_delete_permission(actor)
+        elif auth.session.user is not None:
+            auth.session.require(auth.PERM_DELETE_TRANSACTIONS)
         conn = get_connection()
         try:
             cur = conn.cursor()
             cur.execute("BEGIN")
+
+            invoice = cur.execute(
+                "SELECT id FROM purchase_invoices WHERE id = ?", (invoice_id,)
+            ).fetchone()
+            if invoice is None:
+                raise PostingError(f"Purchase invoice {invoice_id} was not found or is already deleted.")
 
             # Reverse the accounting posting inside THIS transaction
             posting_engine.reverse(SOURCE_PURCHASE_INVOICE, invoice_id, cur=cur)
@@ -374,10 +396,24 @@ class PurchaseDAO:
             )
             for old in cur.fetchall():
                 qty_to_sub = old["pay_qty"] + old["free_qty"]
+                batch = cur.execute(
+                    "SELECT id, stock_qty FROM stock_batches WHERE item_id = ? AND batch_no = ?",
+                    (old["item_id"], old["batch_no"]),
+                ).fetchone()
+                if batch is None:
+                    raise PostingError(
+                        f"Cannot reverse purchase {invoice_id}: stock batch "
+                        f"{old['batch_no']} is missing."
+                    )
+                if batch["stock_qty"] < qty_to_sub:
+                    raise PostingError(
+                        f"Cannot reverse purchase {invoice_id}: batch "
+                        f"{old['batch_no']} has insufficient stock for exact reversal."
+                    )
                 cur.execute(
                     """
                     UPDATE stock_batches
-                    SET stock_qty = MAX(stock_qty - ?, 0)
+                    SET stock_qty = stock_qty - ?
                     WHERE item_id = ? AND batch_no = ?
                     """,
                     (qty_to_sub, old["item_id"], old["batch_no"]),
@@ -389,10 +425,9 @@ class PurchaseDAO:
                 (invoice_id,),
             )
             # Delete invoice
-            cur.execute("DELETE FROM purchase_invoices WHERE id = ?", (invoice_id,))
-
-            # Clean up empty stock batches
-            cur.execute("DELETE FROM stock_batches WHERE stock_qty <= 0")
+            deleted = cur.execute("DELETE FROM purchase_invoices WHERE id = ?", (invoice_id,))
+            if deleted.rowcount != 1:
+                raise PostingError(f"Purchase invoice {invoice_id} could not be deleted.")
 
             conn.commit()
         except Exception:
@@ -400,7 +435,6 @@ class PurchaseDAO:
             raise
         finally:
             conn.close()
-
     # ------------------------------------------------------------------
     # Stock / Batch helpers
     # ------------------------------------------------------------------

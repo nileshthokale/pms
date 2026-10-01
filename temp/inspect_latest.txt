@@ -1,0 +1,15 @@
+=== latest sales_invoices ===
+{'id': 73580, 'bill_no': '2026-2027-Cash-0007', 'sale_date': '2026-09-30', 'sale_time': '12:38', 'sale_type': 'Cash', 'customer_id': 11781, 'patient_name': '', 'doctor_id': None, 'discount': 0.0, 'paid_amount': 0.0, 'total_amount': 227.56, 'round_off': 0.0, 'net_amount': 227.56, 'remarks': ''}
+{'id': 73579, 'bill_no': '2026-2027-Cash-0006', 'sale_date': '2026-09-28', 'sale_time': '22:00', 'sale_type': 'Cash', 'customer_id': 11781, 'patient_name': '', 'doctor_id': None, 'discount': 0.0, 'paid_amount': 0.0, 'total_amount': 60.0, 'round_off': 0.0, 'net_amount': 60.0, 'remarks': ''}
+{'id': 73578, 'bill_no': '2026-2027-Cash-0005', 'sale_date': '2026-09-28', 'sale_time': '21:57', 'sale_type': 'Cash', 'customer_id': 11781, 'patient_name': '', 'doctor_id': None, 'discount': 0.0, 'paid_amount': 0.0, 'total_amount': 37.82, 'round_off': 0.0, 'net_amount': 37.82, 'remarks': ''}
+=== items of invoice 73580 ===
+{'id': 234596, 'sales_invoice_id': 73580, 'item_id': 10241, 'stock_batch_id': 14051, 'pack_size': '15', 'location': '', 'batch_no': '14261266A', 'expiry': '2029-02-28', 'mrp': 341.34, 'sale_qty': 10.0, 'discount_amount': 0.0, 'amount': 227.56}
+=== latest ledger_transactions ===
+{'id': 177498, 'ledger_id': 69275, 'transaction_date': '2026-09-30', 'transaction_time': '12:38', 'voucher_type': 'Counter Sale', 'voucher_no': '2026-2027-Cash-0007', 'reference_type': 'COUNTER_SALE', 'reference_id': 73580, 'description': 'Sale 2026-2027-Cash-0007 to WALKIN', 'debit': 0.0, 'credit': 227.56}
+{'id': 177497, 'ledger_id': 69279, 'transaction_date': '2026-09-30', 'transaction_time': '12:38', 'voucher_type': 'Counter Sale', 'voucher_no': '2026-2027-Cash-0007', 'reference_type': 'COUNTER_SALE', 'reference_id': 73580, 'description': 'Sale 2026-2027-Cash-0007 to WALKIN', 'debit': 227.56, 'credit': 0.0}
+{'id': 177496, 'ledger_id': 69275, 'transaction_date': '2026-09-28', 'transaction_time': '22:00', 'voucher_type': 'Counter Sale', 'voucher_no': '2026-2027-Cash-0006', 'reference_type': 'COUNTER_SALE', 'reference_id': 73579, 'description': 'Sale 2026-2027-Cash-0006 to WALKIN', 'debit': 0.0, 'credit': 60.0}
+{'id': 177495, 'ledger_id': 69279, 'transaction_date': '2026-09-28', 'transaction_time': '22:00', 'voucher_type': 'Counter Sale', 'voucher_no': '2026-2027-Cash-0006', 'reference_type': 'COUNTER_SALE', 'reference_id': 73579, 'description': 'Sale 2026-2027-Cash-0006 to WALKIN', 'debit': 60.0, 'credit': 0.0}
+=== latest auth_audit_log ===
+{'id': 50, 'timestamp': '2026-09-30T07:08:42.953582+00:00', 'username': 'pratap', 'action': 'login', 'success': 1, 'details': ''}
+{'id': 49, 'timestamp': '2026-09-30T06:22:53.391950+00:00', 'username': 'pratap', 'action': 'login', 'success': 1, 'details': ''}
+{'id': 48, 'timestamp': '2026-09-29T11:26:45.481299+00:00', 'username': 'pratap', 'action': 'login', 'success': 1, 'details': ''}

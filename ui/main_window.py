@@ -1,5 +1,6 @@
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QApplication,
     QLabel,
     QMainWindow,
     QStackedWidget,
@@ -9,7 +10,10 @@ from PySide6.QtWidgets import (
 
 import screens
 from database import init_database
+from database import auth
+from database import financial_year
 from ui import theme
+from ui import components as ui
 from ui.menu_data import MENUS
 from ui.navigation_bar import NavigationBar
 
@@ -17,26 +21,26 @@ from ui.navigation_bar import NavigationBar
 class PlaceholderPage(QWidget):
     def __init__(self, title: str, parent=None):
         super().__init__(parent)
-        p = theme.theme_manager.palette()
         layout = QVBoxLayout(self)
-        layout.setAlignment(Qt.AlignCenter)
-        label = QLabel(title)
-        label.setStyleSheet(
-            "font-size: 22px;"
-            f"color: {p['text']};"
-            "font-weight: bold;"
-        )
-        label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(label)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(ui.PageHeader(title))
+        body = QLabel(title)
+        body.setAlignment(Qt.AlignCenter)
+        body.setStyleSheet(ui.label_style(dim=True, size=12))
+        layout.addWidget(body, 1)
 
 
 class PharmacyMainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         init_database()
+        auth.ensure_auth_schema()
+        financial_year.ensure_default_financial_year()
         self.setWindowTitle("Pharmacy Management System")
-        self.resize(1280, 750)
-        self.setMinimumSize(900, 600)
+        # Desktop-first: comfortable at 1366x768 and scales up to 1920x1080.
+        self.resize(1366, 760)
+        self.setMinimumSize(1024, 640)
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -46,6 +50,7 @@ class PharmacyMainWindow(QMainWindow):
 
         self._nav = NavigationBar()
         self._nav.menu_action_triggered.connect(self._on_menu_action)
+        self._nav.logout_requested.connect(self._on_logout)
         root_layout.addWidget(self._nav)
 
         self._stack = QStackedWidget()
@@ -78,8 +83,18 @@ class PharmacyMainWindow(QMainWindow):
                     page = screens.DoctorMasterPage()
                 elif menu_name == "Master" and item_name == "Item Master":
                     page = screens.ItemMasterPage()
+                elif menu_name == "Master" and item_name == "Category Master":
+                    page = screens.CategoryMasterPage()
                 elif menu_name == "Master" and item_name == "Backup & Restore":
                     page = screens.BackupRestorePage()
+                elif menu_name == "Master" and item_name == "Import Data":
+                    page = screens.ImportDataPage()
+                elif menu_name == "Master" and item_name == "User Master":
+                    page = screens.UserManagementPage()
+                elif menu_name == "Master" and item_name == "Account Group":
+                    page = screens.AccountGroupMasterPage()
+                elif menu_name == "Master" and item_name == "Financial Year":
+                    page = screens.FinancialYearPage()
                 elif menu_name == "Purchase" and item_name == "New Purchase":
                     page = screens.PurchaseInvoicePage()
                 elif menu_name == "Purchase" and item_name == "Purchase History":
@@ -98,6 +113,10 @@ class PharmacyMainWindow(QMainWindow):
                     page = screens.GSTReportPage()
                 elif menu_name == "Sales" and item_name == "New Bill":
                     page = screens.CounterSalePage()
+                elif menu_name == "Sales" and item_name == "Hold Bill":
+                    page = screens.HoldBillPage()
+                elif menu_name == "Sales" and item_name == "Day End":
+                    page = screens.DayEndPage()
                 elif menu_name == "Sales" and item_name == "Sales History":
                     page = screens.CounterSalePage()
                 elif menu_name == "Sales" and item_name == "Return Bill":
@@ -108,6 +127,10 @@ class PharmacyMainWindow(QMainWindow):
                     page = screens.SupplierPaymentPage()
                 elif menu_name == "Account" and item_name == "Customer Receipt":
                     page = screens.CustomerReceiptPage()
+                elif menu_name == "Account" and item_name == "Cash Book":
+                    page = screens.CashBookPage()
+                elif menu_name == "Account" and item_name == "Bank Book":
+                    page = screens.BankBookPage()
                 elif menu_name == "Account" and item_name == "Ledger":
                     page = screens.AccountLedgerPage()
                 elif menu_name == "Account" and item_name == "Journal Entry":
@@ -122,22 +145,55 @@ class PharmacyMainWindow(QMainWindow):
                     page = screens.BalanceSheetPage()
                 else:
                     page = PlaceholderPage(f"{menu_name}  >  {item_name}")
+                ui.polish_page(page)
                 self._stack.addWidget(page)
                 self._page_map[f"{menu_name}:{item_name}"] = page_index
                 page_index += 1
 
     def _on_menu_action(self, menu: str, action: str):
+        permission = auth.MENU_PERMISSIONS.get(action)
+        if permission:
+            try:
+                auth.session.require(permission)
+            except auth.PermissionDenied as exc:
+                from PySide6.QtWidgets import QMessageBox
+                QMessageBox.warning(self, "Permission denied", str(exc))
+                return
         key = f"{menu}:{action}"
         if key in self._page_map:
             self._stack.setCurrentIndex(self._page_map[key])
             self.setWindowTitle(f"Pharmacy Management System  -  {action}")
+            self._nav.status_label.setText(f"{menu} / {action}")
+
+    # ── logout ───────────────────────────────────────────────────────
+    def _on_logout(self):
+        from PySide6.QtWidgets import QMessageBox
+        answer = QMessageBox.question(
+            self, "Logout", "Sign out of the application?",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+        )
+        if answer != QMessageBox.Yes:
+            return
+        auth.session.logout()
+        from screens.login import run_login
+        if not run_login(self):
+            self.close()
+            return
+        self._nav.refresh_user()
+        self.setWindowTitle("Pharmacy Management System")
 
     # ── theme ────────────────────────────────────────────────────────
     def _apply_theme(self):
         p = theme.theme_manager.palette()
+        # Application-wide stylesheet styles dialogs and any widget that a
+        # screen does not style itself.  Widget-level stylesheets in the
+        # screens always win, so this is a safe global fallback.
+        app = QApplication.instance()
+        if app is not None:
+            app.setStyleSheet(theme.stylesheet())
         self.setStyleSheet(
-            f"QMainWindow {{ background-color: {p['bg']}; }}"
-            "QLabel { font-family: 'Segoe UI', sans-serif; }"
+            f"QMainWindow, QStackedWidget, QWidget#CentralWorkspace"
+            f" {{ background-color: {p['bg']}; }}"
         )
 
     def _on_theme_changed(self, mode: str):

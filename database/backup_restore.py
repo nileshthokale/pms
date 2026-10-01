@@ -38,6 +38,7 @@ from database.connection import get_db_path
 EXPECTED_TABLES = [
     "account_groups",
     "account_ledgers",
+    "categories",
     "companies",
     "credit_note_items",
     "credit_notes",
@@ -47,6 +48,7 @@ EXPECTED_TABLES = [
     "debit_notes",
     "doctors",
     "drugs",
+    "financial_years",
     "item_ingredients",
     "items",
     "journal_entries",

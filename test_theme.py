@@ -66,8 +66,14 @@ class TestTheme(unittest.TestCase):
         self.assertNotEqual(p["text"], "#ffffff")
 
     def test_03_both_modes_keep_brand_accent(self):
-        self.assertEqual(theme_mod._PALETTES["dark"]["accent"],
-                         theme_mod._PALETTES["light"]["accent"])
+        # Phase 6E: light mode uses the classic desktop blue accent;
+        # night mode keeps its original green accent.  Both must define a
+        # valid accent/hover pair so screens always resolve a colour.
+        for mode in ("light", "dark"):
+            p = theme_mod._PALETTES[mode]
+            for key in ("accent", "accent_hover"):
+                self.assertRegex(p[key], r"^#[0-9a-fA-F]{6}$", f"{mode}:{key}")
+        self.assertEqual(theme_mod._PALETTES["light"]["accent"], "#2f6fb0")
 
     # ── mode handling ────────────────────────────────────────────────
     def test_04_toggle_flips_mode(self):
@@ -100,16 +106,16 @@ class TestTheme(unittest.TestCase):
         self.assertEqual(fresh.mode(), "light")
         self.assertFalse(fresh.is_dark())
 
-    def test_08_missing_file_defaults_to_dark(self):
+    def test_08_missing_file_defaults_to_light(self):
         self.assertFalse(self._theme_file.exists())
         mgr = ThemeManager()
-        self.assertEqual(mgr.mode(), "dark")
+        self.assertEqual(mgr.mode(), "light")
 
-    def test_09_corrupt_file_defaults_to_dark(self):
+    def test_09_corrupt_file_defaults_to_light(self):
         self._theme_file.parent.mkdir(parents=True, exist_ok=True)
         self._theme_file.write_text("{not json", encoding="utf-8")
         mgr = ThemeManager()
-        self.assertEqual(mgr.mode(), "dark")
+        self.assertEqual(mgr.mode(), "light")
 
     # ── change notification ──────────────────────────────────────────
     def test_10_on_changed_fires_on_toggle(self):
@@ -137,8 +143,8 @@ class TestTheme(unittest.TestCase):
 
     def test_13_nav_scheme_light_uses_dark_text(self):
         nav = theme_mod._NAV_SCHEMES["light"]
-        self.assertEqual(nav["bg"], "#ffffff")     # white bar
-        self.assertEqual(nav["text"], "#1a1a1a")   # DARK text — readable
+        self.assertEqual(nav["bg"], "#dce9f6")     # light blue strip
+        self.assertEqual(nav["text"], "#14212e")   # DARK text — readable
 
     def test_14_nav_text_changes_with_mode(self):
         # Regression: the nav bar font color must NOT stay white in
@@ -156,7 +162,7 @@ class TestTheme(unittest.TestCase):
         mgr = ThemeManager()
         mgr.set_mode("light", notify=False)
         with mock.patch.object(theme_mod, "theme_manager", mgr):
-            self.assertEqual(theme_mod.nav_palette()["text"], "#1a1a1a")
+            self.assertEqual(theme_mod.nav_palette()["text"], "#14212e")
         mgr.set_mode("dark", notify=False)
         with mock.patch.object(theme_mod, "theme_manager", mgr):
             self.assertEqual(theme_mod.nav_palette()["text"], "#ffffff")

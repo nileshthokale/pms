@@ -61,6 +61,45 @@ class SalesDAO:
             conn.close()
 
     @staticmethod
+    def get_history_page(*, limit: int, offset: int = 0) -> list[dict]:
+        """Return bill-history rows for a page of invoices and all their items."""
+        conn = get_connection()
+        try:
+            rows = conn.execute(
+                """
+                SELECT
+                    si.id AS invoice_id,
+                    si.bill_no,
+                    si.sale_type,
+                    si.patient_name,
+                    si.sale_time,
+                    si.net_amount,
+                    sii.item_id,
+                    i.item_name,
+                    sii.mrp,
+                    sii.sale_qty,
+                    sii.amount,
+                    sii.pack_size,
+                    sii.batch_no,
+                    sii.expiry,
+                    sii.discount_amount
+                FROM sales_invoices si
+                LEFT JOIN sales_invoice_items sii
+                    ON sii.sales_invoice_id = si.id
+                LEFT JOIN items i ON i.id = sii.item_id
+                WHERE si.id IN (
+                    SELECT id FROM sales_invoices
+                    ORDER BY id DESC LIMIT ? OFFSET ?
+                )
+                ORDER BY si.id DESC, sii.id
+                """,
+                (limit, offset),
+            ).fetchall()
+            return [dict(row) for row in rows]
+        finally:
+            conn.close()
+
+    @staticmethod
     def get_by_id(invoice_id: int) -> dict | None:
         conn = get_connection()
         try:
@@ -379,7 +418,13 @@ class SalesDAO:
 
     @staticmethod
     def get_stock_batches_for_item(item_id: int) -> list[dict]:
-        """Return available (stock_qty > 0) batches for an item."""
+        """Return available (stock_qty > 0) batches for an item.
+
+        Sellable batches keep the original expiry order and are listed
+        first; expired batches follow them.  Nothing is filtered out or
+        changed — only the order — so keyboard selection (Down, Enter) and
+        the batch popup always reach a batch that can actually be sold.
+        """
         conn = get_connection()
         try:
             cur = conn.execute(
@@ -392,9 +437,17 @@ class SalesDAO:
                 """,
                 (item_id,),
             )
-            return [dict(r) for r in cur.fetchall()]
+            batches = [dict(r) for r in cur.fetchall()]
         finally:
             conn.close()
+        batches.sort(
+            key=lambda b: (
+                SalesDAO.is_expired(b.get("expiry") or ""),
+                b.get("expiry") or "",
+                b.get("batch_no") or "",
+            )
+        )
+        return batches
 
     @staticmethod
     def get_all_stock_batches() -> list[dict]:
@@ -415,16 +468,21 @@ class SalesDAO:
 
     @staticmethod
     def is_expired(expiry: str) -> bool:
-        """Check if expiry in MM/YY format is before today."""
+        """Check migrated YYYY-MM-DD and legacy MM/YY expiry values."""
         if not expiry:
             return False
+        value = expiry.strip()
         try:
-            parts = expiry.strip().split("/")
-            month, year = int(parts[0]), int(parts[1])
-            exp_date = datetime(2000 + year, month, 1)
-            return exp_date < datetime.now()
-        except (ValueError, IndexError):
-            return False
+            expiry_date = datetime.strptime(value, "%Y-%m-%d").date()
+        except ValueError:
+            try:
+                month_text, year_text = value.split("/", 1)
+                expiry_date = datetime(
+                    2000 + int(year_text), int(month_text), 1
+                ).date()
+            except (ValueError, IndexError):
+                return False
+        return expiry_date < datetime.now().date()
 
     @staticmethod
     def get_total_stock_for_item(item_id: int) -> float:
@@ -446,6 +504,20 @@ class SalesDAO:
         try:
             cur = conn.execute(
                 "SELECT * FROM stock_batches WHERE id = ?", (batch_id,)
+            )
+            row = cur.fetchone()
+            return dict(row) if row else None
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_batch_by_item_and_batch_no(item_id: int, batch_no: str) -> dict | None:
+        """Find a stock batch by item_id and batch_no (for hold bill resume)."""
+        conn = get_connection()
+        try:
+            cur = conn.execute(
+                "SELECT * FROM stock_batches WHERE item_id = ? AND batch_no = ?",
+                (item_id, batch_no),
             )
             row = cur.fetchone()
             return dict(row) if row else None

@@ -78,6 +78,7 @@ from database.stock_dao import StockDAO
 from database.doctor_dao import DoctorDAO
 
 try:
+    from PySide6.QtCore import QDate
     from PySide6.QtWidgets import QApplication
     from screens.profit_loss import ProfitLossPage
 
