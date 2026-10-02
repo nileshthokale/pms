@@ -4,8 +4,14 @@ __pycache__/
 *.db
 *.db-shm
 *.db-wal
+*-shm
+*-wal
 *.sqlite3
 my_pharmacy_backup*.db
 screens/
 last_backup.json
 .kilo/
+temp/
+*.log
+run*.log
+.vscode/
