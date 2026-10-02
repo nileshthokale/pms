@@ -15,3 +15,7 @@ temp/
 *.log
 run*.log
 .vscode/
+*.db_restored
+*.db_restored-*
+*.db_restored-journal
+pms/
