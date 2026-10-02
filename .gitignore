@@ -8,7 +8,6 @@ __pycache__/
 *-wal
 *.sqlite3
 my_pharmacy_backup*.db
-screens/
 last_backup.json
 .kilo/
 temp/
@@ -19,3 +18,4 @@ run*.log
 *.db_restored-*
 *.db_restored-journal
 pms/
+PharmaWinner*.sql

@@ -1,5 +1,0 @@
-after item Enter: focus=_KeyboardCombo batch_combo.hasFocus=True batch_line.hasFocus=True
-keystroke sent to focus widget -> batch line: '-- Select Batch --' -> '-- Select Batch --x'
-Down on focus widget -> current batch idx 1 popup visible False
-after batch Enter: focus=_KeyboardCombo qty.hasFocus=False batch_data=6692
-Tab -> focus=QTableWidget is_discount=False
