@@ -516,6 +516,92 @@ Name and Doctor remain optional.
 
 ## Counter Sale UI Improvements
 
+### Counter Sale Item Bar and Footer Polish
+
+The Counter Sale page finishes as one dense, desktop-oriented billing
+workspace: a single-row item entry bar, an expanding Bill Items grid, and one
+fixed bottom billing section. Only visual layout changed — no database,
+DAO, stock, accounting, posting, Hold Bill, permissions, financial year,
+keyboard-navigation or transaction logic was touched.
+
+#### Item entry sizing
+
+The entry bar is a fixed 34 px row holding all twelve controls in order
+(CNo, Item, Batch, Pack, Loc, Exp, MRP, Avail, Qty, Disc, Amt, + Add).
+
+- Every control is pinned to one shared box height, measured at build time
+  from the tallest natural height the platform asks for. Windows renders a
+  styled combo one pixel taller than a styled line edit; unifying them keeps
+  the row visually straight instead of hard-coding a number that would be
+  wrong on another machine.
+- Widths are content-based, not uniform: CNo 34 px fixed, Item 150–300 px,
+  Batch 96–200 px, Pack 46 px, Loc/Exp/Avail 52–110 px, MRP 56–110 px,
+  Qty 48 px, Disc 52–110 px, Amount 58–120 px.
+- Spare width is distributed by stretch weight: Item leads (3) because it is
+  the primary search field, Batch is next (2), and the read-outs share the
+  rest. Item is deliberately capped at 300 px — on a 1920-wide monitor it
+  stays clearly the widest control without becoming a banner across the bar,
+  and the width it gives up goes into the other fields so the row fills
+  evenly. A trailing stretch keeps `+ Add` flush against the right edge once
+  every field has hit its maximum.
+- `+ Add` is a compact fixed 78 px button — inside the 70–90 px target, with
+  the same box height as the entry controls and no oversized padding.
+- Captions are 10 px and measured from the real font, then capped at 26 px,
+  with a 3 px right margin so each label clears its field by 4–6 px and never
+  reserves a wide, mostly empty box that would steal width from the fields.
+- Numeric controls (Pack, MRP, Avail, Qty, Disc, Amount) are right-aligned.
+  All read-only fields keep `Qt.NoFocus`, so the existing
+  Item → Batch → Qty → Discount → Add keyboard chain is untouched.
+
+#### Table and row-action sizing
+
+- Bill Items rows are 28 px high with a 32 px header band, visibly centred
+  text, a light-blue selected-row treatment and visible blue-grey grid lines.
+- Columns use fixed, content-based widths (`#` 34, Pack Size 82, Location
+  106, Batch No 150, Expiry 76, MRP 76, Qty 54, Disc Amt 84, Amount 96,
+  Del 72) and only **Item Name** stretches. Long item names and long batch
+  numbers therefore widen the name column instead of pushing the numeric
+  columns out of view or forcing a horizontal scrollbar.
+- `#`, Expiry and Del headers/cells are centred; MRP, Qty, Disc Amt and
+  Amount headers/cells are right-aligned.
+- The per-row `Delete` is a compact table action: 56 × 22 px (inside the
+  50–65 px width target), 10 px bold text, a restrained red edge on the
+  light surface, and pinned inside a full-cell filler widget so it is
+  centred both horizontally and vertically. Delete behaviour is unchanged.
+
+#### Footer structure
+
+The bottom billing section is fixed at ~98 px total and reads as one
+organised block, separated from Bill Items by a subtle top border.
+
+- **Sale Header strip** (54 px): two *independent* rows rather than one
+  shared column grid, so neither row is squeezed by the other.
+  Row 1 is the bill identity — Bill No 112, Date 112, Time 70, Type 110,
+  each with balanced content-sized widths and a trailing stretch.
+  Row 2 gives Customer (min 200), Patient (min 150) and Doctor (min 160) the
+  full remaining width. All seven controls share one 22 px box height via
+  compact styles that use the same colours, fonts and borders as the entry
+  bar with 2 px instead of 4 px vertical padding.
+- **Totals / actions row** (44 px): LEFT — Total Items (64 px, compact),
+  Total Amt 96, Customer Saving 100, Round Off 92, NET AMT 112 (emphasised
+  in the accent colour at 13 px), Paid 96. RIGHT — Hold Bill 96, Save Sale
+  104 (primary), Cancel 86, all 26 px high and sharing the entry bar's
+  button metrics.
+
+#### Responsive desktop behaviour
+
+Only Bill Items expands vertically. The History → Entry Bar → Bill Items →
+Sale Header → Totals + Actions order is fixed, and neither the entry bar nor
+the footer moves when the bill holds 0, 1, 5 or 20 lines. At 1366x768,
+1600x900 and 1920x1080 the entry bar's twelve controls stay inside the bar,
+the Bill Items grid fits without horizontal scrolling, and every footer
+control remains fully visible with no clipping or overlap.
+
+#### Right bill panel
+
+Unchanged in size (236 px) and content. Its Edit / Delete / Print-PDF buttons
+now share the 26 px box height used elsewhere, so they read as one group.
+
 The existing three-region Counter Sale layout, fixed entry position, and
 right-side bill panel are retained. The old Counter Sale-only From/To/
 Customer/Filter row remains absent. Item and Batch popups use an explicit

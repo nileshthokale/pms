@@ -267,6 +267,8 @@ def change_role(actor: dict[str, Any], user_id: int, role: str) -> None:
 
 def set_user_active(actor: dict[str, Any], user_id: int, active: bool) -> None:
     _require_actor(actor, PERM_DEACTIVATE_USERS)
+    active = bool(active)
+    ensure_auth_schema()
     conn = get_connection()
     try:
         row = conn.execute("SELECT username, role, is_active FROM app_users WHERE id = ?", (user_id,)).fetchone()
@@ -277,11 +279,13 @@ def set_user_active(actor: dict[str, Any], user_id: int, active: bool) -> None:
         conn.execute("UPDATE app_users SET is_active = ?, updated_at = ? WHERE id = ?", (int(active), _now(), user_id)); conn.commit()
     finally:
         conn.close()
-    _audit(actor["username"], "user_activation_changed", True, str(user_id))
+    _audit(actor["username"], "user_activation_changed", True,
+           f"{row['username']}:{'activated' if active else 'deactivated'}")
 
 
 def reset_password(actor: dict[str, Any], user_id: int, password: str) -> None:
     _require_actor(actor, PERM_PASSWORD_RESET_OTHERS)
+    ensure_auth_schema()
     conn = get_connection()
     try:
         row = conn.execute("SELECT username FROM app_users WHERE id = ?", (user_id,)).fetchone()
