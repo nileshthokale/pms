@@ -1101,22 +1101,39 @@ class _SalePanel(QWidget):
 
     def __init__(self, parent: QWidget | None = None, *,
                  invoice: dict | None = None,
-                 hold_bill_data: dict | None = None):
+                 hold_bill_data: dict | None = None,
+                 popup_mode: bool = False):
         super().__init__(parent)
         _keep_alive(self)
         self._invoice = invoice
         self._hold_bill = hold_bill_data
+        # Sales Bill popup layout only.  When true the sale header /
+        # customer group are folded into one compact top strip so the popup
+        # matches the reference arrangement; the inline Counter Sale panel
+        # keeps its original footer layout untouched.
+        self._popup_mode = popup_mode
         self._hold_bill_id: int | None = (
             hold_bill_data["hold"]["id"] if hold_bill_data else None
         )
         self._saved = False
         self._held = False
+        # The Sales Bill review popup embeds its own panel; inside it
+        # "Save Sale" is already the final step, so it commits instead of
+        # opening another popup.
+        self._in_review_popup = False
+        # Re-entrancy / double-submit guard: a committed panel never commits
+        # a second time, so a double-click cannot create two sales.
+        self._commit_locked = False
         self._item_rows: list[_BillItemRow] = []
         # An edit has already deducted its original lines from stored stock.
         # Keep that quantity as an allowance while validating the draft; the
         # DAO's existing edit transaction restores old stock then applies the
         # replacement lines atomically on Save.
         self._original_batch_qty: dict[int, float] = {}
+        # Contact number / address of each loaded customer, used by the
+        # popup's read-only Cnt No and Address fields.
+        self._customer_contacts: dict[int, str] = {}
+        self._customer_addresses: dict[int, str] = {}
 
         self.setObjectName("SalePanel")
         self.setStyleSheet(
@@ -1128,6 +1145,15 @@ class _SalePanel(QWidget):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
+        if self._popup_mode:
+            # Reference arrangement for the Sales Bill popup: one compact
+            # sale-header / customer strip at the top, then the existing
+            # entry bar, bill table and totals below it.
+            self._build_header(None)
+            self._build_customer_bar(None)
+            self._build_totals()
+            top_strip = self._build_popup_top_strip()
+
         # -- Region B: active sale entry (directly below the history) --
         self._entry_bar = _ItemEntryBar()
         self._entry_bar.set_draft_reservation_provider(self._reserved_for_entry)
@@ -1138,14 +1164,19 @@ class _SalePanel(QWidget):
         self._build_bill_table()
         root.addWidget(self._table_group, 1)
 
-        # Compact metadata replaces the former tall Sale Header / Customer
-        # panels; the same field objects and data bindings are retained.
-        self._build_compact_sale_metadata()
-        root.addWidget(self._metadata_strip)
+        if self._popup_mode:
+            root.insertWidget(0, top_strip)
+            root.addWidget(self._totals_widget)
+        else:
+            # Compact metadata replaces the former tall Sale Header /
+            # Customer panels; the same field objects and data bindings
+            # are retained.
+            self._build_compact_sale_metadata()
+            root.addWidget(self._metadata_strip)
 
-        # -- Totals + actions --
-        self._build_totals()
-        root.addWidget(self._totals_widget)
+            # -- Totals + actions --
+            self._build_totals()
+            root.addWidget(self._totals_widget)
 
         # Wire add button
         self._entry_bar.add_btn.clicked.connect(self._on_add_item)
@@ -1157,6 +1188,9 @@ class _SalePanel(QWidget):
         self._set_bill_no()
         self._set_current_datetime()
         self._entry_bar.set_cno(self.bill_no_edit.text())
+
+        if self._popup_mode:
+            self._refresh_customer_info()
 
         if invoice:
             self._populate_invoice(invoice)
@@ -1174,6 +1208,7 @@ class _SalePanel(QWidget):
         self._hold_bill_id = None
         self._saved = False
         self._held = False
+        self._commit_locked = False
         self._item_rows.clear()
         self._original_batch_qty.clear()
         self._refresh_table()
@@ -1243,6 +1278,183 @@ class _SalePanel(QWidget):
     # ------------------------------------------------------------------
     # Header
     # ------------------------------------------------------------------
+
+    def _build_header(self, parent_layout):
+        grp = QGroupBox("Sale Header")
+        grp.setStyleSheet(_GROUP_BOX)
+        grp.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        grp.setFixedHeight(54)
+        grid = QGridLayout(grp)
+        grid.setSpacing(4)
+        grid.setContentsMargins(8, 14, 8, 4)
+
+        row = 0
+        grid.addWidget(self._lbl("Bill No"), row, 0)
+        self.bill_no_edit = _make_edit()
+        self.bill_no_edit.setReadOnly(True)
+        grid.addWidget(self.bill_no_edit, row, 1)
+
+        grid.addWidget(self._lbl("Date"), row, 2)
+        self.sale_date = _make_date()
+        self.sale_date.setMaximumWidth(130)
+        grid.addWidget(self.sale_date, row, 3)
+
+        grid.addWidget(self._lbl("Time"), row, 4)
+        self.sale_time_edit = _make_edit()
+        self.sale_time_edit.setMaximumWidth(80)
+        grid.addWidget(self.sale_time_edit, row, 5)
+
+        grid.addWidget(self._lbl("Type"), row, 6)
+        self.sale_type_combo = _make_combo()
+        self.sale_type_combo.addItems(["Cash", "Credit", "Credit Card"])
+        self.sale_type_combo.setMaximumWidth(110)
+        grid.addWidget(self.sale_type_combo, row, 7)
+
+        # A None parent layout builds the widgets without showing the group
+        # box: the Sales Bill popup places these same widgets in its own top
+        # strip instead of repeating the section at the bottom.
+        if parent_layout is not None:
+            parent_layout.addWidget(grp)
+        else:
+            # Popup mode: the group box is not shown, but it owns the Bill
+            # No / Date / Time widgets, so it must stay referenced.
+            self._sale_header_group = grp
+
+    def _build_customer_bar(self, parent_layout):
+        grp = QGroupBox("Customer / Doctor")
+        grp.setStyleSheet(_GROUP_BOX)
+        grp.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        grp.setFixedHeight(54)
+        grid = QGridLayout(grp)
+        grid.setSpacing(4)
+        grid.setContentsMargins(8, 14, 8, 4)
+
+        row = 0
+        grid.addWidget(self._lbl("Customer *"), row, 0)
+        self.customer_combo = _make_combo()
+        self.customer_combo.setMinimumWidth(200)
+        grid.addWidget(self.customer_combo, row, 1)
+
+        grid.addWidget(self._lbl("Patient Name"), row, 2)
+        self.patient_name_edit = _make_edit()
+        grid.addWidget(self.patient_name_edit, row, 3)
+
+        grid.addWidget(self._lbl("Doctor"), row, 4)
+        self.doctor_combo = _make_combo()
+        self.doctor_combo.setMinimumWidth(160)
+        grid.addWidget(self.doctor_combo, row, 5)
+
+        if parent_layout is not None:
+            parent_layout.addWidget(grp)
+        else:
+            # Popup mode: Customer / Patient / Doctor are re-parented into
+            # the top strip, so the hidden box only needs to stay alive.
+            self._customer_group = grp
+        self._load_customers()
+        self._load_doctors()
+
+
+    def _build_popup_top_strip(self) -> QWidget:
+        """Top sale-header strip of the Sales Bill popup.
+
+        Left column   Cnt No / Type
+        Centre column Customer / Patient / Address
+        Right column  Doctor / Discount / Paid Amount
+
+        Every control here is the panel's own existing widget — the sale type,
+        customer, patient and doctor inputs plus the bill-discount and paid
+        boxes created for the totals row.  Only Cnt No and Address are new,
+        and both are read-only mirrors of customer master data.
+        """
+        strip = QWidget()
+        strip.setObjectName("SalesBillTopStrip")
+        strip.setStyleSheet(
+            f"#SalesBillTopStrip {{ background-color: {_SURFACE};"
+            f"  border-bottom: 1px solid {_BORDER}; }}"
+        )
+        strip.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+
+        # Discount and Paid Amount are the panel's own bill-discount / paid
+        # boxes.  In the popup they are built here instead of in the totals
+        # row, so each widget exists exactly once.
+        self.bill_disc_edit = _make_edit("0.00")
+        self.paid_edit = _make_edit("0.00")
+
+        outer = QHBoxLayout(strip)
+        outer.setContentsMargins(8, 4, 8, 4)
+        outer.setSpacing(10)
+
+        # -- LEFT: Cnt No / Type --
+        left = QGridLayout()
+        left.setHorizontalSpacing(4)
+        left.setVerticalSpacing(2)
+        left.addWidget(self._lbl("Cnt No"), 0, 0)
+        self.cnt_no_edit = _make_edit()
+        self.cnt_no_edit.setReadOnly(True)
+        self.cnt_no_edit.setMaximumWidth(90)
+        left.addWidget(self.cnt_no_edit, 0, 1)
+        left.addWidget(self._lbl("Type"), 1, 0)
+        self.sale_type_combo.setMaximumWidth(110)
+        left.addWidget(self.sale_type_combo, 1, 1)
+        outer.addLayout(left)
+
+        # -- CENTRE: Customer / Patient / Address --
+        centre = QGridLayout()
+        centre.setHorizontalSpacing(4)
+        centre.setVerticalSpacing(2)
+        centre.addWidget(self._lbl("Customer *"), 0, 0)
+        self.customer_combo.setMinimumWidth(150)
+        centre.addWidget(self.customer_combo, 0, 1)
+        centre.addWidget(self._lbl("Patient Name"), 1, 0)
+        centre.addWidget(self.patient_name_edit, 1, 1)
+        centre.addWidget(self._lbl("Address"), 2, 0)
+        self.address_edit = _make_edit()
+        self.address_edit.setReadOnly(True)
+        centre.addWidget(self.address_edit, 2, 1)
+        centre.setColumnStretch(1, 1)
+        outer.addLayout(centre, 1)
+
+        # -- RIGHT: Doctor / Discount / Paid Amount --
+        right = QGridLayout()
+        right.setHorizontalSpacing(4)
+        right.setVerticalSpacing(2)
+        right.addWidget(self._lbl("Doctor"), 0, 0)
+        self.doctor_combo.setMinimumWidth(140)
+        right.addWidget(self.doctor_combo, 0, 1)
+        right.addWidget(self._lbl("Discount"), 1, 0)
+        self.bill_disc_edit.setMaximumWidth(110)
+        right.addWidget(self.bill_disc_edit, 1, 1)
+        right.addWidget(self._lbl("Paid Amount"), 2, 0)
+        self.paid_edit.setMaximumWidth(110)
+        right.addWidget(self.paid_edit, 2, 1)
+        outer.addLayout(right)
+
+        # Discount / Paid recalculate through the same wiring as the panel.
+        self.bill_disc_edit.textChanged.connect(self._recalc_totals)
+        self.paid_edit.textChanged.connect(self._recalc_totals)
+
+        # Cnt No / Address follow the selected customer.
+        self.customer_combo.currentIndexChanged.connect(self._refresh_customer_info)
+
+        return strip
+
+    def _refresh_customer_info(self, *_args):
+        """Mirror the selected customer's contact number and address."""
+        if not hasattr(self, "cnt_no_edit"):
+            return
+        cid = self.customer_combo.currentData()
+        self.cnt_no_edit.setText(self._customer_contacts.get(cid, ""))
+        self.address_edit.setText(self._customer_addresses.get(cid, ""))
+
+    def _remarks_text(self) -> str:
+        """Bill remarks typed in the popup's Remarks box.
+
+        Only the Sales Bill popup owns a Remarks box; everywhere else the
+        stored remarks stay empty exactly as before.
+        """
+        box = getattr(self, "remarks_edit", None)
+        return box.text().strip() if box is not None else ""
+
 
     def _build_compact_sale_metadata(self):
         """Small two-line metadata strip; no standalone Sale Header panel.
@@ -1326,6 +1538,10 @@ class _SalePanel(QWidget):
         self.customer_combo.addItem("-- Select Customer --", None)
         for c in customers:
             self.customer_combo.addItem(c["customer_name"], c["id"])
+            # Kept for the popup's read-only Cnt No / Address display.  The
+            # customer rows are already loaded here, so no extra query runs.
+            self._customer_contacts[c["id"]] = c.get("contact_no") or ""
+            self._customer_addresses[c["id"]] = c.get("address") or ""
         # Try to default to WALKIN
         for i in range(self.customer_combo.count()):
             if self.customer_combo.itemText(i).upper() == "WALKIN":
@@ -1602,6 +1818,19 @@ class _SalePanel(QWidget):
         layout.setContentsMargins(12, 3, 12, 3)
         layout.setSpacing(14)
 
+        if self._popup_mode:
+            # Discount / Paid Amount live in the popup's top strip, so the
+            # summary row keeps only the calculated values.  The same
+            # widgets are created there - nothing is duplicated.
+            self._add_total_field(layout, "Total Amt", "total_amount_label",
+                                  width=96)
+            self._add_total_field(layout, "Round Off", "round_off_label",
+                                  width=92)
+            self._add_total_field(layout, "NET AMT", "net_amt_label",
+                                  width=112, emphasised=True)
+            layout.addStretch()
+            return
+
         self._add_total_field(layout, "Total Items", "total_items_label",
                               width=64, emphasised=False)
         self._add_total_field(layout, "Total Amt", "total_amount_label",
@@ -1677,7 +1906,8 @@ class _SalePanel(QWidget):
 
     def _recalc_totals(self):
         total = sum(r.amount for r in self._item_rows)
-        self.total_items_label.setText(str(len(self._item_rows)))
+        if getattr(self, "total_items_label", None) is not None:
+            self.total_items_label.setText(str(len(self._item_rows)))
         self.total_amount_label.setText(f"{total:.2f}")
 
         bill_disc = _safe_float(self.bill_disc_edit.text())
@@ -1859,32 +2089,70 @@ class _SalePanel(QWidget):
         return True
 
     def _on_save(self):
+        """Entry point for the panel's Save Sale button.
+
+        On the Counter Sale screen this only *validates* the draft and then
+        opens the Sales Bill review popup.  Inside that popup the same button
+        is the final step, so it validates and commits directly.  Either way
+        validation runs first and nothing is committed until it passes.
+        """
+        if not self._validate_for_commit():
+            return
+        if self._in_review_popup:
+            self._commit_sale()
+            return
+        self._open_review_dialog()
+
+    def _open_review_dialog(self):
+        """Show the compact, centred Sales Bill review/edit popup.
+
+        ``show()`` (not ``exec()``) is used deliberately: the popup is modal
+        and application-blocking for the user, but the call returns
+        immediately so the save flow stays re-entrant and testable.
+        """
+        dialog = SalesBillReviewDialog(self, self)
+        self._review_dialog = dialog
+        dialog.finished.connect(self._release_review_dialog)
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+        return dialog
+
+    def _release_review_dialog(self, *_args):
+        """Drop the popup handle once it is gone (Close, Escape or Save)."""
+        if getattr(self, "_review_dialog", None) is not None:
+            del self._review_dialog
+
+    def _validate_for_commit(self) -> bool:
+        """Every business rule that must pass before a sale may be written.
+
+        Used by both the Counter Sale Save Sale step and the popup's final
+        Save, so the review popup can never be the step that skips a rule.
+        """
         try:
             financial_year.validate_transaction_date(self.sale_date.date().toString("yyyy-MM-dd"))
         except financial_year.FinancialYearError as exc:
             self.sale_date.setFocus()
             QMessageBox.warning(self, "Financial Year", str(exc))
-            return
+            return False
 
-        cid = self.customer_combo.currentData()
-        if not cid:
+        if not self.customer_combo.currentData():
             self.customer_combo.setFocus()
             QMessageBox.warning(self, "Validation", "Customer is required.")
-            return
+            return False
 
-        bill_no = self.bill_no_edit.text().strip()
-        if not bill_no:
+        if not self.bill_no_edit.text().strip():
             self.bill_no_edit.setFocus()
             QMessageBox.warning(self, "Validation", "Bill number is required.")
-            return
+            return False
 
         if not self._item_rows:
             self._entry_bar.item_combo.lineEdit().setFocus()
             QMessageBox.warning(self, "Validation", "At least one item is required.")
-            return
+            return False
 
         if not self._validate_sale_items():
-            return
+            return False
 
         sale_time = self.sale_time_edit.text().strip()
         try:
@@ -1892,7 +2160,7 @@ class _SalePanel(QWidget):
         except ValueError:
             self.sale_time_edit.setFocus()
             QMessageBox.warning(self, "Validation", "Enter a valid sale time in HH:MM format.")
-            return
+            return False
 
         self._recalc_totals()
 
@@ -1909,7 +2177,7 @@ class _SalePanel(QWidget):
                 self, "Validation",
                 "Bill discount must be a valid amount between 0 and the bill total."
             )
-            return
+            return False
 
         paid_text = self.paid_edit.text().strip()
         try:
@@ -1921,20 +2189,41 @@ class _SalePanel(QWidget):
             QMessageBox.warning(
                 self, "Validation", "Paid amount must be a valid non-negative amount."
             )
+            return False
+
+        return True
+
+    def _commit_sale(self):
+        """Write the sale: one invoice, one stock deduction, one posting.
+
+        Only reachable through the popup's final Save (or directly from a
+        panel already inside that popup).  Stock and accounting are handled
+        by the established SalesDAO transaction, so the review popup adds no
+        accounting behaviour of its own.
+        """
+        if self._commit_locked:
+            # Double-submit guard: a second click on Save cannot produce a
+            # second invoice, deduction or posting set.
             return
-
-        round_off = _safe_float(self.round_off_label.text())
-        net_amount = _round2(total_amount - bill_discount + round_off)
-
-        sale_date = self.sale_date.date().toString("yyyy-MM-dd")
-        sale_type = self.sale_type_combo.currentText()
-        patient_name = self.patient_name_edit.text().strip()
-        did = self.doctor_combo.currentData()
-        remarks = ""
-
-        items_data = [r.to_dict() for r in self._item_rows]
+        self._commit_locked = True
 
         try:
+            self._recalc_totals()
+            total_amount = _round2(float(_d(sum(r.amount for r in self._item_rows))))
+            bill_discount = _safe_float(self.bill_disc_edit.text())
+            paid = _safe_float(self.paid_edit.text())
+            round_off = _safe_float(self.round_off_label.text())
+            net_amount = _round2(total_amount - bill_discount + round_off)
+            sale_date = self.sale_date.date().toString("yyyy-MM-dd")
+            sale_time = self.sale_time_edit.text().strip()
+            sale_type = self.sale_type_combo.currentText()
+            patient_name = self.patient_name_edit.text().strip()
+            cid = self.customer_combo.currentData()
+            did = self.doctor_combo.currentData()
+            bill_no = self.bill_no_edit.text().strip()
+            remarks = self._remarks_text()
+            items_data = [r.to_dict() for r in self._item_rows]
+
             if self._invoice:
                 # Edit: update in place — stock is adjusted and the
                 # accounting posting is reversed + re-posted atomically.
@@ -1961,7 +2250,119 @@ class _SalePanel(QWidget):
             self._saved = True
             self.saved.emit()
         except Exception as e:
+            self._commit_locked = False
             QMessageBox.critical(self, "Error", f"Failed to save sale:\n{e}")
+
+    # ------------------------------------------------------------------
+    # Draft hand-off to / from the Sales Bill review popup
+    # ------------------------------------------------------------------
+
+    def draft_state(self) -> dict:
+        """Snapshot of the unsaved draft, for the review popup to edit.
+
+        Pure copy — nothing is written and no stock is reserved by taking
+        this snapshot, which is what keeps the popup free of side effects.
+        """
+        return {
+            "bill_no": self.bill_no_edit.text(),
+            "sale_date": self.sale_date.date(),
+            "sale_time": self.sale_time_edit.text(),
+            "sale_type": self.sale_type_combo.currentText(),
+            "customer_id": self.customer_combo.currentData(),
+            "patient_name": self.patient_name_edit.text(),
+            "doctor_id": self.doctor_combo.currentData(),
+            "bill_discount": self.bill_disc_edit.text(),
+            "paid_amount": self.paid_edit.text(),
+            "invoice": self._invoice,
+            "hold_bill_id": self._hold_bill_id,
+            "original_batch_qty": dict(self._original_batch_qty),
+            "rows": [
+                {
+                    "item_id": r.item_id,
+                    "item_name": r.item_name,
+                    "stock_batch_id": r.stock_batch_id,
+                    "pack_size": r.pack_size,
+                    "location": r.location,
+                    "batch_no": r.batch_no,
+                    "expiry": r.expiry,
+                    "mrp": r.mrp,
+                    "sale_qty": r.sale_qty,
+                    "discount_amount": r.discount_amount,
+                    "amount": r.amount,
+                }
+                for r in self._item_rows
+            ],
+        }
+
+    def load_draft_state(self, state: dict):
+        """Adopt a draft snapshot (used by the review popup to load the bill)."""
+        self._invoice = state.get("invoice")
+        self._hold_bill_id = state.get("hold_bill_id")
+        self.bill_no_edit.setText(state.get("bill_no", ""))
+
+        date_value = state.get("sale_date")
+        if date_value is not None:
+            self.sale_date.setDate(date_value)
+
+        self.sale_time_edit.setText(state.get("sale_time", ""))
+
+        type_index = self.sale_type_combo.findText(state.get("sale_type", "Cash"))
+        if type_index >= 0:
+            self.sale_type_combo.setCurrentIndex(type_index)
+
+        customer_index = self.customer_combo.findData(state.get("customer_id"))
+        if customer_index >= 0:
+            self.customer_combo.setCurrentIndex(customer_index)
+
+        self.patient_name_edit.setText(state.get("patient_name", ""))
+
+        doctor_index = self.doctor_combo.findData(state.get("doctor_id"))
+        if doctor_index >= 0:
+            self.doctor_combo.setCurrentIndex(doctor_index)
+
+        self.bill_disc_edit.setText(state.get("bill_discount", "0.00"))
+        self.paid_edit.setText(state.get("paid_amount", "0.00"))
+
+        self._original_batch_qty = dict(state.get("original_batch_qty") or {})
+        self._item_rows = [
+            _BillItemRow(
+                item_id=row["item_id"],
+                item_name=row["item_name"],
+                stock_batch_id=row["stock_batch_id"],
+                pack_size=row["pack_size"],
+                location=row["location"],
+                batch_no=row["batch_no"],
+                expiry=row["expiry"],
+                mrp=row["mrp"],
+                sale_qty=row["sale_qty"],
+                discount_amount=row["discount_amount"],
+                amount=row["amount"],
+            )
+            for row in state.get("rows") or []
+        ]
+        self._refresh_table()
+        self._recalc_totals()
+        self._refresh_draft_availability()
+        self._entry_bar.set_cno(self.bill_no_edit.text())
+        self._focus_entry_on_first_row()
+
+    def _focus_entry_on_first_row(self):
+        """Show the first bill line's item/batch in the entry bar.
+
+        Display only: selecting in the entry bar fills the read-only Pack /
+        Location / Expiry / MRP / Batch-Stock boxes and loads the batch list,
+        so the entry area of a review step always shows live item data
+        instead of empty controls.  It reserves nothing and writes nothing.
+        """
+        if not self._item_rows:
+            return
+        first = self._item_rows[0]
+        item_index = self._entry_bar.item_combo.findData(first.item_id)
+        if item_index >= 0:
+            self._entry_bar.item_combo.setCurrentIndex(item_index)
+        batch_index = self._entry_bar.batch_combo.findData(first.stock_batch_id)
+        if batch_index >= 0:
+            self._entry_bar.batch_combo.setCurrentIndex(batch_index)
 
     @property
     def was_saved(self) -> bool:
@@ -2147,6 +2548,294 @@ class _SaleDialog(QDialog):
     @property
     def was_held(self) -> bool:
         return self._panel.was_held
+
+
+# ======================================================================
+# Sales Bill — review / edit popup (compact, modal, classic layout)
+# ======================================================================
+
+# Traditional pharmacy-software popup header: a solid blue title bar with
+# white bold text, matching the reference bill window rather than a modern
+# card.  Only this dialog uses the blue bar; the app palette is untouched.
+_BILL_HEADER_BG = "#1f5c9e"
+_BILL_DIALOG_STYLE = (
+    f"QDialog#SalesBillDialog {{ background-color: {_SURFACE}; }}"
+)
+
+
+class SalesBillReviewDialog(QDialog):
+    """Compact "Sales Bill" review/edit step for Counter Sale.
+
+    Opened by the Counter Sale **Save Sale** button *after* the draft has
+    been validated.  It shows the bill and lets the user correct the
+    customer, patient, doctor, quantities, discounts and line items before
+    committing.
+
+    Transaction contract
+    --------------------
+    * Opening this popup writes nothing: no invoice, no stock deduction,
+      no accounting entry.  It only takes a copy of the unsaved draft.
+    * **Save** runs the full validation again and then performs the one and
+      only commit (invoice + stock + posting) through the existing
+      ``SalesDAO`` workflow.
+    * **Close** / **Escape** discard the copy and return to Counter Sale
+      with the draft untouched.
+
+    The bill is edited through an embedded :class:`_SalePanel` set to
+    review mode, so every existing control — item autocomplete, batch
+    selection, draft stock reservation, add/delete line, keyboard
+    navigation — is the same one the Counter Sale screen uses.
+    """
+
+    def __init__(self, panel: _SalePanel, parent: QWidget | None = None):
+        super().__init__(parent)
+        _keep_alive(self)
+        self._source_panel = panel
+        self.setObjectName("SalesBillDialog")
+        self.setWindowTitle("Sales Bill")
+        self.setModal(True)
+        self.setStyleSheet(_BILL_DIALOG_STYLE)
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        root.addWidget(self._build_blue_header(panel))
+
+        body = QWidget()
+        body.setObjectName("SalesBillBody")
+        body_layout = QVBoxLayout(body)
+        body_layout.setContentsMargins(6, 6, 6, 4)
+        body_layout.setSpacing(0)
+
+        # The editable copy of the draft.  Review mode makes its own
+        # "Save Sale" behave as the final commit instead of opening a
+        # second popup.
+        self._panel = _SalePanel(body, popup_mode=True)
+        self._panel._in_review_popup = True
+        self._panel.load_draft_state(panel.draft_state())
+
+        body_layout.addWidget(self._panel, 1)
+        root.addWidget(body, 1)
+
+        root.addWidget(self._build_actions())
+
+        # The popup's Remarks box is the bill's remarks source when the sale
+        # is committed from here; an edited bill shows its stored remarks.
+        self._panel.remarks_edit = self.remarks_edit
+        invoice = self._panel._invoice
+        if invoice:
+            self.remarks_edit.setText(invoice.get("remarks") or "")
+
+        # A successful commit re-emits on the *source* panel so the Counter
+        # Sale page performs its normal history refresh / form reset.
+        self._panel.saved.connect(self._source_panel.saved.emit)
+        # Hold stays a draft-only action: it is forwarded like Save so the
+        # page resets, but no stock or accounting is touched either way.
+        self._panel.held.connect(self._on_popup_held)
+        # Cancel inside the popup means "discard", exactly like Close.
+        self._panel.cancelled.connect(self.reject)
+
+        self._resize_compact()
+
+    # ------------------------------------------------------------------
+    # Construction helpers
+    # ------------------------------------------------------------------
+
+    def _build_blue_header(self, panel: _SalePanel) -> QWidget:
+        """Blue title bar carrying Voucher No / Date / Time from the bill."""
+        bar = QWidget()
+        bar.setObjectName("SalesBillHeader")
+        bar.setFixedHeight(52)
+        bar.setStyleSheet(
+            f"#SalesBillHeader {{ background-color: {_BILL_HEADER_BG};"
+            f"  border-bottom: 1px solid {_BILL_HEADER_BG}; }}"
+        )
+        layout = QHBoxLayout(bar)
+        layout.setContentsMargins(10, 4, 10, 4)
+        layout.setSpacing(12)
+
+        title = QLabel("Sales Bill")
+        title.setStyleSheet(
+            "color: #ffffff; font-size: 14px; font-weight: bold;"
+            f"background: transparent; font-family: {FONT_FAMILY};"
+        )
+        layout.addWidget(title)
+        layout.addStretch()
+
+        # Voucher No / Date / Time come from the live bill — the popup never
+        # generates numbering of its own.
+        for caption, value in (
+            ("Voucher No", panel.bill_no_edit.text()),
+            ("Date", panel.sale_date.date().toString("dd-MM-yyyy")),
+            ("Time", panel.sale_time_edit.text()),
+        ):
+            caption_label = QLabel(caption)
+            caption_label.setStyleSheet(
+                "color: #d8e6f5; font-size: 10px; background: transparent;"
+                f"font-family: {FONT_FAMILY};"
+            )
+            value_label = QLabel(value or "--")
+            value_label.setStyleSheet(
+                "color: #ffffff; font-size: 11px; font-weight: bold;"
+                f"background: transparent; font-family: {FONT_FAMILY};"
+            )
+            layout.addWidget(caption_label)
+            layout.addWidget(value_label)
+
+        return bar
+
+    def _build_actions(self) -> QWidget:
+        """Bottom row: Total Items + Remarks on the left, Net Receivable and
+        Save / Close on the right.
+        """
+        bar = QWidget()
+        bar.setObjectName("SalesBillActions")
+        bar.setStyleSheet(
+            f"#SalesBillActions {{ background-color: {_SURFACE};"
+            f"  border-top: 1px solid {_BORDER}; }}"
+        )
+        layout = QHBoxLayout(bar)
+        layout.setContentsMargins(10, 5, 10, 5)
+        layout.setSpacing(10)
+
+        # -- LEFT: Total Items / Remarks --
+        items_caption = QLabel("Total Items")
+        items_caption.setStyleSheet(
+            f"color: {_TEXT}; font-size: 11px; background: transparent;"
+            f"font-family: {FONT_FAMILY};"
+        )
+        layout.addWidget(items_caption)
+        self._total_items_label = QLabel(str(len(self._panel._item_rows)))
+        self._total_items_label.setStyleSheet(
+            f"color: {_TEXT}; font-size: 11px; font-weight: bold;"
+            f"background: transparent; font-family: {FONT_FAMILY};"
+        )
+        layout.addWidget(self._total_items_label)
+        layout.addSpacing(6)
+
+        remarks_caption = QLabel("Remarks")
+        remarks_caption.setStyleSheet(
+            f"color: {_TEXT}; font-size: 11px; background: transparent;"
+            f"font-family: {FONT_FAMILY};"
+        )
+        layout.addWidget(remarks_caption)
+        self.remarks_edit = _make_edit()
+        self.remarks_edit.setMinimumWidth(140)
+        layout.addWidget(self.remarks_edit)
+        layout.addStretch()
+
+        # -- RIGHT: Net Receivable --
+        net_caption = QLabel("Net Receivable")
+        net_caption.setStyleSheet(
+            f"color: {_TEXT}; font-size: 12px; font-weight: bold;"
+            f"background: transparent; font-family: {FONT_FAMILY};"
+        )
+        self._net_receivable_label = QLabel(self._panel.net_amt_label.text())
+        self._net_receivable_label.setStyleSheet(
+            f"color: {_ACCENT}; font-size: 14px; font-weight: bold;"
+            f"background: transparent; font-family: {FONT_FAMILY};"
+        )
+        layout.addWidget(net_caption)
+        layout.addWidget(self._net_receivable_label)
+        layout.addSpacing(10)
+
+        self._final_save_btn = QPushButton("Save")
+        self._final_save_btn.setStyleSheet(_BTN_SAVE)
+        self._final_save_btn.setFixedWidth(96)
+        self._final_save_btn.setDefault(True)
+        self._final_save_btn.setToolTip(
+            "Commit this bill: save the sale, deduct stock and post accounting"
+        )
+        self._final_save_btn.clicked.connect(self._on_final_save)
+        layout.addWidget(self._final_save_btn)
+
+        close_btn = QPushButton("Close")
+        close_btn.setStyleSheet(_BTN_SECONDARY)
+        close_btn.setFixedWidth(96)
+        close_btn.setAutoDefault(False)
+        close_btn.clicked.connect(self.reject)
+        layout.addWidget(close_btn)
+
+        # Keep the Net Receivable summary live while the bill is edited.
+        self._panel.totals_changed.connect(self._on_totals_changed)
+        return bar
+
+    def _on_totals_changed(self, bill_no: str, amount: str, bill_total: str):
+        self._net_receivable_label.setText(amount)
+        # Adding or deleting a line recalculates the totals, so the item
+        # count is refreshed through that same existing signal.
+        self._total_items_label.setText(str(len(self._panel._item_rows)))
+
+    # Reference proportions for the Sales Bill window: a compact dialog that
+    # is never full-screen at any of the supported desktop resolutions.
+    MIN_WIDTH, MAX_WIDTH = 730, 800
+    MIN_HEIGHT, MAX_HEIGHT = 430, 500
+
+    @classmethod
+    def target_size(cls, available_w: int, available_h: int) -> tuple[int, int]:
+        """Popup size for a screen of ``available_w`` x ``available_h``."""
+        width = min(cls.MAX_WIDTH,
+                    max(cls.MIN_WIDTH, int(available_w * 0.64)))
+        height = min(cls.MAX_HEIGHT,
+                     max(cls.MIN_HEIGHT, int(available_h * 0.66)))
+        return width, height
+
+    def _resize_compact(self):
+        """Keep the popup in the reference proportions, not full-screen."""
+        screen = self.screen() if self.screen() else None
+        available = (screen.availableSize() if screen else QSize(1366, 768))
+        width, height = self.target_size(available.width(), available.height())
+        self.setFixedSize(width, height)
+        self.setMinimumSize(self.MIN_WIDTH, self.MIN_HEIGHT)
+        self.setMaximumSize(self.MAX_WIDTH, self.MAX_HEIGHT)
+        self._center_over_host()
+
+    def _center_over_host(self):
+        """Centre the popup on the Counter Sale screen behind it.
+
+        Qt centres a dialog on its immediate parent, which here is the sale
+        panel, so the position is set explicitly against the whole page to
+        keep the window visually centred over Counter Sale.
+        """
+        host = self.parentWidget()
+        anchor = host.window() if host is not None else None
+        if anchor is None:
+            return
+        area = anchor.geometry()
+        self.move(
+            area.x() + max(0, (area.width() - self.width()) // 2),
+            area.y() + max(0, (area.height() - self.height()) // 2),
+        )
+
+    # ------------------------------------------------------------------
+    # Actions
+    # ------------------------------------------------------------------
+
+    def _on_popup_held(self):
+        """Forward a Hold made inside the popup and close it unchanged."""
+        self._source_panel.held.emit()
+        self.reject()
+
+    def _on_final_save(self):
+        """The only place the sale is actually written.
+
+        ``was_saved`` is checked before and after so a second click (or a
+        double-click) on Save can never produce a second invoice, stock
+        deduction or posting set.
+        """
+        if self._panel.was_saved:
+            return
+        self._final_save_btn.setEnabled(False)
+        # Runs the same full validation as the Counter Sale Save Sale step,
+        # then commits.  Re-enables Save if validation or the write failed.
+        self._panel._on_save()
+        if not self._panel.was_saved:
+            self._final_save_btn.setEnabled(True)
+            return
+        # Committed: the page has already refreshed history via the `saved`
+        # signal, so close the popup.
+        self.accept()
 
 
 # ======================================================================
