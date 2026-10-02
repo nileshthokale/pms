@@ -290,13 +290,19 @@ class CounterSaleLayoutTests(unittest.TestCase):
 
         with mock.patch.object(counter_sale_module.SalesDAO, "insert_invoice",
                                side_effect=fake_insert_invoice):
+            # Save Sale validates the draft and opens the Sales Bill review
+            # popup; the DAO write happens on that popup's final Save.
             self.panel._on_save()
+            review_dialog = self.panel._review_dialog
+            review_dialog._final_save_btn.click()
 
         # The inline form resets after a successful save (the modal dialog
         # used to close here), so the save is verified through the recorded
         # DAO payload plus the cleared bill table.
         self.assertEqual(self.bill_table.rowCount(), 0,
                          "sale area must reset after a successful save")
+        self.assertFalse(hasattr(self.panel, "_review_dialog"),
+                         "review popup must be released after the final save")
         for key in ("bill_no", "sale_date", "sale_time", "sale_type",
                     "customer_id", "patient_name", "doctor_id", "discount",
                     "paid_amount", "total_amount", "round_off", "net_amount",
