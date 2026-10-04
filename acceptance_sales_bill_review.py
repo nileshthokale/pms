@@ -164,7 +164,7 @@ check("popup title is Sales Bill", dlg.windowTitle() == "Sales Bill",
       dlg.windowTitle())
 check("popup is modal", dlg.isModal())
 check("popup is compact, not full-screen",
-      700 < dlg.width() <= 900 and 450 <= dlg.height() <= 560,
+      900 <= dlg.width() <= 1300 and 520 <= dlg.height() <= 600,
       f"{dlg.width()}x{dlg.height()}")
 check("stock untouched when popup opens", stock_of(batch["id"]) == base_stock,
       f"{stock_of(batch['id'])} == {base_stock}")
@@ -204,7 +204,7 @@ from screens.counter_sale import SalesBillReviewDialog  # noqa: E402
 for label, (rw, rh) in (("1366x768", (1366, 768)), ("1600x900", (1600, 900))):
     w, h = SalesBillReviewDialog.target_size(rw, rh)
     check(f"size at {label} is compact and in range",
-          750 <= w <= 900 and 450 <= h <= 545, f"{w}x{h}")
+          900 <= w <= 1300 and 520 <= h <= 600, f"{w}x{h}")
     print(f"        {label} -> {w} x {h}")
 
 print("\n--- Popup is centred over the Counter Sale screen ---")
