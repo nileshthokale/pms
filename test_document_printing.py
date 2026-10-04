@@ -132,12 +132,17 @@ class DocumentPrintingTests(unittest.TestCase):
     def test_29_payment_number(self): self.assertIn(b"SP-0001", self.pdf(printing.generate_supplier_payment, "payment.pdf"))
     def test_30_sales_values(self):
         data = self.pdf(printing.generate_sales_bill, "sales.pdf"); self.assertIn(b"Stored Tablet", data); self.assertIn(b"B-001", data); self.assertIn(b"Patient One", data)
-    def test_31_sales_expiry(self): self.assertIn(b"12/27", self.pdf(printing.generate_sales_bill, "sales.pdf"))
-    def test_32_sales_discount(self): self.assertIn(b"2.00", self.pdf(printing.generate_sales_bill, "sales.pdf"))
-    def test_33_sales_roundoff(self): self.assertIn(b"Round Off", self.pdf(printing.generate_sales_bill, "sales.pdf"))
+    def test_31_sales_expiry(self): self.assertIn(b"12/2027", self.pdf(printing.generate_sales_bill, "sales.pdf"))
+    def test_32_sales_net_amount(self): self.assertIn(b"Net Amt :", self.pdf(printing.generate_sales_bill, "sales.pdf"))
+    def test_33_sales_no_breakdown_rows(self):
+        # The cash memo carries a single Net Amt total, so the amount
+        # breakdown lines are intentionally absent.
+        data = self.pdf(printing.generate_sales_bill, "sales.pdf")
+        for absent in (b"Round Off", b"Bill Discount", b"Paid Amount", b"Total Items"):
+            self.assertNotIn(absent, data, absent)
     def test_34_sales_remarks(self): self.assertIn(b"Sale remark", self.pdf(printing.generate_sales_bill, "sales.pdf"))
-    def test_35_sales_party(self): self.assertIn(b"Customer One", self.pdf(printing.generate_sales_bill, "sales.pdf"))
-    def test_36_sales_doctor(self): self.assertIn(b"Dr Stored", self.pdf(printing.generate_sales_bill, "sales.pdf"))
+    def test_35_sales_party(self): self.assertIn(b"Name : Patient One", self.pdf(printing.generate_sales_bill, "sales.pdf"))
+    def test_36_sales_doctor(self): self.assertIn(b"Doctor : Dr Stored", self.pdf(printing.generate_sales_bill, "sales.pdf"))
     def test_37_counter_stored_values(self): self.assertIn(b"CS-0001", self.pdf(printing.generate_counter_sale_bill, "counter.pdf"))
     def test_38_counter_repeated(self):
         self.pdf(printing.generate_counter_sale_bill, "a.pdf"); self.pdf(printing.generate_counter_sale_bill, "b.pdf"); self.assertEqual(self.counts()[0], 1)

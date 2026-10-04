@@ -111,6 +111,9 @@ FOOTER_PT = 5.6
 RULE_PT = 0.5
 ROW_PAD_MM = 0.55
 LEADING = 1.24
+# Shortest receipt page worth printing; below this the paper would be mostly
+# margin. A one-item bill is sized to its own content, never to a fixed sheet.
+MIN_RECEIPT_HEIGHT_MM = 45.0
 
 # Helvetica advance widths (AFM units/1000) so wrapping never guesses.
 _HELVETICA = {
@@ -229,16 +232,23 @@ def wrap_text(text: str, size_pt: float, max_mm: float, max_lines: int, *, bold:
 # ── Store profile ─────────────────────────────────────────────────────
 
 def store_profile() -> dict[str, str]:
-    """Configured pharmacy identity for the receipt header.
+    """Configured pharmacy identity for the receipt header and footer.
 
-    The schema has no pharmacy/store profile table, so this returns an empty
-    mapping today and the receipt header is omitted entirely. It is the single
-    extension point: when a store profile exists, return its ``name``,
-    ``address``, ``gstin`` and ``pharmacist`` keys here and the A6 bill picks
-    them up with no layout change. Business identity is never hard-coded and
-    never invented.
+    The schema has no store/pharmacy-profile table, so the identity for this
+    counter is declared here: the shop name prints big and bold, and the
+    location line under it prints small.
+
+    It is the single extension point: return ``name``, ``address``,
+    ``jurisdiction``, ``gstin`` and ``pharmacist`` here once the application
+    stores that identity, and the cash-memo layout picks all of it up with no
+    layout change. Keys that are omitted are left out rather than invented.
     """
-    return {}
+    return {
+        "name": "SHREE SAMARTH MEDICAL AND GEN STORE",
+        "address": "GHORPADE HOSPITAL ,RAHURI",
+        "jurisdiction": "AHMEDNAGAR",
+        "licence": "20-MH-AHM-61069,21-MH-AHM-61070,20C-MH-AHM-610",
+    }
 
 
 # ── Layout model ──────────────────────────────────────────────────────
@@ -282,6 +292,63 @@ def _qty(value: Any) -> str:
     return f"{number:g}"
 
 
+def _expiry(value: Any) -> str:
+    """Stored expiry as DD/MM/YYYY when the stored value carries a day.
+
+    Only re-formats what is already stored: ``YYYY-MM-DD`` becomes
+    ``DD/MM/YYYY`` and ``DD/MM/YYYY`` is passed through. A month/year value
+    such as ``12/27`` has no day, so the year is simply expanded to
+    ``12/2027`` rather than inventing a day of the month.
+    """
+    import re
+
+    text = _text(value).strip()
+    if not text:
+        return ""
+    iso = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", text)
+    if iso:
+        return f"{iso.group(3)}/{iso.group(2)}/{iso.group(1)}"
+    month_year = re.fullmatch(r"(\d{1,2})/(\d{2,4})", text)
+    if month_year:
+        year = int(month_year.group(2))
+        if year < 100:
+            year += 2000
+        return f"{int(month_year.group(1)):02d}/{year}"
+    return text
+
+
+def sale_item_units(invoice_id: int) -> dict[int, str]:
+    """Unit name per item id for one invoice.
+
+    Read-only query local to printing, exactly like ``sale_item_companies``;
+    ``SalesDAO`` is deliberately untouched.
+    """
+    from database.connection import get_connection
+
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT sii.item_id AS item_id, u.unit_name AS unit_name
+            FROM sales_invoice_items sii
+            LEFT JOIN items i ON i.id = sii.item_id
+            LEFT JOIN units u ON u.id = i.unit_id
+            WHERE sii.sales_invoice_id = ?
+            """,
+            (invoice_id,),
+        ).fetchall()
+    except Exception:
+        return {}
+    finally:
+        conn.close()
+    result: dict[int, str] = {}
+    for row in rows:
+        name = row["unit_name"] or ""
+        if name:
+            result[int(row["item_id"])] = _text(name)
+    return result
+
+
 def sale_item_companies(invoice_id: int) -> dict[int, str]:
     """Company (manufacturer) short name per item id for one invoice.
 
@@ -315,6 +382,7 @@ def sale_item_companies(invoice_id: int) -> dict[int, str]:
 
 def build_layout(record: dict[str, Any], items: list[dict[str, Any]],
                  companies: dict[int, str] | None = None,
+                 units: dict[int, str] | None = None,
                  profile: PaperProfile = PHARMACY_A6) -> list[Block]:
     """Build the A6 receipt as ordered layout blocks (millimetres, origin top-left).
 
@@ -322,6 +390,7 @@ def build_layout(record: dict[str, Any], items: list[dict[str, Any]],
     pagination accounts for every millimetre of vertical space.
     """
     companies = companies or {}
+    units = units or {}
     content_w = profile.content_width_mm
     x0 = profile.margin_left_mm
     cursor = profile.margin_top_mm
@@ -354,40 +423,52 @@ def build_layout(record: dict[str, Any], items: list[dict[str, Any]],
     profile_data = store_profile()
     title = _text(record.get("document_title") or record.get("title") or "Sales Bill")
 
-    # ── Header ──
+    # ── Header: pharmacy name + address, exactly as stored ──
+    # Nothing is invented: when no store profile is configured the receipt
+    # simply has no name/address line and falls back to the document title.
     if profile_data.get("name"):
-        emit(line_block(_text(profile_data["name"]), TITLE_PT, bold=True, align="center", kind="header"))
+        for name_line in wrap_text(_text(profile_data["name"]), TITLE_PT,
+                                   content_w, 2, bold=True):
+            emit(line_block(name_line, TITLE_PT, bold=True, align="center", kind="header"))
         if profile_data.get("address"):
-            emit(line_block(_text(profile_data["address"]), SUBTITLE_PT, align="center", kind="header"))
+            for address_line in wrap_text(_text(profile_data["address"]),
+                                          SUBTITLE_PT, content_w, 2):
+                emit(line_block(address_line, SUBTITLE_PT, align="center", kind="header"))
     emit(line_block(title, TITLE_PT if not profile_data.get("name") else SUBTITLE_PT,
                     bold=True, align="center", kind="header"))
 
-    bill_no = _text(record.get("bill_no"))
-    left_bits = [f"Bill No: {bill_no}" if bill_no else "Bill No:"]
-    date = _text(record.get("sale_date"))
-    time = _text(record.get("sale_time"))
-    right_bits = [f"Date: {date}" if date else "Date:"]
-    if time:
-        right_bits.append(f"Time: {time}")
-    meta = Block(kind="header", height_mm=line_height_mm(META_PT) * 2.1)
-    meta.rules.append((cursor + line_height_mm(META_PT) * 1.35, 0.4))
-    for index, text in enumerate((("  ".join(left_bits), "  ".join(right_bits)))):
-        meta.runs.append(Run(x0, cursor + line_height_mm(META_PT) * 0.78
-                             + index * line_height_mm(META_PT),
-                             content_w * 0.5, text, META_PT, False,
-                             "left" if index == 0 else "right"))
-    emit(meta)
+    # ── Customer block: Name / Doctor on the left, Cash Memo / Date on the right ──
+    customer = _text(record.get("patient_name")) or _text(record.get("customer_name"))
+    doctor = _text(record.get("doctor_name"))
+    memo = _text(record.get("bill_no"))
+    sale_date = _text(record.get("sale_date"))
 
-    party_bits = []
-    if record.get("patient_name"):
-        party_bits.append(f"Patient: {_text(record['patient_name'])}")
-    if record.get("customer_name"):
-        party_bits.append(f"Customer: {_text(record['customer_name'])}")
-    if record.get("doctor_name"):
-        party_bits.append(f"Doctor: {_text(record['doctor_name'])}")
-    if party_bits:
-        pending_gap = 0.6
-        emit(line_block("   ".join(party_bits), META_PT, kind="header"))
+    # Two independent columns with a gutter between them, so a long name can
+    # wrap inside its own column instead of running over the memo and date.
+    line_h = line_height_mm(META_PT)
+    left_x, left_w = x0, content_w * 0.50
+    right_x, right_w = x0 + content_w * 0.52, content_w * 0.48
+
+    left_lines: list[str] = []
+    for label, value in (("Name", customer), ("Doctor", doctor)):
+        if value:
+            left_lines.extend(wrap_text(f"{label} : {value}", META_PT, left_w, 2))
+    right_lines: list[str] = []
+    for label, value in (("Cash Memo", memo), ("Date", sale_date)):
+        if value:
+            right_lines.append(ellipsize(f"{label} : {value}", META_PT, right_w))
+
+    rows = max(len(left_lines), len(right_lines))
+    pending_gap = 0.8
+    party = Block(kind="header", height_mm=line_h * rows + line_h * 0.3)
+    party.rules.append((cursor + party.height_mm - line_h * 0.15, 0.4))
+    for index, line_text in enumerate(left_lines):
+        party.runs.append(Run(left_x, cursor + line_h * 0.78 + index * line_h,
+                              left_w, line_text, META_PT, False, "left"))
+    for index, line_text in enumerate(right_lines):
+        party.runs.append(Run(right_x, cursor + line_h * 0.78 + index * line_h,
+                              right_w, line_text, META_PT, False, "right"))
+    emit(party)
 
     # ── Item table ──
     pending_gap = 1.0
@@ -404,14 +485,14 @@ def build_layout(record: dict[str, Any], items: list[dict[str, Any]],
         emit(line_block("No items on this bill.", BODY_PT, align="center", kind="row"))
 
     for item in items:
-        company = companies.get(int(item.get("item_id") or 0), "")
+        item_id = int(item.get("item_id") or 0)
         values = {
             "qty": _qty(item.get("sale_qty")),
-            "unit": _text(item.get("pack_size")),
+            "unit": units.get(item_id, ""),
             "description": _text(item.get("item_name")),
-            "company": company,
+            "company": companies.get(item_id, ""),
             "batch": _text(item.get("batch_no")),
-            "expiry": _text(item.get("expiry")),
+            "expiry": _expiry(item.get("expiry")),
             "amount": _money(item.get("amount")),
         }
         prepared: dict[str, list[str]] = {}
@@ -436,67 +517,104 @@ def build_layout(record: dict[str, Any], items: list[dict[str, Any]],
 
     # ── Totals (held back to the final page) ──
     pending_gap = 1.0
-
-    def total_row(label: str, value: str, *, bold: bool = False, size: float = TOTAL_PT) -> None:
-        nonlocal cursor
-        height = line_height_mm(size) * 1.15
-        block = Block(kind="totals", height_mm=height)
-        block.runs.append(Run(x0, cursor + line_height_mm(size) * 0.8,
-                              content_w * 0.6, label, size, bold, "left"))
-        block.runs.append(Run(x0 + content_w * 0.6, cursor + line_height_mm(size) * 0.8,
-                              content_w * 0.4, value, size, bold, "right"))
-        emit(block)
-
-    total_row("Total Items", str(len(items)))
-    total_row("Total Amount", _money(record.get("total_amount")))
-    total_row("Bill Discount", _money(record.get("discount")))
-    total_row("Round Off", _money(record.get("round_off")))
-    total_row("Paid Amount", _money(record.get("paid_amount")))
-
+    net_label = "Net Amt :"
     net = Block(kind="totals", height_mm=line_height_mm(NET_PT) * 1.7,
                 rules=[(cursor, 0.4), (cursor + line_height_mm(NET_PT) * 1.7 - 0.4, 0.4)])
     net.runs.append(Run(x0, cursor + line_height_mm(NET_PT) * 1.0,
-                        content_w * 0.6, "Net Amt", NET_PT, True, "left"))
+                        content_w * 0.6, net_label, NET_PT, True, "left"))
     net.runs.append(Run(x0 + content_w * 0.6, cursor + line_height_mm(NET_PT) * 1.0,
                         content_w * 0.4, _money(record.get("net_amount")), NET_PT, True, "right"))
     emit(net)
 
+    # ── Footer (held back to the final page) ──
     # ── Footer (held back to the final page) ──
     pending_gap = 1.0
     remarks = _text(record.get("remarks"))
     if remarks:
         for remark_line in wrap_text(remarks, FOOTER_PT, content_w, 2):
             pending_gap = 0.0
-            emit(line_block(remark_line, FOOTER_PT, align="center", kind="footer"))
+            emit(line_block(remark_line, FOOTER_PT, align="left", kind="footer"))
+
+    # Footer in two columns: "E & O E." and the licence numbers on the left,
+    # the shop name and the sign-off line on the right.
+    #
+    # The rows are stacked rather than paired because the licence line
+    # (51.7mm) and the shop name (43.8mm) need 95.5mm of the 97mm content
+    # width, so pairing them on one row would leave a 0.01mm gutter and clip
+    # one of them. Stacked, each line is measured against its own column and
+    # keeps real clearance.
+    line_h = line_height_mm(FOOTER_PT)
+    gutter = 1.5
+
+    # "E & O E." on the left; a configured jurisdiction is appended rather
+    # than hard-coded, so no place name is invented.
+    errors_line = "E & O E."
+    if profile_data.get("jurisdiction"):
+        errors_line = f"E & O E. Subject to {_text(profile_data['jurisdiction'])} Jurisdiction"
+
+    # A row is (left text, right text, right bold).
+    foot_rows: list[tuple[str, str, bool]] = [
+        (errors_line, _text(profile_data.get("name")), True),
+    ]
+    # Drug licence numbers print only when one is actually configured.
+    licence = _text(profile_data.get("licence"))
+    if licence:
+        foot_rows.append((licence, "", False))
+    # GSTIN prints only when one is actually configured; a blank or invented
+    # tax id is never shown.
     if profile_data.get("gstin"):
-        pending_gap = 0.3
-        emit(line_block(f"GSTIN: {_text(profile_data['gstin'])}", FOOTER_PT, align="center", kind="footer"))
-    pending_gap = 0.5
-    emit(line_block("E & O.E.", FOOTER_PT, align="center", kind="footer"))
-    if profile_data.get("pharmacist"):
-        pending_gap = 0.3
-        emit(line_block(f"Pharmacist: {_text(profile_data['pharmacist'])}", FOOTER_PT,
-                        align="center", kind="footer"))
-    pending_gap = 0.3
-    emit(line_block("Printed from stored application data.", FOOTER_PT, align="center", kind="footer"))
+        foot_rows.append((f"GSTIN: {_text(profile_data['gstin'])}", "", False))
+    foot_rows.append(("", "Pharmacist/Sign", False))
+
+    # Size the right column to its own widest line, anchored to the right edge,
+    # instead of splitting the width by a fixed ratio: the licence line needs
+    # 51.7mm and the bold shop name 43.8mm of the 97mm content width, so any
+    # fixed ratio either clips one of them or wastes the gutter.
+    right_needed = max(
+        (text_width_mm(text, FOOTER_PT, bold=bold)
+         for _left, text, bold in foot_rows if text),
+        default=0.0)
+    right_w = min(content_w * 0.55, right_needed + 1.0)
+    right_x = x0 + content_w - right_w
+    # A row sharing its line with the right column gets only what is left of
+    # the width; a row on its own (the licence numbers, GSTIN) uses the full
+    # width instead of being squeezed for no reason.
+    paired_left_w = max(0.0, right_x - gutter - x0)
+
+    pending_gap = 0.0
+    footer = Block(kind="footer", height_mm=line_h * len(foot_rows) + line_h * 0.3)
+    for index, (left_text, right_text, right_bold) in enumerate(foot_rows):
+        row_y = cursor + line_h * 0.78 + index * line_h
+        if left_text:
+            left_w = paired_left_w if right_text else content_w
+            footer.runs.append(Run(x0, row_y, left_w,
+                                   ellipsize(left_text, FOOTER_PT, left_w),
+                                   FOOTER_PT, False, "left"))
+        if right_text:
+            footer.runs.append(Run(right_x, row_y, right_w,
+                                   ellipsize(right_text, FOOTER_PT, right_w,
+                                             bold=right_bold),
+                                   FOOTER_PT, right_bold, "right"))
+    emit(footer)
     return blocks
 
 
 def reflow(blocks: list[Block], start_y_mm: float) -> list[Block]:
     """Place blocks sequentially from ``start_y_mm`` and return absolute positions.
 
-    Blocks store positions relative to their own top, so this re-flows a page
-    without mutating the shared header/tail blocks used on other pages.
+    Blocks store run and rule positions relative to their own top, so each block
+    must be shifted by ITS OWN top. Shifting every block by the page's start
+    offset instead stacked the whole page on one y position, which made the
+    header, the customer block and every item row print on top of each other.
     """
     cursor = start_y_mm
     placed: list[Block] = []
     for block in blocks:
-        shift = start_y_mm
         moved = Block(kind=block.kind, height_mm=block.height_mm,
                       top_mm=cursor,
-                      runs=[Run(run.x_mm, run.y_mm + shift, run.width_mm, run.text,
+                      runs=[Run(run.x_mm, cursor + run.y_mm, run.width_mm, run.text,
                                 run.size_pt, run.bold, run.align) for run in block.runs],
-                      rules=[(y + shift, thickness) for y, thickness in block.rules])
+                      rules=[(cursor + y, thickness) for y, thickness in block.rules])
         if getattr(block, "repeat", False):
             moved.repeat = True  # type: ignore[attr-defined]
         placed.append(moved)
@@ -519,19 +637,28 @@ def paginate(blocks: list[Block], profile: PaperProfile = PHARMACY_A6) -> list[l
     limit = profile.content_height_mm
     tail_height = sum(block.height_mm for block in tail)
     repeating_height = sum(block.height_mm for item in repeating for block in [item])
+    # The first page carries the document header, which occupies real height.
+    # Sizing the first group as if it started at the top margin pushed the
+    # last rows of a full page past the bottom of the sheet.
+    head_height = sum(block.height_mm for block in head)
 
     def group_blocks(reserve_tail: float) -> list[list[Block]]:
+        """Split the body into pages that each actually fit.
+
+        The break test must compare the space left with the height of the block
+        being added. Testing only whether one block fits keeps appending until a
+        single block no longer fits, which pushed whole pages of item rows past
+        the bottom of the sheet.
+        """
         groups: list[list[Block]] = []
         current: list[Block] = []
         used = 0.0
         for block in body:
-            prefix_height = 0.0 if not groups and not current else repeating_height
-            available = limit - used - prefix_height - reserve_tail
-            if current and block.height_mm > available:
+            prefix = head_height if not groups else repeating_height
+            if current and used + block.height_mm > limit - prefix - reserve_tail:
                 groups.append(current)
                 current = []
                 used = 0.0
-                available = limit - repeating_height - reserve_tail
             current.append(block)
             used += block.height_mm
         groups.append(current)
@@ -541,7 +668,7 @@ def paginate(blocks: list[Block], profile: PaperProfile = PHARMACY_A6) -> list[l
     # needs it, so short bills are not pushed onto an extra sheet needlessly.
     groups = group_blocks(0.0)
     last_used = sum(block.height_mm for block in groups[-1])
-    last_prefix = 0.0 if len(groups) == 1 else repeating_height
+    last_prefix = head_height if len(groups) == 1 else repeating_height
     if last_used + last_prefix + tail_height > limit:
         groups = group_blocks(tail_height)
 
@@ -622,7 +749,13 @@ def _pdf_escape_bytes(value: Any) -> bytes:
     return _pdf_escape(value).encode("latin-1", "replace")
 
 
-def _run_x_pt(run: Run) -> float:
+def _run_left_mm(run: Run) -> float:
+    """Left edge of a run's ink in millimetres, honouring its alignment.
+
+    Layout is computed in millimetres throughout; conversion to points happens
+    exactly once, at the backend that draws. Converting here as well would
+    scale every x by mm->pt a second time and push the text off the page.
+    """
     if run.align == "right":
         return run.x_mm + run.width_mm - text_width_mm(run.text, run.size_pt, bold=run.bold)
     if run.align == "center":
@@ -646,19 +779,27 @@ def pages_to_pdf_bytes(pages: list[list[Block]], profile: PaperProfile = PHARMAC
         content_id = page_id + 1
         page_ids.append(page_id)
         commands: list[bytes] = []
+        # Rules are horizontal separators. The PDF path operator takes ABSOLUTE
+        # coordinates, so the line-to endpoint must be offset by the rule's own
+        # origin: (x0, y0) -> (x0 + width, y0 + thickness). Passing the width and
+        # thickness as absolute coordinates instead drew a long diagonal from the
+        # rule's left edge down to the bottom-right of the page.
+        rule_x_pt = profile.margin_left_mm * mm_to_pt
+        rule_len_pt = profile.content_width_mm * mm_to_pt
         for block in page_blocks:
             for y_mm, thickness in block.rules:
                 y_pt = height_pt - y_mm * mm_to_pt
+                thickness_pt = max(0.4, thickness * mm_to_pt)
                 commands.append(
-                    f"{profile.margin_left_mm * mm_to_pt:.2f} {y_pt:.2f} m "
-                    f"{profile.content_width_mm * mm_to_pt:.2f} {thickness:.2f} l S".encode()
+                    f"{rule_x_pt:.2f} {y_pt:.2f} m "
+                    f"{rule_x_pt + rule_len_pt:.2f} {y_pt + thickness_pt:.2f} l S".encode()
                 )
         for block in page_blocks:
             for run in block.runs:
                 if not run.text:
                     continue
                 font = "/F2" if run.bold else "/F1"
-                x_pt = _run_x_pt(run) * mm_to_pt
+                x_pt = _run_left_mm(run) * mm_to_pt
                 y_pt = height_pt - run.y_mm * mm_to_pt
                 commands.append(
                     f"BT {font} {run.size_pt:.2f} Tf 1 0 0 1 {x_pt:.2f} {y_pt:.2f} Tm "
@@ -708,11 +849,134 @@ def load_sale(invoice_id: int, title: str) -> tuple[dict[str, Any], list[dict[st
     return record, items
 
 
+def deepest_content_mm(page_blocks: list[Block]) -> float:
+    """Lowest point any run or rule reaches on one page, in millimetres."""
+    deepest = 0.0
+    for block in page_blocks:
+        deepest = max(deepest, block.top_mm + block.height_mm)
+        for run in block.runs:
+            deepest = max(deepest, run.y_mm + line_height_mm(run.size_pt))
+        for y_mm, thickness in block.rules:
+            deepest = max(deepest, y_mm + thickness)
+    return deepest
+
+
+def used_height_mm(pages: list[list[Block]], profile: PaperProfile = PHARMACY_A6) -> float:
+    """Deepest content across every page, plus the bottom margin."""
+    deepest = 0.0
+    for page_blocks in pages:
+        deepest = max(deepest, deepest_content_mm(page_blocks))
+    return deepest + profile.margin_bottom_mm
+
+
+def content_profile(pages: list[list[Block]],
+                    profile: PaperProfile = PHARMACY_A6) -> PaperProfile:
+    """A receipt page sized to the bill instead of a fixed sheet.
+
+    The width is always the receipt width; the height shrinks to the content
+    so a one-item bill is a short receipt rather than a mostly blank A6 sheet,
+    and never grows past the paper the profile already supports.
+    """
+    wanted = used_height_mm(pages, profile)
+    height = max(MIN_RECEIPT_HEIGHT_MM, min(wanted, profile.height_mm))
+    if abs(height - profile.height_mm) < 0.01:
+        return profile
+    return PaperProfile(
+        name=f"{profile.name}_CONTENT",
+        width_mm=profile.width_mm,
+        height_mm=round(height, 2),
+        margin_left_mm=profile.margin_left_mm,
+        margin_right_mm=profile.margin_right_mm,
+        margin_top_mm=profile.margin_top_mm,
+        margin_bottom_mm=profile.margin_bottom_mm,
+        orientation=profile.orientation,
+        scale_percent=profile.scale_percent,
+    )
+
+
+def validate_pages(pages: list[list[Block]], profile: PaperProfile = PHARMACY_A6) -> None:
+    """Fail loudly if any run or rule falls outside the page.
+
+    Guards the coordinate mistakes that ruin a printed bill: a rule drawn with
+    the page height as its x (or vice versa), a negative offset, or content that
+    runs past the printable edge.
+    """
+    page_w = profile.width_mm
+    page_h = profile.height_mm
+    for number, page_blocks in enumerate(pages, 1):
+        for block in page_blocks:
+            for run in block.runs:
+                if not run.text:
+                    continue
+                width = text_width_mm(run.text, run.size_pt, bold=run.bold)
+                left = _run_left_mm(run)
+                if left < -0.01:
+                    raise ReceiptPrintError(
+                        f"page {number}: negative x {left:.2f}mm for {run.text[:24]!r}")
+                if left + width > page_w + 0.5:
+                    raise ReceiptPrintError(
+                        f"page {number}: text past the right edge "
+                        f"({left + width:.2f}mm > {page_w}mm) for {run.text[:24]!r}")
+                if run.y_mm < -0.01:
+                    raise ReceiptPrintError(
+                        f"page {number}: negative y {run.y_mm:.2f}mm for {run.text[:24]!r}")
+                if run.y_mm > page_h + 0.5:
+                    raise ReceiptPrintError(
+                        f"page {number}: text below the page "
+                        f"({run.y_mm:.2f}mm > {page_h}mm) for {run.text[:24]!r}")
+            for y_mm, thickness in block.rules:
+                if y_mm < -0.01 or y_mm > page_h + 0.5:
+                    raise ReceiptPrintError(
+                        f"page {number}: rule outside the page at y={y_mm:.2f}mm")
+
+
+def run_ink_box(run: Run) -> tuple[float, float, float, float]:
+    """Ink rectangle (left, top, right, bottom) in millimetres.
+
+    ``run.y_mm`` is a text baseline, so the ink starts one ascent above it and
+    ends one descent below. Treating the baseline as the top of the box would
+    report false collisions for text that is printed correctly.
+    """
+    height = line_height_mm(run.size_pt)
+    ascent = height * 0.75
+    descent = height * 0.25
+    left = _run_left_mm(run)
+    return left, run.y_mm - ascent, left + text_width_mm(
+        run.text, run.size_pt, bold=run.bold), run.y_mm + descent
+
+
+def overlapping_runs(page_blocks: list[Block], *, pad_mm: float = 0.08) -> list[tuple[str, str]]:
+    """Pairs of text runs whose ink boxes collide on one page.
+
+    Used to prove the layout stacks sections instead of printing them on top of
+    each other; two runs only collide when they really occupy the same band.
+    """
+    boxes = [(*run_ink_box(run), run.text)
+             for block in page_blocks for run in block.runs if run.text]
+    collisions: list[tuple[str, str]] = []
+    for index, (x0, y0, x1, y1, t0) in enumerate(boxes):
+        for x2, y2, x3, y3, t1 in boxes[index + 1:]:
+            if x0 + pad_mm <= x2 or x2 + pad_mm <= x0:
+                continue
+            if y0 + pad_mm <= y2 or y2 + pad_mm <= y0:
+                continue
+            # Horizontal separation always wins; report only a true 2-D clash.
+            if x1 <= x2 or x3 <= x0:
+                continue
+            if y1 <= y2 or y3 <= y0:
+                continue
+            collisions.append((t0, t1))
+    return collisions
+
+
 def build_sale_pages(invoice_id: int, title: str = "Sales Bill",
                      profile: PaperProfile = PHARMACY_A6) -> tuple[list[list[Block]], dict]:
     record, items = load_sale(invoice_id, title)
     companies = sale_item_companies(invoice_id)
-    pages = paginate(build_layout(record, items, companies, profile), profile)
+    units = sale_item_units(invoice_id)
+    pages = paginate(build_layout(record, items, companies, units, profile), profile)
+    page_profile = content_profile(pages, profile)
+    validate_pages(pages, page_profile)
     return pages, record
 
 
@@ -740,16 +1004,17 @@ def pages_to_preview_text(pages: list[list[Block]]) -> str:
 def generate_pharmacy_a6_bill(invoice_id: int, output_path: str | os.PathLike[str],
                               title: str = "Sales Bill",
                               profile: PaperProfile = PHARMACY_A6) -> str:
-    """Write a sales/counter-sale receipt PDF on true A6 paper."""
+    """Write a sales/counter-sale receipt PDF on a content-sized A6 page."""
     from pathlib import Path
 
     pages, _record = build_sale_pages(invoice_id, title, profile)
+    page_profile = content_profile(pages, profile)
     path = Path(output_path)
     if path.suffix.casefold() != ".pdf":
         path = path.with_suffix(".pdf")
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(pages_to_pdf_bytes(pages, profile))
+        path.write_bytes(pages_to_pdf_bytes(pages, page_profile))
     except OSError as exc:
         raise ReceiptPrintError(f"Could not create PDF at {path}: {exc}") from exc
     return str(path)
@@ -807,12 +1072,12 @@ def supported_page_size_mm(printer_name: str) -> list[tuple[float, float]]:
 
 def draw_pages_on_painter(painter, pages: list[list[Block]], rect,
                           profile: PaperProfile = PHARMACY_A6, device=None) -> None:
-    """Paint the A6 layout into ``rect`` (device units), letterboxed to fit.
+    """Paint the receipt layout into ``rect`` (device units), fitted to width.
 
-    The receipt is scaled uniformly to the smaller axis and centred, so content
-    can never land outside the device's printable area even when a driver forces
-    a different paper size. In Qt 6 page breaks belong to the paged device
-    (``QPdfWriter``/``QPrinter``), not the painter.
+    The receipt is scaled uniformly so its width fills the device and kept
+    top-aligned, so a short bill prints as a short receipt at the top of the
+    sheet instead of floating in the middle of it. In Qt 6 page breaks belong
+    to the paged device (``QPdfWriter``/``QPrinter``), not the painter.
     """
     from PySide6.QtCore import QRectF
     from PySide6.QtGui import QFont
@@ -822,8 +1087,10 @@ def draw_pages_on_painter(painter, pages: list[list[Block]], rect,
     target_w = rect.width()
     target_h = rect.height()
     scale = min(target_w / width_pt, target_h / height_pt)
+    if scale <= 0:
+        return
     origin_x = rect.x() + (target_w - width_pt * scale) / 2.0
-    origin_y = rect.y() + (target_h - height_pt * scale) / 2.0
+    origin_y = rect.y()
 
     for page_number, page_blocks in enumerate(pages, 1):
         if page_number > 1:
@@ -847,7 +1114,7 @@ def draw_pages_on_painter(painter, pages: list[list[Block]], rect,
                 font.setBold(run.bold)
                 painter.setFont(font)
                 painter.drawText(
-                    origin_x + _run_x_pt(run) * PT_PER_MM * scale,
+                    origin_x + _run_left_mm(run) * PT_PER_MM * scale,
                     origin_y + run.y_mm * PT_PER_MM * scale,
                     run.text,
                 )
@@ -867,8 +1134,9 @@ def print_pharmacy_a6_bill(invoice_id: int, parent=None, title: str = "Sales Bil
         raise ReceiptPrintError("Printer support requires PySide6; use Save PDF instead.") from exc
 
     pages, _record = build_sale_pages(invoice_id, title, profile)
+    page_profile = content_profile(pages, profile)
     printer = QPrinter(QPrinter.HighResolution)
-    layout = qt_page_layout(profile)
+    layout = qt_page_layout(page_profile)
     if layout is not None:
         printer.setPageLayout(layout)
     if show_dialog:
@@ -884,7 +1152,7 @@ def print_pharmacy_a6_bill(invoice_id: int, parent=None, title: str = "Sales Bil
         if not painter.begin(printer):
             raise ReceiptPrintError("Could not start the print job.")
         painter.setRenderHint(QPainter.Antialiasing, True)
-        draw_pages_on_painter(painter, pages, painter.viewport(), profile)
+        draw_pages_on_painter(painter, pages, painter.viewport(), page_profile)
     except ReceiptPrintError:
         raise
     except Exception as exc:
@@ -899,9 +1167,11 @@ __all__ = [
     "ReceiptPrintError", "PaperProfile", "PHARMACY_A6", "A4_REFERENCE", "RECEIPT_PROFILES",
     "Column", "COLUMNS", "columns_width_mm", "Run", "Block",
     "text_width_mm", "line_height_mm", "ellipsize", "wrap_text", "store_profile",
-    "build_layout", "paginate", "load_sale", "sale_item_companies",
+    "build_layout", "paginate", "load_sale", "sale_item_companies", "sale_item_units",
     "qt_page_size", "qt_page_layout", "page_size_pt",
     "pages_to_pdf_bytes", "pages_to_preview_text", "build_sale_pages",
+    "deepest_content_mm", "used_height_mm", "content_profile",
+    "validate_pages", "overlapping_runs", "run_ink_box",
     "generate_pharmacy_a6_bill", "preview_pharmacy_a6_bill",
     "available_printers", "default_printer_name", "supported_page_size_mm",
     "draw_pages_on_painter", "print_pharmacy_a6_bill",

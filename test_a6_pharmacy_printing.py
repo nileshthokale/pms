@@ -7,6 +7,7 @@ Every test uses a disposable temporary SQLite database; ``data/pharmacy.db`` is
 never opened or modified.
 """
 
+import inspect
 import os
 import re
 import sys
@@ -196,13 +197,27 @@ class A6TextTests(unittest.TestCase):
     def test_31_wrap_text_handles_empty(self):
         self.assertEqual(a6.wrap_text("", 6.2, 27.0, 2), [""])
 
-    def test_32_store_profile_invents_nothing(self):
-        self.assertEqual(a6.store_profile(), {})
+    def test_32_store_profile_declares_only_the_real_identity(self):
+        profile = a6.store_profile()
+        # The counter's identity is configured, so every declared key carries a
+        # real value. Keys that were never supplied stay absent: an unset
+        # GSTIN or pharmacist name is never invented.
+        for key in ("name", "address", "jurisdiction", "licence"):
+            self.assertTrue(str(profile.get(key, "")).strip(), key)
+        for key in ("gstin", "pharmacist"):
+            self.assertNotIn(key, profile, key)
 
-    def test_33_module_has_no_hard_coded_business_name(self):
+    def test_33_business_identity_lives_only_in_store_profile(self):
         source = Path(a6.__file__).read_text(encoding="utf-8")
-        for marker in ("SAMARTH", "GHORPADE", "RAHURI", "Canon", "LBP2900"):
-            self.assertNotIn(marker, source, marker)
+        identity = str(a6.store_profile().get("name") or "")
+        self.assertTrue(identity)
+        # The identity may be declared in exactly one place, and no printer or
+        # business name may be scattered through the layout code.
+        self.assertEqual(source.count(identity), 1, identity)
+        declaration = inspect.getsource(a6.store_profile)
+        remainder = source.replace(declaration, "")
+        for marker in (identity, "Canon", "LBP2900", "AHMEDNAGAR"):
+            self.assertNotIn(marker, remainder, marker)
 
     def test_34_module_has_no_mysql_reference(self):
         self.assertNotIn("mysql", Path(a6.__file__).read_text(encoding="utf-8").casefold())
@@ -285,24 +300,31 @@ class A6PdfTests(unittest.TestCase):
         self.assertTrue(data.endswith(b"%%EOF\n"))
         self.assertGreater(len(data), 500)
 
-    def test_37_pdf_page_is_105x148_mm(self):
+    def test_37_pdf_page_is_the_receipt_width(self):
         boxes = media_boxes(self.bill("a6.pdf"))
         self.assertEqual(len(boxes), 1)
         width_mm = boxes[0][0] / PT_PER_MM
         height_mm = boxes[0][1] / PT_PER_MM
+        # The page is sized to the bill: always the narrow receipt width, and a
+        # height that follows the content instead of a fixed sheet.
         self.assertAlmostEqual(width_mm, 105.0, places=1)
-        self.assertAlmostEqual(height_mm, 148.0, places=1)
+        self.assertGreaterEqual(height_mm, a6.MIN_RECEIPT_HEIGHT_MM)
+        self.assertLessEqual(height_mm, 148.0)
 
     def test_38_pdf_page_is_not_a4(self):
-        width_mm, height_mm = media_boxes(self.bill("a6.pdf"))[0]
-        self.assertNotAlmostEqual(width_mm / PT_PER_MM, 210.0, places=0)
-        self.assertNotAlmostEqual(height_mm / PT_PER_MM, 297.0, places=0)
+        width_mm, height_mm = (box / PT_PER_MM
+                               for box in media_boxes(self.bill("a6.pdf"))[0])
+        self.assertNotAlmostEqual(width_mm, 210.0, places=0)
+        self.assertNotAlmostEqual(height_mm, 297.0, places=0)
 
-    def test_39_every_page_is_a6(self):
+    def test_39_every_page_is_the_receipt_width(self):
         self.items(30)
         for width, height in media_boxes(self.bill("a6_multi.pdf")):
             self.assertAlmostEqual(width / PT_PER_MM, 105.0, places=1)
-            self.assertAlmostEqual(height / PT_PER_MM, 148.0, places=1)
+            self.assertGreaterEqual(height / PT_PER_MM, a6.MIN_RECEIPT_HEIGHT_MM)
+            # The profile's own page height round-trips through points, so a
+            # full page measures a few thousandths of a millimetre over 148.
+            self.assertLessEqual(height / PT_PER_MM, 148.0 + 0.01)
 
     # â”€â”€ Header, identifiers, party â”€â”€
 
@@ -319,18 +341,43 @@ class A6PdfTests(unittest.TestCase):
         self.assertIn(b"2026-09-16", self.bill("a6.pdf"))
 
     def test_44_patient_present(self):
-        self.assertIn(b"Patient One", self.bill("a6.pdf"))
+        self.assertIn(b"Name : Patient One", self.bill("a6.pdf"))
 
     def test_45_doctor_present(self):
-        self.assertIn(b"Dr Stored", self.bill("a6.pdf"))
+        self.assertIn(b"Doctor : Dr Stored", self.bill("a6.pdf"))
 
-    def test_46_customer_present(self):
-        self.assertIn(b"Customer One", self.bill("a6.pdf"))
+    def test_46_customer_is_the_name_when_there_is_no_patient(self):
+        """The single "Name" line falls back to the customer."""
+        conn = get_connection()
+        conn.execute("UPDATE sales_invoices SET patient_name = '' WHERE id = 1")
+        conn.commit()
+        conn.close()
+        self.assertIn(b"Name : Customer One", self.bill("a6_nopatient.pdf"))
+        conn = get_connection()
+        conn.execute("UPDATE sales_invoices SET patient_name = 'Patient One' WHERE id = 1")
+        conn.commit()
+        conn.close()
 
-    def test_47_no_business_name_is_invented(self):
+    def test_47_configured_identity_is_printed_where_it_belongs(self):
         data = self.bill("a6.pdf")
-        for marker in (b"SAMARTH", b"GHORPADE", b"RAHURI"):
-            self.assertNotIn(marker, data)
+        profile = a6.store_profile()
+        name = str(profile["name"]).encode()
+        address = str(profile["address"]).encode()
+        licence = str(profile["licence"]).encode()
+        # Shop name: big and bold at the top, and again in the right-hand
+        # footer above the sign-off line. Address and licence print once each.
+        self.assertEqual(data.count(name), 2)
+        self.assertEqual(data.count(address), 1)
+        self.assertEqual(data.count(licence), 1)
+        self.assertLess(data.index(name), data.index(b"QTY"))
+        self.assertGreater(data.rindex(name), data.index(b"Net Amt :"))
+        # The shop name is the big bold line; the location prints small.
+        self.assertIn(b"/F2 9.50 Tf", data)
+        self.assertRegex(data, rb"/F1 6\.60 Tf 1 0 0 1 [\d.]+ [\d.]+ Tm \(GHORPADE HOSPITAL")
+        # The jurisdiction is the configured one, and nothing else is invented.
+        self.assertIn(b"E & O E. Subject to AHMEDNAGAR Jurisdiction", data)
+        for marker in (b"GSTIN", b"Pharmacist:"):
+            self.assertNotIn(marker, data, marker)
 
     # â”€â”€ Item table â”€â”€
 
@@ -346,7 +393,14 @@ class A6PdfTests(unittest.TestCase):
         self.assertIn(b"B-001", self.bill("a6.pdf"))
 
     def test_51_expiry_present(self):
-        self.assertIn(b"12/27", self.bill("a6.pdf"))
+        self.assertIn(b"12/2027", self.bill("a6.pdf"))
+
+    def test_51b_expiry_iso_date_is_reformatted_to_dd_mm_yyyy(self):
+        conn = get_connection()
+        conn.execute("UPDATE sales_invoice_items SET expiry = '2028-01-31' WHERE sales_invoice_id = 1")
+        conn.commit()
+        conn.close()
+        self.assertIn(b"31/01/2028", self.bill("a6_expiry.pdf"))
 
     def test_52_company_short_name_present(self):
         self.assertIn(b"CO", self.bill("a6.pdf"))
@@ -360,25 +414,27 @@ class A6PdfTests(unittest.TestCase):
     # â”€â”€ Totals and footer â”€â”€
 
     def test_55_net_amount_present(self):
-        self.assertIn(b"Net Amt", self.bill("a6.pdf"))
+        self.assertIn(b"Net Amt :", self.bill("a6.pdf"))
 
     def test_56_net_amount_value_present(self):
         self.assertIn(b"48.00", self.bill("a6.pdf"))
 
-    def test_57_round_off_present(self):
-        self.assertIn(b"Round Off", self.bill("a6.pdf"))
+    def test_57_cash_memo_shows_the_bill_number(self):
+        self.assertIn(b"Cash Memo : CS-0001", self.bill("a6.pdf"))
 
-    def test_58_paid_amount_present(self):
-        self.assertIn(b"Paid Amount", self.bill("a6.pdf"))
+    def test_58_receipt_shows_only_the_net_total(self):
+        """A cash memo carries a single Net Amt row, not an amount breakdown."""
+        data = self.bill("a6.pdf")
+        for absent in (b"Total Items", b"Total Amount", b"Bill Discount",
+                       b"Round Off", b"Paid Amount"):
+            self.assertNotIn(absent, data, absent)
+        self.assertIn(b"Net Amt :", data)
 
-    def test_59_total_items_present(self):
-        self.assertIn(b"Total Items", self.bill("a6.pdf"))
-
-    def test_60_remarks_present(self):
+    def test_59_remarks_present(self):
         self.assertIn(b"Sale remark", self.bill("a6.pdf"))
 
-    def test_61_footer_error_and_omissions_present(self):
-        self.assertIn(b"E & O.E.", self.bill("a6.pdf"))
+    def test_60_footer_error_and_omissions_present(self):
+        self.assertIn(b"E & O E.", self.bill("a6.pdf"))
 
     def test_62_no_gst_value_is_invented_for_sales(self):
         data = self.bill("a6.pdf")
@@ -451,8 +507,8 @@ class A6PdfTests(unittest.TestCase):
         self.items(40)
         pages, _record = a6.build_sale_pages(1, "Sales Bill")
         for page in pages[:-1]:
-            self.assertFalse(any(run.text == "Net Amt" for block in page for run in block.runs))
-        self.assertTrue(any(run.text == "Net Amt" for block in pages[-1] for run in block.runs))
+            self.assertFalse(any(run.text == "Net Amt :" for block in page for run in block.runs))
+        self.assertTrue(any(run.text == "Net Amt :" for block in pages[-1] for run in block.runs))
 
     def test_73_document_header_only_on_first_page(self):
         self.items(40)

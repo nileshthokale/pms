@@ -74,28 +74,31 @@ millimetres, asserting 105.0 x 148.0 mm with a 0.1 mm tolerance.
 
 ## 5. Bill layout
 
-Header (only what is configured - see section 8):
+Header (store name/address appear only when configured - see section 8):
 
 ```
 Sales Bill
-Bill No: CS-0001                              Date: 2026-09-16  Time: 10:30
+Name : Patient One                          Cash Memo : CS-0001
+Doctor : Dr Stored                                       Date : 2026-09-16
 --------------------------------------------------
-Patient: Patient One   Customer: Customer One   Doctor: Dr Stored
-QTY   UNIT      DESCRIPTION          COMP.   BATCH    EXP. DT        AMT
+QTY   UNIT    DESCRIPTION           COMP.   BATCH    EXP. DT          AMT
 --------------------------------------------------
-1     10x10     Paracetamol 500mg      CO      B-001    12/27        48.00
-      Tablets Extended Releas...
+1     TABLET  Paracetamol 500mg      CO      B-001    31/12/2027      48.00
+       Tablets Extended Releas...
 --------------------------------------------------
-Total Items                              7
-Total Amount                          50.00
-Bill Discount                          2.00
-Round Off                              0.00
-Paid Amount                           48.00
-Net Amt                              48.00
+Net Amt :                                                         48.00
 --------------------------------------------------
-E & O.E.
-Printed from stored application data.
+E & O E.
+                                              Pharmacist/Sign
 ```
+
+`UNIT` is the item's stored unit name from the `units` master (TABLET,
+CAPSULE, BOTTLE, STRIP, ...) and is looked up read-only at print time; it is
+not the pack size. `COMP.` is the stored manufacturer short name.
+`EXP. DT` re-formats the stored expiry as `DD/MM/YYYY` when the stored value
+carries a day (`2028-01-31` -> `31/01/2028`, `12/27` -> `12/2027`); the
+stored value itself is never rewritten. A single `Net Amt :` row carries the
+stored net amount - the receipt does not repeat the amount breakdown.
 
 Column widths (millimetres, summing to the 97 mm content width):
 
@@ -168,16 +171,26 @@ GHORPADE HOSPITAL, RAHURI" header is not reproduced, because inventing it would
 put unverified business identity on a legal document.
 
 `store_profile()` in `database/pharmacy_a6_receipt.py` is the single extension
-point. Return a mapping with `name`, `address`, `gstin` and `pharmacist` keys and
-the A6 layout renders them with no other change:
+point. Return a mapping with `name`, `address`, `jurisdiction`, `gstin` and
+`pharmacist` keys and the A6 layout renders them with no other change:
 
 ```python
 def store_profile() -> dict[str, str]:
-    return {"name": "...", "address": "...", "gstin": "...", "pharmacist": "..."}
+    return {
+        "name": "...",
+        "address": "...",
+        "jurisdiction": "...",   # appended to "E & O E." when present
+        "gstin": "...",          # omitted entirely when absent
+        "pharmacist": "...",
+    }
 ```
 
-`E & O.E.` is printed unconditionally as standard receipt boilerplate, not as
-stored business data.
+`E & O E.` is printed unconditionally as standard receipt boilerplate, not as
+stored business data; a configured `jurisdiction` is appended to it as
+`E & O E. Subject to <jurisdiction> Jurisdiction`. `GSTIN:` is only printed
+when a GSTIN is actually configured, so a blank or invented tax id never
+appears on the bill. `Pharmacist/Sign` is printed as a right-aligned
+signature line under the configured store name.
 
 ## 9. Files
 
@@ -187,6 +200,8 @@ stored business data.
 | `database/document_printing.py` | `generate_pharmacy_a6_bill`, `print_pharmacy_a6_bill`, `preview_pharmacy_a6_bill`, `a6_profile`; Sales Bill and Counter Sale route here |
 | `screens/counter_sale.py` | **Print** and **Print / PDF** buttons plus the paper label |
 | `test_a6_pharmacy_printing.py` | 102 tests |
+| `test_sales_bill_print_format.py` | 56 tests, focused cash-memo format |
+| `test_document_printing.py` | document service coverage |
 | `docs/a6_pharmacy_printing.md` | This document |
 
 ## 10. Testing
