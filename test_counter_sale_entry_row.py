@@ -120,8 +120,19 @@ class CounterSaleEntryRowTests(_DBBase):
         self.app.processEvents()
 
     def _layout_widgets(self):
+        """Every real widget of the single row, left to right.
+
+        The bar may also hold a trailing spacer that absorbs spare width so
+        "+ Add" stays flush right; a spacer is not a control, so only widgets
+        are returned and every ordering assertion below stays about fields.
+        """
         layout = self.entry.layout()
-        return [layout.itemAt(i).widget() for i in range(layout.count())]
+        widgets = []
+        for i in range(layout.count()):
+            widget = layout.itemAt(i).widget()
+            if widget is not None:
+                widgets.append(widget)
+        return widgets
 
     def _select_item(self):
         self.item.setCurrentIndex(self.item.findData(self.item_id))
@@ -207,7 +218,8 @@ class CounterSaleEntryRowTests(_DBBase):
         layout = self.entry.layout()
 
         # One flat row of widgets: 11 labels + 12 controls, no nested row.
-        self.assertEqual(layout.count(), len(LABEL_ORDER) + len(FIELD_ORDER))
+        self.assertEqual(len(self._layout_widgets()),
+                         len(LABEL_ORDER) + len(FIELD_ORDER))
         for i in range(layout.count()):
             self.assertIsNone(layout.itemAt(i).layout(),
                               "a nested row layout survived the merge")
@@ -397,14 +409,21 @@ class CounterSaleEntryRowTests(_DBBase):
 
     # -- structural extras -------------------------------------------
     def test_17_exact_field_order(self):
-        """Labels and fields alternate in the required target order."""
-        widgets = self._layout_widgets()
-        labels = [w for i, w in enumerate(widgets) if i % 2 == 0]
-        fields = [w for i, w in enumerate(widgets) if i % 2 == 1]
+        """Captions and fields alternate in the required target order.
 
-        self.assertEqual([w.text() for w in labels], list(LABEL_ORDER))
-        self.assertEqual(fields,
-                         [getattr(self.entry, n) for n in FIELD_ORDER])
+        Eleven caption/control pairs run left to right and the caption-less
+        "+ Add" button closes the row, so the row is 23 widgets long.
+        """
+        field_names = {id(getattr(self.entry, name)): name for name in FIELD_ORDER}
+        actual = []
+        for widget in self._layout_widgets():
+            name = field_names.get(id(widget))
+            actual.append(name if name is not None else widget.text())
+        expected: list[str] = []
+        for text, name in zip(LABEL_ORDER, FIELD_ORDER):
+            expected += [text, name]
+        expected.append(FIELD_ORDER[-1])
+        self.assertEqual(actual, expected)
 
     def test_18_read_only_fields_stay_read_only(self):
         """Auto-filled fields must never take keyboard focus or edits."""
