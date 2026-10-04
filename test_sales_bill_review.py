@@ -673,9 +673,27 @@ class TestSalesBillPopupLayout(_DBBase):
 
     def test_63_counter_sale_page_keeps_its_footer_sections(self):
         page = CounterSalePage()
-        titles = [g.title() for g in page._sale_panel.findChildren(QGroupBox)]
-        self.assertIn("Sale Header", titles)
-        self.assertIn("Customer / Doctor", titles)
+        panel = page._sale_panel
+        titles = [g.title() for g in panel.findChildren(QGroupBox)]
+        self.assertIn("Bill Items", titles)
+        # The Sale Header / Customer-Doctor group boxes were merged into one
+        # compact strip that keeps the same bill and party fields.
+        self.assertNotIn("Sale Header", titles)
+        self.assertNotIn("Customer / Doctor", titles)
+
+        strip = panel.findChild(QWidget, "CompactSaleMetadata")
+        self.assertIsNotNone(strip, "compact sale metadata strip not found")
+        captions = [lbl.text() for lbl in strip.findChildren(QLabel)]
+        for text in ("Bill No", "Date", "Time", "Type",
+                     "Customer *", "Patient", "Doctor"):
+            self.assertIn(text, captions, f"{text} left the sale header strip")
+
+        for attr in ("bill_no_edit", "sale_date", "sale_time_edit",
+                     "sale_type_combo", "customer_combo", "patient_name_edit",
+                     "doctor_combo"):
+            widget = getattr(panel, attr, None)
+            self.assertIsNotNone(widget, f"{attr} missing from the sale panel")
+            self.assertIsNotNone(widget.parentWidget())
 
 
 if __name__ == "__main__":

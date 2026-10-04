@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 from typing import Any, Iterable
 
+from database import pharmacy_a6_receipt as a6
 from database.credit_note_dao import CreditNoteDAO
 from database.customer_receipt_dao import CustomerReceiptDAO
 from database.debit_note_dao import DebitNoteDAO
@@ -212,12 +213,60 @@ def generate_document(title: str, record: dict, items: list[dict], output_path: 
     return str(path)
 
 
+def generate_pharmacy_a6_bill(invoice_id: int, output_path: str | os.PathLike[str] | None = None, title: str = "Sales Bill") -> str:
+    """Write a sales/counter-sale receipt on true A6 paper (105 x 148 mm).
+
+    Shares one layout engine with ``print_pharmacy_a6_bill`` so the exported PDF
+    and the printed bill are the same page. Sales Bill and Counter Sale both use
+    it, so no printing code is duplicated between them.
+    """
+    if output_path is None:
+        output_path = Path.cwd() / f"pharmacy_a6_bill_{title.lower().replace(' ', '_')}_{invoice_id}.pdf"
+    try:
+        return a6.generate_pharmacy_a6_bill(invoice_id, output_path, title)
+    except a6.ReceiptPrintError as exc:
+        raise DocumentPrintError(str(exc)) from exc
+
+
+def print_pharmacy_a6_bill(invoice_id: int, parent=None, title: str = "Sales Bill", show_dialog: bool = True) -> bool:
+    """Print a sales/counter-sale receipt on A6 via the normal Windows print dialog."""
+    try:
+        return a6.print_pharmacy_a6_bill(invoice_id, parent, title, show_dialog=show_dialog)
+    except a6.ReceiptPrintError as exc:
+        raise DocumentPrintError(str(exc)) from exc
+
+
+def preview_pharmacy_a6_bill(invoice_id: int, title: str = "Sales Bill") -> str:
+    """Plain-text A6 layout preview for a stored sale."""
+    return a6.preview_pharmacy_a6_bill(invoice_id, title)
+
+
+def a6_profile():
+    """The reusable ``PHARMACY_A6`` print profile."""
+    return a6.PHARMACY_A6
+
+
+def available_printers() -> list[str]:
+    """Windows printers discovered through Qt, in their installed order."""
+    return a6.available_printers()
+
+
+def default_printer_name() -> str:
+    """The Windows default printer; nothing is hard-coded."""
+    return a6.default_printer_name()
+
+
+def supported_page_size_mm(printer_name: str) -> list[tuple[float, float]]:
+    """Paper sizes (width_mm, height_mm) reported by ``printer_name``."""
+    return a6.supported_page_size_mm(printer_name)
+
+
 def generate_sales_bill(invoice_id: int, output_path: str | os.PathLike[str] | None = None) -> str:
-    record, items = _sales_data(invoice_id); return generate_document("Sales Bill", record, items, output_path)
+    return generate_pharmacy_a6_bill(invoice_id, output_path, "Sales Bill")
 
 
 def generate_counter_sale_bill(invoice_id: int, output_path: str | os.PathLike[str] | None = None) -> str:
-    record, items = _sales_data(invoice_id); return generate_document("Counter Sale Bill", record, items, output_path)
+    return generate_pharmacy_a6_bill(invoice_id, output_path, "Counter Sale Bill")
 
 
 def generate_purchase_invoice(invoice_id: int, output_path: str | os.PathLike[str] | None = None) -> str:
@@ -242,6 +291,9 @@ def generate_supplier_payment(payment_id: int, output_path: str | os.PathLike[st
 
 def preview_document(title: str, record: dict, items: list[dict]) -> str:
     """Return plain text preview data for environments without Qt printing."""
+    if title in {"Sales Bill", "Counter Sale Bill"}:
+        blocks = a6.build_layout(dict(record, document_title=title), items)
+        return a6.pages_to_preview_text(a6.paginate(blocks))
     return "\n".join(_document_lines(title, record, items))
 
 
@@ -264,4 +316,6 @@ __all__ = [
     "DocumentPrintError", "generate_document", "generate_sales_bill", "generate_counter_sale_bill",
     "generate_purchase_invoice", "generate_credit_note", "generate_debit_note",
     "generate_customer_receipt", "generate_supplier_payment", "preview_document", "print_pdf",
+    "generate_pharmacy_a6_bill", "print_pharmacy_a6_bill", "preview_pharmacy_a6_bill", "a6_profile",
+    "available_printers", "default_printer_name", "supported_page_size_mm",
 ]
