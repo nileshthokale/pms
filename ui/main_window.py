@@ -51,6 +51,9 @@ class PharmacyMainWindow(QMainWindow):
         self._nav = NavigationBar()
         self._nav.menu_action_triggered.connect(self._on_menu_action)
         self._nav.logout_requested.connect(self._on_logout)
+        self._nav.financial_year_view_requested.connect(
+            self._on_financial_year_view
+        )
         root_layout.addWidget(self._nav)
 
         self._stack = QStackedWidget()
@@ -164,6 +167,19 @@ class PharmacyMainWindow(QMainWindow):
             self._stack.setCurrentIndex(self._page_map[key])
             self.setWindowTitle(f"Pharmacy Management System  -  {action}")
             self._nav.status_label.setText(f"{menu} / {action}")
+
+    # ── financial-year viewing ──────────────────────────────────
+    def _on_financial_year_view(self, year: dict):
+        """Show Counter Sale history for a chosen financial year.
+
+        This is a VIEW filter only.  The active financial year, the
+        navigation and every other page are left exactly as they were.
+        """
+        for index in range(self._stack.count()):
+            page = self._stack.widget(index)
+            apply_view = getattr(page, "set_history_financial_year", None)
+            if callable(apply_view):
+                apply_view(year)
 
     # ── logout ───────────────────────────────────────────────────────
     def _on_logout(self):

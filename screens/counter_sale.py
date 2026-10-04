@@ -5,6 +5,7 @@ from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
 
 from PySide6.QtCore import (
+    QDate,
     QEvent,
     QModelIndex,
     QPoint,
@@ -30,6 +31,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QRadioButton,
     QScrollArea,
     QSizePolicy,
     QStackedWidget,
@@ -3184,10 +3186,52 @@ class SalesBillReviewDialog(QDialog):
 # Counter Sale PAGE (History | inline active sale area | bill panel)
 # ======================================================================
 
+# ----------------------------------------------------------------------
+# Bill-history view modes (read-only views of existing sales)
+# ----------------------------------------------------------------------
+# "item" -> one row per sale item, the bill number repeated on each item
+#           row (the pre-existing grid, unchanged).
+# "bill" -> exactly one row per bill using bill-level fields only.
+# The first column is always Bill No in both modes and always carries the
+# invoice id in Qt.UserRole, so Edit / Delete / Print behave identically.
+HISTORY_MODE_ITEM = "item"
+HISTORY_MODE_BILL = "bill"
+
+# How the history grid is being narrowed.  All three are display-only.
+HISTORY_FILTER_ALL = "all"       # every bill, no date narrowing
+HISTORY_FILTER_DATE = "date"     # the single Date control's exact day
+HISTORY_FILTER_FY = "fy"         # the chosen financial year's start..end
+
+_HISTORY_COLUMNS = {
+    HISTORY_MODE_ITEM: [
+        "Bill No", "Type", "Item Name", "MRP", "Qty", "Amount",
+        "Patient", "Pack Size", "Batch No", "Expiry", "Time",
+        "Disc Amt", "Bill Amount",
+    ],
+    HISTORY_MODE_BILL: [
+        "Bill No", "Type", "Patient", "Date", "Time", "Items",
+        "Total Amount", "Disc Amt", "Paid Amount", "Net Amount",
+    ],
+}
+
+# Column that takes the leftover width in each mode.
+_HISTORY_STRETCH_COLUMN = {
+    HISTORY_MODE_ITEM: 2,
+    HISTORY_MODE_BILL: 2,
+}
+
+_HISTORY_FILTER_BAR_HEIGHT = 30
+_RADIO_STYLE = (
+    f"QRadioButton {{ color: {_TEXT}; font-size: 11px;"
+    f"  background: transparent; font-family: {FONT_FAMILY}; }}"
+    f"QRadioButton::indicator {{ width: 13px; height: 13px; }}"
+)
+
+
 class CounterSalePage(QWidget):
     """Counter Sale screen.
 
-    Fixed three-region desktop layout (Phase 6E â€” Counter Sale Layout Fix):
+    Fixed three-region desktop layout (Phase 6E — Counter Sale Layout Fix):
 
         Region A  page header + controlled-height Bill History table
         Region B  active sale entry, directly below the history table
@@ -3196,6 +3240,10 @@ class CounterSalePage(QWidget):
 
     The sale area is embedded inline (via ``_SalePanel``), so adding items
     or history rows never moves or vertically centers the entry region.
+
+    The history region is read-only: a date filter and the Item Wise /
+    Bill Wise mode selector only change which existing rows are displayed.
+    They never touch the active draft sale or any business record.
     """
 
     HISTORY_PAGE_SIZE = 200
@@ -3220,7 +3268,17 @@ class CounterSalePage(QWidget):
         left.setContentsMargins(0, 0, 0, 0)
         left.setSpacing(0)
 
-        # Region A: controlled-height history table (directly below header)
+        # Region A: filter bar + controlled-height history table (directly
+        # below the header).  The filter bar is display-only state.
+        self._history_mode = HISTORY_MODE_ITEM
+        # The grid opens unfiltered, exactly as before, so existing history
+        # stays visible on entry.  Picking a Date or a Financial Year
+        # narrows it from there.
+        self._history_filter = HISTORY_FILTER_ALL
+        self._history_financial_year: dict | None = None
+        self._history_filter_bar = self._build_history_filter_bar()
+        left.addWidget(self._history_filter_bar)
+
         self._hist_table = self._build_history_table()
         self._history_offset = 0
         self._history_has_more = True
@@ -3288,6 +3346,209 @@ class CounterSalePage(QWidget):
         hl.addWidget(self._new_btn)
 
         return header
+
+    # ------------------------------------------------------------------
+    # Bill-history filter bar (single Date + Item Wise / Bill Wise)
+    # ------------------------------------------------------------------
+
+    def _build_history_filter_bar(self) -> QWidget:
+        """Read-only controls for the history grid.
+
+        One compact Date selector (calendar popup opens directly below it)
+        plus the two existing view modes.  Nothing here writes to the
+        database; every handler just re-reads existing sales.
+        """
+        bar = QWidget()
+        bar.setObjectName("HistoryFilterBar")
+        bar.setFixedHeight(_HISTORY_FILTER_BAR_HEIGHT)
+        bar.setStyleSheet(
+            f"#HistoryFilterBar {{ background-color: {_SURFACE};"
+            f"  border-bottom: 1px solid {_BORDER}; }}"
+        )
+        layout = QHBoxLayout(bar)
+        layout.setContentsMargins(10, 0, 10, 0)
+        layout.setSpacing(6)
+
+        self._hist_date = _make_compact_date()
+        self._hist_date.setCalendarPopup(True)
+        self._hist_date.setFixedWidth(118)
+        self._hist_date.setToolTip(
+            "Show Counter Sale history for this date only"
+        )
+
+        self._hist_item_mode = QRadioButton("Item Wise")
+        self._hist_bill_mode = QRadioButton("Bill Wise")
+        self._hist_item_mode.setStyleSheet(_RADIO_STYLE)
+        self._hist_bill_mode.setStyleSheet(_RADIO_STYLE)
+        self._hist_item_mode.setChecked(True)          # default mode
+        self._hist_item_mode.setToolTip(
+            "One row per sale item, with the bill number repeated"
+        )
+        self._hist_bill_mode.setToolTip(
+            "One row per bill using bill-level totals only"
+        )
+
+        self._hist_all_btn = QPushButton("All Dates")
+        self._hist_all_btn.setFixedWidth(80)
+        self._hist_all_btn.setStyleSheet(_BTN_SECONDARY)
+        self._hist_all_btn.setToolTip(
+            "Show every bill regardless of date"
+        )
+        self._hist_refresh_btn = QPushButton("Refresh")
+        self._hist_refresh_btn.setFixedWidth(76)
+        self._hist_refresh_btn.setStyleSheet(_BTN_SECONDARY)
+
+        layout.addWidget(self._flbl("Date"))
+        layout.addWidget(self._hist_date)
+        layout.addWidget(self._hist_all_btn)
+        layout.addStretch()
+        layout.addWidget(self._flbl("View"))
+        layout.addWidget(self._hist_item_mode)
+        layout.addWidget(self._hist_bill_mode)
+        layout.addWidget(self._hist_refresh_btn)
+
+        # A committed date change or a mode switch refreshes the grid
+        # immediately.  Neither path touches the active sale area.
+        self._hist_date.dateChanged.connect(self._on_history_date_changed)
+        self._hist_item_mode.toggled.connect(self._on_history_mode_toggled)
+        self._hist_bill_mode.toggled.connect(self._on_history_mode_toggled)
+        self._hist_all_btn.clicked.connect(self._on_show_all_history)
+        self._hist_refresh_btn.clicked.connect(self._refresh_history)
+        return bar
+
+    # ------------------------------------------------------------------
+    # History view filtering (date / financial year / all)
+    # ------------------------------------------------------------------
+
+    def _history_filter_dates(self) -> tuple[str, str]:
+        """Return the (start, end) YYYY-MM-DD bounds; ("", "") means all."""
+        if self._history_filter == HISTORY_FILTER_ALL:
+            return "", ""
+        if self._history_filter == HISTORY_FILTER_FY:
+            year = self._history_financial_year or {}
+            return year.get("start_date", ""), year.get("end_date", "")
+        day = self._hist_date.date().toString("yyyy-MM-dd")
+        return day, day
+
+    def _on_history_date_changed(self, _date):
+        """A date picked from the calendar is a single-date history filter."""
+        self._history_filter = HISTORY_FILTER_DATE
+        self._history_financial_year = None
+        self._refresh_history()
+
+    def _on_show_all_history(self):
+        """Drop the filter and show every bill again (mode is kept)."""
+        self._history_filter = HISTORY_FILTER_ALL
+        self._history_financial_year = None
+        self._refresh_history()
+
+    def set_history_financial_year(self, year: dict | None):
+        """View Counter Sale history for a whole financial year.
+
+        Called by the top navigation's FY button.  This is a VIEW filter:
+        the active financial year is never changed, no year is created,
+        and nothing is written to the database.  The Date control is moved
+        to 31 March of that year so the header shows where the view ends.
+        """
+        if not year or not year.get("start_date") or not year.get("end_date"):
+            self._history_filter = HISTORY_FILTER_ALL
+            self._history_financial_year = None
+            self._refresh_history()
+            return
+        self._history_financial_year = dict(year)
+        self._history_filter = HISTORY_FILTER_FY
+        self._set_history_date_text(year["end_date"])
+        self._refresh_history()
+
+    def _set_history_date_text(self, iso_date: str):
+        """Show an ISO date in the history control without re-filtering."""
+        parsed = QDate.fromString(iso_date, "yyyy-MM-dd")
+        if not parsed.isValid():
+            return
+        self._hist_date.blockSignals(True)
+        self._hist_date.setDate(parsed)
+        self._hist_date.blockSignals(False)
+
+    def _viewed_financial_year(self) -> dict | None:
+        """The FY currently chosen for viewing, or None."""
+        if self._history_filter != HISTORY_FILTER_FY:
+            return None
+        return self._history_financial_year
+
+    def _viewing_historical_financial_year(self) -> bool:
+        """True when an old/expired FY is being viewed instead of the active one."""
+        year = self._viewed_financial_year()
+        if not year:
+            return False
+        active = financial_year.get_active_financial_year()
+        return bool(active) and year.get("id") != active.get("id")
+
+    def _confirm_new_sale_under_historical_fy(self) -> bool:
+        """Warn before New Sale while an old FY is open.  True = go ahead.
+
+        The history date and the viewed financial year are display state
+        only, so the bill that is started still gets the live date and the
+        active financial year from the existing sale logic.
+        """
+        if not self._viewing_historical_financial_year():
+            return True
+        year = self._viewed_financial_year()
+        active = financial_year.get_active_financial_year()
+        active_name = active["name"] if active else ""
+        message = QMessageBox(self)
+        message.setWindowTitle("Historical Financial Year")
+        message.setIcon(QMessageBox.Information)
+        message.setText(
+            "Historical Financial Year selected.\n\n"
+            f"You are viewing FY {year['name']}.\n\n"
+            "New bills cannot be saved in this expired Financial Year.\n"
+            "The new bill will be created using the current date\n"
+            f"and current active Financial Year {active_name}."
+        )
+        continue_btn = message.addButton(
+            "Continue", QMessageBox.ButtonRole.AcceptRole
+        )
+        cancel_btn = message.addButton(
+            "Cancel", QMessageBox.ButtonRole.RejectRole
+        )
+        message.setDefaultButton(cancel_btn)
+        message.exec()
+        return message.clickedButton() is continue_btn
+
+    def _on_history_mode_toggled(self, _checked: bool):
+        if self._hist_bill_mode.isChecked():
+            self._set_history_mode(HISTORY_MODE_BILL)
+        elif self._hist_item_mode.isChecked():
+            self._set_history_mode(HISTORY_MODE_ITEM)
+
+    def _set_history_mode(self, mode: str):
+        """Switch the grid between item-wise and bill-wise rows."""
+        if mode not in _HISTORY_COLUMNS or mode == self._history_mode:
+            return
+        self._history_mode = mode
+        self._apply_history_columns()
+        self._refresh_history()
+
+    def _history_mode_is_bill(self) -> bool:
+        return self._history_mode == HISTORY_MODE_BILL
+
+    def _apply_history_columns(self):
+        """Re-label the history grid for the active mode."""
+        labels = _HISTORY_COLUMNS[self._history_mode]
+        table = self._hist_table
+        table.setSortingEnabled(False)
+        table.clearContents()
+        table.setRowCount(0)
+        table.setColumnCount(len(labels))
+        table.setHorizontalHeaderLabels(labels)
+        hv = table.horizontalHeader()
+        stretch_col = _HISTORY_STRETCH_COLUMN[self._history_mode]
+        hv.setSectionResizeMode(QHeaderView.ResizeToContents)
+        for col in range(len(labels)):
+            if col == stretch_col:
+                hv.setSectionResizeMode(col, QHeaderView.Stretch)
+        hv.setStretchLastSection(stretch_col != len(labels) - 1)
+        table.setSortingEnabled(True)
 
     def _build_history_table(self) -> QTableWidget:
         """Region A table â€” height is controlled by _apply_history_height()."""
@@ -3407,15 +3668,18 @@ class CounterSalePage(QWidget):
 
         The table is given a fixed height, so an empty history table can
         never expand into a giant blank area and adding rows can never
-        grow the region.  The filter bar was removed, so the history
-        region now uses the freed vertical space.
+        grow the region.  The date/mode filter bar is measured out of the
+        same budget, so adding it did not make the region any taller.
         """
         page_height = self.height()
         if page_height < 200:          # before the first real resize
             page_height = 720
         target = int(page_height * 0.28)
         target = max(130, min(target, 280))
-        self._hist_table.setFixedHeight(target)
+        bar_height = self._history_filter_bar.sizeHint().height()
+        if bar_height <= 0:
+            bar_height = _HISTORY_FILTER_BAR_HEIGHT
+        self._hist_table.setFixedHeight(max(90, target - bar_height))
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -3448,10 +3712,19 @@ class CounterSalePage(QWidget):
             return
         self._history_loading = True
         sorting_enabled = self._hist_table.isSortingEnabled()
+        bill_wise = self._history_mode_is_bill()
+        start_date, end_date = self._history_filter_dates()
         try:
-            rows = SalesDAO.get_history_page(
-                limit=self.HISTORY_PAGE_SIZE, offset=self._history_offset
-            )
+            if bill_wise:
+                rows = SalesDAO.get_bill_history_page(
+                    limit=self.HISTORY_PAGE_SIZE, offset=self._history_offset,
+                    start_date=start_date, end_date=end_date,
+                )
+            else:
+                rows = SalesDAO.get_history_page(
+                    limit=self.HISTORY_PAGE_SIZE, offset=self._history_offset,
+                    start_date=start_date, end_date=end_date,
+                )
             if not rows:
                 self._history_has_more = False
                 return
@@ -3464,41 +3737,58 @@ class CounterSalePage(QWidget):
             first_row = table.rowCount()
             table.setRowCount(first_row + len(rows))
             for row_index, row in enumerate(rows, first_row):
-                table.setItem(row_index, 0, QTableWidgetItem(row.get("bill_no") or ""))
-                table.setItem(row_index, 1, QTableWidgetItem(row.get("sale_type") or ""))
-                table.setItem(row_index, 2, QTableWidgetItem(row.get("item_name") or ""))
-
-                mrp_item = QTableWidgetItem(f"{float(row.get('mrp') or 0):.2f}")
-                mrp_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                table.setItem(row_index, 3, mrp_item)
-
-                qty_item = QTableWidgetItem(f"{float(row.get('sale_qty') or 0):.0f}")
-                qty_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                table.setItem(row_index, 4, qty_item)
-
-                amount_item = QTableWidgetItem(f"{float(row.get('amount') or 0):.2f}")
-                amount_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                table.setItem(row_index, 5, amount_item)
-
-                table.setItem(row_index, 6, QTableWidgetItem(row.get("patient_name") or ""))
-                table.setItem(row_index, 7, QTableWidgetItem(row.get("pack_size") or ""))
-                table.setItem(row_index, 8, QTableWidgetItem(row.get("batch_no") or ""))
-                table.setItem(row_index, 9, QTableWidgetItem(row.get("expiry") or ""))
-                table.setItem(row_index, 10, QTableWidgetItem(row.get("sale_time") or ""))
-
-                discount_item = QTableWidgetItem(
-                    f"{float(row.get('discount_amount') or 0):.2f}"
-                )
-                discount_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                table.setItem(row_index, 11, discount_item)
-
-                bill_item = QTableWidgetItem(f"{float(row.get('net_amount') or 0):.2f}")
-                bill_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                table.setItem(row_index, 12, bill_item)
-                table.item(row_index, 0).setData(Qt.UserRole, row["invoice_id"])
+                if bill_wise:
+                    self._fill_bill_history_row(table, row_index, row)
+                else:
+                    self._fill_item_history_row(table, row_index, row)
             table.setSortingEnabled(sorting_enabled)
         finally:
             self._history_loading = False
+
+    @staticmethod
+    def _money_cell(value) -> QTableWidgetItem:
+        cell = QTableWidgetItem(f"{float(value or 0):.2f}")
+        cell.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        return cell
+
+    def _fill_item_history_row(self, table: QTableWidget, row_index: int,
+                               row: dict):
+        """One row per sale item; the bill number repeats on each item row."""
+        table.setItem(row_index, 0, QTableWidgetItem(row.get("bill_no") or ""))
+        table.setItem(row_index, 1, QTableWidgetItem(row.get("sale_type") or ""))
+        table.setItem(row_index, 2, QTableWidgetItem(row.get("item_name") or ""))
+        table.setItem(row_index, 3, self._money_cell(row.get("mrp")))
+
+        qty_item = QTableWidgetItem(f"{float(row.get('sale_qty') or 0):.0f}")
+        qty_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        table.setItem(row_index, 4, qty_item)
+
+        table.setItem(row_index, 5, self._money_cell(row.get("amount")))
+        table.setItem(row_index, 6, QTableWidgetItem(row.get("patient_name") or ""))
+        table.setItem(row_index, 7, QTableWidgetItem(row.get("pack_size") or ""))
+        table.setItem(row_index, 8, QTableWidgetItem(row.get("batch_no") or ""))
+        table.setItem(row_index, 9, QTableWidgetItem(row.get("expiry") or ""))
+        table.setItem(row_index, 10, QTableWidgetItem(row.get("sale_time") or ""))
+        table.setItem(row_index, 11,
+                      self._money_cell(row.get("discount_amount")))
+        table.setItem(row_index, 12, self._money_cell(row.get("net_amount")))
+        table.item(row_index, 0).setData(Qt.UserRole, row["invoice_id"])
+
+    def _fill_bill_history_row(self, table: QTableWidget, row_index: int,
+                               row: dict):
+        """Exactly one row per bill, from bill-level columns only."""
+        table.setItem(row_index, 0, QTableWidgetItem(row.get("bill_no") or ""))
+        table.setItem(row_index, 1, QTableWidgetItem(row.get("sale_type") or ""))
+        table.setItem(row_index, 2, QTableWidgetItem(row.get("patient_name") or ""))
+        table.setItem(row_index, 3, QTableWidgetItem(row.get("sale_date") or ""))
+        table.setItem(row_index, 4, QTableWidgetItem(row.get("sale_time") or ""))
+        table.setItem(row_index, 5,
+                      QTableWidgetItem(str(row.get("item_count") or 0)))
+        table.setItem(row_index, 6, self._money_cell(row.get("total_amount")))
+        table.setItem(row_index, 7, self._money_cell(row.get("discount")))
+        table.setItem(row_index, 8, self._money_cell(row.get("paid_amount")))
+        table.setItem(row_index, 9, self._money_cell(row.get("net_amount")))
+        table.item(row_index, 0).setData(Qt.UserRole, row["invoice_id"])
 
     def _selected_history_id(self) -> int | None:
         rows = self._hist_table.selectionModel().selectedRows()
@@ -3509,8 +3799,18 @@ class CounterSalePage(QWidget):
 
     def _on_new(self):
         """Start a new sale inline: reset the form, focus Item Name."""
+        if not self._confirm_new_sale_under_historical_fy():
+            return
+        self._start_new_sale()
+
+    def _start_new_sale(self):
+        """The single New Sale path, shared by the button and the guard."""
         self._editing_invoice_id = None
         self._sale_panel.reset_for_new()
+        # The new bill always carries the live date.  The history date and
+        # the viewed financial year are display state only and must never
+        # reach the new bill, so the live date is re-stamped here.
+        self._sale_panel._set_current_datetime()
         self._sale_panel.focus_item_name()
 
     def _on_edit(self):
