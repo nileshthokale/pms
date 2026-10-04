@@ -30,11 +30,13 @@ The history actions provide a Save PDF workflow. The service also exposes a plai
 
 ## 7. A4 Layout
 
-Generated documents use a 595 x 842 point A4 media box, readable Helvetica text, consistent margins, document headings, line tables, totals, and page numbering.
+Generated documents use a 595 x 842 point A4 media box, readable Helvetica text, consistent margins, document headings, line tables, totals, and page numbering. Sales Bill and Counter Sale are the exception: they print on A6 - see `docs/a6_pharmacy_printing.md`.
 
 ## 8. Receipt Layout
 
-Receipts and supplier payments use the same A4 renderer with compact key/value content. A future enhancement may add a narrow thermal-receipt layout without changing stored data.
+Customer Receipts and supplier payments use the same A4 renderer with compact key/value content.
+
+Sales Bill and Counter Sale use the dedicated `PHARMACY_A6` profile (105 x 148 mm portrait) implemented in `database/pharmacy_a6_receipt.py`, reached through `generate_pharmacy_a6_bill()` and `print_pharmacy_a6_bill()`. Both document types share that single engine. See `docs/a6_pharmacy_printing.md`.
 
 ## 9. Business Information
 
@@ -66,4 +68,4 @@ Document generation uses DAO reads only. It does not insert, update, delete, adj
 
 ## 16. Limitations and Future Enhancements
 
-No PDF dependency was installed, so the current renderer is intentionally small and text-oriented. PySide6 is unavailable in the current environment, so GUI printer-dialog tests are skipped. Future work may add richer typography, logo/profile settings, thermal layouts, native Qt print preview, printer copies/page setup, and PDF text extraction validation with an approved dependency.
+No PDF dependency is installed, so the renderer remains intentionally small and text-oriented. PySide6 6.11.2 and QtPrintSupport are available, so Qt page setup, the Windows print dialog and `QPainter` rendering of the A6 receipt are all in use; only GUI dialog tests and physical printer tests are skipped. Future work may add richer typography, a pharmacy store profile, native Qt print preview, and PDF text extraction validation with an approved dependency.

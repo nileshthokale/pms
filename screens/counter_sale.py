@@ -16,6 +16,7 @@ from PySide6.QtCore import (
 )
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QApplication,
     QComboBox,
     QCompleter,
     QDateEdit,
@@ -48,7 +49,9 @@ from database.sales_dao import SalesDAO
 from database.draft_stock import available_quantity, reserved_quantity
 from database import auth
 from database import financial_year
-from database.document_printing import DocumentPrintError, generate_counter_sale_bill
+from database.document_printing import (DocumentPrintError, a6_profile,
+                                        generate_counter_sale_bill,
+                                        print_pharmacy_a6_bill)
 from database.hold_bill_dao import (
     create_hold,
     ensure_hold_tables,
@@ -424,6 +427,33 @@ class _KeyboardCombo(QComboBox):
     def show_all_completions_on_click(self, enabled=True):
         self._show_all_on_click = enabled
 
+    def isReadOnly(self) -> bool:
+        """Read-only state of the editable text (the QLineEdit contract).
+
+        Auto-filled entry fields are read-only line edits while the searchable
+        ones are editable combos; reporting one uniform flag keeps every
+        entry-bar field checkable the same way.
+        """
+        line_edit = self.lineEdit()
+        return bool(line_edit is not None and line_edit.isReadOnly())
+
+    def _restore_owner_activation(self) -> None:
+        """Hand window activation back to the owner after the list closes.
+
+        The completion list is its own top-level window. When it closes, some
+        platforms (notably the offscreen test platform, but also a driver or a
+        remote session) leave it as the active window, and focus then cannot
+        move inside the page at all - so "Enter on a batch" would never reach
+        Qty. Reactivating the owner restores the normal keyboard chain and is
+        a no-op when the owner is already active.
+        """
+        owner = self.window()
+        if owner is None:
+            return
+        active = QApplication.activeWindow()
+        if active is not None and active is not owner:
+            owner.activateWindow()
+
     def eventFilter(self, watched, event):
         popup = self.completer().popup()
         if watched is self.lineEdit() and event.type() == QEvent.MouseButtonPress:
@@ -461,6 +491,7 @@ class _KeyboardCombo(QComboBox):
 
         if key == Qt.Key_Escape:
             popup.hide()
+            self._restore_owner_activation()
             self.setFocus()
             return True
 
@@ -588,6 +619,7 @@ class _KeyboardCombo(QComboBox):
         if accepted:
             self._accept_text(index.data())
         popup.hide()
+        self._restore_owner_activation()
         if accepted:
             self.completionAccepted.emit()
         return accepted
@@ -3357,6 +3389,7 @@ class CounterSalePage(QWidget):
         for text, style, handler in (
             ("Edit", _BTN_SECONDARY, self._on_edit),
             ("Delete", _BTN_DANGER, self._on_delete),
+            ("Print", _BTN_SECONDARY, self._on_direct_print),
             ("Print / PDF", _BTN_SECONDARY, self._on_print),
         ):
             btn = QPushButton(text)
@@ -3364,6 +3397,10 @@ class CounterSalePage(QWidget):
             btn.setFixedHeight(_ACTION_BUTTON_HEIGHT)
             btn.clicked.connect(handler)
             al.addWidget(btn)
+        paper_label = QLabel(f"Paper: {a6_profile().size_label}")
+        paper_label.setStyleSheet("color: #666; font-size: 8pt;")
+        paper_label.setAlignment(Qt.AlignCenter)
+        al.addWidget(paper_label)
         layout.addWidget(actions)
 
         info = QGroupBox("Current Bill")
@@ -3561,7 +3598,18 @@ class CounterSalePage(QWidget):
             return
         try:
             output = generate_counter_sale_bill(inv_id, path)
-            QMessageBox.information(self, "PDF Saved", f"Sales bill saved to:\n{output}")
+            QMessageBox.information(self, "PDF Saved", f"A6 receipt saved to:\n{output}")
+        except DocumentPrintError as exc:
+            QMessageBox.warning(self, "Print Sale", str(exc))
+
+    def _on_direct_print(self):
+        """Send the selected bill straight to the Windows print dialog on A6."""
+        inv_id = self._selected_history_id()
+        if not inv_id:
+            QMessageBox.information(self, "Print Sale", "Please select a bill to print.")
+            return
+        try:
+            print_pharmacy_a6_bill(inv_id, self, "Counter Sale Bill")
         except DocumentPrintError as exc:
             QMessageBox.warning(self, "Print Sale", str(exc))
 
