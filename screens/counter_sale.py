@@ -1,10 +1,19 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import math
 from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
 
-from PySide6.QtCore import QEvent, QModelIndex, QPoint, QRect, QTimer, Qt, Signal
+from PySide6.QtCore import (
+    QEvent,
+    QModelIndex,
+    QPoint,
+    QRect,
+    QSize,
+    QTimer,
+    Qt,
+    Signal,
+)
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -32,6 +41,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QFont, QFontMetrics, QStandardItem, QStandardItemModel
 
 from database.customer_dao import CustomerDAO
+from database.connection import get_connection
 from database.doctor_dao import DoctorDAO
 from database.item_dao import ItemDAO
 from database.sales_dao import SalesDAO
@@ -118,7 +128,7 @@ _DATE_STYLE = (
     f"QDateEdit::down-arrow {{ image: none; border: none; }}"
 )
 
-# ── Compact controls for the bottom billing block ──────────────────────
+# â”€â”€ Compact controls for the bottom billing block â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # The Sale Header strip and the totals/action footer live in a fixed
 # ~100 px area, so their controls use 2 px vertical padding instead of the
 # 4 px used by the entry bar.  Same fonts, same colours, same border: only
@@ -167,7 +177,7 @@ _COMPACT_DATE_STYLE = (
     f"QDateEdit::down-arrow {{ image: none; border: none; }}"
 )
 
-# ── Classic front-page buttons ──────────────────────────────────────────
+# â”€â”€ Classic front-page buttons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Reference look (legacy Pharma-WINNER front page): every button is a light,
 # softly-rounded face with a thin coloured edge and dark bold text.  The
 # button's *edge* carries its role instead of a flat coloured fill, so
@@ -218,15 +228,15 @@ def _btn_style(
     )
 
 
-# Primary action — blue edge (Save Sale, New Sale).
+# Primary action â€” blue edge (Save Sale, New Sale).
 _BTN_SAVE = _btn_style(_p["accent"])
 # Neutral action (Cancel, Edit, Print / PDF).
 _BTN_SECONDARY = _btn_style(_BTN_EDGE)
-# Destructive action — red edge (the right-panel Delete button).
+# Destructive action â€” red edge (the right-panel Delete button).
 _BTN_DANGER = _btn_style(_BTN_DANGER_EDGE, padding="3px 8px", radius="4px")
 # Compact primary (the "+ Add" button in the entry row).
 _BTN_GREEN_SM = _btn_style(_p["accent"], padding="4px 10px", radius="4px")
-# Hold / pending action — amber edge (Hold Bill).
+# Hold / pending action â€” amber edge (Hold Bill).
 _BTN_ORANGE = _btn_style(_BTN_WARNING_EDGE)
 # Table row action (per-row Delete inside the Bill Items "Del" column).
 # A quiet red edge on the light surface: it reads as a control inside a
@@ -254,7 +264,7 @@ _LABEL_STYLE = f"color: {_TEXT}; font-size: 11px; font-family: {FONT_FAMILY}; ba
 _LABEL_DIM = f"color: {_TEXT_DIM}; font-size: 10px; font-family: {FONT_FAMILY}; background: transparent;"
 _HEADER_LABEL = f"color: {_TEXT}; font-size: 11px; font-family: {FONT_FAMILY}; background: transparent; font-weight: bold;"
 
-# ── Item entry bar metrics ─────────────────────────────────────────────
+# â”€â”€ Item entry bar metrics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # One compact row shared by all twelve controls.  Every control uses the
 # same box height so the bar reads as a single instrument strip instead of
 # a row of mismatched boxes, and the label width is measured from the real
@@ -265,7 +275,7 @@ _ENTRY_ADD_WIDTH = 78           # compact "+ Add": inside the 70-90 px target
 # the twelve-control row keeps its natural proportions on any platform font.
 _ENTRY_LABEL_MAX_WIDTH = 26
 
-# ── Bottom billing block metrics ───────────────────────────────────────
+# â”€â”€ Bottom billing block metrics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # The Sale Header strip and the totals/action footer together form the
 # fixed bottom billing section (~98 px), and both rows inside the strip use
 # one shared box height so nothing is squeezed or clipped.
@@ -598,6 +608,125 @@ def _make_date() -> QDateEdit:
 
 
 # ======================================================================
+# Database-backed lookup fields (Sales Bill popup only)
+# ======================================================================
+
+# Cap on how many suggestions one lookup shows.  Patient names come from a
+# large history table, so the list is a filtered window rather than the whole
+# column â€” enough to browse, small enough to stay instant while typing.
+_DB_LOOKUP_LIMIT = 60
+
+
+def _patient_name_options(query: str) -> list[str]:
+    """Distinct patient names already recorded in the database.
+
+    Patient is free text on the sale, so the existing sale history is the
+    real source of names.  Matching is case-insensitive and partial, so
+    "ram" finds "BHRAMHAKUMARI NANDA".  Nothing is invented here.
+    """
+    text = (query or "").strip()
+    pattern = f"%{text}%" if text else "%"
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT DISTINCT patient_name FROM sales_invoices "
+            "WHERE patient_name IS NOT NULL AND TRIM(patient_name) <> '' "
+            "AND patient_name COLLATE NOCASE LIKE ? "
+            "ORDER BY patient_name LIMIT ?",
+            (pattern, _DB_LOOKUP_LIMIT),
+        ).fetchall()
+    finally:
+        conn.close()
+    return [row[0] for row in rows]
+
+
+def _address_options(query: str) -> list[str]:
+    """Distinct addresses already stored against customers."""
+    text = (query or "").strip()
+    pattern = f"%{text}%" if text else "%"
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT DISTINCT address FROM customers "
+            "WHERE address IS NOT NULL AND TRIM(address) <> '' "
+            "AND address COLLATE NOCASE LIKE ? "
+            "ORDER BY address LIMIT ?",
+            (pattern, _DB_LOOKUP_LIMIT),
+        ).fetchall()
+    finally:
+        conn.close()
+    return [row[0] for row in rows]
+
+
+class _DBLookupCombo(_KeyboardCombo):
+    """Editable combo whose suggestions come from the live database.
+
+    Behaves exactly like the existing item autocomplete: a click opens the
+    list, typing filters it case-insensitively on a partial match, and
+    Arrow Up / Arrow Down / Enter / Escape / Tab and mouse selection all
+    work through the shared ``_KeyboardCombo`` contract.  Only the source of
+    the rows differs â€” the values are queried on demand instead of held in
+    memory, so a large patient history stays responsive.
+
+    The ``text()`` / ``setText()`` / ``clear()`` trio mirrors the plain line
+    edit it replaces, so the surrounding save logic is unchanged.
+    """
+
+    def __init__(self, option_provider, *, placeholder: str = "",
+                 width: int | None = None):
+        super().__init__()
+        self._option_provider = option_provider
+        self.setStyleSheet(_COMBO_STYLE)
+        if placeholder:
+            self.lineEdit().setPlaceholderText(placeholder)
+        if width:
+            # A floor, not a fixed size: the field may grow into whatever
+            # space the strip has spare, so the row never shows a gap.
+            self.setMinimumWidth(width)
+        self.show_all_completions_on_click()
+        self.lineEdit().textEdited.connect(self._on_text_edited)
+        self._on_text_edited("")
+
+    def _on_text_edited(self, text: str):
+        """Re-query the database for what the user has typed so far."""
+        self._reload(text)
+
+    def _reload(self, query: str):
+        """Replace the suggestion rows, keeping the typed text intact."""
+        typed = self.lineEdit().text()
+        try:
+            options = self._option_provider(query)
+        except Exception:
+            # A lookup failure must never block typing in the bill.
+            options = []
+        self.blockSignals(True)
+        try:
+            QComboBox.clear(self)
+            for option in options:
+                self.addItem(option)
+            # The completer reads the combo's own model, so a selected row
+            # can always be matched back by text.
+            self.set_completion_model(self.model())
+            self.setEditText(typed)
+        finally:
+            self.blockSignals(False)
+
+    def reload(self, query: str = ""):
+        """Public refresh used when the popup opens."""
+        self._reload(query)
+
+    def text(self) -> str:
+        return self.lineEdit().text()
+
+    def setText(self, value: str):
+        self.setEditText(value or "")
+
+    def clear(self):
+        """Clear the typed value only â€” the suggestion rows stay."""
+        self.lineEdit().clear()
+
+
+# ======================================================================
 # Bill line item data class
 # ======================================================================
 
@@ -643,7 +772,7 @@ class _ItemEntryBar(QWidget):
     """Single horizontal row for selecting item, batch and sale quantity.
 
     All twelve controls (CNo, Item, Batch, Pack, Loc, Exp, MRP, Avail, Qty,
-    Disc, Amount, + Add) live on ONE row in that order — there is no second
+    Disc, Amount, + Add) live on ONE row in that order â€” there is no second
     detail row, so the bar costs one line of vertical space instead of two.
 
     Kept at a fixed compact height so the active sale-entry region can never
@@ -655,7 +784,7 @@ class _ItemEntryBar(QWidget):
         _keep_alive(self)
         self.setObjectName("ItemEntryBar")
         self._draft_reserved_qty = lambda _batch_id: 0.0
-        # One single horizontal row — the target billing-bar order:
+        # One single horizontal row â€” the target billing-bar order:
         #   CNo | Item | Batch | Pack | Loc | Exp | MRP | Avail | Qty |
         #   Disc | Amount | + Add
         #
@@ -670,7 +799,7 @@ class _ItemEntryBar(QWidget):
         # spacing on every pair.
         layout.setSpacing(2)
 
-        # CNo (counter / current bill number — display only)
+        # CNo (counter / current bill number â€” display only)
         layout.addWidget(self._lbl("CNo"))
         self.cno_label = QLabel("--")
         self.cno_label.setFixedWidth(34)
@@ -679,7 +808,7 @@ class _ItemEntryBar(QWidget):
         self.cno_label.setFixedHeight(_ENTRY_BAR_HEIGHT - 8)
         layout.addWidget(self.cno_label)
 
-        # Item — the widest field, capped at 300 px. The main search box, but not a
+        # Item â€” the widest field, capped at 300 px. The main search box, but not a
         # banner: on a 1920-wide monitor the width it does not take is shared
         # with the other fields so the bar fills evenly.
         layout.addWidget(self._lbl("Item"))
@@ -700,13 +829,13 @@ class _ItemEntryBar(QWidget):
             self._on_item_search_text_changed
         )
         # Stretch weights: Item leads because it is the primary search field, but it
-        # only takes a share of the spare width — Batch and the read-outs widen
+        # only takes a share of the spare width â€” Batch and the read-outs widen
         # too, so a wide monitor fills the bar evenly instead of turning Item
         # into a banner.  A trailing stretch keeps "+ Add" flush right once
         # every field has hit its maximum.
         layout.addWidget(self.item_combo, 3)
 
-        # Batch — medium width: long batch numbers stay readable and the
+        # Batch â€” medium width: long batch numbers stay readable and the
         # light completion popup has room to show useful batch text.
         layout.addWidget(self._lbl("Batch"))
         self.batch_combo = _make_combo()
@@ -781,7 +910,7 @@ class _ItemEntryBar(QWidget):
         # the Add button always stays flush against the right edge.
         layout.addStretch(1)
 
-        # Add button — compact, same box height as the entry controls.
+        # Add button â€” compact, same box height as the entry controls.
         self.add_btn = QPushButton("+ Add")
         self.add_btn.setStyleSheet(_BTN_GREEN_SM)
         self.add_btn.setFixedWidth(_ENTRY_ADD_WIDTH)
@@ -1089,9 +1218,9 @@ class _SalePanel(QWidget):
     the history region so the active sale area is always in a fixed
     position.  No transaction logic was changed.
 
-    Layout (top → bottom):
-        item entry bar  →  current bill table  →  bill/customer details
-        →  totals + actions
+    Layout (top â†’ bottom):
+        item entry bar  â†’  current bill table  â†’  bill/customer details
+        â†’  totals + actions
     """
 
     saved = Signal()
@@ -1159,6 +1288,9 @@ class _SalePanel(QWidget):
         self._entry_bar.set_draft_reservation_provider(self._reserved_for_entry)
         self._entry_bar.load_items()
         root.addWidget(self._entry_bar)
+
+        if self._popup_mode:
+            self.apply_popup_entry_widths()
 
         # -- Region C: current bill table (gets the remaining space) --
         self._build_bill_table()
@@ -1361,10 +1493,14 @@ class _SalePanel(QWidget):
         Centre column Customer / Patient / Address
         Right column  Doctor / Discount / Paid Amount
 
-        Every control here is the panel's own existing widget — the sale type,
-        customer, patient and doctor inputs plus the bill-discount and paid
-        boxes created for the totals row.  Only Cnt No and Address are new,
-        and both are read-only mirrors of customer master data.
+        Every control here is the panel's own existing widget â€” the sale type,
+        customer and doctor inputs plus the bill-discount and paid boxes
+        created for the totals row.  Patient and Address are database-backed
+        lookups here, and Cnt No is a read-only mirror of customer master
+        data.
+
+        Widths are set per the field minimums the popup needs: nothing is
+        squeezed, so no label or value can overlap its neighbour.
         """
         strip = QWidget()
         strip.setObjectName("SalesBillTopStrip")
@@ -1391,10 +1527,10 @@ class _SalePanel(QWidget):
         left.addWidget(self._lbl("Cnt No"), 0, 0)
         self.cnt_no_edit = _make_edit()
         self.cnt_no_edit.setReadOnly(True)
-        self.cnt_no_edit.setMaximumWidth(90)
+        _ItemEntryBar._fit(self.cnt_no_edit, 55, 90)
         left.addWidget(self.cnt_no_edit, 0, 1)
         left.addWidget(self._lbl("Type"), 1, 0)
-        self.sale_type_combo.setMaximumWidth(110)
+        self.sale_type_combo.setMinimumWidth(110)
         left.addWidget(self.sale_type_combo, 1, 1)
         outer.addLayout(left)
 
@@ -1403,15 +1539,34 @@ class _SalePanel(QWidget):
         centre.setHorizontalSpacing(4)
         centre.setVerticalSpacing(2)
         centre.addWidget(self._lbl("Customer *"), 0, 0)
-        self.customer_combo.setMinimumWidth(150)
+        self.customer_combo.setMinimumWidth(200)
         centre.addWidget(self.customer_combo, 0, 1)
         centre.addWidget(self._lbl("Patient Name"), 1, 0)
-        centre.addWidget(self.patient_name_edit, 1, 1)
+
+        # Patient becomes a searchable database field in the popup only.
+        # The plain line edit it replaces stays alive but is unused; the
+        # save logic keeps reading patient_name_edit either way.
+        plain_patient = self.patient_name_edit
+        patient = _DBLookupCombo(
+            _patient_name_options, placeholder="Search patient name", width=260,
+        )
+        self.patient_name_edit = patient
+        plain_patient.setParent(None)
+        plain_patient.deleteLater()
+        centre.addWidget(patient, 1, 1)
+
         centre.addWidget(self._lbl("Address"), 2, 0)
-        self.address_edit = _make_edit()
-        self.address_edit.setReadOnly(True)
+        # Address offers the addresses already on file, and still mirrors the
+        # selected customer's own address.
+        self.address_edit = _DBLookupCombo(
+            _address_options, placeholder="Search saved address", width=300,
+        )
         centre.addWidget(self.address_edit, 2, 1)
         centre.setColumnStretch(1, 1)
+        # Centre and right share the strip's spare width between them, so the
+        # Doctor column sits next to the address field instead of being pushed
+        # across an empty gap.  Each field can grow into its share, which is
+        # what keeps the spare space from appearing as a hole in the row.
         outer.addLayout(centre, 1)
 
         # -- RIGHT: Doctor / Discount / Paid Amount --
@@ -1419,15 +1574,17 @@ class _SalePanel(QWidget):
         right.setHorizontalSpacing(4)
         right.setVerticalSpacing(2)
         right.addWidget(self._lbl("Doctor"), 0, 0)
-        self.doctor_combo.setMinimumWidth(140)
+        self._make_doctor_lookup()
+        self.doctor_combo.setMinimumWidth(190)
         right.addWidget(self.doctor_combo, 0, 1)
         right.addWidget(self._lbl("Discount"), 1, 0)
-        self.bill_disc_edit.setMaximumWidth(110)
+        self.bill_disc_edit.setMinimumWidth(100)
         right.addWidget(self.bill_disc_edit, 1, 1)
         right.addWidget(self._lbl("Paid Amount"), 2, 0)
-        self.paid_edit.setMaximumWidth(110)
+        self.paid_edit.setMinimumWidth(100)
         right.addWidget(self.paid_edit, 2, 1)
-        outer.addLayout(right)
+        right.setColumnStretch(1, 1)
+        outer.addLayout(right, 1)
 
         # Discount / Paid recalculate through the same wiring as the panel.
         self.bill_disc_edit.textChanged.connect(self._recalc_totals)
@@ -1438,8 +1595,181 @@ class _SalePanel(QWidget):
 
         return strip
 
+    def apply_popup_entry_widths(self, available_width: int | None = None):
+        """Size the popup's single Item Entry row so nothing overlaps.
+
+        The row keeps its existing order, widgets, labels and behaviour â€”
+        CNo, Item, Batch, Pack, Loc, Exp, MRP, Avail, Qty, Disc, Amt, + Add.
+        Twelve fields plus their labels are simply wider than the popup, so
+        instead of fixed guesses this measures what the row's labels, gaps
+        and margins already consume and shares the rest across the fields in
+        proportion to their comfortable sizes.  The sum is forced to the
+        remaining space, so the row always lands on exactly one line with
+        every field clear of its neighbour.
+
+        Sizing stays inside Qt's layout system (minimum == maximum width on
+        each field); no widget is positioned by coordinates.
+
+        The Counter Sale screen is untouched: it keeps the entry bar's own
+        widths because this runs only in popup mode.
+        """
+        bar = self._entry_bar
+        layout = bar.layout()
+        if available_width is None:
+            available_width = bar.width()
+
+        # What the row spends before any field: every label, every gap and
+        # the bar's own margins.
+        spent = (layout.spacing() * max(layout.count() - 1, 0)
+                 + layout.contentsMargins().left()
+                 + layout.contentsMargins().right())
+        captions = 0
+        for index in range(layout.count()):
+            item = layout.itemAt(index)
+            widget = item.widget()
+            if widget is bar.cno_label:
+                # This label mirrors the whole bill number, so its sizeHint is
+                # far wider than the slot it is given below.  Charge the slot,
+                # not the text.
+                spent += _POPUP_CNO_WIDTH
+            elif isinstance(widget, QLabel):
+                spent += widget.sizeHint().width()
+                captions += 1
+
+        # Comfortable size per field: (attribute, preferred width).
+        preferred = (
+            # (attribute, comfortable width, smallest usable width)
+            ("item_combo", 280, 120),
+            ("batch_combo", 150, 80),
+            ("pack_edit", 70, 34),
+            ("location_edit", 90, 40),
+            ("expiry_edit", 105, 48),
+            ("mrp_edit", 95, 44),
+            ("stock_edit", 90, 40),
+            ("qty_edit", 75, 34),
+            ("discount_edit", 90, 40),
+            ("amount_edit", 110, 50),
+            ("add_btn", 85, 60),
+        )
+        total_preferred = sum(width for _, width, _floor in preferred)
+        # Captions are pinned to their own text width below, so everything the
+        # row has not already spent on labels and gaps belongs to the fields.
+        room = max(0, available_width - spent)
+
+        # Search fields and the Add button are the ones a user actually types
+        # into or reads at length, so they are guaranteed a comfortable width
+        # first; the compact read-outs share what is left.
+        floors = {"item_combo": 200, "batch_combo": 100, "add_btn": 64}
+        if room >= sum(floors.values()):
+            widths = dict(floors)
+            shared = room - sum(floors.values())
+            weights = [(a, w) for a, w, _f in preferred if a not in floors]
+            weight_total = sum(w for _, w in weights)
+            for attribute, weight in weights:
+                widths[attribute] = shared * weight // weight_total
+            widths["item_combo"] += shared - sum(
+                v for a, v in widths.items() if a not in floors
+            )
+        else:
+            # Not even the comfortable widths fit: share everything evenly.
+            widths = {a: room * w // total_preferred for a, w, _f in preferred}
+        # Give the rounding remainder to the Item field so the row consumes
+        # exactly the space that was measured.
+        widths["item_combo"] += room - sum(widths.values())
+
+        for attribute, comfortable, floor in preferred:
+            widget = getattr(bar, attribute)
+            width = widths[attribute]
+            _ItemEntryBar._fit(widget, width, width)
+
+        # CNo mirrors the bill number in its own narrow label, kept wide
+        # enough for the number and narrow enough to stay out of Item's way.
+        bar.cno_label.setMinimumWidth(_POPUP_CNO_WIDTH)
+        bar.cno_label.setMaximumWidth(_POPUP_CNO_WIDTH)
+        self._pin_popup_entry_captions()
+        self._fit_popup_entry_row_to_width(available_width, preferred)
+
+    def _fit_popup_entry_row_to_width(self, available_width: int,
+                                      preferred) -> None:
+        """Trim the Item field if the row still does not fit the window.
+
+        The widths above are computed from measured label and gap sizes, but
+        Qt's own rounding can leave the row a pixel or two long.  Rather than
+        let a caption or a field be squeezed, the Item field â€” which has the
+        most room to give â€” absorbs the difference, never dropping below its
+        usable minimum.
+        """
+        bar = self._entry_bar
+        layout = bar.layout()
+
+        def required_width() -> int:
+            total = (layout.spacing() * max(layout.count() - 1, 0)
+                     + layout.contentsMargins().left()
+                     + layout.contentsMargins().right())
+            for index in range(layout.count()):
+                widget = layout.itemAt(index).widget()
+                if widget is None:
+                    continue
+                if widget is bar.cno_label:
+                    total += _POPUP_CNO_WIDTH
+                elif isinstance(widget, QLabel):
+                    total += widget.maximumWidth()
+                else:
+                    total += widget.maximumWidth()
+            return total
+
+        overflow = required_width() - available_width
+        item = bar.item_combo
+        floor = {attribute: smallest
+                for attribute, _comfortable, smallest in preferred}["item_combo"]
+        if overflow > 0:
+            width = max(floor, item.maximumWidth() - overflow)
+            _ItemEntryBar._fit(item, width, width)
+
+    def _pin_popup_entry_captions(self):
+        """Stop the row's captions being squeezed by the fields.
+
+        Each caption is held at exactly the width its own text needs, which
+        is what keeps a label from being clipped once the fields beside it
+        have taken their share of the window.
+        """
+        bar = self._entry_bar
+        for index in range(bar.layout().count()):
+            widget = bar.layout().itemAt(index).widget()
+            if isinstance(widget, QLabel) and widget is not bar.cno_label:
+                width = widget.sizeHint().width()
+                widget.setMinimumWidth(width)
+                widget.setMaximumWidth(width)
+
+
+    def _make_doctor_lookup(self):
+        """Doctor becomes a click-to-open database dropdown in the popup.
+
+        The rows stay exactly the doctors loaded from the ``doctors`` table
+        (same ids, same order, ``-- None --`` placeholder first).  The popup
+        only appends the specialty the table already stores, so the list is
+        readable at a glance, and enables the same click-to-open list the
+        item and batch fields use.  Selection keeps storing ``doctor_id``, so
+        the saved bill is unchanged.
+        """
+        self.doctor_combo.show_all_completions_on_click(True)
+        for row, doctor in enumerate(DoctorDAO.get_all()):
+            specialty = (doctor.get("specialty") or "").strip()
+            if not specialty:
+                continue
+            index = row + 1  # row 0 is the "-- None --" placeholder
+            if index < self.doctor_combo.count():
+                self.doctor_combo.setItemText(
+                    index, f"{doctor['doctor_name']} - {specialty}"
+                )
+
     def _refresh_customer_info(self, *_args):
-        """Mirror the selected customer's contact number and address."""
+        """Mirror the selected customer's contact number and address.
+
+        Setting the address only replaces the text; the saved-address
+        suggestions stay loaded, so the user can still pick another one.
+        Patient and Doctor are never touched here.
+        """
         if not hasattr(self, "cnt_no_edit"):
             return
         cid = self.customer_combo.currentData()
@@ -1462,7 +1792,7 @@ class _SalePanel(QWidget):
         Row 1 carries the bill identity (Bill No / Date / Time / Type) with
         balanced, content-sized widths and a trailing stretch.  Row 2 gives
         Customer / Patient / Doctor the full remaining width instead of
-        forcing them through the same columns as row 1 — the two rows are
+        forcing them through the same columns as row 1 â€” the two rows are
         independent, so neither row is squeezed by the other.
         """
         self._metadata_strip = QWidget()
@@ -1763,7 +2093,7 @@ class _SalePanel(QWidget):
         """Compact Delete action, centred inside the fixed-width Del column.
 
         The button is wrapped in a filler cell so it is centred both ways and
-        never stretches to the row height — a small table action instead of a
+        never stretches to the row height â€” a small table action instead of a
         standalone control dominating the row.  Delete behaviour is unchanged.
         """
         del_btn = QPushButton("Delete")
@@ -2225,7 +2555,7 @@ class _SalePanel(QWidget):
             items_data = [r.to_dict() for r in self._item_rows]
 
             if self._invoice:
-                # Edit: update in place — stock is adjusted and the
+                # Edit: update in place â€” stock is adjusted and the
                 # accounting posting is reversed + re-posted atomically.
                 SalesDAO.update_invoice(
                     invoice_id=self._invoice["id"],
@@ -2260,7 +2590,7 @@ class _SalePanel(QWidget):
     def draft_state(self) -> dict:
         """Snapshot of the unsaved draft, for the review popup to edit.
 
-        Pure copy — nothing is written and no stock is reserved by taking
+        Pure copy â€” nothing is written and no stock is reserved by taking
         this snapshot, which is what keeps the popup free of side effects.
         """
         return {
@@ -2465,21 +2795,21 @@ class _SalePanel(QWidget):
             if stock_batch_id is None:
                 warnings.append(
                     f"Item '{it.get('item_name_snapshot', '')}' "
-                    f"batch '{it['batch_no']}' — batch no longer available."
+                    f"batch '{it['batch_no']}' â€” batch no longer available."
                 )
                 continue
 
             if SalesDAO.is_expired(it.get("expiry", "")):
                 warnings.append(
                     f"Item '{it.get('item_name_snapshot', '')}' "
-                    f"batch '{it['batch_no']}' — batch is expired."
+                    f"batch '{it['batch_no']}' â€” batch is expired."
                 )
                 continue
 
             if stock_batch_id and batch_stock < it.get("sale_qty", 0):
                 warnings.append(
                     f"Item '{it.get('item_name_snapshot', '')}' "
-                    f"batch '{it['batch_no']}' — insufficient stock "
+                    f"batch '{it['batch_no']}' â€” insufficient stock "
                     f"({batch_stock:.0f} available, {it.get('sale_qty', 0):.0f} needed)."
                 )
 
@@ -2551,13 +2881,18 @@ class _SaleDialog(QDialog):
 
 
 # ======================================================================
-# Sales Bill — review / edit popup (compact, modal, classic layout)
+# Sales Bill â€” review / edit popup (compact, modal, classic layout)
 # ======================================================================
 
 # Traditional pharmacy-software popup header: a solid blue title bar with
 # white bold text, matching the reference bill window rather than a modern
 # card.  Only this dialog uses the blue bar; the app palette is untouched.
 _BILL_HEADER_BG = "#1f5c9e"
+# Horizontal space the popup's own chrome takes from the item entry row:
+# the body widget's margins and the vertical border either side.
+_POPUP_BODY_CHROME = 16
+# Slot reserved for the CNo mirror at the head of the popup's entry row.
+_POPUP_CNO_WIDTH = 54
 _BILL_DIALOG_STYLE = (
     f"QDialog#SalesBillDialog {{ background-color: {_SURFACE}; }}"
 )
@@ -2582,9 +2917,9 @@ class SalesBillReviewDialog(QDialog):
       with the draft untouched.
 
     The bill is edited through an embedded :class:`_SalePanel` set to
-    review mode, so every existing control — item autocomplete, batch
+    review mode, so every existing control â€” item autocomplete, batch
     selection, draft stock reservation, add/delete line, keyboard
-    navigation — is the same one the Counter Sale screen uses.
+    navigation â€” is the same one the Counter Sale screen uses.
     """
 
     def __init__(self, panel: _SalePanel, parent: QWidget | None = None):
@@ -2637,6 +2972,9 @@ class SalesBillReviewDialog(QDialog):
         self._panel.cancelled.connect(self.reject)
 
         self._resize_compact()
+        # The popup's own width is only known now, so the Item Entry row is
+        # measured and sized to fit exactly this window.
+        self._panel.apply_popup_entry_widths(self.width() - _POPUP_BODY_CHROME)
 
     # ------------------------------------------------------------------
     # Construction helpers
@@ -2663,7 +3001,7 @@ class SalesBillReviewDialog(QDialog):
         layout.addWidget(title)
         layout.addStretch()
 
-        # Voucher No / Date / Time come from the live bill — the popup never
+        # Voucher No / Date / Time come from the live bill â€” the popup never
         # generates numbering of its own.
         for caption, value in (
             ("Voucher No", panel.bill_no_edit.text()),
@@ -2767,18 +3105,22 @@ class SalesBillReviewDialog(QDialog):
         # count is refreshed through that same existing signal.
         self._total_items_label.setText(str(len(self._panel._item_rows)))
 
-    # Reference proportions for the Sales Bill window: a compact dialog that
-    # is never full-screen at any of the supported desktop resolutions.
-    MIN_WIDTH, MAX_WIDTH = 730, 800
-    MIN_HEIGHT, MAX_HEIGHT = 430, 500
+    # Reference proportions for the Sales Bill window: a compact dialog that is
+    # never full-screen at any of the supported desktop resolutions.  The
+    # width is sized so the whole Item Entry row fits on ONE line with every
+    # label and value clear of its neighbour â€” twelve labelled fields plus
+    # their captions need roughly 1.2k px, so the window is wide and short
+    # rather than square, and the height stays compact.
+    MIN_WIDTH, MAX_WIDTH = 1180, 1300
+    MIN_HEIGHT, MAX_HEIGHT = 520, 600
 
     @classmethod
     def target_size(cls, available_w: int, available_h: int) -> tuple[int, int]:
         """Popup size for a screen of ``available_w`` x ``available_h``."""
         width = min(cls.MAX_WIDTH,
-                    max(cls.MIN_WIDTH, int(available_w * 0.64)))
+                    max(cls.MIN_WIDTH, int(available_w * 0.96)))
         height = min(cls.MAX_HEIGHT,
-                     max(cls.MIN_HEIGHT, int(available_h * 0.66)))
+                     max(cls.MIN_HEIGHT, int(available_h * 0.72)))
         return width, height
 
     def _resize_compact(self):
@@ -2845,7 +3187,7 @@ class SalesBillReviewDialog(QDialog):
 class CounterSalePage(QWidget):
     """Counter Sale screen.
 
-    Fixed three-region desktop layout (Phase 6E — Counter Sale Layout Fix):
+    Fixed three-region desktop layout (Phase 6E â€” Counter Sale Layout Fix):
 
         Region A  page header + controlled-height Bill History table
         Region B  active sale entry, directly below the history table
@@ -2948,7 +3290,7 @@ class CounterSalePage(QWidget):
         return header
 
     def _build_history_table(self) -> QTableWidget:
-        """Region A table — height is controlled by _apply_history_height()."""
+        """Region A table â€” height is controlled by _apply_history_height()."""
         table = QTableWidget()
         table.setColumnCount(13)
         table.setHorizontalHeaderLabels([
@@ -3045,7 +3387,7 @@ class CounterSalePage(QWidget):
         layout.addWidget(info)
         layout.addStretch()
 
-        # Live display only — no logic attached.
+        # Live display only â€” no logic attached.
         self._sale_panel.totals_changed.connect(self._on_bill_totals)
         self._on_bill_totals(
             self._sale_panel.bill_no_edit.text(),
@@ -3225,7 +3567,7 @@ class CounterSalePage(QWidget):
 
     def _open_sale_dialog(self, invoice: dict | None = None,
                           hold_bill_data: dict | None = None):
-        """Backwards-compatible entry point — the sale area is inline now.
+        """Backwards-compatible entry point â€” the sale area is inline now.
 
         Kept so existing callers keep working; no dialog is opened and no
         transaction logic is duplicated.

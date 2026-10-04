@@ -629,11 +629,14 @@ class TestSalesBillPopupLayout(_DBBase):
     # -- behaviour preserved --------------------------------------------
 
     def test_58_popup_size_is_compact(self):
+        # The bill window was widened so the single Item Entry row fits on
+        # one line: wide enough for every labelled field, still short enough
+        # to stay a dialog rather than a full-screen window.
         dialog = self._open()
-        self.assertLessEqual(dialog.width(), 800)
-        self.assertLessEqual(dialog.height(), 500)
-        self.assertGreaterEqual(dialog.width(), 730)
-        self.assertGreaterEqual(dialog.height(), 430)
+        self.assertLessEqual(dialog.width(), 1300)
+        self.assertLessEqual(dialog.height(), 600)
+        self.assertGreaterEqual(dialog.width(), 900)
+        self.assertGreaterEqual(dialog.height(), 520)
 
     def test_59_popup_still_opens_after_save_sale(self):
         page = CounterSalePage()
