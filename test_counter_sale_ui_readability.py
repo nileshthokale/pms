@@ -257,78 +257,92 @@ class CounterSaleUITests(unittest.TestCase):
 
     # -- 6. Sale Header font ------------------------------------------
     def test_13_sale_header_labels_readable(self):
-        """Sale Header labels must be 10-11 px and bold."""
-        from PySide6.QtWidgets import QLabel
-        # Find the Sale Header group box
-        sale_header = None
-        for grp in self.page.findChildren(QGroupBox):
-            if grp.title() == "Sale Header":
-                sale_header = grp
-                break
-        self.assertIsNotNone(sale_header, "Sale Header group box not found")
-        for lbl in sale_header.findChildren(QLabel):
-            ss = lbl.styleSheet()
-            if "font-size" in ss:
-                import re
-                match = re.search(r"font-size:\s*(\d+)px", ss)
-                if match:
-                    size = int(match.group(1))
-                    self.assertGreaterEqual(size, 10,
-                                            f"Sale Header label '{lbl.text()}' font too small: {size}px")
-                    self.assertLessEqual(size, 11,
-                                         f"Sale Header label '{lbl.text()}' font too large: {size}px")
+        """Sale-header captions must be 10-11 px.
 
-    def test_14_sale_header_group_title_readable(self):
-        """Sale Header group box title must be 11-12 px."""
-        for grp in self.page.findChildren(QGroupBox):
-            if grp.title() == "Sale Header":
-                ss = grp.styleSheet()
-                import re
-                match = re.search(r"font-size:\s*(\d+)px", ss)
-                if match:
-                    size = int(match.group(1))
-                    self.assertGreaterEqual(size, 11,
-                                            f"Sale Header title font too small: {size}px")
-                    self.assertLessEqual(size, 12,
-                                         f"Sale Header title font too large: {size}px")
-                break
+        The old "Sale Header" group box was merged into the compact metadata
+        strip that keeps the same captions (Bill No / Date / Time / Type /
+        Customer / Patient / Doctor), so the strip captions are checked here.
+        """
+        import re
+        from PySide6.QtWidgets import QLabel, QWidget
+
+        strip = self.panel.findChild(QWidget, "CompactSaleMetadata")
+        self.assertIsNotNone(strip, "compact sale metadata strip not found")
+        captions = [lbl for lbl in strip.findChildren(QLabel)
+                    if lbl.text() in ("Bill No", "Date", "Time", "Type",
+                                      "Customer *", "Patient", "Doctor")]
+        self.assertEqual(len(captions), 7, "sale-header captions missing")
+        for lbl in captions:
+            match = re.search(r"font-size:\s*(\d+)px", lbl.styleSheet())
+            self.assertIsNotNone(match, f"{lbl.text()} lost its font size")
+            size = int(match.group(1))
+            self.assertGreaterEqual(size, 10,
+                                    f"Sale Header label '{lbl.text()}' font too small: {size}px")
+            self.assertLessEqual(size, 11,
+                                 f"Sale Header label '{lbl.text()}' font too large: {size}px")
+
+    def test_14_sale_header_panel_is_the_compact_strip(self):
+        """The Sale Header / Customer panels are one compact strip, not boxes."""
+        from PySide6.QtWidgets import QLabel, QWidget
+
+        titles = [grp.title() for grp in self.panel.findChildren(QGroupBox)]
+        self.assertNotIn("Sale Header", titles)
+        self.assertNotIn("Customer / Doctor", titles)
+
+        strip = self.panel.findChild(QWidget, "CompactSaleMetadata")
+        self.assertIsNotNone(strip, "compact sale metadata strip not found")
+        self.assertGreaterEqual(strip.height(), 40)
+        self.assertLessEqual(strip.height(), 60)
+        captions = [lbl.text() for lbl in strip.findChildren(QLabel)]
+        for text in ("Bill No", "Date", "Time", "Type",
+                     "Customer *", "Patient", "Doctor"):
+            self.assertIn(text, captions, f"{text} left the sale header strip")
 
     # -- 7. Totals font ------------------------------------------------
     def test_15_totals_labels_readable(self):
-        """Totals labels must be 10-11 px."""
+        """Totals caption labels must be 10-11 px."""
         import re
         from PySide6.QtWidgets import QLabel
-        value_labels = {
-            self.panel.total_amount_label,
-            self.panel.round_off_label,
-            self.panel.net_amt_label,
-        }
+
+        number = re.compile(r"^-?\d+(\.\d+)?$")
+        checked = 0
         for lbl in self.totals.findChildren(QLabel):
-            if lbl in value_labels:
-                continue  # value labels are checked separately in test_16
-            ss = lbl.styleSheet()
-            if "font-size" in ss:
-                match = re.search(r"font-size:\s*(\d+)px", ss)
-                if match:
-                    size = int(match.group(1))
-                    self.assertGreaterEqual(size, 10,
-                                            f"totals label '{lbl.text()}' font too small: {size}px")
-                    self.assertLessEqual(size, 11,
-                                         f"totals label '{lbl.text()}' font too large: {size}px")
+            if number.match(lbl.text().strip()):
+                continue  # numeric values are checked separately in test_16
+            match = re.search(r"font-size:\s*(\d+)px", lbl.styleSheet())
+            if not match:
+                continue
+            checked += 1
+            size = int(match.group(1))
+            self.assertGreaterEqual(size, 10,
+                                    f"totals label '{lbl.text()}' font too small: {size}px")
+            self.assertLessEqual(size, 11,
+                                 f"totals label '{lbl.text()}' font too large: {size}px")
+        self.assertGreaterEqual(checked, 6, "totals captions not found")
 
     def test_16_totals_values_readable(self):
-        """Totals numeric values must be 11-12 px."""
-        for attr in ("total_amount_label", "round_off_label", "net_amt_label"):
-            lbl = getattr(self.panel, attr)
-            ss = lbl.styleSheet()
-            import re
-            match = re.search(r"font-size:\s*(\d+)px", ss)
-            if match:
-                size = int(match.group(1))
-                self.assertGreaterEqual(size, 11,
-                                        f"totals value '{attr}' font too small: {size}px")
-                self.assertLessEqual(size, 12,
-                                     f"totals value '{attr}' font too large: {size}px")
+        """Totals numeric values must be 11-13 px, NET AMT emphasised at 13."""
+        import re
+        from PySide6.QtWidgets import QLabel
+
+        number = re.compile(r"^-?\d+(\.\d+)?$")
+        values = [lbl for lbl in self.totals.findChildren(QLabel)
+                  if number.match(lbl.text().strip())]
+        self.assertGreaterEqual(len(values), 4, "totals values not found")
+        for lbl in values:
+            match = re.search(r"font-size:\s*(\d+)px", lbl.styleSheet())
+            self.assertIsNotNone(match, f"totals value '{lbl.text()}' lost its font size")
+            size = int(match.group(1))
+            self.assertGreaterEqual(size, 11,
+                                    f"totals value '{lbl.text()}' font too small: {size}px")
+            self.assertLessEqual(size, 13,
+                                 f"totals value '{lbl.text()}' font too large: {size}px")
+        # NET AMT is the emphasised figure of the footer.
+        net = self.panel.net_amt_label
+        match = re.search(r"font-size:\s*(\d+)px", net.styleSheet())
+        self.assertIsNotNone(match, "NET AMT lost its font size")
+        self.assertGreaterEqual(int(match.group(1)), 13,
+                                "NET AMT must stay emphasised")
 
     # -- 8. Buttons font ----------------------------------------------
     def test_17_action_buttons_readable(self):
