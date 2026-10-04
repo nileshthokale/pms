@@ -5,6 +5,8 @@ from PySide6.QtWidgets import QDialog, QFormLayout, QLabel, QLineEdit, QMessageB
 from database import auth
 from ui import components as ui
 
+#login file
+
 
 class LoginDialog(QDialog):
     """Login and first-run ADMIN setup dialog."""
