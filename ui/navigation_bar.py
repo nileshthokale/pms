@@ -16,6 +16,8 @@ modified.
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
+    QComboBox,
+    QDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -32,11 +34,73 @@ from database import auth
 from database import financial_year
 
 
+class FinancialYearPickerDialog(QDialog):
+    """Small popup for choosing which financial year to VIEW.
+
+    Read-only by construction: it only returns the chosen row from the
+    existing ``financial_years`` table.  It never activates a year, never
+    creates one and never writes anything.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Financial Year")
+        self.setModal(True)
+        self.setFixedWidth(300)
+        self._years: list[dict] = financial_year.get_financial_years()
+        self._choice: dict | None = None
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(10, 10, 10, 10)
+        root.setSpacing(8)
+
+        caption = QLabel("View history for financial year")
+        caption.setStyleSheet(ui.label_style(dim=True, size=9))
+        root.addWidget(caption)
+
+        self.combo = QComboBox()
+        ui.style_combo(self.combo)
+        active = financial_year.get_active_financial_year()
+        active_id = active["id"] if active else None
+        for year in self._years:
+            label = year["name"]
+            if year["id"] == active_id:
+                label = f"{label}  (active)"
+            self.combo.addItem(label, year["id"])
+        if self._years:
+            index = self.combo.findData(active_id)
+            self.combo.setCurrentIndex(index if index >= 0 else 0)
+        root.addWidget(self.combo)
+
+        buttons = QHBoxLayout()
+        buttons.setSpacing(8)
+        buttons.addStretch()
+        self.cancel_btn = ui.ActionButton("Cancel", "secondary")
+        self.cancel_btn.clicked.connect(self.reject)
+        self.ok_btn = ui.ActionButton("Select", "primary")
+        self.ok_btn.clicked.connect(self._accept)
+        buttons.addWidget(self.cancel_btn)
+        buttons.addWidget(self.ok_btn)
+        root.addLayout(buttons)
+
+    def _accept(self):
+        data = self.combo.currentData()
+        self._choice = next(
+            (y for y in self._years if y["id"] == data), None
+        )
+        self.accept()
+
+    def selected_year(self) -> dict | None:
+        """The financial year the user chose, or None if cancelled."""
+        return self._choice
+
+
 class NavigationBar(QWidget):
     """Top application chrome: title strip + classic menu strip."""
 
     menu_action_triggered = Signal(str, str)
     logout_requested = Signal()
+    financial_year_view_requested = Signal(dict)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -62,9 +126,18 @@ class NavigationBar(QWidget):
         tl.addWidget(self._menu_hint)
         tl.addStretch()
 
-        self.fy_label = QLabel()
-        self.fy_label.setToolTip("Active financial year")
-        tl.addWidget(self.fy_label)
+        # Active financial year, shown as a button so a different year can
+        # be picked for viewing.  It keeps its place and appearance in the
+        # title strip; only the click behaviour is new.
+        self.fy_button = QPushButton()
+        self.fy_button.setObjectName("FinancialYearButton")
+        self.fy_button.setFlat(True)
+        self.fy_button.setCursor(Qt.PointingHandCursor)
+        self.fy_button.setToolTip(
+            "Active financial year — click to view history for another year"
+        )
+        self.fy_button.clicked.connect(self._on_financial_year_clicked)
+        tl.addWidget(self.fy_button)
 
         self.user_label = QLabel()
         self.user_label.setToolTip("Signed-in user and role")
@@ -124,7 +197,19 @@ class NavigationBar(QWidget):
     # ── data ─────────────────────────────────────────────────────────
     def refresh_financial_year(self):
         active = financial_year.ensure_default_financial_year()
-        self.fy_label.setText(f"FY {active['name']}")
+        self.fy_button.setText(f"FY {active['name']}")
+
+    def _on_financial_year_clicked(self):
+        """Open the small financial-year picker and report the choice.
+
+        The picker is a view-only helper: it returns the row the user
+        picked and nothing is written to the database here.
+        """
+        dialog = FinancialYearPickerDialog(self)
+        dialog.exec()
+        year = dialog.selected_year()
+        if year:
+            self.financial_year_view_requested.emit(year)
 
     def refresh_user(self):
         user = getattr(auth.session, "user", None)
@@ -166,10 +251,20 @@ class NavigationBar(QWidget):
             f"color: {nav['text']}; font-size: 11pt; font-weight: bold;"
             f"font-family: {ui.FONT_FAMILY}; background: transparent;"
         )
-        self.fy_label.setStyleSheet(
-            f"color: {nav['text']}; background: transparent;"
-            f"font-size: 9pt; font-weight: bold;"
-            f"font-family: {ui.FONT_FAMILY}; padding: 0 6px;"
+        self.fy_button.setStyleSheet(
+            "#FinancialYearButton {"
+            f"  color: {nav['text']}; background: transparent;"
+            "  border: 1px solid transparent; border-radius: 2px;"
+            "  padding: 1px 6px; font-size: 9pt; font-weight: bold;"
+            f"  font-family: {ui.FONT_FAMILY};"
+            "}"
+            "#FinancialYearButton:hover {"
+            f"  background-color: {p['selected']};"
+            f"  color: {p['selected_text']};"
+            "}"
+            "#FinancialYearButton:pressed {"
+            f"  background-color: {p['surface']};"
+            "}"
         )
         self.user_label.setStyleSheet(
             f"color: {nav['text']}; background: transparent;"

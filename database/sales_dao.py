@@ -61,17 +61,49 @@ class SalesDAO:
             conn.close()
 
     @staticmethod
-    def get_history_page(*, limit: int, offset: int = 0) -> list[dict]:
-        """Return bill-history rows for a page of invoices and all their items."""
+    def _history_date_clause(start_date: str = "", end_date: str = "",
+                             prefix: str = "") -> tuple[str, list]:
+        """Build the inclusive sale_date range used by the history queries.
+
+        ``prefix`` is the table alias to qualify the column with.  An empty
+        bound is ignored, so empty dates simply mean "no date filter".
+        """
+        column = f"{prefix}sale_date" if prefix else "sale_date"
+        clauses: list[str] = []
+        params: list = []
+        if start_date:
+            clauses.append(f"{column} >= ?")
+            params.append(start_date)
+        if end_date:
+            clauses.append(f"{column} <= ?")
+            params.append(end_date)
+        if not clauses:
+            return "", []
+        return " AND ".join(clauses), params
+
+    @staticmethod
+    def get_history_page(*, limit: int, offset: int = 0,
+                         start_date: str = "", end_date: str = "") -> list[dict]:
+        """Return item-wise bill-history rows for a page of invoices.
+
+        One row per sale item, with the parent bill's number repeated on
+        every item row.  ``start_date``/``end_date`` (YYYY-MM-DD, inclusive)
+        optionally restrict the invoices; empty values mean no date filter.
+        """
         conn = get_connection()
         try:
+            date_clause, date_params = SalesDAO._history_date_clause(
+                start_date, end_date
+            )
+            inner_where = f"WHERE {date_clause}" if date_clause else ""
             rows = conn.execute(
-                """
+                f"""
                 SELECT
                     si.id AS invoice_id,
                     si.bill_no,
                     si.sale_type,
                     si.patient_name,
+                    si.sale_date,
                     si.sale_time,
                     si.net_amount,
                     sii.item_id,
@@ -89,11 +121,57 @@ class SalesDAO:
                 LEFT JOIN items i ON i.id = sii.item_id
                 WHERE si.id IN (
                     SELECT id FROM sales_invoices
+                    {inner_where}
                     ORDER BY id DESC LIMIT ? OFFSET ?
                 )
                 ORDER BY si.id DESC, sii.id
                 """,
-                (limit, offset),
+                (*date_params, limit, offset),
+            ).fetchall()
+            return [dict(row) for row in rows]
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_bill_history_page(*, limit: int, offset: int = 0,
+                              start_date: str = "", end_date: str = "") -> list[dict]:
+        """Return bill-wise bill-history rows: exactly one row per invoice.
+
+        Only bill-level columns are selected (no item join), so a bill can
+        never be duplicated in the grid.  The item count comes from a
+        correlated sub-select, not a per-bill round trip.
+        """
+        conn = get_connection()
+        try:
+            date_clause, date_params = SalesDAO._history_date_clause(
+                start_date, end_date, "si."
+            )
+            where = f"WHERE {date_clause}" if date_clause else ""
+            rows = conn.execute(
+                f"""
+                SELECT
+                    si.id AS invoice_id,
+                    si.bill_no,
+                    si.sale_type,
+                    si.patient_name,
+                    si.sale_date,
+                    si.sale_time,
+                    si.total_amount,
+                    si.discount,
+                    si.paid_amount,
+                    si.round_off,
+                    si.net_amount,
+                    (
+                        SELECT COUNT(*)
+                        FROM sales_invoice_items sii
+                        WHERE sii.sales_invoice_id = si.id
+                    ) AS item_count
+                FROM sales_invoices si
+                {where}
+                ORDER BY si.id DESC
+                LIMIT ? OFFSET ?
+                """,
+                (*date_params, limit, offset),
             ).fetchall()
             return [dict(row) for row in rows]
         finally:
