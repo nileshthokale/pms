@@ -18,7 +18,7 @@ Usage:
 
 import pathlib
 import os
-import shutil
+import sqlite3
 import sys
 import tempfile
 import unittest
@@ -28,15 +28,29 @@ def main() -> int:
     root = pathlib.Path(__file__).resolve().parent
     sys.path.insert(0, str(root))
 
-    staging_db = None
+    # Never let an inherited PHARMACY_DB direct tests at a user or production
+    # database.  Always run the suite against a disposable copy, regardless
+    # of the caller's environment.  Preserve the caller's setting afterward.
+    source_db = root / "data" / "pharmacy.db"
+    fd, staging_name = tempfile.mkstemp(prefix="pharmacy_full_suite_", suffix=".db")
+    os.close(fd)
+    staging_db = pathlib.Path(staging_name)
+    staging_db.unlink()
     inherited_db = os.environ.get("PHARMACY_DB")
-    if not inherited_db:
-        source_db = root / "data" / "pharmacy.db"
-        staging_db = pathlib.Path(tempfile.gettempdir()) / (
-            f"pharmacy_full_suite_{os.getpid()}.db"
-        )
-        shutil.copy2(source_db, staging_db)
-        os.environ["PHARMACY_DB"] = str(staging_db)
+    inherited_protected_db = os.environ.get("PHARMACY_TEST_PROTECTED_DB")
+    inherited_safe_db = os.environ.get("PHARMACY_TEST_SAFE_DB")
+    # SQLite's backup API takes a consistent snapshot, including any committed
+    # data that is still represented in a WAL sidecar.
+    source = sqlite3.connect(f"file:{source_db.resolve().as_posix()}?mode=ro", uri=True)
+    target = sqlite3.connect(staging_db)
+    try:
+        source.backup(target)
+    finally:
+        target.close()
+        source.close()
+    os.environ["PHARMACY_DB"] = str(staging_db)
+    os.environ["PHARMACY_TEST_PROTECTED_DB"] = str(source_db.resolve())
+    os.environ["PHARMACY_TEST_SAFE_DB"] = str(staging_db)
 
     try:
         loader = unittest.TestLoader()
@@ -48,13 +62,24 @@ def main() -> int:
         result = runner.run(suite)
         return 0 if result.wasSuccessful() else 1
     finally:
-        if staging_db:
-            for path in (staging_db, pathlib.Path(f"{staging_db}-wal"),
-                         pathlib.Path(f"{staging_db}-shm")):
-                try:
-                    path.unlink()
-                except FileNotFoundError:
-                    pass
+        for path in (staging_db, pathlib.Path(f"{staging_db}-wal"),
+                     pathlib.Path(f"{staging_db}-shm")):
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                pass
+        if inherited_db is None:
+            os.environ.pop("PHARMACY_DB", None)
+        else:
+            os.environ["PHARMACY_DB"] = inherited_db
+        if inherited_protected_db is None:
+            os.environ.pop("PHARMACY_TEST_PROTECTED_DB", None)
+        else:
+            os.environ["PHARMACY_TEST_PROTECTED_DB"] = inherited_protected_db
+        if inherited_safe_db is None:
+            os.environ.pop("PHARMACY_TEST_SAFE_DB", None)
+        else:
+            os.environ["PHARMACY_TEST_SAFE_DB"] = inherited_safe_db
 
 
 if __name__ == "__main__":

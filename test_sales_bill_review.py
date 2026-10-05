@@ -588,7 +588,7 @@ class TestSalesBillPopupLayout(_DBBase):
         labels = {lbl.text() for lbl in actions.findChildren(QLabel)}
         self.assertIn("Total Items", labels)
         self.assertIn("Remarks", labels)
-        self.assertIn("Net Receivable", labels)
+        self.assertIn("Net Amount", labels)
 
     def test_54_total_items_counts_bill_lines(self):
         dialog = self._open()

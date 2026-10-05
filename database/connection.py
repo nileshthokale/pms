@@ -17,7 +17,18 @@ def get_db_path() -> str:
     Production code never sets PHARMACY_DB and always uses
     data/pharmacy.db.
     """
-    return os.environ.get("PHARMACY_DB") or _DB_PATH
+    db_path = os.environ.get("PHARMACY_DB") or _DB_PATH
+    # The full-suite runner sets this guard so a test that accidentally drops
+    # PHARMACY_DB (or points it back at the app database) still cannot open
+    # the real business database for writing.
+    protected_path = os.environ.get("PHARMACY_TEST_PROTECTED_DB")
+    safe_path = os.environ.get("PHARMACY_TEST_SAFE_DB")
+    if protected_path and safe_path:
+        if os.path.normcase(os.path.abspath(db_path)) == os.path.normcase(
+            os.path.abspath(protected_path)
+        ):
+            return safe_path
+    return db_path
 
 
 def get_connection() -> sqlite3.Connection:
