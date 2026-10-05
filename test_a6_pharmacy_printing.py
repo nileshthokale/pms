@@ -119,7 +119,13 @@ class A6GeometryTests(unittest.TestCase):
 
     def test_13_columns_use_the_required_headings(self):
         self.assertEqual([column.heading for column in a6.COLUMNS],
-                         ["QTY", "UNIT", "DESCRIPTION", "COMP.", "BATCH", "EXP. DT", "AMT"])
+                         ["UNIT", "DESCRIPTION", "COMP.", "BATCH", "EXP. DT",
+                          "QTY", "AMT"])
+
+    def test_13b_qty_column_sits_between_expiry_and_amount(self):
+        keys = [column.key for column in a6.COLUMNS]
+        self.assertEqual(keys.index("qty"), keys.index("expiry") + 1)
+        self.assertEqual(keys.index("qty") + 1, keys.index("amount"))
 
     def test_14_columns_fit_the_105mm_width(self):
         self.assertLessEqual(a6.columns_width_mm(), a6.PHARMACY_A6.content_width_mm)

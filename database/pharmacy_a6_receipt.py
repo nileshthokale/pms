@@ -163,13 +163,13 @@ class Column:
 
 
 COLUMNS: tuple[Column, ...] = (
-    Column("qty", "QTY", 8.0, "right"),
-    Column("unit", "UNIT", 9.0),
-    Column("description", "DESCRIPTION", 27.0, wrap=True, max_lines=2),
+    Column("unit", "UNIT", 11.5),
+    Column("description", "DESCRIPTION", 27.5, wrap=True, max_lines=2),
     Column("company", "COMP.", 12.0),
-    Column("batch", "BATCH", 12.0),
-    Column("expiry", "EXP. DT", 12.0),
-    Column("amount", "AMT", 17.0, "right"),
+    Column("batch", "BATCH", 12.5),
+    Column("expiry", "EXP. DT", 12.5),
+    Column("qty", "QTY", 8.0, "right"),
+    Column("amount", "AMT", 13.0, "right"),
 )
 
 
