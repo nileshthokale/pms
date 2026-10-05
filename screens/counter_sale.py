@@ -816,6 +816,14 @@ class _ItemEntryBar(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         _keep_alive(self)
+        # Own deferred focus callbacks with this widget. Static
+        # QTimer.singleShot callbacks can outlive a short-lived test/dialog
+        # instance and otherwise call into deleted Qt controls.
+        self._focus_batch_timer = QTimer(self)
+        self._focus_batch_timer.setSingleShot(True)
+        self._focus_batch_timer.timeout.connect(self._focus_batch)
+        self._focus_quantity_timer = QTimer(self)
+        self._focus_quantity_timer.setSingleShot(True)
         self.setObjectName("ItemEntryBar")
         self._draft_reserved_qty = lambda _batch_id: 0.0
         # One single horizontal row â€” the target billing-bar order:
@@ -921,6 +929,7 @@ class _ItemEntryBar(QWidget):
         # Sale Qty
         layout.addWidget(self._lbl("Qty"))
         self.qty_edit = _make_edit("1")
+        self._focus_quantity_timer.timeout.connect(self.qty_edit.setFocus)
         self.qty_edit.setFixedWidth(48)
         self.qty_edit.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         layout.addWidget(self.qty_edit)
@@ -1136,7 +1145,7 @@ class _ItemEntryBar(QWidget):
             self.batch_combo.addItem(label, b["id"])
         self.batch_combo.blockSignals(False)
         if item_id is not None and focus_batch:
-            QTimer.singleShot(0, self._focus_batch)
+            self._focus_batch_timer.start(0)
 
     def _focus_batch(self):
         self.batch_combo.lineEdit().setFocus()
@@ -1145,7 +1154,7 @@ class _ItemEntryBar(QWidget):
 
     def _focus_quantity(self):
         self.qty_edit.selectAll()
-        QTimer.singleShot(0, self.qty_edit.setFocus)
+        self._focus_quantity_timer.start(0)
 
     def _activate_add(self):
         self.add_btn.click()
@@ -1523,18 +1532,13 @@ class _SalePanel(QWidget):
     def _build_popup_top_strip(self) -> QWidget:
         """Top sale-header strip of the Sales Bill popup.
 
-        Left column   Cnt No / Type
-        Centre column Customer / Patient / Address
-        Right column  Doctor / Discount / Paid Amount
+        ROW 1 (Header): Voucher No | Date | Time
+        ROW 2 (Three-column form):
+          LEFT:   Cnt No / Type
+          MIDDLE: Customer * / Patient Name / Address
+          RIGHT:  Doctor / Discount / Paid Amount
 
-        Every control here is the panel's own existing widget â€” the sale type,
-        customer and doctor inputs plus the bill-discount and paid boxes
-        created for the totals row.  Patient and Address are database-backed
-        lookups here, and Cnt No is a read-only mirror of customer master
-        data.
-
-        Widths are set per the field minimums the popup needs: nothing is
-        squeezed, so no label or value can overlap its neighbour.
+        Uses QGridLayout for stable, responsive layout with proper spacing.
         """
         strip = QWidget()
         strip.setObjectName("SalesBillTopStrip")
@@ -1545,41 +1549,92 @@ class _SalePanel(QWidget):
         strip.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
 
         # Discount and Paid Amount are the panel's own bill-discount / paid
-        # boxes.  In the popup they are built here instead of in the totals
+        # boxes. In the popup they are built here instead of in the totals
         # row, so each widget exists exactly once.
         self.bill_disc_edit = _make_edit("0.00")
         self.paid_edit = _make_edit("0.00")
 
-        outer = QHBoxLayout(strip)
-        outer.setContentsMargins(8, 4, 8, 4)
-        outer.setSpacing(10)
+        # Main vertical layout for the strip
+        main_layout = QVBoxLayout(strip)
+        main_layout.setContentsMargins(8, 4, 8, 4)
+        main_layout.setSpacing(6)
 
-        # -- LEFT: Cnt No / Type --
+        # ============================================================
+        # ROW 1: Voucher No | Date | Time (horizontal alignment)
+        # ============================================================
+        header_row = QHBoxLayout()
+        header_row.setSpacing(12)
+
+        # Voucher No
+        voucher_layout = QHBoxLayout()
+        voucher_layout.setSpacing(6)
+        voucher_layout.addWidget(self._lbl("Voucher No"))
+        self.voucher_no_label = QLabel(self.bill_no_edit.text() or "--")
+        self.voucher_no_label.setStyleSheet(
+            f"color: {_TEXT}; font-size: 11px; font-weight: bold;"
+            f"background: transparent; font-family: {FONT_FAMILY};"
+        )
+        self.voucher_no_label.setMinimumWidth(120)
+        voucher_layout.addWidget(self.voucher_no_label)
+        header_row.addLayout(voucher_layout)
+
+        # Date
+        date_layout = QHBoxLayout()
+        date_layout.setSpacing(6)
+        date_layout.addWidget(self._lbl("Date"))
+        self.header_date_label = QLabel(self.sale_date.date().toString("dd-MM-yyyy"))
+        self.header_date_label.setStyleSheet(
+            f"color: {_TEXT}; font-size: 11px; font-weight: bold;"
+            f"background: transparent; font-family: {FONT_FAMILY};"
+        )
+        self.header_date_label.setMinimumWidth(100)
+        date_layout.addWidget(self.header_date_label)
+        header_row.addLayout(date_layout)
+
+        # Time
+        time_layout = QHBoxLayout()
+        time_layout.setSpacing(6)
+        time_layout.addWidget(self._lbl("Time"))
+        self.header_time_label = QLabel(self.sale_time_edit.text() or "--")
+        self.header_time_label.setStyleSheet(
+            f"color: {_TEXT}; font-size: 11px; font-weight: bold;"
+            f"background: transparent; font-family: {FONT_FAMILY};"
+        )
+        self.header_time_label.setMinimumWidth(80)
+        time_layout.addWidget(self.header_time_label)
+        header_row.addLayout(time_layout)
+
+        header_row.addStretch(1)
+        main_layout.addLayout(header_row)
+
+        # ============================================================
+        # ROW 2: Three-column form layout (proven three-grid structure)
+        # ============================================================
+        form_row = QHBoxLayout()
+        form_row.setSpacing(10)  # Match original outer spacing
+
+        # ---- LEFT COLUMN: Cnt No / Type ----
         left = QGridLayout()
         left.setHorizontalSpacing(4)
         left.setVerticalSpacing(2)
-        left.addWidget(self._lbl("Cnt No"), 0, 0)
+        left.addWidget(self._lbl("Cnt No"), 0, 0, Qt.AlignRight | Qt.AlignVCenter)
         self.cnt_no_edit = _make_edit()
         self.cnt_no_edit.setReadOnly(True)
-        _ItemEntryBar._fit(self.cnt_no_edit, 55, 90)
+        _ItemEntryBar._fit(self.cnt_no_edit, 55, 90)  # Match original
         left.addWidget(self.cnt_no_edit, 0, 1)
-        left.addWidget(self._lbl("Type"), 1, 0)
+        left.addWidget(self._lbl("Type"), 1, 0, Qt.AlignRight | Qt.AlignVCenter)
         self.sale_type_combo.setMinimumWidth(110)
         left.addWidget(self.sale_type_combo, 1, 1)
-        outer.addLayout(left)
+        form_row.addLayout(left)  # No stretch - fixed width
 
-        # -- CENTRE: Customer / Patient / Address --
+        # ---- MIDDLE COLUMN: Customer / Patient Name / Address ----
         centre = QGridLayout()
         centre.setHorizontalSpacing(4)
         centre.setVerticalSpacing(2)
-        centre.addWidget(self._lbl("Customer *"), 0, 0)
+        centre.addWidget(self._lbl("Customer *"), 0, 0, Qt.AlignRight | Qt.AlignVCenter)
         self.customer_combo.setMinimumWidth(200)
         centre.addWidget(self.customer_combo, 0, 1)
-        centre.addWidget(self._lbl("Patient Name"), 1, 0)
-
-        # Patient becomes a searchable database field in the popup only.
-        # The plain line edit it replaces stays alive but is unused; the
-        # save logic keeps reading patient_name_edit either way.
+        centre.addWidget(self._lbl("Patient Name"), 1, 0, Qt.AlignRight | Qt.AlignVCenter)
         plain_patient = self.patient_name_edit
         patient = _DBLookupCombo(
             _patient_name_options, placeholder="Search patient name", width=260,
@@ -1588,37 +1643,46 @@ class _SalePanel(QWidget):
         plain_patient.setParent(None)
         plain_patient.deleteLater()
         centre.addWidget(patient, 1, 1)
-
-        centre.addWidget(self._lbl("Address"), 2, 0)
-        # Address offers the addresses already on file, and still mirrors the
-        # selected customer's own address.
+        centre.addWidget(self._lbl("Address"), 2, 0, Qt.AlignRight | Qt.AlignVCenter)
         self.address_edit = _DBLookupCombo(
             _address_options, placeholder="Search saved address", width=300,
         )
         centre.addWidget(self.address_edit, 2, 1)
-        centre.setColumnStretch(1, 1)
-        # Centre and right share the strip's spare width between them, so the
-        # Doctor column sits next to the address field instead of being pushed
-        # across an empty gap.  Each field can grow into its share, which is
-        # what keeps the spare space from appearing as a hole in the row.
-        outer.addLayout(centre, 1)
+        centre.setColumnStretch(1, 1)  # Stretch fields within centre grid
 
-        # -- RIGHT: Doctor / Discount / Paid Amount --
+        # Wrap the middle section so it shares the available width evenly
+        # with the right section. Keeping both sections at the same stretch
+        # factor prevents a blank band between Address and Doctor.
+        centre_container = QWidget()
+        centre_container.setLayout(centre)
+        form_row.addWidget(centre_container, 1)
+
+        # ---- RIGHT COLUMN: Doctor / Discount / Paid Amount ----
         right = QGridLayout()
         right.setHorizontalSpacing(4)
         right.setVerticalSpacing(2)
-        right.addWidget(self._lbl("Doctor"), 0, 0)
+        doctor_label = self._lbl("Doctor")
+        doctor_label.setMinimumWidth(121)
+        right.addWidget(doctor_label, 0, 0, Qt.AlignLeft | Qt.AlignVCenter)
         self._make_doctor_lookup()
         self.doctor_combo.setMinimumWidth(190)
         right.addWidget(self.doctor_combo, 0, 1)
-        right.addWidget(self._lbl("Discount"), 1, 0)
+        discount_label = self._lbl("Discount")
+        discount_label.setMinimumWidth(121)
+        right.addWidget(discount_label, 1, 0, Qt.AlignLeft | Qt.AlignVCenter)
         self.bill_disc_edit.setMinimumWidth(100)
+        self.bill_disc_edit.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         right.addWidget(self.bill_disc_edit, 1, 1)
-        right.addWidget(self._lbl("Paid Amount"), 2, 0)
+        paid_label = self._lbl("Paid Amount")
+        paid_label.setMinimumWidth(121)
+        right.addWidget(paid_label, 2, 0, Qt.AlignLeft | Qt.AlignVCenter)
         self.paid_edit.setMinimumWidth(100)
+        self.paid_edit.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         right.addWidget(self.paid_edit, 2, 1)
-        right.setColumnStretch(1, 1)
-        outer.addLayout(right, 1)
+        right.setColumnStretch(1, 1)  # Stretch right fields
+        form_row.addLayout(right, 1)
+
+        main_layout.addLayout(form_row)
 
         # Discount / Paid recalculate through the same wiring as the panel.
         self.bill_disc_edit.textChanged.connect(self._recalc_totals)
@@ -1627,7 +1691,21 @@ class _SalePanel(QWidget):
         # Cnt No / Address follow the selected customer.
         self.customer_combo.currentIndexChanged.connect(self._refresh_customer_info)
 
+        # Keep voucher/date/time labels in sync with edits
+        self.bill_no_edit.textChanged.connect(self._update_header_labels)
+        self.sale_date.dateChanged.connect(self._update_header_labels)
+        self.sale_time_edit.textChanged.connect(self._update_header_labels)
+
         return strip
+
+    def _update_header_labels(self):
+        """Keep the header row labels in sync with the editable fields."""
+        if hasattr(self, 'voucher_no_label'):
+            self.voucher_no_label.setText(self.bill_no_edit.text() or "--")
+        if hasattr(self, 'header_date_label'):
+            self.header_date_label.setText(self.sale_date.date().toString("dd-MM-yyyy"))
+        if hasattr(self, 'header_time_label'):
+            self.header_time_label.setText(self.sale_time_edit.text() or "--")
 
     def apply_popup_entry_widths(self, available_width: int | None = None):
         """Size the popup's single Item Entry row so nothing overlaps.
@@ -3014,18 +3092,22 @@ class SalesBillReviewDialog(QDialog):
     # Construction helpers
     # ------------------------------------------------------------------
 
+
     def _build_blue_header(self, panel: _SalePanel) -> QWidget:
-        """Blue title bar carrying Voucher No / Date / Time from the bill."""
+        """Blue title bar carrying Voucher No / Date / Time from the bill.
+
+        Professional layout with aligned Voucher No, Date, Time fields.
+        """
         bar = QWidget()
         bar.setObjectName("SalesBillHeader")
-        bar.setFixedHeight(52)
+        bar.setFixedHeight(56)
         bar.setStyleSheet(
             f"#SalesBillHeader {{ background-color: {_BILL_HEADER_BG};"
             f"  border-bottom: 1px solid {_BILL_HEADER_BG}; }}"
         )
         layout = QHBoxLayout(bar)
-        layout.setContentsMargins(10, 4, 10, 4)
-        layout.setSpacing(12)
+        layout.setContentsMargins(16, 6, 16, 6)
+        layout.setSpacing(24)
 
         title = QLabel("Sales Bill")
         title.setStyleSheet(
@@ -3033,33 +3115,71 @@ class SalesBillReviewDialog(QDialog):
             f"background: transparent; font-family: {FONT_FAMILY};"
         )
         layout.addWidget(title)
-        layout.addStretch()
+        layout.addSpacing(20)
 
-        # Voucher No / Date / Time come from the live bill â€” the popup never
-        # generates numbering of its own.
-        for caption, value in (
-            ("Voucher No", panel.bill_no_edit.text()),
-            ("Date", panel.sale_date.date().toString("dd-MM-yyyy")),
-            ("Time", panel.sale_time_edit.text()),
-        ):
-            caption_label = QLabel(caption)
-            caption_label.setStyleSheet(
-                "color: #d8e6f5; font-size: 10px; background: transparent;"
-                f"font-family: {FONT_FAMILY};"
-            )
-            value_label = QLabel(value or "--")
-            value_label.setStyleSheet(
-                "color: #ffffff; font-size: 11px; font-weight: bold;"
-                f"background: transparent; font-family: {FONT_FAMILY};"
-            )
-            layout.addWidget(caption_label)
-            layout.addWidget(value_label)
+        # Voucher No
+        voucher_layout = QHBoxLayout()
+        voucher_layout.setSpacing(8)
+        voucher_caption = QLabel("Voucher No")
+        voucher_caption.setStyleSheet(
+            "color: #d8e6f5; font-size: 10px; background: transparent;"
+            f"font-family: {FONT_FAMILY};"
+        )
+        voucher_layout.addWidget(voucher_caption)
+        self._header_voucher_label = QLabel(panel.bill_no_edit.text() or "--")
+        self._header_voucher_label.setStyleSheet(
+            "color: #ffffff; font-size: 12px; font-weight: bold;"
+            f"background: transparent; font-family: {FONT_FAMILY};"
+        )
+        self._header_voucher_label.setMinimumWidth(140)
+        voucher_layout.addWidget(self._header_voucher_label)
+        layout.addLayout(voucher_layout)
 
+        # Date
+        date_layout = QHBoxLayout()
+        date_layout.setSpacing(8)
+        date_caption = QLabel("Date")
+        date_caption.setStyleSheet(
+            "color: #d8e6f5; font-size: 10px; background: transparent;"
+            f"font-family: {FONT_FAMILY};"
+        )
+        date_layout.addWidget(date_caption)
+        self._header_date_label = QLabel(panel.sale_date.date().toString("dd-MM-yyyy"))
+        self._header_date_label.setStyleSheet(
+            "color: #ffffff; font-size: 12px; font-weight: bold;"
+            f"background: transparent; font-family: {FONT_FAMILY};"
+        )
+        self._header_date_label.setMinimumWidth(110)
+        date_layout.addWidget(self._header_date_label)
+        layout.addLayout(date_layout)
+
+        # Time
+        time_layout = QHBoxLayout()
+        time_layout.setSpacing(8)
+        time_caption = QLabel("Time")
+        time_caption.setStyleSheet(
+            "color: #d8e6f5; font-size: 10px; background: transparent;"
+            f"font-family: {FONT_FAMILY};"
+        )
+        time_layout.addWidget(time_caption)
+        self._header_time_label = QLabel(panel.sale_time_edit.text() or "--")
+        self._header_time_label.setStyleSheet(
+            "color: #ffffff; font-size: 12px; font-weight: bold;"
+            f"background: transparent; font-family: {FONT_FAMILY};"
+        )
+        self._header_time_label.setMinimumWidth(80)
+        time_layout.addWidget(self._header_time_label)
+        layout.addLayout(time_layout)
+
+        layout.addStretch(1)
         return bar
 
     def _build_actions(self) -> QWidget:
-        """Bottom row: Total Items + Remarks on the left, Net Receivable and
-        Save / Close on the right.
+        """Bottom footer with professional multi-row structure.
+
+        ROW 1: Total Items | Remarks
+        ROW 2: Total Amount | Bill Discount | CN Amount | Dr Amount | Credit Note | Round Off | Net Amount
+        ROW 3: Save | Close (bottom-right aligned)
         """
         bar = QWidget()
         bar.setObjectName("SalesBillActions")
@@ -3067,77 +3187,242 @@ class SalesBillReviewDialog(QDialog):
             f"#SalesBillActions {{ background-color: {_SURFACE};"
             f"  border-top: 1px solid {_BORDER}; }}"
         )
-        layout = QHBoxLayout(bar)
-        layout.setContentsMargins(10, 5, 10, 5)
-        layout.setSpacing(10)
+        main_layout = QVBoxLayout(bar)
+        main_layout.setContentsMargins(12, 8, 12, 8)
+        main_layout.setSpacing(8)
 
-        # -- LEFT: Total Items / Remarks --
+        # ============================================================
+        # ROW 1: Total Items | Remarks
+        # ============================================================
+        row1 = QHBoxLayout()
+        row1.setSpacing(16)
+
         items_caption = QLabel("Total Items")
         items_caption.setStyleSheet(
             f"color: {_TEXT}; font-size: 11px; background: transparent;"
             f"font-family: {FONT_FAMILY};"
         )
-        layout.addWidget(items_caption)
+        row1.addWidget(items_caption)
+
         self._total_items_label = QLabel(str(len(self._panel._item_rows)))
         self._total_items_label.setStyleSheet(
             f"color: {_TEXT}; font-size: 11px; font-weight: bold;"
             f"background: transparent; font-family: {FONT_FAMILY};"
         )
-        layout.addWidget(self._total_items_label)
-        layout.addSpacing(6)
+        self._total_items_label.setMinimumWidth(50)
+        row1.addWidget(self._total_items_label)
+        row1.addSpacing(24)
 
         remarks_caption = QLabel("Remarks")
         remarks_caption.setStyleSheet(
             f"color: {_TEXT}; font-size: 11px; background: transparent;"
             f"font-family: {FONT_FAMILY};"
         )
-        layout.addWidget(remarks_caption)
-        self.remarks_edit = _make_edit()
-        self.remarks_edit.setMinimumWidth(140)
-        layout.addWidget(self.remarks_edit)
-        layout.addStretch()
+        row1.addWidget(remarks_caption)
 
-        # -- RIGHT: Net Receivable --
-        net_caption = QLabel("Net Receivable")
-        net_caption.setStyleSheet(
+        self.remarks_edit = _make_edit()
+        self.remarks_edit.setMinimumWidth(280)
+        row1.addWidget(self.remarks_edit)
+
+        row1.addStretch(1)
+        main_layout.addLayout(row1)
+
+        # ============================================================
+        # ROW 2: Totals breakdown
+        # ============================================================
+        row2 = QHBoxLayout()
+        row2.setSpacing(16)
+
+        # Total Amount
+        total_amt_container = QVBoxLayout()
+        total_amt_container.setSpacing(2)
+        total_amt_caption = QLabel("Total Amount")
+        total_amt_caption.setStyleSheet(_LABEL_DIM)
+        total_amt_caption.setAlignment(Qt.AlignCenter)
+        total_amt_container.addWidget(total_amt_caption)
+        self._footer_total_amount = QLabel(self._panel.total_amount_label.text())
+        self._footer_total_amount.setAlignment(Qt.AlignCenter)
+        self._footer_total_amount.setStyleSheet(
             f"color: {_TEXT}; font-size: 12px; font-weight: bold;"
             f"background: transparent; font-family: {FONT_FAMILY};"
         )
-        self._net_receivable_label = QLabel(self._panel.net_amt_label.text())
-        self._net_receivable_label.setStyleSheet(
+        self._footer_total_amount.setMinimumWidth(100)
+        self._footer_total_amount.setFixedHeight(_TOTALS_CONTROL_HEIGHT)
+        total_amt_container.addWidget(self._footer_total_amount)
+        row2.addLayout(total_amt_container)
+
+        # Bill Discount
+        bill_disc_container = QVBoxLayout()
+        bill_disc_container.setSpacing(2)
+        bill_disc_caption = QLabel("Bill Discount")
+        bill_disc_caption.setStyleSheet(_LABEL_DIM)
+        bill_disc_caption.setAlignment(Qt.AlignCenter)
+        bill_disc_container.addWidget(bill_disc_caption)
+        self._footer_bill_discount = QLabel(f"{_safe_float(self._panel.bill_disc_edit.text()):.2f}")
+        self._footer_bill_discount.setAlignment(Qt.AlignCenter)
+        self._footer_bill_discount.setStyleSheet(
+            f"color: {_TEXT}; font-size: 12px; font-weight: bold;"
+            f"background: transparent; font-family: {FONT_FAMILY};"
+        )
+        self._footer_bill_discount.setMinimumWidth(100)
+        self._footer_bill_discount.setFixedHeight(_TOTALS_CONTROL_HEIGHT)
+        bill_disc_container.addWidget(self._footer_bill_discount)
+        row2.addLayout(bill_disc_container)
+
+        # CN Amount (Credit Note)
+        cn_container = QVBoxLayout()
+        cn_container.setSpacing(2)
+        cn_caption = QLabel("CN Amount")
+        cn_caption.setStyleSheet(_LABEL_DIM)
+        cn_caption.setAlignment(Qt.AlignCenter)
+        cn_container.addWidget(cn_caption)
+        self._footer_cn_amount = QLabel("0.00")
+        self._footer_cn_amount.setAlignment(Qt.AlignCenter)
+        self._footer_cn_amount.setStyleSheet(
+            f"color: {_TEXT}; font-size: 12px; font-weight: bold;"
+            f"background: transparent; font-family: {FONT_FAMILY};"
+        )
+        self._footer_cn_amount.setMinimumWidth(100)
+        self._footer_cn_amount.setFixedHeight(_TOTALS_CONTROL_HEIGHT)
+        cn_container.addWidget(self._footer_cn_amount)
+        row2.addLayout(cn_container)
+
+        # Dr Amount (Debit Note)
+        dr_container = QVBoxLayout()
+        dr_container.setSpacing(2)
+        dr_caption = QLabel("Dr Amount")
+        dr_caption.setStyleSheet(_LABEL_DIM)
+        dr_caption.setAlignment(Qt.AlignCenter)
+        dr_container.addWidget(dr_caption)
+        self._footer_dr_amount = QLabel("0.00")
+        self._footer_dr_amount.setAlignment(Qt.AlignCenter)
+        self._footer_dr_amount.setStyleSheet(
+            f"color: {_TEXT}; font-size: 12px; font-weight: bold;"
+            f"background: transparent; font-family: {FONT_FAMILY};"
+        )
+        self._footer_dr_amount.setMinimumWidth(100)
+        self._footer_dr_amount.setFixedHeight(_TOTALS_CONTROL_HEIGHT)
+        dr_container.addWidget(self._footer_dr_amount)
+        row2.addLayout(dr_container)
+
+        # Credit Note (placeholder for future)
+        credit_note_container = QVBoxLayout()
+        credit_note_container.setSpacing(2)
+        credit_note_caption = QLabel("Credit Note")
+        credit_note_caption.setStyleSheet(_LABEL_DIM)
+        credit_note_caption.setAlignment(Qt.AlignCenter)
+        credit_note_container.addWidget(credit_note_caption)
+        self._footer_credit_note = QLabel("0.00")
+        self._footer_credit_note.setAlignment(Qt.AlignCenter)
+        self._footer_credit_note.setStyleSheet(
+            f"color: {_TEXT}; font-size: 12px; font-weight: bold;"
+            f"background: transparent; font-family: {FONT_FAMILY};"
+        )
+        self._footer_credit_note.setMinimumWidth(100)
+        self._footer_credit_note.setFixedHeight(_TOTALS_CONTROL_HEIGHT)
+        credit_note_container.addWidget(self._footer_credit_note)
+        row2.addLayout(credit_note_container)
+
+        # Round Off
+        round_off_container = QVBoxLayout()
+        round_off_container.setSpacing(2)
+        round_off_caption = QLabel("Round Off")
+        round_off_caption.setStyleSheet(_LABEL_DIM)
+        round_off_caption.setAlignment(Qt.AlignCenter)
+        round_off_container.addWidget(round_off_caption)
+        self._footer_round_off = QLabel(self._panel.round_off_label.text())
+        self._footer_round_off.setAlignment(Qt.AlignCenter)
+        self._footer_round_off.setStyleSheet(
+            f"color: {_TEXT}; font-size: 12px; font-weight: bold;"
+            f"background: transparent; font-family: {FONT_FAMILY};"
+        )
+        self._footer_round_off.setMinimumWidth(90)
+        self._footer_round_off.setFixedHeight(_TOTALS_CONTROL_HEIGHT)
+        round_off_container.addWidget(self._footer_round_off)
+        row2.addLayout(round_off_container)
+
+        # Net Amount (emphasized)
+        net_amt_container = QVBoxLayout()
+        net_amt_container.setSpacing(2)
+        net_amt_caption = QLabel("Net Amount")
+        net_amt_caption.setStyleSheet(_LABEL_DIM)
+        net_amt_caption.setAlignment(Qt.AlignCenter)
+        net_amt_container.addWidget(net_amt_caption)
+        self._footer_net_amount = QLabel(self._panel.net_amt_label.text())
+        self._footer_net_amount.setAlignment(Qt.AlignCenter)
+        self._footer_net_amount.setStyleSheet(
             f"color: {_ACCENT}; font-size: 14px; font-weight: bold;"
             f"background: transparent; font-family: {FONT_FAMILY};"
         )
-        layout.addWidget(net_caption)
-        layout.addWidget(self._net_receivable_label)
-        layout.addSpacing(10)
+        self._footer_net_amount.setMinimumWidth(120)
+        self._footer_net_amount.setFixedHeight(_TOTALS_CONTROL_HEIGHT)
+        net_amt_container.addWidget(self._footer_net_amount)
+        row2.addLayout(net_amt_container)
+
+        row2.addStretch(1)
+        main_layout.addLayout(row2)
+
+        # ============================================================
+        # ROW 3: Save / Close (bottom-right aligned)
+        # ============================================================
+        row3 = QHBoxLayout()
+        row3.addStretch(1)
 
         self._final_save_btn = QPushButton("Save")
         self._final_save_btn.setStyleSheet(_BTN_SAVE)
-        self._final_save_btn.setFixedWidth(96)
+        self._final_save_btn.setFixedWidth(100)
+        self._final_save_btn.setFixedHeight(32)
         self._final_save_btn.setDefault(True)
         self._final_save_btn.setToolTip(
             "Commit this bill: save the sale, deduct stock and post accounting"
         )
         self._final_save_btn.clicked.connect(self._on_final_save)
-        layout.addWidget(self._final_save_btn)
+        row3.addWidget(self._final_save_btn)
+
+        row3.addSpacing(8)
 
         close_btn = QPushButton("Close")
         close_btn.setStyleSheet(_BTN_SECONDARY)
-        close_btn.setFixedWidth(96)
+        close_btn.setFixedWidth(100)
+        close_btn.setFixedHeight(32)
         close_btn.setAutoDefault(False)
         close_btn.clicked.connect(self.reject)
-        layout.addWidget(close_btn)
+        row3.addWidget(close_btn)
 
-        # Keep the Net Receivable summary live while the bill is edited.
+        main_layout.addLayout(row3)
+
+        # Keep footer totals live while the bill is edited.
         self._panel.totals_changed.connect(self._on_totals_changed)
+        # Also watch bill discount changes to update footer
+        self._panel.bill_disc_edit.textChanged.connect(self._update_footer_totals)
+
         return bar
 
+    def _update_footer_totals(self):
+        """Update footer total labels when bill discount changes."""
+        if hasattr(self, '_footer_bill_discount'):
+            self._footer_bill_discount.setText(f"{_safe_float(self._panel.bill_disc_edit.text()):.2f}")
+        if hasattr(self, '_footer_total_amount'):
+            self._footer_total_amount.setText(self._panel.total_amount_label.text())
+        if hasattr(self, '_footer_round_off'):
+            self._footer_round_off.setText(self._panel.round_off_label.text())
+        if hasattr(self, '_footer_net_amount'):
+            self._footer_net_amount.setText(self._panel.net_amt_label.text())
+
     def _on_totals_changed(self, bill_no: str, amount: str, bill_total: str):
-        self._net_receivable_label.setText(amount)
-        # Adding or deleting a line recalculates the totals, so the item
-        # count is refreshed through that same existing signal.
-        self._total_items_label.setText(str(len(self._panel._item_rows)))
+        # Update header voucher no if it changed
+        if hasattr(self, '_header_voucher_label'):
+            self._header_voucher_label.setText(bill_no or "--")
+
+        # Update footer totals
+        if hasattr(self, '_total_items_label'):
+            self._total_items_label.setText(str(len(self._panel._item_rows)))
+        if hasattr(self, '_footer_total_amount'):
+            self._footer_total_amount.setText(amount)
+        if hasattr(self, '_footer_round_off'):
+            self._footer_round_off.setText(self._panel.round_off_label.text())
+        if hasattr(self, '_footer_net_amount'):
+            self._footer_net_amount.setText(bill_total)
 
     # Reference proportions for the Sales Bill window: a compact dialog that is
     # never full-screen at any of the supported desktop resolutions.  The
