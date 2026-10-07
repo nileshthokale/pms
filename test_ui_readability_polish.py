@@ -31,9 +31,17 @@ except ImportError as _exc:
     _PYSIDE_SKIP_REASON = f"PySide6 not available ({_exc})"
 
 
-def _pt_size(stylesheet: str) -> int | None:
-    match = re.search(r"font-size:\s*(\d+)pt", stylesheet)
-    return int(match.group(1)) if match else None
+def _font_px(stylesheet: str) -> int | None:
+    """Font size declared in a stylesheet, normalised to pixels.
+
+    ``pt`` is converted with the 96 dpi Qt uses for stylesheet fonts, so a
+    legacy ``10pt`` declaration and a ``13px`` one are comparable.
+    """
+    match = re.search(r"font-size:\s*(\d+)(px|pt)", stylesheet)
+    if not match:
+        return None
+    value = int(match.group(1))
+    return value if match.group(2) == "px" else round(value * 96 / 72)
 
 
 @unittest.skipUnless(HAS_PYSIDE6, _PYSIDE_SKIP_REASON)
@@ -53,36 +61,70 @@ class SharedReadabilityMetricsTests(unittest.TestCase):
                                 "table headers must breathe")
 
     def test_04_default_label_size_is_readable(self):
-        size = _pt_size(ui_components.label_style())
+        size = _font_px(ui_components.label_style())
         self.assertIsNotNone(size, "default label lost its font size")
-        self.assertGreaterEqual(size, 10)
+        self.assertGreaterEqual(size, 12,
+                                f"field captions must be >= 12px, got {size}")
 
     def test_05_section_titles_are_bold_and_readable(self):
         style = ui_components.section_title_style()
         self.assertIn("font-weight: bold", style)
-        size = _pt_size(style)
+        size = _font_px(style)
         self.assertIsNotNone(size)
-        self.assertGreaterEqual(size, 11)
+        self.assertGreaterEqual(size, 13,
+                                f"section headers must be >= 13px, got {size}")
 
     def test_06_table_headers_are_bold_and_readable(self):
         style = ui_components.table_header_style()
         self.assertIn("font-weight: bold", style)
-        size = _pt_size(style)
+        size = _font_px(style)
         self.assertIsNotNone(size)
-        self.assertGreaterEqual(size, 10)
+        self.assertGreaterEqual(size, 12,
+                                f"table headers must be >= 12px, got {size}")
 
     def test_07_inputs_are_readable(self):
         for style in (ui_components.edit_style(), ui_components.combo_style(),
                       ui_components.date_style(), ui_components.spin_style()):
-            size = _pt_size(style)
+            size = _font_px(style)
             self.assertIsNotNone(size, "input lost its font size")
-            self.assertGreaterEqual(size, 10)
+            self.assertGreaterEqual(size, 12,
+                                    f"input text must be >= 12px, got {size}")
 
     def test_08_buttons_have_breathing_room(self):
         style = ui_components.btn_primary_style()
         match = re.search(r"min-height:\s*(\d+)px", style)
         self.assertIsNotNone(match, "buttons lost their minimum height")
         self.assertGreaterEqual(int(match.group(1)), 22)
+
+    def test_09_table_data_is_readable(self):
+        size = _font_px(ui_components.table_style())
+        self.assertIsNotNone(size, "table style lost its font size")
+        self.assertGreaterEqual(size, 12,
+                                f"table data must be >= 12px, got {size}")
+
+    def test_10_page_title_outranks_table_text(self):
+        title = _font_px(ui_components.title_style())
+        data = _font_px(ui_components.table_style())
+        self.assertIsNotNone(title)
+        self.assertIsNotNone(data)
+        self.assertGreaterEqual(title, 16, "page title must stay prominent")
+        self.assertGreater(title, data,
+                           "page title must be clearly larger than table text")
+
+    def test_11_shared_font_matches_stylesheet(self):
+        """The declared stylesheet size and the real QFont must agree."""
+        for size in (ui_components.TYPE_TABLE_DATA,
+                     ui_components.TYPE_TABLE_HEADER):
+            font = ui_components.readable_font(size)
+            self.assertEqual(font.pixelSize(), size)
+
+    def test_12_typography_scale_floor(self):
+        from ui.theme import (TYPE_FORM_LABEL, TYPE_TABLE_DATA,
+                              TYPE_TABLE_HEADER, TYPE_VALUE)
+        self.assertGreaterEqual(TYPE_TABLE_DATA, 12)
+        self.assertGreaterEqual(TYPE_TABLE_HEADER, 12)
+        self.assertGreaterEqual(TYPE_FORM_LABEL, 11)
+        self.assertGreaterEqual(TYPE_VALUE, 12)
 
 
 @unittest.skipUnless(HAS_PYSIDE6, _PYSIDE_SKIP_REASON)
