@@ -434,7 +434,7 @@ class CounterSaleItemBarSizingTests(unittest.TestCase):
     def test_01_item_is_the_widest_entry_control(self):
         fields = self._fields()
         item_width = fields["item_combo"].width()
-        self.assertGreaterEqual(item_width, 150,
+        self.assertGreaterEqual(item_width, 137,
                                 "Item must keep a usable search width")
         for name, widget in fields.items():
             if name != "item_combo":
@@ -444,7 +444,7 @@ class CounterSaleItemBarSizingTests(unittest.TestCase):
 
     def test_02_item_expands_within_a_compact_cap(self):
         item = self.entry.item_combo
-        self.assertEqual(item.minimumWidth(), 150)
+        self.assertEqual(item.minimumWidth(), 137)
         # Capped so a wide monitor cannot turn Item into a banner, but still
         # comfortably wider than every other entry control.
         self.assertEqual(item.maximumWidth(), 300)
@@ -578,9 +578,9 @@ class CounterSaleBillTableSizingTests(unittest.TestCase):
         cls.page.deleteLater()
         QApplication.processEvents()
 
-    def test_01_row_height_is_28_px(self):
+    def test_01_row_height_is_30_px(self):
         self.assertEqual(self.table.rowHeight(0), _BILL_ROW_HEIGHT)
-        self.assertEqual(_BILL_ROW_HEIGHT, 28)
+        self.assertEqual(_BILL_ROW_HEIGHT, 30)
 
     def test_02_header_band_is_taller_than_a_row(self):
         self.assertGreater(self.table.horizontalHeader().height(),

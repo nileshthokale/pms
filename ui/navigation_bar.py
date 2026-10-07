@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
 from ui import theme
 from ui import components as ui
 from ui.menu_data import MENUS
+from version import APP_TITLE
 from database import auth
 from database import financial_year
 
@@ -118,7 +119,7 @@ class NavigationBar(QWidget):
         tl.setContentsMargins(10, 0, 8, 0)
         tl.setSpacing(8)
 
-        self._brand_label = QLabel("Pharmacy Management System")
+        self._brand_label = QLabel(APP_TITLE)
         self._brand_label.setObjectName("BrandLabel")
         tl.addWidget(self._brand_label)
 
