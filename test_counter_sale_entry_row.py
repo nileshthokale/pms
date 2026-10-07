@@ -455,7 +455,7 @@ class CounterSaleEntryRowTests(_DBBase):
                 f"Tab from {source} did not reach {target}")
 
     def test_20_labels_stay_compact(self):
-        """Labels keep the existing light 10-11px theme sizes."""
+        """Captions stay compact but must read as bold black 11-12 px text."""
         import re
 
         for text in LABEL_ORDER:
@@ -463,8 +463,12 @@ class CounterSaleEntryRowTests(_DBBase):
                 type(self.entry.cno_label)) if w.text() == text)
             match = re.search(r"font-size:\s*(\d+)px", label.styleSheet())
             self.assertIsNotNone(match, f"{text} lost its font size")
-            self.assertGreaterEqual(int(match.group(1)), 10)
-            self.assertLessEqual(int(match.group(1)), 11)
+            self.assertGreaterEqual(int(match.group(1)), 11)
+            self.assertLessEqual(int(match.group(1)), 12)
+            self.assertIn("font-weight: bold", label.styleSheet(),
+                          f"{text} caption must be bold")
+            self.assertIn("#000000", label.styleSheet(),
+                          f"{text} caption must be black")
 
 
 if __name__ == "__main__":

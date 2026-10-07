@@ -41,7 +41,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from PySide6.QtGui import QFont, QFontMetrics, QStandardItem, QStandardItemModel
+from PySide6.QtGui import QFontMetrics, QStandardItem, QStandardItemModel
 
 from database.customer_dao import CustomerDAO
 from database.connection import get_connection
@@ -64,7 +64,20 @@ from database.hold_bill_dao import (
 )
 
 from ui.theme import palette
-from ui.components import FONT_FAMILY
+from ui.components import FONT_FAMILY, readable_font
+from ui.theme import (
+    TYPE_BUTTON,
+    TYPE_FORM_LABEL,
+    TYPE_HINT,
+    TYPE_INPUT,
+    TYPE_INPUT_COMPACT,
+    TYPE_PAGE_TITLE,
+    TYPE_SECTION_HEADER,
+    TYPE_TABLE_DATA,
+    TYPE_TABLE_HEADER,
+    TYPE_VALUE,
+    TYPE_VALUE_EMPHASIS,
+)
 _p = palette()
 _DARK_BG = _p["bg"]
 _SURFACE = _p["surface"]
@@ -78,7 +91,7 @@ _SELECTED_TEXT = _p["selected_text"]
 _ERROR = "#c0392b"
 _WARNING = "#b26a00"
 _POPUP_BG = "#ffffff"
-_POPUP_TEXT = "#14212e"
+_POPUP_TEXT = _TEXT
 _POPUP_BORDER = "#9db6cc"
 _POPUP_SELECTED = "#cfe2f3"
 
@@ -86,7 +99,8 @@ _COMBO_STYLE = (
     f"QComboBox {{"
     f"  background-color: {_SURFACE}; color: {_TEXT};"
     f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-    f"  padding: 4px 6px; font-size: 11px; font-family: {FONT_FAMILY};"
+    f"  padding: 4px 6px; font-size: {TYPE_INPUT}px;"
+    f"  font-family: {FONT_FAMILY};"
     f"}}"
     f"QComboBox:hover {{ border: 1px solid {_ACCENT}; }}"
     f"QComboBox::drop-down {{ border: none; width: 22px; }}"
@@ -95,7 +109,7 @@ _COMBO_STYLE = (
     f"  background-color: {_POPUP_BG}; color: {_POPUP_TEXT};"
     f"  border: 1px solid {_POPUP_BORDER}; selection-background-color: {_POPUP_SELECTED};"
     f"  selection-color: {_POPUP_TEXT}; outline: 0;"
-    f"  font-size: 11px; font-family: {FONT_FAMILY};"
+    f"  font-size: {TYPE_INPUT}px; font-family: {FONT_FAMILY};"
     f"}}"
     f"QComboBox QAbstractItemView::item {{ min-height: 26px; padding: 2px 6px; }}"
     f"QComboBox QAbstractItemView::item:selected {{"
@@ -109,7 +123,7 @@ _ENTRY_COMBO_STYLE = _COMBO_STYLE + (
     f"  border: 1px solid {_POPUP_BORDER};"
     f"  selection-background-color: {_POPUP_SELECTED};"
     f"  selection-color: {_POPUP_TEXT}; outline: 0;"
-    f"  font-size: 11px; font-family: {FONT_FAMILY};"
+    f"  font-size: {TYPE_INPUT}px; font-family: {FONT_FAMILY};"
     f"}}"
 )
 
@@ -117,7 +131,8 @@ _EDIT_STYLE = (
     f"QLineEdit {{"
     f"  background-color: {_SURFACE}; color: {_TEXT};"
     f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-    f"  padding: 4px 6px; font-size: 11px; font-family: {FONT_FAMILY};"
+    f"  padding: 4px 6px; font-size: {TYPE_INPUT}px;"
+    f"  font-family: {FONT_FAMILY};"
     f"}}"
     f"QLineEdit:focus {{ border: 1px solid {_ACCENT}; }}"
 )
@@ -126,7 +141,8 @@ _DATE_STYLE = (
     f"QDateEdit {{"
     f"  background-color: {_SURFACE}; color: {_TEXT};"
     f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-    f"  padding: 4px 6px; font-size: 11px; font-family: {FONT_FAMILY};"
+    f"  padding: 4px 6px; font-size: {TYPE_INPUT}px;"
+    f"  font-family: {FONT_FAMILY};"
     f"}}"
     f"QDateEdit:focus {{ border: 1px solid {_ACCENT}; }}"
     f"QDateEdit::drop-down {{ border: none; width: 22px; }}"
@@ -145,7 +161,8 @@ _COMPACT_EDIT_STYLE = (
     f"QLineEdit {{"
     f"  background-color: {_SURFACE}; color: {_TEXT};"
     f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-    f"  padding: {_COMPACT_PADDING}; font-size: 11px; font-family: {FONT_FAMILY};"
+    f"  padding: {_COMPACT_PADDING}; font-size: {TYPE_INPUT_COMPACT}px;"
+    f"  font-family: {FONT_FAMILY};"
     f"}}"
     f"QLineEdit:focus {{ border: 1px solid {_ACCENT}; }}"
 )
@@ -154,7 +171,8 @@ _COMPACT_COMBO_STYLE = (
     f"QComboBox {{"
     f"  background-color: {_SURFACE}; color: {_TEXT};"
     f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-    f"  padding: {_COMPACT_PADDING}; font-size: 11px; font-family: {FONT_FAMILY};"
+    f"  padding: {_COMPACT_PADDING}; font-size: {TYPE_INPUT_COMPACT}px;"
+    f"  font-family: {FONT_FAMILY};"
     f"}}"
     f"QComboBox:hover {{ border: 1px solid {_ACCENT}; }}"
     f"QComboBox::drop-down {{ border: none; width: 18px; }}"
@@ -163,7 +181,7 @@ _COMPACT_COMBO_STYLE = (
     f"  background-color: {_POPUP_BG}; color: {_POPUP_TEXT};"
     f"  border: 1px solid {_POPUP_BORDER}; selection-background-color: {_POPUP_SELECTED};"
     f"  selection-color: {_POPUP_TEXT}; outline: 0;"
-    f"  font-size: 11px; font-family: {FONT_FAMILY};"
+    f"  font-size: {TYPE_INPUT}px; font-family: {FONT_FAMILY};"
     f"}}"
     f"QComboBox QAbstractItemView::item {{ min-height: 24px; padding: 2px 6px; }}"
     f"QComboBox QAbstractItemView::item:selected {{"
@@ -175,7 +193,8 @@ _COMPACT_DATE_STYLE = (
     f"QDateEdit {{"
     f"  background-color: {_SURFACE}; color: {_TEXT};"
     f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-    f"  padding: {_COMPACT_PADDING}; font-size: 11px; font-family: {FONT_FAMILY};"
+    f"  padding: {_COMPACT_PADDING}; font-size: {TYPE_INPUT_COMPACT}px;"
+    f"  font-family: {FONT_FAMILY};"
     f"}}"
     f"QDateEdit:focus {{ border: 1px solid {_ACCENT}; }}"
     f"QDateEdit::drop-down {{ border: none; width: 18px; }}"
@@ -207,7 +226,7 @@ def _btn_style(
     fg: str | None = None,
     padding: str = "5px 14px",
     radius: str = "5px",
-    font_size: str = "11px",
+    font_size: str = f"{TYPE_BUTTON}px",
 ) -> str:
     """Build a classic (light face + thin edge) QPushButton stylesheet."""
     face = face or _BTN_FACE
@@ -246,11 +265,14 @@ _BTN_ORANGE = _btn_style(_BTN_WARNING_EDGE)
 # Table row action (per-row Delete inside the Bill Items "Del" column).
 # A quiet red edge on the light surface: it reads as a control inside a
 # table cell rather than as a standalone button competing with the row.
+# Kept at 11 px (below TYPE_BUTTON) because the button is pinned to the 22 px
+# table row action box; the caption still reads as bold red-on-light and is
+# not part of the main action hierarchy.
 _BTN_ROW_ACTION = (
     "QPushButton {"
     f"  background-color: {_p['surface_alt']}; color: {_BTN_DANGER_EDGE};"
     f"  border: 1px solid {_BTN_DANGER_EDGE}; border-radius: 3px;"
-    "  padding: 2px 6px; font-size: 10px; font-weight: bold;"
+    "  padding: 2px 6px; font-size: 11px; font-weight: bold;"
     f"  font-family: {FONT_FAMILY};"
     "}"
     "QPushButton:hover {"
@@ -265,9 +287,28 @@ _BTN_ROW_ACTION = (
     "}"
 )
 
-_LABEL_STYLE = f"color: {_TEXT}; font-size: 11px; font-family: {FONT_FAMILY}; background: transparent;"
-_LABEL_DIM = f"color: {_TEXT_DIM}; font-size: 10px; font-family: {FONT_FAMILY}; background: transparent;"
-_HEADER_LABEL = f"color: {_TEXT}; font-size: 11px; font-family: {FONT_FAMILY}; background: transparent; font-weight: bold;"
+# ── Caption / label typography ────────────────────────────────────────
+# Captions are black and bold: a classic desktop form reads its field
+# captions, and grey captions were the single biggest cause of the "washed
+# out" look.  ``_LABEL_DIM`` is reserved for genuinely secondary notes
+# (hints, paper size) that must not compete with the data.
+_LABEL_STYLE = (
+    f"color: {_TEXT}; font-size: {TYPE_VALUE}px; font-weight: bold;"
+    f"font-family: {FONT_FAMILY}; background: transparent;"
+)
+_LABEL_DIM = (
+    f"color: {_TEXT_DIM}; font-size: {TYPE_HINT}px;"
+    f"font-family: {FONT_FAMILY}; background: transparent;"
+)
+# Field captions (entry bar, totals, metadata strip): black, bold, 11 px.
+_CAPTION_STYLE = (
+    f"color: {_TEXT}; font-size: {TYPE_HINT}px; font-weight: bold;"
+    f"font-family: {FONT_FAMILY}; background: transparent;"
+)
+_HEADER_LABEL = (
+    f"color: {_TEXT}; font-size: {TYPE_FORM_LABEL}px; font-weight: bold;"
+    f"font-family: {FONT_FAMILY}; background: transparent;"
+)
 
 # â”€â”€ Item entry bar metrics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # One compact row shared by all twelve controls.  Every control uses the
@@ -278,7 +319,10 @@ _ENTRY_BAR_HEIGHT = 40          # label + control box, one straight row
 _ENTRY_ADD_WIDTH = 78           # compact "+ Add": inside the 70-90 px target
 # Captions are sized from the real font but never reserve more than this, so
 # the twelve-control row keeps its natural proportions on any platform font.
-_ENTRY_LABEL_MAX_WIDTH = 22
+# Raised from 22 when the captions went to the readable 11 px bold size: 22 px
+# would clip "Batch" / "Avail" / "MRP".  The twelve-control row still fits
+# 1366x768 with every field at its minimum width.
+_ENTRY_LABEL_MAX_WIDTH = 30
 
 # â”€â”€ Bottom billing block metrics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # The Sale Header strip and the totals/action footer together form the
@@ -303,7 +347,7 @@ _BILL_RIGHT_COLUMNS = (6, 7, 8, 9)
 
 _GROUP_BOX = (
     f"QGroupBox {{"
-    f"  color: {_TEXT}; font-weight: bold; font-size: 12px;"
+    f"  color: {_TEXT}; font-weight: bold; font-size: {TYPE_SECTION_HEADER}px;"
     f"  font-family: {FONT_FAMILY};"
     f"  border: 1px solid {_BORDER}; border-radius: 2px;"
     f"  margin-top: 10px; padding-top: 14px;"
@@ -343,7 +387,7 @@ def _make_edit(placeholder: str = "", width: int | None = None) -> QLineEdit:
     e = QLineEdit()
     e.setPlaceholderText(placeholder)
     e.setStyleSheet(_EDIT_STYLE)
-    e.setFont(QFont("Segoe UI", 11))
+    e.setFont(readable_font(TYPE_INPUT))
     if width:
         e.setMaximumWidth(width)
     return e
@@ -355,7 +399,7 @@ def _make_compact_edit(placeholder: str = "", *,
     e = QLineEdit()
     e.setPlaceholderText(placeholder)
     e.setStyleSheet(_COMPACT_EDIT_STYLE)
-    e.setFont(QFont("Segoe UI", 11))
+    e.setFont(readable_font(TYPE_INPUT_COMPACT))
     e.setFixedHeight(height)
     return e
 
@@ -1015,13 +1059,12 @@ class _ItemEntryBar(QWidget):
     @staticmethod
     def _lbl(text: str) -> QLabel:
         lbl = QLabel(text)
-        lbl.setStyleSheet(_LABEL_DIM)
+        lbl.setStyleSheet(_CAPTION_STYLE)
         # A compact caption sized from the real font, so the label box hugs
         # its text (with a small pad) instead of reserving whatever the
         # default application font would demand.  Capped so a long caption
         # can never steal width from the fields it labels.
-        font = QFont(FONT_FAMILY.split(",")[0].strip().strip("'"))
-        font.setPixelSize(10)
+        font = readable_font(TYPE_HINT, bold=True)
         lbl.setFont(font)
         width = min(QFontMetrics(font).horizontalAdvance(text) + 3,
                     _ENTRY_LABEL_MAX_WIDTH)
@@ -1569,7 +1612,7 @@ class _SalePanel(QWidget):
         voucher_layout.addWidget(self._lbl("Voucher No"))
         self.voucher_no_label = QLabel(self.bill_no_edit.text() or "--")
         self.voucher_no_label.setStyleSheet(
-            f"color: {_TEXT}; font-size: 11px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: {TYPE_VALUE}px; font-weight: bold;"
             f"background: transparent; font-family: {FONT_FAMILY};"
         )
         self.voucher_no_label.setMinimumWidth(120)
@@ -1582,7 +1625,7 @@ class _SalePanel(QWidget):
         date_layout.addWidget(self._lbl("Date"))
         self.header_date_label = QLabel(self.sale_date.date().toString("dd-MM-yyyy"))
         self.header_date_label.setStyleSheet(
-            f"color: {_TEXT}; font-size: 11px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: {TYPE_VALUE}px; font-weight: bold;"
             f"background: transparent; font-family: {FONT_FAMILY};"
         )
         self.header_date_label.setMinimumWidth(100)
@@ -1595,7 +1638,7 @@ class _SalePanel(QWidget):
         time_layout.addWidget(self._lbl("Time"))
         self.header_time_label = QLabel(self.sale_time_edit.text() or "--")
         self.header_time_label.setStyleSheet(
-            f"color: {_TEXT}; font-size: 11px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: {TYPE_VALUE}px; font-weight: bold;"
             f"background: transparent; font-family: {FONT_FAMILY};"
         )
         self.header_time_label.setMinimumWidth(80)
@@ -2052,20 +2095,23 @@ class _SalePanel(QWidget):
             f"QHeaderView::section {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: none; border-bottom: 2px solid {_ACCENT};"
-            f"  padding: 4px 5px; font-weight: bold; font-size: 11px;"
+            f"  padding: 4px 5px; font-weight: bold;"
+            f"  font-size: {TYPE_TABLE_HEADER}px;"
             f"  font-family: {FONT_FAMILY};"
             f"}}"
         )
+        hv.setFont(readable_font(TYPE_TABLE_HEADER, bold=True))
         self._table.setStyleSheet(
             f"QTableWidget {{"
             f"  background-color: {_DARK_BG}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; gridline-color: {_BORDER};"
-            f"  font-size: 11px; font-family: {FONT_FAMILY};"
+            f"  font-size: {TYPE_TABLE_DATA}px; font-family: {FONT_FAMILY};"
             f"  selection-background-color: {_SELECTED};"
-            f"  selection-color: {_TEXT};"
+            f"  selection-color: {_SELECTED_TEXT};"
             f"}}"
             f"QTableWidget::item {{ padding: 3px 6px; }}"
         )
+        self._table.setFont(readable_font(TYPE_TABLE_DATA))
         layout.addWidget(self._table, 1)
 
     def _on_add_item(self):
@@ -2256,7 +2302,7 @@ class _SalePanel(QWidget):
             f"background-color: {_SURFACE}; border-top: 1px solid {_BORDER};"
         )
         layout = QHBoxLayout(self._totals_widget)
-        layout.setContentsMargins(12, 3, 12, 3)
+        layout.setContentsMargins(12, 2, 12, 2)
         layout.setSpacing(14)
 
         if self._popup_mode:
@@ -2316,10 +2362,10 @@ class _SalePanel(QWidget):
         container.setSpacing(0)
         container.setContentsMargins(0, 0, 0, 0)
         lbl = QLabel(title)
-        lbl.setStyleSheet(_LABEL_DIM)
+        lbl.setStyleSheet(_CAPTION_STYLE)
         lbl.setAlignment(Qt.AlignCenter)
         lbl.setFixedWidth(width)
-        lbl.setFixedHeight(14)
+        lbl.setFixedHeight(16)
         container.addWidget(lbl)
 
         if attr_name.endswith("_label"):
@@ -2328,8 +2374,10 @@ class _SalePanel(QWidget):
             val_lbl.setFixedWidth(width)
             val_lbl.setFixedHeight(_TOTALS_CONTROL_HEIGHT)
             val_lbl.setStyleSheet(
-                f"color: {_ACCENT if emphasised else _TEXT};"
-                f"font-size: {13 if emphasised else 12}px; font-weight: bold;"
+                f"color: {_TEXT};"
+                f"font-size: "
+                f"{TYPE_VALUE_EMPHASIS if emphasised else TYPE_VALUE}px;"
+                f"font-weight: bold;"
                 f"background: transparent; font-family: {FONT_FAMILY};"
             )
             container.addWidget(val_lbl)
@@ -2444,10 +2492,8 @@ class _SalePanel(QWidget):
         reserving a wide box, and vertically centred against its field.
         """
         lbl = QLabel(text)
-        lbl.setStyleSheet(_LABEL_DIM)
-        font = QFont(FONT_FAMILY.split(",")[0].strip().strip("'"))
-        font.setPixelSize(10)
-        font.setBold(True)
+        lbl.setStyleSheet(_CAPTION_STYLE)
+        font = readable_font(TYPE_HINT, bold=True)
         lbl.setFont(font)
         lbl.setFixedWidth(QFontMetrics(font).horizontalAdvance(text) + 4)
         lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
@@ -3121,7 +3167,7 @@ class SalesBillReviewDialog(QDialog):
         voucher_layout.setSpacing(8)
         voucher_caption = QLabel("Voucher No")
         voucher_caption.setStyleSheet(
-            "color: #d8e6f5; font-size: 10px; background: transparent;"
+            "color: #d8e6f5; font-size: 11px; background: transparent;"
             f"font-family: {FONT_FAMILY};"
         )
         voucher_layout.addWidget(voucher_caption)
@@ -3139,7 +3185,7 @@ class SalesBillReviewDialog(QDialog):
         date_layout.setSpacing(8)
         date_caption = QLabel("Date")
         date_caption.setStyleSheet(
-            "color: #d8e6f5; font-size: 10px; background: transparent;"
+            "color: #d8e6f5; font-size: 11px; background: transparent;"
             f"font-family: {FONT_FAMILY};"
         )
         date_layout.addWidget(date_caption)
@@ -3157,7 +3203,7 @@ class SalesBillReviewDialog(QDialog):
         time_layout.setSpacing(8)
         time_caption = QLabel("Time")
         time_caption.setStyleSheet(
-            "color: #d8e6f5; font-size: 10px; background: transparent;"
+            "color: #d8e6f5; font-size: 11px; background: transparent;"
             f"font-family: {FONT_FAMILY};"
         )
         time_layout.addWidget(time_caption)
@@ -3198,14 +3244,15 @@ class SalesBillReviewDialog(QDialog):
 
         items_caption = QLabel("Total Items")
         items_caption.setStyleSheet(
-            f"color: {_TEXT}; font-size: 11px; background: transparent;"
+            f"color: {_TEXT}; font-size: {TYPE_FORM_LABEL}px;"
+            f"font-weight: bold; background: transparent;"
             f"font-family: {FONT_FAMILY};"
         )
         row1.addWidget(items_caption)
 
         self._total_items_label = QLabel(str(len(self._panel._item_rows)))
         self._total_items_label.setStyleSheet(
-            f"color: {_TEXT}; font-size: 11px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: {TYPE_VALUE}px; font-weight: bold;"
             f"background: transparent; font-family: {FONT_FAMILY};"
         )
         self._total_items_label.setMinimumWidth(50)
@@ -3214,7 +3261,8 @@ class SalesBillReviewDialog(QDialog):
 
         remarks_caption = QLabel("Remarks")
         remarks_caption.setStyleSheet(
-            f"color: {_TEXT}; font-size: 11px; background: transparent;"
+            f"color: {_TEXT}; font-size: {TYPE_FORM_LABEL}px;"
+            f"font-weight: bold; background: transparent;"
             f"font-family: {FONT_FAMILY};"
         )
         row1.addWidget(remarks_caption)
@@ -3236,13 +3284,13 @@ class SalesBillReviewDialog(QDialog):
         total_amt_container = QVBoxLayout()
         total_amt_container.setSpacing(2)
         total_amt_caption = QLabel("Total Amount")
-        total_amt_caption.setStyleSheet(_LABEL_DIM)
+        total_amt_caption.setStyleSheet(_HEADER_LABEL)
         total_amt_caption.setAlignment(Qt.AlignCenter)
         total_amt_container.addWidget(total_amt_caption)
         self._footer_total_amount = QLabel(self._panel.total_amount_label.text())
         self._footer_total_amount.setAlignment(Qt.AlignCenter)
         self._footer_total_amount.setStyleSheet(
-            f"color: {_TEXT}; font-size: 12px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: {TYPE_VALUE}px; font-weight: bold;"
             f"background: transparent; font-family: {FONT_FAMILY};"
         )
         self._footer_total_amount.setMinimumWidth(100)
@@ -3254,13 +3302,13 @@ class SalesBillReviewDialog(QDialog):
         bill_disc_container = QVBoxLayout()
         bill_disc_container.setSpacing(2)
         bill_disc_caption = QLabel("Bill Discount")
-        bill_disc_caption.setStyleSheet(_LABEL_DIM)
+        bill_disc_caption.setStyleSheet(_HEADER_LABEL)
         bill_disc_caption.setAlignment(Qt.AlignCenter)
         bill_disc_container.addWidget(bill_disc_caption)
         self._footer_bill_discount = QLabel(f"{_safe_float(self._panel.bill_disc_edit.text()):.2f}")
         self._footer_bill_discount.setAlignment(Qt.AlignCenter)
         self._footer_bill_discount.setStyleSheet(
-            f"color: {_TEXT}; font-size: 12px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: {TYPE_VALUE}px; font-weight: bold;"
             f"background: transparent; font-family: {FONT_FAMILY};"
         )
         self._footer_bill_discount.setMinimumWidth(100)
@@ -3272,13 +3320,13 @@ class SalesBillReviewDialog(QDialog):
         cn_container = QVBoxLayout()
         cn_container.setSpacing(2)
         cn_caption = QLabel("CN Amount")
-        cn_caption.setStyleSheet(_LABEL_DIM)
+        cn_caption.setStyleSheet(_HEADER_LABEL)
         cn_caption.setAlignment(Qt.AlignCenter)
         cn_container.addWidget(cn_caption)
         self._footer_cn_amount = QLabel("0.00")
         self._footer_cn_amount.setAlignment(Qt.AlignCenter)
         self._footer_cn_amount.setStyleSheet(
-            f"color: {_TEXT}; font-size: 12px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: {TYPE_VALUE}px; font-weight: bold;"
             f"background: transparent; font-family: {FONT_FAMILY};"
         )
         self._footer_cn_amount.setMinimumWidth(100)
@@ -3290,13 +3338,13 @@ class SalesBillReviewDialog(QDialog):
         dr_container = QVBoxLayout()
         dr_container.setSpacing(2)
         dr_caption = QLabel("Dr Amount")
-        dr_caption.setStyleSheet(_LABEL_DIM)
+        dr_caption.setStyleSheet(_HEADER_LABEL)
         dr_caption.setAlignment(Qt.AlignCenter)
         dr_container.addWidget(dr_caption)
         self._footer_dr_amount = QLabel("0.00")
         self._footer_dr_amount.setAlignment(Qt.AlignCenter)
         self._footer_dr_amount.setStyleSheet(
-            f"color: {_TEXT}; font-size: 12px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: {TYPE_VALUE}px; font-weight: bold;"
             f"background: transparent; font-family: {FONT_FAMILY};"
         )
         self._footer_dr_amount.setMinimumWidth(100)
@@ -3308,13 +3356,13 @@ class SalesBillReviewDialog(QDialog):
         credit_note_container = QVBoxLayout()
         credit_note_container.setSpacing(2)
         credit_note_caption = QLabel("Credit Note")
-        credit_note_caption.setStyleSheet(_LABEL_DIM)
+        credit_note_caption.setStyleSheet(_HEADER_LABEL)
         credit_note_caption.setAlignment(Qt.AlignCenter)
         credit_note_container.addWidget(credit_note_caption)
         self._footer_credit_note = QLabel("0.00")
         self._footer_credit_note.setAlignment(Qt.AlignCenter)
         self._footer_credit_note.setStyleSheet(
-            f"color: {_TEXT}; font-size: 12px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: {TYPE_VALUE}px; font-weight: bold;"
             f"background: transparent; font-family: {FONT_FAMILY};"
         )
         self._footer_credit_note.setMinimumWidth(100)
@@ -3326,13 +3374,13 @@ class SalesBillReviewDialog(QDialog):
         round_off_container = QVBoxLayout()
         round_off_container.setSpacing(2)
         round_off_caption = QLabel("Round Off")
-        round_off_caption.setStyleSheet(_LABEL_DIM)
+        round_off_caption.setStyleSheet(_HEADER_LABEL)
         round_off_caption.setAlignment(Qt.AlignCenter)
         round_off_container.addWidget(round_off_caption)
         self._footer_round_off = QLabel(self._panel.round_off_label.text())
         self._footer_round_off.setAlignment(Qt.AlignCenter)
         self._footer_round_off.setStyleSheet(
-            f"color: {_TEXT}; font-size: 12px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: {TYPE_VALUE}px; font-weight: bold;"
             f"background: transparent; font-family: {FONT_FAMILY};"
         )
         self._footer_round_off.setMinimumWidth(90)
@@ -3344,13 +3392,14 @@ class SalesBillReviewDialog(QDialog):
         net_amt_container = QVBoxLayout()
         net_amt_container.setSpacing(2)
         net_amt_caption = QLabel("Net Amount")
-        net_amt_caption.setStyleSheet(_LABEL_DIM)
+        net_amt_caption.setStyleSheet(_HEADER_LABEL)
         net_amt_caption.setAlignment(Qt.AlignCenter)
         net_amt_container.addWidget(net_amt_caption)
         self._footer_net_amount = QLabel(self._panel.net_amt_label.text())
         self._footer_net_amount.setAlignment(Qt.AlignCenter)
         self._footer_net_amount.setStyleSheet(
-            f"color: {_ACCENT}; font-size: 14px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: {TYPE_VALUE_EMPHASIS}px;"
+            f"font-weight: bold;"
             f"background: transparent; font-family: {FONT_FAMILY};"
         )
         self._footer_net_amount.setMinimumWidth(120)
@@ -3538,7 +3587,7 @@ _HISTORY_STRETCH_COLUMN = {
 
 _HISTORY_FILTER_BAR_HEIGHT = 30
 _RADIO_STYLE = (
-    f"QRadioButton {{ color: {_TEXT}; font-size: 11px;"
+    f"QRadioButton {{ color: {_TEXT}; font-size: {TYPE_FORM_LABEL}px;"
     f"  background: transparent; font-family: {FONT_FAMILY}; }}"
     f"QRadioButton::indicator {{ width: 13px; height: 13px; }}"
 )
@@ -3639,14 +3688,16 @@ class CounterSalePage(QWidget):
 
         title = QLabel("Sales / Counter Sale")
         title.setStyleSheet(
-            f"color: {_TEXT}; font-size: 18px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: {TYPE_PAGE_TITLE}px;"
+            f"font-weight: bold;"
             f"background: transparent; font-family: {FONT_FAMILY};"
         )
         hl.addWidget(title)
 
         subtitle = QLabel("Bill History")
         subtitle.setStyleSheet(
-            f"color: {_TEXT_DIM}; font-size: 11px;"
+            f"color: {_TEXT}; font-size: {TYPE_SECTION_HEADER}px;"
+            f"font-weight: bold;"
             f"background: transparent; font-family: {FONT_FAMILY};"
         )
         hl.addWidget(subtitle)
@@ -3899,20 +3950,23 @@ class CounterSalePage(QWidget):
             f"QHeaderView::section {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: none; border-bottom: 2px solid {_ACCENT};"
-            f"  padding: 4px 6px; font-weight: bold; font-size: 11px;"
+            f"  padding: 4px 6px; font-weight: bold;"
+            f"  font-size: {TYPE_TABLE_HEADER}px;"
             f"  font-family: {FONT_FAMILY};"
             f"}}"
         )
+        hv.setFont(readable_font(TYPE_TABLE_HEADER, bold=True))
         table.setStyleSheet(
             f"QTableWidget {{"
             f"  background-color: {_DARK_BG}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; gridline-color: {_BORDER};"
-            f"  font-size: 11px; font-family: {FONT_FAMILY};"
+            f"  font-size: {TYPE_TABLE_DATA}px; font-family: {FONT_FAMILY};"
             f"  selection-background-color: {_ACCENT};"
             f"  selection-color: white;"
             f"}}"
             f"QTableWidget::item {{ padding: 3px 5px; }}"
         )
+        table.setFont(readable_font(TYPE_TABLE_DATA))
         return table
 
     def _build_bill_panel(self) -> QWidget:
@@ -3946,7 +4000,8 @@ class CounterSalePage(QWidget):
             al.addWidget(btn)
         paper_label = QLabel(f"Paper: {a6_profile().size_label}")
         paper_label.setStyleSheet(
-            f"color: {_TEXT_DIM}; font-size: 10px; font-family: {FONT_FAMILY};"
+            f"color: {_TEXT_DIM}; font-size: {TYPE_HINT}px;"
+            f"font-family: {FONT_FAMILY};"
             "background: transparent;"
         )
         paper_label.setAlignment(Qt.AlignCenter)
@@ -3964,7 +4019,8 @@ class CounterSalePage(QWidget):
         for value_label in (self._bill_total_value, self._cno_value,
                             self._amount_value):
             value_label.setStyleSheet(
-                f"color: {_TEXT}; font-size: 11px; font-weight: bold;"
+                f"color: {_TEXT}; font-size: {TYPE_VALUE}px;"
+                f"font-weight: bold;"
                 f"font-family: {FONT_FAMILY}; background: transparent;"
             )
             value_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
@@ -4017,7 +4073,7 @@ class CounterSalePage(QWidget):
 
     def _flbl(self, text: str) -> QLabel:
         lbl = QLabel(text)
-        lbl.setStyleSheet(_LABEL_DIM)
+        lbl.setStyleSheet(_HEADER_LABEL)
         return lbl
 
     def _refresh_history(self):

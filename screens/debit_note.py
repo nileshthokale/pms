@@ -96,7 +96,7 @@ _BTN_SECONDARY = (
 _BTN_DANGER = (
     f"QPushButton {{ background-color: {_ERROR}; color: white;"
     f"  border: none; border-radius: 3px; padding: 4px 8px;"
-    f"  font-weight: bold; font-size: 11px; font-family: 'Segoe UI'; }}"
+    f"  font-weight: bold; font-size: 12px; font-family: 'Segoe UI'; }}"
     f"QPushButton:hover {{ background-color: #d32f2f; }}"
 )
 
@@ -108,8 +108,8 @@ _BTN_GREEN_SM = (
 )
 
 _LABEL_STYLE = f"color: {_TEXT}; font-size: 12px; font-family: 'Segoe UI'; background: transparent;"
-_LABEL_DIM = f"color: {_TEXT_DIM}; font-size: 11px; font-family: 'Segoe UI'; background: transparent;"
-_HEADER_LABEL = f"color: {_TEXT}; font-size: 11px; font-family: 'Segoe UI'; background: transparent; font-weight: bold;"
+_LABEL_DIM = f"color: {_TEXT}; font-size: 12px; font-weight: bold; font-family: 'Segoe UI'; background: transparent;"
+_HEADER_LABEL = f"color: {_TEXT}; font-size: 12px; font-family: 'Segoe UI'; background: transparent; font-weight: bold;"
 
 _GROUP_BOX = (
     f"QGroupBox {{"
@@ -538,7 +538,7 @@ class _DebitNoteEntryDialog(QDialog):
             f"QHeaderView::section {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: none; border-bottom: 2px solid {_ACCENT};"
-            f"  padding: 2px 5px; font-weight: bold; font-size: 9pt;"
+            f"  padding: 2px 5px; font-weight: bold; font-size: 12px;"
             f"  font-family: 'Segoe UI';"
             f"}}"
         )
@@ -546,7 +546,7 @@ class _DebitNoteEntryDialog(QDialog):
             f"QTableWidget {{"
             f"  background-color: {_DARK_BG}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; gridline-color: {_BORDER};"
-            f"  font-size: 11px; font-family: 'Segoe UI';"
+            f"  font-size: 13px; font-family: 'Segoe UI';"
             f"  selection-background-color: {_ACCENT};"
             f"  selection-color: white;"
             f"}}"
@@ -966,7 +966,7 @@ class DebitNotePage(QWidget):
             f"QHeaderView::section {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: none; border-bottom: 2px solid {_ACCENT};"
-            f"  padding: 3px 6px; font-weight: bold; font-size: 9pt;"
+            f"  padding: 3px 6px; font-weight: bold; font-size: 12px;"
             f"  font-family: 'Segoe UI';"
             f"}}"
         )
@@ -974,7 +974,7 @@ class DebitNotePage(QWidget):
             f"QTableWidget {{"
             f"  background-color: {_DARK_BG}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; gridline-color: {_BORDER};"
-            f"  font-size: 11px; font-family: 'Segoe UI';"
+            f"  font-size: 13px; font-family: 'Segoe UI';"
             f"  selection-background-color: {_ACCENT};"
             f"  selection-color: white;"
             f"}}"
