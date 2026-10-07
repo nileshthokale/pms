@@ -24,7 +24,9 @@ def main():
         return
 
     window = PharmacyMainWindow()
-    window.show()
+    # The application starts maximized on a normal Windows desktop
+    # (standard maximize: title bar and min/max/close controls stay).
+    window.showMaximized()
 
     sys.exit(app.exec())
 

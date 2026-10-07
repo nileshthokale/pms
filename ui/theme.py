@@ -25,6 +25,7 @@ when PySide6 is unavailable.
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -106,6 +107,23 @@ _PALETTES["night"] = _PALETTES["dark"]
 
 _THEME_FILE = Path(__file__).resolve().parent.parent / "data" / "theme.json"
 
+
+def _resolve_theme_file() -> Path:
+    """Packaging-aware theme file location (test-patch compatible).
+
+    Development runs use ``data/theme.json`` (the patchable ``_THEME_FILE``).
+    A PyInstaller build (``sys.frozen``) stores the theme next to the
+    per-user database so the EXE never writes beside itself.
+    Unit tests patch ``_THEME_FILE`` with ``sys.frozen`` unset, so they
+    always resolve to the patched path.
+    """
+    if getattr(sys, "frozen", False):
+        base = os.environ.get("LOCALAPPDATA") or os.path.join(
+            os.path.expanduser("~"), "AppData", "Local"
+        )
+        return Path(base) / "PharmacyManagementSystem" / "theme.json"
+    return Path(_THEME_FILE)
+
 # Light mode is the default; night mode is opt-in.  Kept as a constant so
 # the default is stated once and reused by tests.
 DEFAULT_MODE = "light"
@@ -138,7 +156,7 @@ _NAV_SCHEMES: dict[str, dict[str, str]] = {
 
 def _load_mode() -> str:
     try:
-        with open(_THEME_FILE, "r", encoding="utf-8") as fh:
+        with open(_resolve_theme_file(), "r", encoding="utf-8") as fh:
             mode = json.load(fh).get("mode")
         # Accept the legacy "night" spelling too.
         if mode == "night":
@@ -151,8 +169,9 @@ def _load_mode() -> str:
 
 
 def _save_mode(mode: str) -> None:
-    _THEME_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(_THEME_FILE, "w", encoding="utf-8") as fh:
+    theme_file = _resolve_theme_file()
+    theme_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(theme_file, "w", encoding="utf-8") as fh:
         json.dump({"mode": mode}, fh)
 
 
@@ -262,7 +281,7 @@ def stylesheet() -> str:
         "}"
         "QWidget {"
         f"  font-family: 'Segoe UI', 'Tahoma', sans-serif;"
-        f"  font-size: 12px;"
+        f"  font-size: 13px;"
         "}"
         "QLabel {"
         f"  color: {p['text']};"
@@ -273,7 +292,7 @@ def stylesheet() -> str:
         f"  color: {p['text']};"
         f"  border: 1px solid {p['border']};"
         "  border-radius: 2px;"
-        "  padding: 3px 5px;"
+        "  padding: 4px 7px;"
         "  selection-background-color: " + p["selected"] + ";"
         f"  selection-color: {p['selected_text']};"
         "}"
@@ -286,7 +305,7 @@ def stylesheet() -> str:
         f"  color: {p['text']};"
         f"  border: 1px solid {p['border']};"
         "  border-radius: 2px;"
-        "  padding: 3px 5px;"
+        "  padding: 4px 7px;"
         "}"
         "QComboBox:focus, QDateEdit:focus, QTimeEdit:focus, QDateTimeEdit:focus {"
         f"  border: 1px solid {p['focus']};"
@@ -304,8 +323,8 @@ def stylesheet() -> str:
         f"  color: {p['text']};"
         f"  border: 1px solid {p['border']};"
         "  border-radius: 2px;"
-        "  padding: 4px 12px;"
-        "  min-height: 18px;"
+        "  padding: 6px 14px;"
+        "  min-height: 22px;"
         "}"
         "QPushButton:hover {"
         f"  background-color: {p['selected']};"
@@ -351,7 +370,7 @@ def stylesheet() -> str:
         f"  selection-color: {p['selected_text']};"
         "}"
         "QTableWidget::item, QTableView::item {"
-        "  padding: 1px 4px;"
+        "  padding: 3px 6px;"
         "}"
         "QTableWidget::item:selected, QTableView::item:selected {"
         f"  background-color: {p['selected']};"
@@ -363,7 +382,7 @@ def stylesheet() -> str:
         f"  border: none;"
         f"  border-right: 1px solid {p['border']};"
         f"  border-bottom: 1px solid {p['border']};"
-        "  padding: 3px 6px;"
+        "  padding: 4px 8px;"
         "  font-weight: bold;"
         "}"
         "QMenuBar {"

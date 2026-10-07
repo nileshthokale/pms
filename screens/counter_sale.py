@@ -274,23 +274,23 @@ _HEADER_LABEL = f"color: {_TEXT}; font-size: 11px; font-family: {FONT_FAMILY}; b
 # same box height so the bar reads as a single instrument strip instead of
 # a row of mismatched boxes, and the label width is measured from the real
 # font (capped) so labels never reserve a wide, mostly empty box.
-_ENTRY_BAR_HEIGHT = 34          # label + control box, one straight row
+_ENTRY_BAR_HEIGHT = 40          # label + control box, one straight row
 _ENTRY_ADD_WIDTH = 78           # compact "+ Add": inside the 70-90 px target
 # Captions are sized from the real font but never reserve more than this, so
 # the twelve-control row keeps its natural proportions on any platform font.
-_ENTRY_LABEL_MAX_WIDTH = 26
+_ENTRY_LABEL_MAX_WIDTH = 22
 
 # â”€â”€ Bottom billing block metrics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # The Sale Header strip and the totals/action footer together form the
 # fixed bottom billing section (~98 px), and both rows inside the strip use
 # one shared box height so nothing is squeezed or clipped.
-_METADATA_STRIP_HEIGHT = 54    # Bill No / Date / Time / Type + Customer row
-_METADATA_CONTROL_HEIGHT = 22  # shared box height for every metadata control
+_METADATA_STRIP_HEIGHT = 56    # Bill No / Date / Time / Type + Customer row
+_METADATA_CONTROL_HEIGHT = 24  # shared box height for every metadata control
 _TOTALS_FOOTER_HEIGHT = 44     # totals + Hold / Save / Cancel
-_TOTALS_CONTROL_HEIGHT = 22    # shared box height for footer totals
-_ACTION_BUTTON_HEIGHT = 26     # Hold Bill / Save Sale / Cancel
-_BILL_ROW_HEIGHT = 28          # Bill Items body row height
-_BILL_HEADER_HEIGHT = 32       # header band is slightly taller than a row
+_TOTALS_CONTROL_HEIGHT = 24    # shared box height for footer totals
+_ACTION_BUTTON_HEIGHT = 30     # Hold Bill / Save Sale / Cancel
+_BILL_ROW_HEIGHT = 30          # Bill Items body row height
+_BILL_HEADER_HEIGHT = 34       # header band is slightly taller than a row
 _BILL_DELETE_WIDTH = 56        # compact Del action inside the table cell
 _BILL_DELETE_HEIGHT = 22
 
@@ -834,17 +834,13 @@ class _ItemEntryBar(QWidget):
         # to sit underneath and wasted a whole line of vertical space.
         self.setFixedHeight(_ENTRY_BAR_HEIGHT)
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(6, 2, 6, 2)
-        # 2 px between controls keeps the twelve boxes as one tight group;
-        # each caption then carries its own 3 px right margin, which gives
-        # the required 4-6 px label-to-field gap without spending layout
-        # spacing on every pair.
-        layout.setSpacing(2)
+        layout.setContentsMargins(6, 3, 6, 3)
+        layout.setSpacing(1)
 
         # CNo (counter / current bill number â€” display only)
         layout.addWidget(self._lbl("CNo"))
         self.cno_label = QLabel("--")
-        self.cno_label.setFixedWidth(34)
+        self.cno_label.setFixedWidth(109)
         self.cno_label.setAlignment(Qt.AlignCenter)
         self.cno_label.setStyleSheet(_LABEL_STYLE)
         self.cno_label.setFixedHeight(_ENTRY_BAR_HEIGHT - 8)
@@ -856,7 +852,7 @@ class _ItemEntryBar(QWidget):
         layout.addWidget(self._lbl("Item"))
         self.item_combo = _make_combo()
         self.item_combo.setStyleSheet(_ENTRY_COMBO_STYLE)
-        self._fit(self.item_combo, 150, 300)
+        self._fit(self.item_combo, 137, 300)
         self.item_combo.setSizePolicy(QSizePolicy.Expanding,
                                       QSizePolicy.Fixed)
         self.item_combo.show_all_completions_on_click()
@@ -1210,11 +1206,13 @@ class _ItemEntryBar(QWidget):
     def set_cno(self, text: str):
         """Display the current counter/bill number (no logic attached).
 
-        The compact CNo box is deliberately narrower than the bill number, so
-        the full value is kept in a tooltip.
+        The compact CNo box elides long values so the row stays within the
+        available width; the full value is always available in the tooltip.
         """
         value = text or "--"
-        self.cno_label.setText(value)
+        fm = QFontMetrics(self.cno_label.font())
+        elided = fm.elidedText(value, Qt.ElideRight, self.cno_label.width())
+        self.cno_label.setText(elided)
         self.cno_label.setToolTip(value)
 
     def get_current_data(self) -> dict | None:
@@ -1926,7 +1924,8 @@ class _SalePanel(QWidget):
         row1.addWidget(self._compact_lbl("Bill No"))
         self.bill_no_edit = _make_compact_edit(height=_METADATA_CONTROL_HEIGHT)
         self.bill_no_edit.setReadOnly(True)
-        self.bill_no_edit.setFixedWidth(112)
+        # Full FY bill numbers (e.g. "2026-2027-Cash-0015") must read in full.
+        self.bill_no_edit.setFixedWidth(220)
         self.bill_no_edit.setAlignment(Qt.AlignCenter)
         row1.addWidget(self.bill_no_edit)
 
@@ -2014,7 +2013,7 @@ class _SalePanel(QWidget):
         self._table_group = QGroupBox("Bill Items")
         self._table_group.setStyleSheet(_GROUP_BOX)
         layout = QVBoxLayout(self._table_group)
-        layout.setContentsMargins(6, 18, 6, 6)
+        layout.setContentsMargins(8, 20, 8, 8)
 
         self._table = QTableWidget()
         self._table.setColumnCount(11)
@@ -3880,6 +3879,7 @@ class CounterSalePage(QWidget):
         table.setSelectionBehavior(QAbstractItemView.SelectRows)
         table.setSelectionMode(QAbstractItemView.SingleSelection)
         table.verticalHeader().setVisible(False)
+        table.verticalHeader().setDefaultSectionSize(28)
         table.setShowGrid(True)
         table.setAlternatingRowColors(False)
         table.setSortingEnabled(True)
@@ -3889,6 +3889,7 @@ class CounterSalePage(QWidget):
 
         hv = table.horizontalHeader()
         hv.setStretchLastSection(True)
+        hv.setMinimumHeight(30)
         for col in range(13):
             if col == 2:
                 hv.setSectionResizeMode(col, QHeaderView.Stretch)
@@ -3924,14 +3925,14 @@ class CounterSalePage(QWidget):
             f"  border-left: 1px solid {_BORDER}; }}"
         )
         layout = QVBoxLayout(panel)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(8)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(10)
 
         actions = QGroupBox("Bill")
         actions.setStyleSheet(_GROUP_BOX)
         al = QVBoxLayout(actions)
-        al.setContentsMargins(8, 16, 8, 8)
-        al.setSpacing(4)
+        al.setContentsMargins(10, 18, 10, 10)
+        al.setSpacing(6)
         for text, style, handler in (
             ("Edit", _BTN_SECONDARY, self._on_edit),
             ("Delete", _BTN_DANGER, self._on_delete),
@@ -3944,7 +3945,10 @@ class CounterSalePage(QWidget):
             btn.clicked.connect(handler)
             al.addWidget(btn)
         paper_label = QLabel(f"Paper: {a6_profile().size_label}")
-        paper_label.setStyleSheet("color: #666; font-size: 8pt;")
+        paper_label.setStyleSheet(
+            f"color: {_TEXT_DIM}; font-size: 10px; font-family: {FONT_FAMILY};"
+            "background: transparent;"
+        )
         paper_label.setAlignment(Qt.AlignCenter)
         al.addWidget(paper_label)
         layout.addWidget(actions)
@@ -3952,8 +3956,8 @@ class CounterSalePage(QWidget):
         info = QGroupBox("Current Bill")
         info.setStyleSheet(_GROUP_BOX)
         form = QFormLayout(info)
-        form.setContentsMargins(8, 16, 8, 8)
-        form.setSpacing(4)
+        form.setContentsMargins(10, 18, 10, 10)
+        form.setSpacing(6)
         self._bill_total_value = QLabel("0.00")
         self._cno_value = QLabel(self._sale_panel.bill_no_edit.text() or "--")
         self._amount_value = QLabel("0.00")
