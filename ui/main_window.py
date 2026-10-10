@@ -12,6 +12,7 @@ import screens
 from database import init_database
 from database import auth
 from database import financial_year
+from version import APP_TITLE
 from ui import theme
 from ui import components as ui
 from ui.menu_data import MENUS
@@ -37,7 +38,7 @@ class PharmacyMainWindow(QMainWindow):
         init_database()
         auth.ensure_auth_schema()
         financial_year.ensure_default_financial_year()
-        self.setWindowTitle("Pharmacy Management System")
+        self.setWindowTitle(APP_TITLE)
         # Desktop-first: comfortable at 1366x768 and scales up to 1920x1080.
         self.resize(1366, 760)
         self.setMinimumSize(1024, 640)
@@ -165,15 +166,18 @@ class PharmacyMainWindow(QMainWindow):
         key = f"{menu}:{action}"
         if key in self._page_map:
             self._stack.setCurrentIndex(self._page_map[key])
-            self.setWindowTitle(f"Pharmacy Management System  -  {action}")
+            self.setWindowTitle(f"{APP_TITLE}  -  {action}")
             self._nav.status_label.setText(f"{menu} / {action}")
 
     # ── financial-year viewing ──────────────────────────────────
     def _on_financial_year_view(self, year: dict):
-        """Show Counter Sale history for a chosen financial year.
+        """Show every report for a chosen financial year.
 
-        This is a VIEW filter only.  The active financial year, the
-        navigation and every other page are left exactly as they were.
+        This is a VIEW filter only.  The active financial year is never
+        changed and nothing is written; each page that defines
+        ``set_history_financial_year`` scopes its own date filter to the
+        chosen year (period reports use 1 April–31 March, position
+        reports use the 31 March closing date).
         """
         for index in range(self._stack.count()):
             page = self._stack.widget(index)
@@ -196,7 +200,7 @@ class PharmacyMainWindow(QMainWindow):
             self.close()
             return
         self._nav.refresh_user()
-        self.setWindowTitle("Pharmacy Management System")
+        self.setWindowTitle(APP_TITLE)
 
     # ── theme ────────────────────────────────────────────────────────
     def _apply_theme(self):

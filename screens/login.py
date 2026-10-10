@@ -4,6 +4,7 @@ from PySide6.QtWidgets import QDialog, QFormLayout, QLabel, QLineEdit, QMessageB
 
 from database import auth
 from ui import components as ui
+from version import APP_TITLE
 
 #login file
 
@@ -21,7 +22,7 @@ class LoginDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(14, 14, 14, 14)
         layout.setSpacing(8)
-        brand = QLabel("Pharmacy Management System")
+        brand = QLabel(APP_TITLE)
         brand.setStyleSheet(ui.title_style(13))
         layout.addWidget(brand)
         title = QLabel("First-run ADMIN setup" if self._first_run else "Sign in")

@@ -195,7 +195,7 @@ class StockMasterPage(QWidget):
             f"QHeaderView::section {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: none; border-bottom: 2px solid {_ACCENT};"
-            f"  padding: 4px 8px; font-weight: bold; font-size: 9pt;"
+            f"  padding: 4px 8px; font-weight: bold; font-size: 12px;"
             f"  font-family: 'Segoe UI';"
             f"}}"
         )

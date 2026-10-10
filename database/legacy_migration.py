@@ -959,6 +959,7 @@ class LegacyMigrator:
                  db_path: str | None = None,
                  limit: int | None = None,
                  import_legacy_users: bool = False,
+                 skip_stock: bool = False,
                  progress=None):
         self.dump = LegacyDump(dump_path)
         self.db_path = str(db_path) if db_path else get_db_path()
@@ -967,6 +968,7 @@ class LegacyMigrator:
         os.environ["PHARMACY_DB"] = self.db_path
         self.limit = limit
         self.import_legacy_users = import_legacy_users
+        self.skip_stock = skip_stock
         self.progress = progress
         self.stats: "OrderedDict[str, TableStats]" = OrderedDict()
         self.warnings: list[dict] = []
@@ -1173,7 +1175,24 @@ class LegacyMigrator:
         self._import_items()
         self._import_item_ingredients()
         self._import_ledgers_and_parties()
-        self._import_stock_balance()
+        if self.skip_stock:
+            # Staging transaction migration: defer stockbalance/stockadjusted
+            # to a separate phase. History-only batches (qty 0) are still
+            # created via _ensure_batch for FK linkage; no quantities set.
+            stats = self._stats("stockbalance")
+            stats.target = "stock_batches (deferred — separate phase)"
+            stats.source_rows = self.dump.count_rows().get("stockbalance", 0)
+            stats.imported = 0
+            stats.skipped = stats.source_rows
+            self._warn("stock_deferred_to_separate_phase",
+                       f"{stats.source_rows} stockbalance rows deferred")
+            stats2 = self._stats("stockadjusted")
+            stats2.target = "stock_batches (already reflected; deferred)"
+            stats2.source_rows = self.dump.count_rows().get("stockadjusted", 0)
+            stats2.imported = 0
+            stats2.skipped = stats2.source_rows
+        else:
+            self._import_stock_balance()
         self._import_purchases()
         self._import_sales()
         self._import_credit_notes()
@@ -1754,13 +1773,51 @@ class LegacyMigrator:
     def _import_sales(self) -> None:
         headers = self._stats("salesvhheader")
         headers.target = "sales_invoices"
+        # BillNo preservation counters (staging approval: preserve original
+        # BillNo whenever present; never invent or silently discard).
+        preserved = getattr(self, "_sales_bill_preserved", 0)
+        fallback_missing = getattr(self, "_sales_bill_fallback_missing", 0)
+        collisions = getattr(self, "_sales_bill_collisions", 0)
         vouchers: dict = {}
         for row in self._rows("salesvhheader"):
             legacy_id = row[0]
             fy_name = self._fy_map.get(row[1], "")
-            voucher_no = self._unique_voucher(
-                f"{fy_name}-{_text(row[2])}-{row[3]}", legacy_id
+            bill_raw = row[8]
+            bill_str = str(bill_raw).strip() if bill_raw is not None else ""
+            if bill_str in ("", "0", "0.0"):
+                # Missing BillNo: stable fallback containing source table
+                # identity (S + legacy ID). Never invents a BillNo and never
+                # collides (legacy ID unique). Listed, not discarded.
+                base = f"{fy_name}-{_text(row[2])}-{row[3]}-S{legacy_id}"
+                fallback_missing += 1
+                if fallback_missing <= 50:
+                    self._warn("sale_bill_missing_fallback",
+                               f"legacy id {legacy_id} BillNo={bill_raw!r} "
+                               f"fallback {base}")
+            else:
+                # Preserve original BillNo with FY prefix for global
+                # uniqueness (BillNo repeats across years). Idempotent:
+                # same legacy row always yields same base; residual
+                # collisions get deterministic #legacy_id suffix.
+                base = f"{fy_name}-{bill_str}"
+                preserved += 1
+            will_collide = base in self._voucher_seen
+            voucher_no = self._unique_voucher(base, legacy_id)
+            if will_collide:
+                collisions += 1
+                if collisions <= 50:
+                    self._warn("sale_bill_collision_suffix",
+                               f"legacy id {legacy_id} base {base} "
+                               f"stored {voucher_no}")
+            # Provenance is kept in remarks so the original numbers are never
+            # lost even when a suffix is required for uniqueness.
+            provenance = (
+                f"Legacy salesvhheader ID {legacy_id}; "
+                f"Vh {_text(row[2])} {row[3]}; BillNo "
+                f"{bill_str if bill_str else '(missing)'}"
             )
+            narration = _text(row[6])
+            remarks = provenance + (f"; {narration}" if narration else "")
             customer_id = self.maps["customer_by_ledger"].get(row[9])
             if customer_id is None:
                 # Unknown party: fall back to the legacy walk-in account and
@@ -1779,17 +1836,20 @@ class LegacyMigrator:
                        patient_name, doctor_id, discount, paid_amount,
                        total_amount, round_off, net_amount, remarks)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (voucher_no, _date(row[4]), _text(row[5]), _text(row[2]) or "Cash",
-                 customer_id, _text(row[10]),
-                 self.maps["doctor"].get(row[13]),
-                 _number(row[16]), _number(row[21]),
-                 _number(row[14]), _number(row[18]), _number(row[7]),
-                 _text(row[6])),
+                 (voucher_no, _date(row[4]), _text(row[5]), _text(row[2]) or "Cash",
+                  customer_id, _text(row[10]),
+                  self.maps["doctor"].get(row[13]),
+                  _number(row[16]), _number(row[21]),
+                  _number(row[14]), _number(row[18]), _number(row[7]),
+                  remarks),
             )
             new_id = cur.lastrowid
             self.maps["sale"][legacy_id] = new_id
             vouchers[legacy_id] = (new_id, voucher_no, _date(row[4]), _text(row[5]))
             headers.imported += 1
+        self._sales_bill_preserved = preserved
+        self._sales_bill_fallback_missing = fallback_missing
+        self._sales_bill_collisions = collisions
         self.conn.commit()
         self.sale_vouchers = vouchers
 
@@ -2158,6 +2218,14 @@ class LegacyMigrator:
                 meta[f"target.{source}"] = stats.target
         meta["system_ledgers"] = str(len(getattr(self, "role_ledger", {})))
         meta["extra_stock_batches"] = str(self._extra_batches)
+        meta["skip_stock"] = str(bool(getattr(self, "skip_stock", False)))
+        meta["sales_bill_preserved"] = str(getattr(self, "_sales_bill_preserved", 0))
+        meta["sales_bill_fallback_missing"] = str(
+            getattr(self, "_sales_bill_fallback_missing", 0)
+        )
+        meta["sales_bill_collisions"] = str(
+            getattr(self, "_sales_bill_collisions", 0)
+        )
         if self.backup:
             meta["pre_migration_backup"] = self.backup["path"]
             meta["pre_migration_backup_sha256"] = self.backup["sha256"]
@@ -2182,6 +2250,12 @@ class LegacyMigrator:
             "warnings": self.warnings,
             "item_duplicates_merged": self._duplicates,
             "unsupported_fields": dict(self._unsupported_fields),
+            "skip_stock": bool(getattr(self, "skip_stock", False)),
+            "sales_bill_preserved": getattr(self, "_sales_bill_preserved", 0),
+            "sales_bill_fallback_missing": getattr(
+                self, "_sales_bill_fallback_missing", 0
+            ),
+            "sales_bill_collisions": getattr(self, "_sales_bill_collisions", 0),
             "demo_rows_excluded": sum(
                 self.dump.count_rows().get(name, 0) for name in DEMO_TABLES
             ),
@@ -2727,6 +2801,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--import-legacy-users", action="store_true",
                         help="Import legacy usernames as INACTIVE accounts "
                              "(no password hashes).")
+    parser.add_argument("--skip-stock", action="store_true",
+                        help="Defer stockbalance/stockadjusted to a separate "
+                             "phase (history-only batches qty 0 for FK).")
     parser.add_argument("--confirm-production", action="store_true",
                         help="Required when importing into the real "
                              "data/pharmacy.db.")
@@ -2776,6 +2853,7 @@ def main(argv: list[str] | None = None) -> int:
         db_path=args.db,
         limit=args.limit,
         import_legacy_users=args.import_legacy_users,
+        skip_stock=args.skip_stock,
     )
     report = migrator.import_data(
         do_backup=not args.no_backup, backup_dir=args.backup_dir

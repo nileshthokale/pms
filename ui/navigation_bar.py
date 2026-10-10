@@ -30,8 +30,15 @@ from PySide6.QtWidgets import (
 from ui import theme
 from ui import components as ui
 from ui.menu_data import MENUS
+from ui.theme import TYPE_FORM_LABEL, TYPE_HINT, TYPE_TABLE_DATA
+from version import APP_TITLE
 from database import auth
 from database import financial_year
+
+# The brand strip shows the application title, so it uses the page-title
+# weight of the shared type scale (a touch below the 18 px in-page title so
+# it fits the 30 px chrome strip without crowding the right-hand buttons).
+NAV_BRAND_PX = 16
 
 
 class FinancialYearPickerDialog(QDialog):
@@ -118,7 +125,7 @@ class NavigationBar(QWidget):
         tl.setContentsMargins(10, 0, 8, 0)
         tl.setSpacing(8)
 
-        self._brand_label = QLabel("Pharmacy Management System")
+        self._brand_label = QLabel(APP_TITLE)
         self._brand_label.setObjectName("BrandLabel")
         tl.addWidget(self._brand_label)
 
@@ -241,21 +248,24 @@ class NavigationBar(QWidget):
             f"}}"
             f"#TitleBar QLabel {{"
             f"  color: {nav['text']}; background: transparent;"
-            f"  font-size: 9pt; font-family: {ui.FONT_FAMILY};"
+            f"  font-size: {TYPE_FORM_LABEL}px; font-family: {ui.FONT_FAMILY};"
             f"}}"
             f"#TitleBar QLabel#BrandLabel {{"
-            f"  color: {nav['text']}; font-size: 11pt; font-weight: bold;"
+            f"  color: {nav['text']}; font-size: {NAV_BRAND_PX}px;"
+            f"  font-weight: bold;"
             f"}}"
         )
         self._brand_label.setStyleSheet(
-            f"color: {nav['text']}; font-size: 11pt; font-weight: bold;"
+            f"color: {nav['text']}; font-size: {NAV_BRAND_PX}px;"
+            f"font-weight: bold;"
             f"font-family: {ui.FONT_FAMILY}; background: transparent;"
         )
         self.fy_button.setStyleSheet(
             "#FinancialYearButton {"
             f"  color: {nav['text']}; background: transparent;"
             "  border: 1px solid transparent; border-radius: 2px;"
-            "  padding: 1px 6px; font-size: 9pt; font-weight: bold;"
+            f"  padding: 1px 6px; font-size: {TYPE_FORM_LABEL}px;"
+            "  font-weight: bold;"
             f"  font-family: {ui.FONT_FAMILY};"
             "}"
             "#FinancialYearButton:hover {"
@@ -268,17 +278,17 @@ class NavigationBar(QWidget):
         )
         self.user_label.setStyleSheet(
             f"color: {nav['text']}; background: transparent;"
-            f"font-size: 9pt; padding: 0 6px;"
+            f"font-size: {TYPE_FORM_LABEL}px; padding: 0 6px;"
             f"font-family: {ui.FONT_FAMILY};"
         )
         self._menu_hint.setStyleSheet(
             f"color: {nav['text']}; background: transparent;"
-            f"font-size: 8pt; font-style: italic; padding-left: 8px;"
+            f"font-size: {TYPE_HINT}px; font-style: italic; padding-left: 8px;"
             f"font-family: {ui.FONT_FAMILY};"
         )
         self.status_label.setStyleSheet(
             f"color: {p['text_dim']}; background: transparent;"
-            f"font-size: 8pt; padding-right: 6px;"
+            f"font-size: {TYPE_HINT}px; padding-right: 6px;"
             f"font-family: {ui.FONT_FAMILY};"
         )
 
@@ -290,7 +300,7 @@ class NavigationBar(QWidget):
                     "  background: transparent;"
                     "  border: none;"
                     "  padding: 4px 14px;"
-                    f"  font-size: 9pt;"
+                    f"  font-size: {TYPE_TABLE_DATA}px;"
                     f"  font-family: {ui.FONT_FAMILY};"
                     "}"
                     "#NavButton:hover {"
@@ -312,7 +322,7 @@ class NavigationBar(QWidget):
                 "}"
                 "QMenu::item {"
                 "  padding: 4px 22px;"
-                f"  font-size: 9pt;"
+                f"  font-size: {TYPE_TABLE_DATA}px;"
                 f"  font-family: {ui.FONT_FAMILY};"
                 "}"
                 "QMenu::item:selected {"
@@ -328,7 +338,7 @@ class NavigationBar(QWidget):
             "  border: 1px solid " + nav['border'] + ";"
             "  border-radius: 2px;"
             "  padding: 2px 10px;"
-            f"  font-size: 9pt; font-family: {ui.FONT_FAMILY};"
+            f"  font-size: {TYPE_FORM_LABEL}px; font-family: {ui.FONT_FAMILY};"
             "}"
             "#LogoutButton:hover {"
             f"  background-color: {p['danger_hover']};"
@@ -345,7 +355,7 @@ class NavigationBar(QWidget):
             "  border: none;"
             "  border-radius: 2px;"
             "  padding: 2px 10px;"
-            f"  font-size: 9pt; font-family: {ui.FONT_FAMILY};"
+            f"  font-size: {TYPE_FORM_LABEL}px; font-family: {ui.FONT_FAMILY};"
             "}"
             "#ThemeButton:hover {"
             f"  background-color: {nav['theme_btn_hover']};"

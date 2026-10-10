@@ -41,7 +41,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from PySide6.QtGui import QFont, QFontMetrics, QStandardItem, QStandardItemModel
+from PySide6.QtGui import QFontMetrics, QStandardItem, QStandardItemModel
 
 from database.customer_dao import CustomerDAO
 from database.connection import get_connection
@@ -64,7 +64,21 @@ from database.hold_bill_dao import (
 )
 
 from ui.theme import palette
-from ui.components import FONT_FAMILY
+from ui.components import FONT_FAMILY, readable_font
+from ui import fy_view
+from ui.theme import (
+    TYPE_BUTTON,
+    TYPE_FORM_LABEL,
+    TYPE_HINT,
+    TYPE_INPUT,
+    TYPE_INPUT_COMPACT,
+    TYPE_PAGE_TITLE,
+    TYPE_SECTION_HEADER,
+    TYPE_TABLE_DATA,
+    TYPE_TABLE_HEADER,
+    TYPE_VALUE,
+    TYPE_VALUE_EMPHASIS,
+)
 _p = palette()
 _DARK_BG = _p["bg"]
 _SURFACE = _p["surface"]
@@ -78,7 +92,7 @@ _SELECTED_TEXT = _p["selected_text"]
 _ERROR = "#c0392b"
 _WARNING = "#b26a00"
 _POPUP_BG = "#ffffff"
-_POPUP_TEXT = "#14212e"
+_POPUP_TEXT = _TEXT
 _POPUP_BORDER = "#9db6cc"
 _POPUP_SELECTED = "#cfe2f3"
 
@@ -86,7 +100,8 @@ _COMBO_STYLE = (
     f"QComboBox {{"
     f"  background-color: {_SURFACE}; color: {_TEXT};"
     f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-    f"  padding: 4px 6px; font-size: 11px; font-family: {FONT_FAMILY};"
+    f"  padding: 4px 6px; font-size: {TYPE_INPUT}px;"
+    f"  font-family: {FONT_FAMILY};"
     f"}}"
     f"QComboBox:hover {{ border: 1px solid {_ACCENT}; }}"
     f"QComboBox::drop-down {{ border: none; width: 22px; }}"
@@ -95,7 +110,7 @@ _COMBO_STYLE = (
     f"  background-color: {_POPUP_BG}; color: {_POPUP_TEXT};"
     f"  border: 1px solid {_POPUP_BORDER}; selection-background-color: {_POPUP_SELECTED};"
     f"  selection-color: {_POPUP_TEXT}; outline: 0;"
-    f"  font-size: 11px; font-family: {FONT_FAMILY};"
+    f"  font-size: {TYPE_INPUT}px; font-family: {FONT_FAMILY};"
     f"}}"
     f"QComboBox QAbstractItemView::item {{ min-height: 26px; padding: 2px 6px; }}"
     f"QComboBox QAbstractItemView::item:selected {{"
@@ -109,7 +124,7 @@ _ENTRY_COMBO_STYLE = _COMBO_STYLE + (
     f"  border: 1px solid {_POPUP_BORDER};"
     f"  selection-background-color: {_POPUP_SELECTED};"
     f"  selection-color: {_POPUP_TEXT}; outline: 0;"
-    f"  font-size: 11px; font-family: {FONT_FAMILY};"
+    f"  font-size: {TYPE_INPUT}px; font-family: {FONT_FAMILY};"
     f"}}"
 )
 
@@ -117,7 +132,8 @@ _EDIT_STYLE = (
     f"QLineEdit {{"
     f"  background-color: {_SURFACE}; color: {_TEXT};"
     f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-    f"  padding: 4px 6px; font-size: 11px; font-family: {FONT_FAMILY};"
+    f"  padding: 4px 6px; font-size: {TYPE_INPUT}px;"
+    f"  font-family: {FONT_FAMILY};"
     f"}}"
     f"QLineEdit:focus {{ border: 1px solid {_ACCENT}; }}"
 )
@@ -126,7 +142,8 @@ _DATE_STYLE = (
     f"QDateEdit {{"
     f"  background-color: {_SURFACE}; color: {_TEXT};"
     f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-    f"  padding: 4px 6px; font-size: 11px; font-family: {FONT_FAMILY};"
+    f"  padding: 4px 6px; font-size: {TYPE_INPUT}px;"
+    f"  font-family: {FONT_FAMILY};"
     f"}}"
     f"QDateEdit:focus {{ border: 1px solid {_ACCENT}; }}"
     f"QDateEdit::drop-down {{ border: none; width: 22px; }}"
@@ -145,7 +162,8 @@ _COMPACT_EDIT_STYLE = (
     f"QLineEdit {{"
     f"  background-color: {_SURFACE}; color: {_TEXT};"
     f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-    f"  padding: {_COMPACT_PADDING}; font-size: 11px; font-family: {FONT_FAMILY};"
+    f"  padding: {_COMPACT_PADDING}; font-size: {TYPE_INPUT_COMPACT}px;"
+    f"  font-family: {FONT_FAMILY};"
     f"}}"
     f"QLineEdit:focus {{ border: 1px solid {_ACCENT}; }}"
 )
@@ -154,7 +172,8 @@ _COMPACT_COMBO_STYLE = (
     f"QComboBox {{"
     f"  background-color: {_SURFACE}; color: {_TEXT};"
     f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-    f"  padding: {_COMPACT_PADDING}; font-size: 11px; font-family: {FONT_FAMILY};"
+    f"  padding: {_COMPACT_PADDING}; font-size: {TYPE_INPUT_COMPACT}px;"
+    f"  font-family: {FONT_FAMILY};"
     f"}}"
     f"QComboBox:hover {{ border: 1px solid {_ACCENT}; }}"
     f"QComboBox::drop-down {{ border: none; width: 18px; }}"
@@ -163,7 +182,7 @@ _COMPACT_COMBO_STYLE = (
     f"  background-color: {_POPUP_BG}; color: {_POPUP_TEXT};"
     f"  border: 1px solid {_POPUP_BORDER}; selection-background-color: {_POPUP_SELECTED};"
     f"  selection-color: {_POPUP_TEXT}; outline: 0;"
-    f"  font-size: 11px; font-family: {FONT_FAMILY};"
+    f"  font-size: {TYPE_INPUT}px; font-family: {FONT_FAMILY};"
     f"}}"
     f"QComboBox QAbstractItemView::item {{ min-height: 24px; padding: 2px 6px; }}"
     f"QComboBox QAbstractItemView::item:selected {{"
@@ -175,7 +194,8 @@ _COMPACT_DATE_STYLE = (
     f"QDateEdit {{"
     f"  background-color: {_SURFACE}; color: {_TEXT};"
     f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-    f"  padding: {_COMPACT_PADDING}; font-size: 11px; font-family: {FONT_FAMILY};"
+    f"  padding: {_COMPACT_PADDING}; font-size: {TYPE_INPUT_COMPACT}px;"
+    f"  font-family: {FONT_FAMILY};"
     f"}}"
     f"QDateEdit:focus {{ border: 1px solid {_ACCENT}; }}"
     f"QDateEdit::drop-down {{ border: none; width: 18px; }}"
@@ -207,7 +227,7 @@ def _btn_style(
     fg: str | None = None,
     padding: str = "5px 14px",
     radius: str = "5px",
-    font_size: str = "11px",
+    font_size: str = f"{TYPE_BUTTON}px",
 ) -> str:
     """Build a classic (light face + thin edge) QPushButton stylesheet."""
     face = face or _BTN_FACE
@@ -246,11 +266,14 @@ _BTN_ORANGE = _btn_style(_BTN_WARNING_EDGE)
 # Table row action (per-row Delete inside the Bill Items "Del" column).
 # A quiet red edge on the light surface: it reads as a control inside a
 # table cell rather than as a standalone button competing with the row.
+# Kept at 11 px (below TYPE_BUTTON) because the button is pinned to the 22 px
+# table row action box; the caption still reads as bold red-on-light and is
+# not part of the main action hierarchy.
 _BTN_ROW_ACTION = (
     "QPushButton {"
     f"  background-color: {_p['surface_alt']}; color: {_BTN_DANGER_EDGE};"
     f"  border: 1px solid {_BTN_DANGER_EDGE}; border-radius: 3px;"
-    "  padding: 2px 6px; font-size: 10px; font-weight: bold;"
+    "  padding: 2px 6px; font-size: 11px; font-weight: bold;"
     f"  font-family: {FONT_FAMILY};"
     "}"
     "QPushButton:hover {"
@@ -265,32 +288,127 @@ _BTN_ROW_ACTION = (
     "}"
 )
 
-_LABEL_STYLE = f"color: {_TEXT}; font-size: 11px; font-family: {FONT_FAMILY}; background: transparent;"
-_LABEL_DIM = f"color: {_TEXT_DIM}; font-size: 10px; font-family: {FONT_FAMILY}; background: transparent;"
-_HEADER_LABEL = f"color: {_TEXT}; font-size: 11px; font-family: {FONT_FAMILY}; background: transparent; font-weight: bold;"
+# ── Caption / label typography ────────────────────────────────────────
+# Captions are black and bold: a classic desktop form reads its field
+# captions, and grey captions were the single biggest cause of the "washed
+# out" look.  ``_LABEL_DIM`` is reserved for genuinely secondary notes
+# (hints, paper size) that must not compete with the data.
+_LABEL_STYLE = (
+    f"color: {_TEXT}; font-size: {TYPE_VALUE}px; font-weight: bold;"
+    f"font-family: {FONT_FAMILY}; background: transparent;"
+)
+_LABEL_DIM = (
+    f"color: {_TEXT_DIM}; font-size: {TYPE_HINT}px;"
+    f"font-family: {FONT_FAMILY}; background: transparent;"
+)
+# Field captions (entry bar, totals, metadata strip): black, bold, 11 px.
+_CAPTION_STYLE = (
+    f"color: {_TEXT}; font-size: {TYPE_HINT}px; font-weight: bold;"
+    f"font-family: {FONT_FAMILY}; background: transparent;"
+)
+# Captions of the item entry row only.  One step up from the other captions
+# (12 px ~= 9 pt, the readable end of the 9-10 pt the row is specified at),
+# so the row's twelve captions stay legible without enlarging the screen.
+# Scoped to the entry bar so no other screen or strip changes with it.
+_ENTRY_CAPTION_STYLE = (
+    f"color: {_TEXT}; font-size: {TYPE_FORM_LABEL}px; font-weight: bold;"
+    f"font-family: {FONT_FAMILY}; background: transparent;"
+)
+_HEADER_LABEL = (
+    f"color: {_TEXT}; font-size: {TYPE_FORM_LABEL}px; font-weight: bold;"
+    f"font-family: {FONT_FAMILY}; background: transparent;"
+)
 
 # â”€â”€ Item entry bar metrics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # One compact row shared by all twelve controls.  Every control uses the
 # same box height so the bar reads as a single instrument strip instead of
 # a row of mismatched boxes, and the label width is measured from the real
 # font (capped) so labels never reserve a wide, mostly empty box.
-_ENTRY_BAR_HEIGHT = 34          # label + control box, one straight row
+_ENTRY_BAR_HEIGHT = 40          # label + control box, one straight row
 _ENTRY_ADD_WIDTH = 78           # compact "+ Add": inside the 70-90 px target
-# Captions are sized from the real font but never reserve more than this, so
-# the twelve-control row keeps its natural proportions on any platform font.
-_ENTRY_LABEL_MAX_WIDTH = 26
+
+# Caption metrics.  A caption box is its own text plus one fixed gap, so the
+# text can never be clipped by the box that holds it, and the gap between a
+# caption and the field it names is always the same 10 px -- the captions
+# used to reserve a wide box whose 10 px inner margin ate into the text, so
+# "Batch" / "Avail" / "MRP" were rendered clipped and read as if they were
+# stuck to their fields.  The cap only stops a future long caption from
+# stealing width from the fields.
+_ENTRY_LABEL_GAP = 10           # caption -> the field it names (10-14 px)
+_ENTRY_LABEL_MAX_WIDTH = 52     # longest caption + gap, on any platform font
+
+# Seam between one field and the caption that follows it.  A caption names
+# the field on its RIGHT, so it must hug that field and stand clear of the
+# one before it.  Each caption is preceded by a dedicated QSpacerItem rather
+# than by a wider caption box, so the gap is ordinary layout spacing and
+# nothing is positioned by hand.  12 px of air plus the row's own 1 px
+# spacing reads as the 10-14 px separation the row is specified to keep.
+_ENTRY_GROUP_GAP = 12
+
+# The Item -> Batch boundary is the busiest one on the row (a wide search box
+# running into the next group), so it opens a little wider than the others.
+_ENTRY_ITEM_BATCH_GAP = 16
+
+# Field sizing.  Twelve controls and eleven captions do not fit a 1366-wide
+# window at their comfortable widths, so the row is *responsive*: every field
+# has a comfortable target it reaches when there is room, and a floor it
+# shrinks to before the row starts taking width from its neighbours.  Item
+# and Batch lead -- they hold the text a cashier actually reads -- while Pack
+# and Qty stay compact by design.
+_ENTRY_PREFERRED_WIDTHS = {
+    "item_combo": 250,          # the primary search box
+    "batch_combo": 157,         # long batch numbers stay readable
+    "pack_edit": 50,
+    "location_edit": 80,
+    "expiry_edit": 80,
+    "mrp_edit": 80,
+    "stock_edit": 80,
+    "qty_edit": 48,
+    "discount_edit": 75,
+    "amount_edit": 80,
+}
+_ENTRY_FLOOR_WIDTHS = {
+    "item_combo": 150,
+    "batch_combo": 110,
+    "pack_edit": 44,
+    "location_edit": 44,
+    "expiry_edit": 44,
+    "mrp_edit": 44,
+    "stock_edit": 44,
+    "qty_edit": 44,
+    "discount_edit": 44,
+    "amount_edit": 44,
+}
+# Absolute floor.  Below this a field can show nothing useful, so the row
+# stops shrinking rather than pretend the partition still fits.
+_ENTRY_MIN_DRAWABLE = 30
+# Smallest bar the row will report it needs.  The row pins its fields to a
+# partition of the bar's *current* width, so without this the bar's own
+# minimum would equal its current size and the window could never be made
+# narrower; the bar re-fits itself for whatever width it is actually given.
+_ENTRY_MIN_BAR_WIDTH = 420
+
+# Batch field sizing.  The combo shows
+#   "<batch> | Exp: .. | MRP: .. | Avail: .."
+# so its tail is elided by design, but the batch number at the head must
+# always be readable in full.  The floor is measured from the real font and
+# this chrome, never guessed: 6 px padding each side, the 22 px drop-down
+# arrow reserved by QComboBox::drop-down, and a 1 px border each side.
+_ENTRY_BATCH_CHROME = 6 + 6 + 22 + 2
+_ENTRY_BATCH_MIN_WIDTH = 110   # matches _ENTRY_FLOOR_WIDTHS["batch_combo"]
+_ENTRY_BATCH_MAX_WIDTH = 157   # matches _ENTRY_PREFERRED_WIDTHS["batch_combo"]
 
 # â”€â”€ Bottom billing block metrics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # The Sale Header strip and the totals/action footer together form the
 # fixed bottom billing section (~98 px), and both rows inside the strip use
 # one shared box height so nothing is squeezed or clipped.
-_METADATA_STRIP_HEIGHT = 54    # Bill No / Date / Time / Type + Customer row
-_METADATA_CONTROL_HEIGHT = 22  # shared box height for every metadata control
+_METADATA_STRIP_HEIGHT = 56    # Bill No / Date / Time / Type + Customer row
+_METADATA_CONTROL_HEIGHT = 24  # shared box height for every metadata control
 _TOTALS_FOOTER_HEIGHT = 44     # totals + Hold / Save / Cancel
-_TOTALS_CONTROL_HEIGHT = 22    # shared box height for footer totals
-_ACTION_BUTTON_HEIGHT = 26     # Hold Bill / Save Sale / Cancel
-_BILL_ROW_HEIGHT = 28          # Bill Items body row height
-_BILL_HEADER_HEIGHT = 32       # header band is slightly taller than a row
+_TOTALS_CONTROL_HEIGHT = 24    # shared box height for footer totals
+_ACTION_BUTTON_HEIGHT = 30     # Hold Bill / Save Sale / Cancel
+_BILL_ROW_HEIGHT = 30          # Bill Items body row height
+_BILL_HEADER_HEIGHT = 34       # header band is slightly taller than a row
 _BILL_DELETE_WIDTH = 56        # compact Del action inside the table cell
 _BILL_DELETE_HEIGHT = 22
 
@@ -303,7 +421,7 @@ _BILL_RIGHT_COLUMNS = (6, 7, 8, 9)
 
 _GROUP_BOX = (
     f"QGroupBox {{"
-    f"  color: {_TEXT}; font-weight: bold; font-size: 12px;"
+    f"  color: {_TEXT}; font-weight: bold; font-size: {TYPE_SECTION_HEADER}px;"
     f"  font-family: {FONT_FAMILY};"
     f"  border: 1px solid {_BORDER}; border-radius: 2px;"
     f"  margin-top: 10px; padding-top: 14px;"
@@ -343,7 +461,7 @@ def _make_edit(placeholder: str = "", width: int | None = None) -> QLineEdit:
     e = QLineEdit()
     e.setPlaceholderText(placeholder)
     e.setStyleSheet(_EDIT_STYLE)
-    e.setFont(QFont("Segoe UI", 11))
+    e.setFont(readable_font(TYPE_INPUT))
     if width:
         e.setMaximumWidth(width)
     return e
@@ -355,7 +473,7 @@ def _make_compact_edit(placeholder: str = "", *,
     e = QLineEdit()
     e.setPlaceholderText(placeholder)
     e.setStyleSheet(_COMPACT_EDIT_STYLE)
-    e.setFont(QFont("Segoe UI", 11))
+    e.setFont(readable_font(TYPE_INPUT_COMPACT))
     e.setFixedHeight(height)
     return e
 
@@ -826,6 +944,14 @@ class _ItemEntryBar(QWidget):
         self._focus_quantity_timer.setSingleShot(True)
         self.setObjectName("ItemEntryBar")
         self._draft_reserved_qty = lambda _batch_id: 0.0
+        # The row sizes itself (see _refit_to_bar).  Off until the row has
+        # been built and measured, then on for good; the Sales Bill popup
+        # turns it off because it measures and pins its own widths.
+        self._auto_fit = False
+        self._in_refit = False
+        # Batch's real floor: _ENTRY_FLOOR_WIDTHS, raised by
+        # _reserve_batch_number_width when a batch number needs more room.
+        self._batch_floor = _ENTRY_FLOOR_WIDTHS["batch_combo"]
         # One single horizontal row â€” the target billing-bar order:
         #   CNo | Item | Batch | Pack | Loc | Exp | MRP | Avail | Qty |
         #   Disc | Amount | + Add
@@ -834,17 +960,13 @@ class _ItemEntryBar(QWidget):
         # to sit underneath and wasted a whole line of vertical space.
         self.setFixedHeight(_ENTRY_BAR_HEIGHT)
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(6, 2, 6, 2)
-        # 2 px between controls keeps the twelve boxes as one tight group;
-        # each caption then carries its own 3 px right margin, which gives
-        # the required 4-6 px label-to-field gap without spending layout
-        # spacing on every pair.
-        layout.setSpacing(2)
+        layout.setContentsMargins(6, 3, 6, 3)
+        layout.setSpacing(1)
 
         # CNo (counter / current bill number â€” display only)
         layout.addWidget(self._lbl("CNo"))
         self.cno_label = QLabel("--")
-        self.cno_label.setFixedWidth(34)
+        self.cno_label.setFixedWidth(109)
         self.cno_label.setAlignment(Qt.AlignCenter)
         self.cno_label.setStyleSheet(_LABEL_STYLE)
         self.cno_label.setFixedHeight(_ENTRY_BAR_HEIGHT - 8)
@@ -853,10 +975,12 @@ class _ItemEntryBar(QWidget):
         # Item â€” the widest field, capped at 300 px. The main search box, but not a
         # banner: on a 1920-wide monitor the width it does not take is shared
         # with the other fields so the bar fills evenly.
+        layout.addSpacing(_ENTRY_GROUP_GAP)
         layout.addWidget(self._lbl("Item"))
         self.item_combo = _make_combo()
         self.item_combo.setStyleSheet(_ENTRY_COMBO_STYLE)
-        self._fit(self.item_combo, 150, 300)
+        self._fit(self.item_combo, _ENTRY_FLOOR_WIDTHS["item_combo"],
+                  _ENTRY_PREFERRED_WIDTHS["item_combo"])
         self.item_combo.setSizePolicy(QSizePolicy.Expanding,
                                       QSizePolicy.Fixed)
         self.item_combo.show_all_completions_on_click()
@@ -879,72 +1003,89 @@ class _ItemEntryBar(QWidget):
 
         # Batch â€” medium width: long batch numbers stay readable and the
         # light completion popup has room to show useful batch text.
+        layout.addSpacing(_ENTRY_ITEM_BATCH_GAP)
         layout.addWidget(self._lbl("Batch"))
         self.batch_combo = _make_combo()
         self.batch_combo.setStyleSheet(_ENTRY_COMBO_STYLE)
-        self._fit(self.batch_combo, 96, 200)
+        self._fit(self.batch_combo, _ENTRY_BATCH_MIN_WIDTH, _ENTRY_BATCH_MAX_WIDTH)
         self.batch_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.batch_combo.show_all_completions_on_click()
         layout.addWidget(self.batch_combo, 2)
 
         # Pack size (auto-filled)
+        layout.addSpacing(_ENTRY_GROUP_GAP)
         layout.addWidget(self._lbl("Pack"))
         self.pack_edit = _make_edit("")
-        self.pack_edit.setFixedWidth(46)
+        self._fit(self.pack_edit, _ENTRY_FLOOR_WIDTHS["pack_edit"],
+                  _ENTRY_PREFERRED_WIDTHS["pack_edit"])
         self.pack_edit.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.pack_edit.setReadOnly(True)
         layout.addWidget(self.pack_edit)
 
         # Location (from item master)
+        layout.addSpacing(_ENTRY_GROUP_GAP)
         layout.addWidget(self._lbl("Loc"))
         self.location_edit = _make_edit("")
-        self._fit(self.location_edit, 52, 110)
+        self._fit(self.location_edit, _ENTRY_FLOOR_WIDTHS["location_edit"],
+                  _ENTRY_PREFERRED_WIDTHS["location_edit"])
         self.location_edit.setReadOnly(True)
         layout.addWidget(self.location_edit, 1)
 
         # Expiry (auto-filled)
+        layout.addSpacing(_ENTRY_GROUP_GAP)
         layout.addWidget(self._lbl("Exp"))
         self.expiry_edit = _make_edit("")
-        self._fit(self.expiry_edit, 52, 110)
+        self._fit(self.expiry_edit, _ENTRY_FLOOR_WIDTHS["expiry_edit"],
+                  _ENTRY_PREFERRED_WIDTHS["expiry_edit"])
         self.expiry_edit.setAlignment(Qt.AlignCenter)
         self.expiry_edit.setReadOnly(True)
         layout.addWidget(self.expiry_edit, 1)
 
         # MRP (auto-filled)
+        layout.addSpacing(_ENTRY_GROUP_GAP)
         layout.addWidget(self._lbl("MRP"))
         self.mrp_edit = _make_edit("")
-        self._fit(self.mrp_edit, 56, 110)
+        self._fit(self.mrp_edit, _ENTRY_FLOOR_WIDTHS["mrp_edit"],
+                  _ENTRY_PREFERRED_WIDTHS["mrp_edit"])
         self.mrp_edit.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.mrp_edit.setReadOnly(True)
         layout.addWidget(self.mrp_edit, 1)
 
         # Batch stock (auto-filled)
+        layout.addSpacing(_ENTRY_GROUP_GAP)
         layout.addWidget(self._lbl("Avail"))
         self.stock_edit = _make_edit("")
-        self._fit(self.stock_edit, 52, 110)
+        self._fit(self.stock_edit, _ENTRY_FLOOR_WIDTHS["stock_edit"],
+                  _ENTRY_PREFERRED_WIDTHS["stock_edit"])
         self.stock_edit.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.stock_edit.setReadOnly(True)
         layout.addWidget(self.stock_edit, 1)
 
         # Sale Qty
+        layout.addSpacing(_ENTRY_GROUP_GAP)
         layout.addWidget(self._lbl("Qty"))
         self.qty_edit = _make_edit("1")
         self._focus_quantity_timer.timeout.connect(self.qty_edit.setFocus)
-        self.qty_edit.setFixedWidth(48)
+        self._fit(self.qty_edit, _ENTRY_FLOOR_WIDTHS["qty_edit"],
+                  _ENTRY_PREFERRED_WIDTHS["qty_edit"])
         self.qty_edit.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         layout.addWidget(self.qty_edit)
 
         # Discount
+        layout.addSpacing(_ENTRY_GROUP_GAP)
         layout.addWidget(self._lbl("Disc"))
         self.discount_edit = _make_edit("0.00")
-        self._fit(self.discount_edit, 52, 110)
+        self._fit(self.discount_edit, _ENTRY_FLOOR_WIDTHS["discount_edit"],
+                  _ENTRY_PREFERRED_WIDTHS["discount_edit"])
         self.discount_edit.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         layout.addWidget(self.discount_edit, 1)
 
         # Calculated line amount (auto-filled)
+        layout.addSpacing(_ENTRY_GROUP_GAP)
         layout.addWidget(self._lbl("Amt"))
         self.amount_edit = _make_edit("")
-        self._fit(self.amount_edit, 58, 120)
+        self._fit(self.amount_edit, _ENTRY_FLOOR_WIDTHS["amount_edit"],
+                  _ENTRY_PREFERRED_WIDTHS["amount_edit"])
         self.amount_edit.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.amount_edit.setReadOnly(True)
         layout.addWidget(self.amount_edit, 1)
@@ -996,6 +1137,170 @@ class _ItemEntryBar(QWidget):
         self.pack_edit.textChanged.connect(self._refresh_amount_preview)
         self.mrp_edit.textChanged.connect(self._refresh_amount_preview)
 
+        # The row is built and measured: from here on it keeps itself fitting
+        # the bar.  Enabled last so the first fit sees the finished row.
+        self._auto_fit = True
+        self._refit_to_bar()
+
+    # ------------------------------------------------------------------
+    # Responsive width fitting
+    # ------------------------------------------------------------------
+
+    def set_auto_fit(self, enabled: bool) -> None:
+        """Turn the row's own width fitting on or off.
+
+        The Sales Bill popup measures and pins its entry widths itself, so it
+        turns this off to keep them.  The Counter Sale screen leaves it on,
+        which is what keeps its row inside the bar at every window size.
+        """
+        self._auto_fit = enabled
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if getattr(self, "_auto_fit", False):
+            self._refit_to_bar()
+
+    def minimumSizeHint(self) -> QSize:
+        """The bar may be squeezed: the row re-fits itself on every resize.
+
+        The fields are pinned to a partition of the bar's current width,
+        which is what keeps them on one line.  Left at that, the bar's own
+        minimum size would equal its current size and the window could never
+        be made narrower.  Reporting a small minimum keeps the window
+        resizable, and ``_refit_to_bar`` recomputes the partition for
+        whatever width the bar is actually given.
+        """
+        width = max(_ENTRY_MIN_BAR_WIDTH, self._fixed_chrome_width())
+        return QSize(width, _ENTRY_BAR_HEIGHT)
+
+    def _flexible_fields(self) -> dict:
+        """The ten fields the fitter shares width across, in row order."""
+        return {
+            "item_combo": self.item_combo,
+            "batch_combo": self.batch_combo,
+            "pack_edit": self.pack_edit,
+            "location_edit": self.location_edit,
+            "expiry_edit": self.expiry_edit,
+            "mrp_edit": self.mrp_edit,
+            "stock_edit": self.stock_edit,
+            "qty_edit": self.qty_edit,
+            "discount_edit": self.discount_edit,
+            "amount_edit": self.amount_edit,
+        }
+
+    def _fixed_chrome_width(self) -> int:
+        """Width the row spends before a flexible field is given a pixel.
+
+        The CNo read-out and the "+ Add" button are pinned and every caption
+        is a fixed-width label, so all of them are constant.  Only the seams
+        and the layout's own spacing have to be added on top of them.  The
+        captions are measured, never guessed, so the same arithmetic holds on
+        any platform font.
+        """
+        layout = self.layout()
+        if layout is None:
+            return 0
+        flexible = set(self._flexible_fields().values())
+        margins = layout.contentsMargins()
+        total = (layout.spacing() * max(layout.count() - 1, 0)
+                 + margins.left() + margins.right())
+        for index in range(layout.count()):
+            item = layout.itemAt(index)
+            spacer = item.spacerItem()
+            if spacer is not None:
+                total += spacer.sizeHint().width()
+                continue
+            widget = item.widget()
+            if widget is None or widget in flexible:
+                continue
+            total += widget.minimumWidth()
+        return total
+
+    def _share_row_width(self, room: int) -> dict:
+        """Partition ``room`` px across the flexible fields.
+
+        Every field starts on its floor.  The surplus then goes to Item and
+        then to Batch -- the two fields a cashier actually reads and types
+        into -- up to their comfortable widths, and whatever is left widens
+        the read-outs in proportion to the room each one still has to grow
+        into.  When even the floors do not fit, the fields shrink together
+        instead of the row printing past the edge of its bar.
+        """
+        floors = dict(_ENTRY_FLOOR_WIDTHS)
+        floors["batch_combo"] = max(floors["batch_combo"], self._batch_floor)
+        preferred = dict(_ENTRY_PREFERRED_WIDTHS)
+        for name, floor in floors.items():
+            preferred[name] = max(preferred[name], floor)
+        names = list(floors)
+        total_floor = sum(floors.values())
+        if room < total_floor:
+            return self._shrink_to_fit(room, floors)
+
+        widths = dict(floors)
+        surplus = room - total_floor
+        for name in ("item_combo", "batch_combo"):
+            if surplus <= 0:
+                break
+            grow = min(surplus, preferred[name] - widths[name])
+            widths[name] += grow
+            surplus -= grow
+
+        grow_into = {name: preferred[name] - widths[name] for name in names}
+        weight = sum(grow_into.values())
+        if surplus > 0 and weight > 0:
+            handed = 0
+            for name in names:
+                share = surplus * grow_into[name] // weight
+                widths[name] += share
+                handed += share
+            # Rounding must not invent or lose a pixel of the bar.
+            widths["item_combo"] += surplus - handed
+        return widths
+
+    @staticmethod
+    def _shrink_to_fit(room: int, floors: dict) -> dict:
+        """Shrink every field together when even the floors do not fit.
+
+        The floors are what each field wants before it takes width from its
+        neighbours.  If the bar is narrower than all of them together the row
+        would otherwise print past its own right edge, so the fields shrink in
+        proportion and stop at the size below which they could show nothing.
+        """
+        total = sum(floors.values())
+        if total <= 0:
+            return dict(floors)
+        widths = {name: max(_ENTRY_MIN_DRAWABLE, floor * room // total)
+                  for name, floor in floors.items()}
+        # Clamping at the absolute floor can leave the partition a few pixels
+        # long on a very narrow bar; take the remainder off the widest field
+        # so the row still lands inside its own edge.
+        overflow = sum(widths.values()) - room
+        while overflow > 0:
+            widest = max(widths, key=lambda name: widths[name])
+            if widths[widest] <= _ENTRY_MIN_DRAWABLE:
+                break
+            taken = min(overflow, widths[widest] - _ENTRY_MIN_DRAWABLE)
+            widths[widest] -= taken
+            overflow -= taken
+        return widths
+
+    def _refit_to_bar(self) -> None:
+        """Share the bar's real width across the row whenever it changes."""
+        if self._in_refit or self.layout() is None or self.width() <= 0:
+            return
+        self._in_refit = True
+        try:
+            room = self.width() - self._fixed_chrome_width()
+            widths = self._share_row_width(room)
+            for name, widget in self._flexible_fields().items():
+                width = widths[name]
+                if (widget.minimumWidth() == width
+                        and widget.maximumWidth() == width):
+                    continue
+                self._fit(widget, width, width)
+        finally:
+            self._in_refit = False
+
     def _unify_control_heights(self) -> None:
         """Pin every entry-bar control to one shared box height.
 
@@ -1019,18 +1324,20 @@ class _ItemEntryBar(QWidget):
     @staticmethod
     def _lbl(text: str) -> QLabel:
         lbl = QLabel(text)
-        lbl.setStyleSheet(_LABEL_DIM)
-        # A compact caption sized from the real font, so the label box hugs
-        # its text (with a small pad) instead of reserving whatever the
-        # default application font would demand.  Capped so a long caption
-        # can never steal width from the fields it labels.
-        font = QFont(FONT_FAMILY.split(",")[0].strip().strip("'"))
-        font.setPixelSize(10)
+        lbl.setStyleSheet(_ENTRY_CAPTION_STYLE)
+        # The caption box is exactly its own text plus the gap that keeps it
+        # clear of the field it names, measured from the real font.  The old
+        # box reserved ``advance + 3`` and then ate 10 px of it back as a
+        # content margin, which clipped "Batch" / "Avail" / "MRP" and left
+        # every caption looking welded to its box.  Nothing is reserved for
+        # padding now, so the text always fits and the gap is always shown.
+        font = readable_font(TYPE_FORM_LABEL, bold=True)
         lbl.setFont(font)
-        width = min(QFontMetrics(font).horizontalAdvance(text) + 3,
+        width = min(QFontMetrics(font).horizontalAdvance(text)
+                    + _ENTRY_LABEL_GAP,
                     _ENTRY_LABEL_MAX_WIDTH)
         lbl.setFixedWidth(width)
-        lbl.setContentsMargins(0, 0, 3, 0)
+        lbl.setContentsMargins(0, 0, 0, 0)
         lbl.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         return lbl
 
@@ -1046,6 +1353,29 @@ class _ItemEntryBar(QWidget):
         """
         widget.setMinimumWidth(minimum)
         widget.setMaximumWidth(maximum)
+
+    def _reserve_batch_number_width(self, batch_numbers) -> None:
+        """Keep the Batch field wide enough to show a whole batch number.
+
+        The combo's caption is ``"<batch> | Exp: .. | MRP: .. | Avail: .."``,
+        so the tail is elided on purpose and the popup carries the detail.  A
+        narrower field than the batch number itself, though, hides part of
+        the one value the field exists to show.  The floor is measured from
+        the real entry font and the combo's own chrome rather than guessed,
+        and only ever grows, so the row cannot twitch as the user moves from
+        one item to the next.
+        """
+        metrics = QFontMetrics(readable_font(TYPE_INPUT))
+        widest = max((metrics.horizontalAdvance(str(number))
+                      for number in batch_numbers), default=0)
+        needed = widest + _ENTRY_BATCH_CHROME
+        floor = min(max(needed, _ENTRY_BATCH_MIN_WIDTH), _ENTRY_BATCH_MAX_WIDTH)
+        if floor > self._batch_floor:
+            self._batch_floor = floor
+            if self.batch_combo.minimumWidth() < floor:
+                self.batch_combo.setMinimumWidth(floor)
+            if self._auto_fit:
+                self._refit_to_bar()
 
     def load_items(self):
         self.item_combo.blockSignals(True)
@@ -1133,6 +1463,8 @@ class _ItemEntryBar(QWidget):
 
         # Load available batches
         batches = SalesDAO.get_stock_batches_for_item(item_id)
+        # A real batch number must never be elided by its own field.
+        self._reserve_batch_number_width(b.get("batch_no", "") for b in batches)
         self.batch_combo.addItem("-- Select Batch --", None)
         for b in batches:
             exp = b.get("expiry", "")
@@ -1210,11 +1542,13 @@ class _ItemEntryBar(QWidget):
     def set_cno(self, text: str):
         """Display the current counter/bill number (no logic attached).
 
-        The compact CNo box is deliberately narrower than the bill number, so
-        the full value is kept in a tooltip.
+        The compact CNo box elides long values so the row stays within the
+        available width; the full value is always available in the tooltip.
         """
         value = text or "--"
-        self.cno_label.setText(value)
+        fm = QFontMetrics(self.cno_label.font())
+        elided = fm.elidedText(value, Qt.ElideRight, self.cno_label.width())
+        self.cno_label.setText(elided)
         self.cno_label.setToolTip(value)
 
     def get_current_data(self) -> dict | None:
@@ -1460,7 +1794,7 @@ class _SalePanel(QWidget):
         grp.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         grp.setFixedHeight(54)
         grid = QGridLayout(grp)
-        grid.setSpacing(4)
+        grid.setSpacing(10)
         grid.setContentsMargins(8, 14, 8, 4)
 
         row = 0
@@ -1501,7 +1835,7 @@ class _SalePanel(QWidget):
         grp.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         grp.setFixedHeight(54)
         grid = QGridLayout(grp)
-        grid.setSpacing(4)
+        grid.setSpacing(10)
         grid.setContentsMargins(8, 14, 8, 4)
 
         row = 0
@@ -1571,7 +1905,7 @@ class _SalePanel(QWidget):
         voucher_layout.addWidget(self._lbl("Voucher No"))
         self.voucher_no_label = QLabel(self.bill_no_edit.text() or "--")
         self.voucher_no_label.setStyleSheet(
-            f"color: {_TEXT}; font-size: 11px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: {TYPE_VALUE}px; font-weight: bold;"
             f"background: transparent; font-family: {FONT_FAMILY};"
         )
         self.voucher_no_label.setMinimumWidth(120)
@@ -1584,7 +1918,7 @@ class _SalePanel(QWidget):
         date_layout.addWidget(self._lbl("Date"))
         self.header_date_label = QLabel(self.sale_date.date().toString("dd-MM-yyyy"))
         self.header_date_label.setStyleSheet(
-            f"color: {_TEXT}; font-size: 11px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: {TYPE_VALUE}px; font-weight: bold;"
             f"background: transparent; font-family: {FONT_FAMILY};"
         )
         self.header_date_label.setMinimumWidth(100)
@@ -1597,7 +1931,7 @@ class _SalePanel(QWidget):
         time_layout.addWidget(self._lbl("Time"))
         self.header_time_label = QLabel(self.sale_time_edit.text() or "--")
         self.header_time_label.setStyleSheet(
-            f"color: {_TEXT}; font-size: 11px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: {TYPE_VALUE}px; font-weight: bold;"
             f"background: transparent; font-family: {FONT_FAMILY};"
         )
         self.header_time_label.setMinimumWidth(80)
@@ -1615,7 +1949,7 @@ class _SalePanel(QWidget):
 
         # ---- LEFT COLUMN: Cnt No / Type ----
         left = QGridLayout()
-        left.setHorizontalSpacing(4)
+        left.setHorizontalSpacing(10)
         left.setVerticalSpacing(2)
         left.addWidget(self._lbl("Cnt No"), 0, 0, Qt.AlignRight | Qt.AlignVCenter)
         self.cnt_no_edit = _make_edit()
@@ -1629,7 +1963,7 @@ class _SalePanel(QWidget):
 
         # ---- MIDDLE COLUMN: Customer / Patient Name / Address ----
         centre = QGridLayout()
-        centre.setHorizontalSpacing(4)
+        centre.setHorizontalSpacing(10)
         centre.setVerticalSpacing(2)
         centre.addWidget(self._lbl("Customer *"), 0, 0, Qt.AlignRight | Qt.AlignVCenter)
         self.customer_combo.setMinimumWidth(200)
@@ -1659,7 +1993,7 @@ class _SalePanel(QWidget):
 
         # ---- RIGHT COLUMN: Doctor / Discount / Paid Amount ----
         right = QGridLayout()
-        right.setHorizontalSpacing(4)
+        right.setHorizontalSpacing(10)
         right.setVerticalSpacing(2)
         doctor_label = self._lbl("Doctor")
         doctor_label.setMinimumWidth(121)
@@ -1726,6 +2060,9 @@ class _SalePanel(QWidget):
         widths because this runs only in popup mode.
         """
         bar = self._entry_bar
+        # The popup measures and pins these widths itself, so the row must
+        # stop re-fitting them the moment a resize would undo this work.
+        bar.set_auto_fit(False)
         layout = bar.layout()
         if available_width is None:
             available_width = bar.width()
@@ -1738,6 +2075,14 @@ class _SalePanel(QWidget):
         captions = 0
         for index in range(layout.count()):
             item = layout.itemAt(index)
+            spacer = item.spacerItem()
+            if spacer is not None:
+                # The column seams are real spacer items.  The gap count
+                # above only charges the layout's per-item spacing, so each
+                # spacer's own width has to be measured too — otherwise the
+                # fields would be sized as if the seams cost nothing.
+                spent += spacer.sizeHint().width()
+                continue
             widget = item.widget()
             if widget is bar.cno_label:
                 # This label mirrors the whole bill number, so its sizeHint is
@@ -1819,7 +2164,14 @@ class _SalePanel(QWidget):
                      + layout.contentsMargins().left()
                      + layout.contentsMargins().right())
             for index in range(layout.count()):
-                widget = layout.itemAt(index).widget()
+                item = layout.itemAt(index)
+                spacer = item.spacerItem()
+                if spacer is not None:
+                    # Same reasoning as apply_popup_entry_widths: a seam is a
+                    # real width the row has to fit, not a free gap.
+                    total += spacer.sizeHint().width()
+                    continue
+                widget = item.widget()
                 if widget is None:
                     continue
                 if widget is bar.cno_label:
@@ -1926,7 +2278,8 @@ class _SalePanel(QWidget):
         row1.addWidget(self._compact_lbl("Bill No"))
         self.bill_no_edit = _make_compact_edit(height=_METADATA_CONTROL_HEIGHT)
         self.bill_no_edit.setReadOnly(True)
-        self.bill_no_edit.setFixedWidth(112)
+        # Full FY bill numbers (e.g. "2026-2027-Cash-0015") must read in full.
+        self.bill_no_edit.setFixedWidth(220)
         self.bill_no_edit.setAlignment(Qt.AlignCenter)
         row1.addWidget(self.bill_no_edit)
 
@@ -2014,7 +2367,7 @@ class _SalePanel(QWidget):
         self._table_group = QGroupBox("Bill Items")
         self._table_group.setStyleSheet(_GROUP_BOX)
         layout = QVBoxLayout(self._table_group)
-        layout.setContentsMargins(6, 18, 6, 6)
+        layout.setContentsMargins(8, 20, 8, 8)
 
         self._table = QTableWidget()
         self._table.setColumnCount(11)
@@ -2053,20 +2406,23 @@ class _SalePanel(QWidget):
             f"QHeaderView::section {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: none; border-bottom: 2px solid {_ACCENT};"
-            f"  padding: 4px 5px; font-weight: bold; font-size: 11px;"
+            f"  padding: 4px 5px; font-weight: bold;"
+            f"  font-size: {TYPE_TABLE_HEADER}px;"
             f"  font-family: {FONT_FAMILY};"
             f"}}"
         )
+        hv.setFont(readable_font(TYPE_TABLE_HEADER, bold=True))
         self._table.setStyleSheet(
             f"QTableWidget {{"
             f"  background-color: {_DARK_BG}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; gridline-color: {_BORDER};"
-            f"  font-size: 11px; font-family: {FONT_FAMILY};"
+            f"  font-size: {TYPE_TABLE_DATA}px; font-family: {FONT_FAMILY};"
             f"  selection-background-color: {_SELECTED};"
-            f"  selection-color: {_TEXT};"
+            f"  selection-color: {_SELECTED_TEXT};"
             f"}}"
             f"QTableWidget::item {{ padding: 3px 6px; }}"
         )
+        self._table.setFont(readable_font(TYPE_TABLE_DATA))
         layout.addWidget(self._table, 1)
 
     def _on_add_item(self):
@@ -2257,7 +2613,7 @@ class _SalePanel(QWidget):
             f"background-color: {_SURFACE}; border-top: 1px solid {_BORDER};"
         )
         layout = QHBoxLayout(self._totals_widget)
-        layout.setContentsMargins(12, 3, 12, 3)
+        layout.setContentsMargins(12, 2, 12, 2)
         layout.setSpacing(14)
 
         if self._popup_mode:
@@ -2317,10 +2673,10 @@ class _SalePanel(QWidget):
         container.setSpacing(0)
         container.setContentsMargins(0, 0, 0, 0)
         lbl = QLabel(title)
-        lbl.setStyleSheet(_LABEL_DIM)
+        lbl.setStyleSheet(_CAPTION_STYLE)
         lbl.setAlignment(Qt.AlignCenter)
         lbl.setFixedWidth(width)
-        lbl.setFixedHeight(14)
+        lbl.setFixedHeight(16)
         container.addWidget(lbl)
 
         if attr_name.endswith("_label"):
@@ -2329,8 +2685,10 @@ class _SalePanel(QWidget):
             val_lbl.setFixedWidth(width)
             val_lbl.setFixedHeight(_TOTALS_CONTROL_HEIGHT)
             val_lbl.setStyleSheet(
-                f"color: {_ACCENT if emphasised else _TEXT};"
-                f"font-size: {13 if emphasised else 12}px; font-weight: bold;"
+                f"color: {_TEXT};"
+                f"font-size: "
+                f"{TYPE_VALUE_EMPHASIS if emphasised else TYPE_VALUE}px;"
+                f"font-weight: bold;"
                 f"background: transparent; font-family: {FONT_FAMILY};"
             )
             container.addWidget(val_lbl)
@@ -2445,10 +2803,8 @@ class _SalePanel(QWidget):
         reserving a wide box, and vertically centred against its field.
         """
         lbl = QLabel(text)
-        lbl.setStyleSheet(_LABEL_DIM)
-        font = QFont(FONT_FAMILY.split(",")[0].strip().strip("'"))
-        font.setPixelSize(10)
-        font.setBold(True)
+        lbl.setStyleSheet(_CAPTION_STYLE)
+        font = readable_font(TYPE_HINT, bold=True)
         lbl.setFont(font)
         lbl.setFixedWidth(QFontMetrics(font).horizontalAdvance(text) + 4)
         lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
@@ -2571,11 +2927,12 @@ class _SalePanel(QWidget):
         Used by both the Counter Sale Save Sale step and the popup's final
         Save, so the review popup can never be the step that skips a rule.
         """
-        try:
-            financial_year.validate_transaction_date(self.sale_date.date().toString("yyyy-MM-dd"))
-        except financial_year.FinancialYearError as exc:
+        if not fy_view.confirm_transaction_date(
+            self,
+            self.sale_date.date().toString("yyyy-MM-dd"),
+            action="sale",
+        ):
             self.sale_date.setFocus()
-            QMessageBox.warning(self, "Financial Year", str(exc))
             return False
 
         if not self.customer_combo.currentData():
@@ -3122,7 +3479,7 @@ class SalesBillReviewDialog(QDialog):
         voucher_layout.setSpacing(8)
         voucher_caption = QLabel("Voucher No")
         voucher_caption.setStyleSheet(
-            "color: #d8e6f5; font-size: 10px; background: transparent;"
+            "color: #d8e6f5; font-size: 11px; background: transparent;"
             f"font-family: {FONT_FAMILY};"
         )
         voucher_layout.addWidget(voucher_caption)
@@ -3140,7 +3497,7 @@ class SalesBillReviewDialog(QDialog):
         date_layout.setSpacing(8)
         date_caption = QLabel("Date")
         date_caption.setStyleSheet(
-            "color: #d8e6f5; font-size: 10px; background: transparent;"
+            "color: #d8e6f5; font-size: 11px; background: transparent;"
             f"font-family: {FONT_FAMILY};"
         )
         date_layout.addWidget(date_caption)
@@ -3158,7 +3515,7 @@ class SalesBillReviewDialog(QDialog):
         time_layout.setSpacing(8)
         time_caption = QLabel("Time")
         time_caption.setStyleSheet(
-            "color: #d8e6f5; font-size: 10px; background: transparent;"
+            "color: #d8e6f5; font-size: 11px; background: transparent;"
             f"font-family: {FONT_FAMILY};"
         )
         time_layout.addWidget(time_caption)
@@ -3199,14 +3556,15 @@ class SalesBillReviewDialog(QDialog):
 
         items_caption = QLabel("Total Items")
         items_caption.setStyleSheet(
-            f"color: {_TEXT}; font-size: 11px; background: transparent;"
+            f"color: {_TEXT}; font-size: {TYPE_FORM_LABEL}px;"
+            f"font-weight: bold; background: transparent;"
             f"font-family: {FONT_FAMILY};"
         )
         row1.addWidget(items_caption)
 
         self._total_items_label = QLabel(str(len(self._panel._item_rows)))
         self._total_items_label.setStyleSheet(
-            f"color: {_TEXT}; font-size: 11px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: {TYPE_VALUE}px; font-weight: bold;"
             f"background: transparent; font-family: {FONT_FAMILY};"
         )
         self._total_items_label.setMinimumWidth(50)
@@ -3215,7 +3573,8 @@ class SalesBillReviewDialog(QDialog):
 
         remarks_caption = QLabel("Remarks")
         remarks_caption.setStyleSheet(
-            f"color: {_TEXT}; font-size: 11px; background: transparent;"
+            f"color: {_TEXT}; font-size: {TYPE_FORM_LABEL}px;"
+            f"font-weight: bold; background: transparent;"
             f"font-family: {FONT_FAMILY};"
         )
         row1.addWidget(remarks_caption)
@@ -3237,13 +3596,13 @@ class SalesBillReviewDialog(QDialog):
         total_amt_container = QVBoxLayout()
         total_amt_container.setSpacing(2)
         total_amt_caption = QLabel("Total Amount")
-        total_amt_caption.setStyleSheet(_LABEL_DIM)
+        total_amt_caption.setStyleSheet(_HEADER_LABEL)
         total_amt_caption.setAlignment(Qt.AlignCenter)
         total_amt_container.addWidget(total_amt_caption)
         self._footer_total_amount = QLabel(self._panel.total_amount_label.text())
         self._footer_total_amount.setAlignment(Qt.AlignCenter)
         self._footer_total_amount.setStyleSheet(
-            f"color: {_TEXT}; font-size: 12px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: {TYPE_VALUE}px; font-weight: bold;"
             f"background: transparent; font-family: {FONT_FAMILY};"
         )
         self._footer_total_amount.setMinimumWidth(100)
@@ -3255,13 +3614,13 @@ class SalesBillReviewDialog(QDialog):
         bill_disc_container = QVBoxLayout()
         bill_disc_container.setSpacing(2)
         bill_disc_caption = QLabel("Bill Discount")
-        bill_disc_caption.setStyleSheet(_LABEL_DIM)
+        bill_disc_caption.setStyleSheet(_HEADER_LABEL)
         bill_disc_caption.setAlignment(Qt.AlignCenter)
         bill_disc_container.addWidget(bill_disc_caption)
         self._footer_bill_discount = QLabel(f"{_safe_float(self._panel.bill_disc_edit.text()):.2f}")
         self._footer_bill_discount.setAlignment(Qt.AlignCenter)
         self._footer_bill_discount.setStyleSheet(
-            f"color: {_TEXT}; font-size: 12px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: {TYPE_VALUE}px; font-weight: bold;"
             f"background: transparent; font-family: {FONT_FAMILY};"
         )
         self._footer_bill_discount.setMinimumWidth(100)
@@ -3273,13 +3632,13 @@ class SalesBillReviewDialog(QDialog):
         cn_container = QVBoxLayout()
         cn_container.setSpacing(2)
         cn_caption = QLabel("CN Amount")
-        cn_caption.setStyleSheet(_LABEL_DIM)
+        cn_caption.setStyleSheet(_HEADER_LABEL)
         cn_caption.setAlignment(Qt.AlignCenter)
         cn_container.addWidget(cn_caption)
         self._footer_cn_amount = QLabel("0.00")
         self._footer_cn_amount.setAlignment(Qt.AlignCenter)
         self._footer_cn_amount.setStyleSheet(
-            f"color: {_TEXT}; font-size: 12px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: {TYPE_VALUE}px; font-weight: bold;"
             f"background: transparent; font-family: {FONT_FAMILY};"
         )
         self._footer_cn_amount.setMinimumWidth(100)
@@ -3291,13 +3650,13 @@ class SalesBillReviewDialog(QDialog):
         dr_container = QVBoxLayout()
         dr_container.setSpacing(2)
         dr_caption = QLabel("Dr Amount")
-        dr_caption.setStyleSheet(_LABEL_DIM)
+        dr_caption.setStyleSheet(_HEADER_LABEL)
         dr_caption.setAlignment(Qt.AlignCenter)
         dr_container.addWidget(dr_caption)
         self._footer_dr_amount = QLabel("0.00")
         self._footer_dr_amount.setAlignment(Qt.AlignCenter)
         self._footer_dr_amount.setStyleSheet(
-            f"color: {_TEXT}; font-size: 12px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: {TYPE_VALUE}px; font-weight: bold;"
             f"background: transparent; font-family: {FONT_FAMILY};"
         )
         self._footer_dr_amount.setMinimumWidth(100)
@@ -3309,13 +3668,13 @@ class SalesBillReviewDialog(QDialog):
         credit_note_container = QVBoxLayout()
         credit_note_container.setSpacing(2)
         credit_note_caption = QLabel("Credit Note")
-        credit_note_caption.setStyleSheet(_LABEL_DIM)
+        credit_note_caption.setStyleSheet(_HEADER_LABEL)
         credit_note_caption.setAlignment(Qt.AlignCenter)
         credit_note_container.addWidget(credit_note_caption)
         self._footer_credit_note = QLabel("0.00")
         self._footer_credit_note.setAlignment(Qt.AlignCenter)
         self._footer_credit_note.setStyleSheet(
-            f"color: {_TEXT}; font-size: 12px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: {TYPE_VALUE}px; font-weight: bold;"
             f"background: transparent; font-family: {FONT_FAMILY};"
         )
         self._footer_credit_note.setMinimumWidth(100)
@@ -3327,13 +3686,13 @@ class SalesBillReviewDialog(QDialog):
         round_off_container = QVBoxLayout()
         round_off_container.setSpacing(2)
         round_off_caption = QLabel("Round Off")
-        round_off_caption.setStyleSheet(_LABEL_DIM)
+        round_off_caption.setStyleSheet(_HEADER_LABEL)
         round_off_caption.setAlignment(Qt.AlignCenter)
         round_off_container.addWidget(round_off_caption)
         self._footer_round_off = QLabel(self._panel.round_off_label.text())
         self._footer_round_off.setAlignment(Qt.AlignCenter)
         self._footer_round_off.setStyleSheet(
-            f"color: {_TEXT}; font-size: 12px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: {TYPE_VALUE}px; font-weight: bold;"
             f"background: transparent; font-family: {FONT_FAMILY};"
         )
         self._footer_round_off.setMinimumWidth(90)
@@ -3345,13 +3704,14 @@ class SalesBillReviewDialog(QDialog):
         net_amt_container = QVBoxLayout()
         net_amt_container.setSpacing(2)
         net_amt_caption = QLabel("Net Amount")
-        net_amt_caption.setStyleSheet(_LABEL_DIM)
+        net_amt_caption.setStyleSheet(_HEADER_LABEL)
         net_amt_caption.setAlignment(Qt.AlignCenter)
         net_amt_container.addWidget(net_amt_caption)
         self._footer_net_amount = QLabel(self._panel.net_amt_label.text())
         self._footer_net_amount.setAlignment(Qt.AlignCenter)
         self._footer_net_amount.setStyleSheet(
-            f"color: {_ACCENT}; font-size: 14px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: {TYPE_VALUE_EMPHASIS}px;"
+            f"font-weight: bold;"
             f"background: transparent; font-family: {FONT_FAMILY};"
         )
         self._footer_net_amount.setMinimumWidth(120)
@@ -3539,7 +3899,7 @@ _HISTORY_STRETCH_COLUMN = {
 
 _HISTORY_FILTER_BAR_HEIGHT = 30
 _RADIO_STYLE = (
-    f"QRadioButton {{ color: {_TEXT}; font-size: 11px;"
+    f"QRadioButton {{ color: {_TEXT}; font-size: {TYPE_FORM_LABEL}px;"
     f"  background: transparent; font-family: {FONT_FAMILY}; }}"
     f"QRadioButton::indicator {{ width: 13px; height: 13px; }}"
 )
@@ -3640,14 +4000,16 @@ class CounterSalePage(QWidget):
 
         title = QLabel("Sales / Counter Sale")
         title.setStyleSheet(
-            f"color: {_TEXT}; font-size: 18px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: {TYPE_PAGE_TITLE}px;"
+            f"font-weight: bold;"
             f"background: transparent; font-family: {FONT_FAMILY};"
         )
         hl.addWidget(title)
 
         subtitle = QLabel("Bill History")
         subtitle.setStyleSheet(
-            f"color: {_TEXT_DIM}; font-size: 11px;"
+            f"color: {_TEXT}; font-size: {TYPE_SECTION_HEADER}px;"
+            f"font-weight: bold;"
             f"background: transparent; font-family: {FONT_FAMILY};"
         )
         hl.addWidget(subtitle)
@@ -3880,6 +4242,7 @@ class CounterSalePage(QWidget):
         table.setSelectionBehavior(QAbstractItemView.SelectRows)
         table.setSelectionMode(QAbstractItemView.SingleSelection)
         table.verticalHeader().setVisible(False)
+        table.verticalHeader().setDefaultSectionSize(28)
         table.setShowGrid(True)
         table.setAlternatingRowColors(False)
         table.setSortingEnabled(True)
@@ -3889,6 +4252,7 @@ class CounterSalePage(QWidget):
 
         hv = table.horizontalHeader()
         hv.setStretchLastSection(True)
+        hv.setMinimumHeight(30)
         for col in range(13):
             if col == 2:
                 hv.setSectionResizeMode(col, QHeaderView.Stretch)
@@ -3898,20 +4262,23 @@ class CounterSalePage(QWidget):
             f"QHeaderView::section {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: none; border-bottom: 2px solid {_ACCENT};"
-            f"  padding: 4px 6px; font-weight: bold; font-size: 11px;"
+            f"  padding: 4px 6px; font-weight: bold;"
+            f"  font-size: {TYPE_TABLE_HEADER}px;"
             f"  font-family: {FONT_FAMILY};"
             f"}}"
         )
+        hv.setFont(readable_font(TYPE_TABLE_HEADER, bold=True))
         table.setStyleSheet(
             f"QTableWidget {{"
             f"  background-color: {_DARK_BG}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; gridline-color: {_BORDER};"
-            f"  font-size: 11px; font-family: {FONT_FAMILY};"
+            f"  font-size: {TYPE_TABLE_DATA}px; font-family: {FONT_FAMILY};"
             f"  selection-background-color: {_ACCENT};"
             f"  selection-color: white;"
             f"}}"
             f"QTableWidget::item {{ padding: 3px 5px; }}"
         )
+        table.setFont(readable_font(TYPE_TABLE_DATA))
         return table
 
     def _build_bill_panel(self) -> QWidget:
@@ -3924,14 +4291,14 @@ class CounterSalePage(QWidget):
             f"  border-left: 1px solid {_BORDER}; }}"
         )
         layout = QVBoxLayout(panel)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(8)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(10)
 
         actions = QGroupBox("Bill")
         actions.setStyleSheet(_GROUP_BOX)
         al = QVBoxLayout(actions)
-        al.setContentsMargins(8, 16, 8, 8)
-        al.setSpacing(4)
+        al.setContentsMargins(10, 18, 10, 10)
+        al.setSpacing(6)
         for text, style, handler in (
             ("Edit", _BTN_SECONDARY, self._on_edit),
             ("Delete", _BTN_DANGER, self._on_delete),
@@ -3944,7 +4311,11 @@ class CounterSalePage(QWidget):
             btn.clicked.connect(handler)
             al.addWidget(btn)
         paper_label = QLabel(f"Paper: {a6_profile().size_label}")
-        paper_label.setStyleSheet("color: #666; font-size: 8pt;")
+        paper_label.setStyleSheet(
+            f"color: {_TEXT_DIM}; font-size: {TYPE_HINT}px;"
+            f"font-family: {FONT_FAMILY};"
+            "background: transparent;"
+        )
         paper_label.setAlignment(Qt.AlignCenter)
         al.addWidget(paper_label)
         layout.addWidget(actions)
@@ -3952,15 +4323,16 @@ class CounterSalePage(QWidget):
         info = QGroupBox("Current Bill")
         info.setStyleSheet(_GROUP_BOX)
         form = QFormLayout(info)
-        form.setContentsMargins(8, 16, 8, 8)
-        form.setSpacing(4)
+        form.setContentsMargins(10, 18, 10, 10)
+        form.setSpacing(6)
         self._bill_total_value = QLabel("0.00")
         self._cno_value = QLabel(self._sale_panel.bill_no_edit.text() or "--")
         self._amount_value = QLabel("0.00")
         for value_label in (self._bill_total_value, self._cno_value,
                             self._amount_value):
             value_label.setStyleSheet(
-                f"color: {_TEXT}; font-size: 11px; font-weight: bold;"
+                f"color: {_TEXT}; font-size: {TYPE_VALUE}px;"
+                f"font-weight: bold;"
                 f"font-family: {FONT_FAMILY}; background: transparent;"
             )
             value_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
@@ -4013,7 +4385,7 @@ class CounterSalePage(QWidget):
 
     def _flbl(self, text: str) -> QLabel:
         lbl = QLabel(text)
-        lbl.setStyleSheet(_LABEL_DIM)
+        lbl.setStyleSheet(_HEADER_LABEL)
         return lbl
 
     def _refresh_history(self):
