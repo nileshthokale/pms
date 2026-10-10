@@ -171,10 +171,13 @@ class PharmacyMainWindow(QMainWindow):
 
     # ── financial-year viewing ──────────────────────────────────
     def _on_financial_year_view(self, year: dict):
-        """Show Counter Sale history for a chosen financial year.
+        """Show every report for a chosen financial year.
 
-        This is a VIEW filter only.  The active financial year, the
-        navigation and every other page are left exactly as they were.
+        This is a VIEW filter only.  The active financial year is never
+        changed and nothing is written; each page that defines
+        ``set_history_financial_year`` scopes its own date filter to the
+        chosen year (period reports use 1 April–31 March, position
+        reports use the 31 March closing date).
         """
         for index in range(self._stack.count()):
             page = self._stack.widget(index)
