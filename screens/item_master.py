@@ -72,8 +72,11 @@ _REMOVE_TOOLTIP = "Remove ingredient"
 def _tax_cell_text(item: dict) -> str:
     """Grid text for an item row.
 
-    Provenance first: a non-NULL ``legacy_tax_id`` always shows the
-    explicit mapping-required flag; otherwise the genuine GST label.
+    The stored value decides, with the provenance column consulted for a
+    legacy code: a genuine GST rate shows its GST name (including ``12``,
+    which the owner remapped for the imported items carrying it), an unmapped
+    legacy code shows the explicit mapping-required flag, and EMPTY (a
+    VAT-only imported item) shows blank.
     """
     from database.tax_structures import resolve_tax_display
 
@@ -773,35 +776,35 @@ class _ItemDialog(QDialog):
     def _select_tax_structure(self, item: dict) -> None:
         """Show an item's stored tax value without rewriting it.
 
-        Provenance first: a non-NULL ``legacy_tax_id`` always gets its own
-        flagged entry — even ``12`` — so the dialog never presents an
-        unverified code as GST.  A NULL provenance selects the genuine GST
-        entry.  Saving an unrelated field change keeps value and provenance
-        exactly as they were.          Nothing is silently converted.
+        The stored value decides, not the provenance:
+
+        * EMPTY (a VAT-only imported item) falls back to the ZERO GST default;
+        * a genuine GST rate selects that GST option — including ``12``, which
+          the owner remapped for every imported item that carried it;
+        * anything else is an unmapped legacy code, so the dialog appends one
+          clearly flagged entry and selects it.
+
+        Saving an unrelated field change keeps value and provenance exactly as
+        they were.  Nothing is silently converted.
         """
         value = "" if item.get("tax_structure") is None else str(item.get("tax_structure")).strip()
-        legacy = item.get("legacy_tax_id")
         if not value:
             self._tax_structure_combo.setCurrentIndex(
                 self._tax_structure_combo.findData(DEFAULT_TAX_VALUE))
             return
 
-        if legacy is not None:
-            shown = str(legacy).strip()
-            self._tax_structure_combo.addItem(legacy_display(shown or value), value)
-            # The flagged entry is appended last; findData() could return an
-            # earlier GST option sharing the same numeric data (e.g. '12').
-            index = self._tax_structure_combo.count() - 1
-            self._legacy_tax_index = index
+        index = self._tax_structure_combo.findData(value)
+        if index >= 0:
             self._tax_structure_combo.setCurrentIndex(index)
             return
 
-        index = self._tax_structure_combo.findData(value)
-        if index < 0:
-            # addItem() does not report the new row index, so derive it.
-            self._tax_structure_combo.addItem(legacy_display(value), value)
-            index = self._tax_structure_combo.findData(value)
-            self._legacy_tax_index = index
+        # addItem() does not report the new row index, so derive it.  The
+        # flagged entry is appended last and carries the stored value, so
+        # findData() could also return an earlier GST option sharing the same
+        # numeric data (e.g. '12'); the count-based index avoids that.
+        self._tax_structure_combo.addItem(legacy_display(value), value)
+        index = self._tax_structure_combo.count() - 1
+        self._legacy_tax_index = index
         self._tax_structure_combo.setCurrentIndex(index)
 
     def _current_tax_value(self) -> str:

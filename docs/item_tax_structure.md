@@ -47,23 +47,53 @@ numeric tax codes** copied verbatim from the old `itemmst.TaxID` column (see
 When such an item is opened for editing:
 
 - the stored value is kept as-is and shown as an extra, clearly marked entry
-  (`11 (legacy tax code)`) alongside the five GST options;
+  (`Legacy Tax Code 11 — Mapping Required`) alongside the five GST options;
 - saving an unrelated field change (MRP, reorder level, …) leaves the tax value
-  **byte-for-byte unchanged** — editing a legacy item is never blocked by tax;
+  **and its provenance byte-for-byte unchanged** — editing a legacy item is
+  never blocked by tax;
 - nothing is mass-updated. There is no migration, no backfill and no rewrite.
 
 A user can still deliberately move a legacy item onto one of the five GST rates;
-that is an explicit choice, saved only when the user saves the item.
+that is an explicit choice, saved only when the user saves the item. Because the
+legacy code no longer describes the stored value, that deliberate conversion
+clears `legacy_tax_id`.
+
+### Provenance — `items.legacy_tax_id`
+
+`items.legacy_tax_id` is a nullable `INTEGER` recording the old Pharma-WINNER
+`TaxID` a value came from:
+
+| Stored value | `legacy_tax_id` | Meaning |
+|---|---|---|
+| `0` `5` `12` `18` `28` | `NULL` | a genuine new-system GST selection |
+| any | non-`NULL` | the legacy code preserved for audit |
+
+A later owner-approved pass (`tools/apply_gst_only_tax_mapping.py`) rewrote
+`tax_structure` to GST rates for the imported items using GST-era evidence,
+leaving `legacy_tax_id` untouched. So the two fields can disagree, and the
+**stored value decides what is displayed**:
+
+- a genuine GST rate shows its full GST name — whether it is a new selection or
+  an imported item the owner remapped;
+- an unmapped legacy code shows `Legacy Tax Code N — Mapping Required`;
+- EMPTY (a VAT-only imported item) shows blank.
+
+`database/tax_structures.resolve_tax_display()` implements that rule for the
+grid. Called without a provenance argument it defers to `display_for()`, which
+is deliberately stricter: with no provenance information at all a **known**
+legacy code wins over a numeric GST coincidence, so a bare `12` is flagged
+rather than shown as GST.
 
 ### One unavoidable ambiguity
 
-Legacy code `'12'` is numerically identical to GST 12%, and 326 imported items
-carry it. Such an item therefore displays as `GST @ 12% (CGST-6% & SGST-6%)`
-rather than as a legacy code. The stored value round-trips unchanged, so **no
-data is rewritten** — only the label is an interpretation, and it is the same
-interpretation the Purchase screen already made for those items. The original
-tax master was not present in the imported dump, so the true historical rate for
-those items is not recoverable.
+Legacy code `'12'` is numerically identical to GST 12%. A value of `'12'` whose
+provenance is `NULL` is a genuine GST 12% selection and displays as
+`GST @ 12% (CGST-6% & SGST-6%)`; the same value called through `display_for()`,
+which has no provenance to consult, displays the mapping flag instead. The
+stored value round-trips unchanged in every case, so **no data is rewritten** —
+only the label is an interpretation. The original tax master was not present in
+the imported dump, so the true historical rate for the legacy code is not
+recoverable, and may not be assumed from the numeric coincidence.
 
 ## Purchase compatibility
 

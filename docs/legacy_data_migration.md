@@ -149,10 +149,22 @@ active, matching the new application's rule; the partial unique index
   exists in the dump), `Location`, `SheduledID`→`scheduled`, `DPCO`,
   `PathyID`→pathy text. `category_id` stays **NULL** — the legacy dump has
   no category master, so categories are never invented.
-- Duplicate legacy item names (the new `items.item_name` is UNIQUE) are
-  merged into the first imported item and recorded in the report; the
-  duplicate legacy id maps to the merged item so transaction FKs resolve.
-  Real dataset: 3 duplicates (POWERGESIC, VITOMIN-Z, CALTONVIT).
+- Duplicate legacy item names are resolved by the composite identity
+  `UNIQUE(item_name, unit_id)`, matching the old Pharma-WINNER key
+  `UNIQUE(UnitID, ItemName)`. The same name under a **different** unit is
+  legitimate data and both records are kept (POWERGESIC as TABLET and as GEL;
+  CALTONVIT as TABLET and as POWDER). Only the same name **and** the same unit
+  is a duplicate; such a row is merged into the first imported item and
+  recorded in the report, with the duplicate legacy id mapped to the merged
+  item so transaction FKs resolve. Real dataset: 3 legacy id pairs, none of
+  them a same-name/same-unit duplicate (POWERGESIC 51/920 and CALTONVIT
+  681/869 differ by unit; VITOMIN-Z 290/303 differ by a trailing space).
+- `items.legacy_tax_id` records the source `TaxID` of every imported item
+  (NULL means a genuine new-system GST selection), so a `tax_structure` that a
+  later owner-approved pass rewrote to a GST rate stays traceable to the code
+  it came from. `TaxID` is never converted on the user's behalf; an unmapped
+  code displays as `Legacy Tax Code N — Mapping Required` — see
+  `docs/item_tax_structure.md`.
 - `SellLoose` and `BillCompulsory` have no target column and are listed as
   unsupported fields.
 - **Ingredients:** `itemdrugs` → `item_ingredients` with resolved ids and
