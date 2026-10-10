@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import sys
+from datetime import datetime
 from pathlib import Path
 
 APP_DATA_DIR_NAME = "PharmacyManagementSystem"
@@ -165,16 +166,23 @@ def init_database():
             )
             """
         )
+        # Item identity is the composite (item_name, unit_id), matching the old
+        # Pharma-WINNER key UNIQUE(UnitID, ItemName): the same name under a
+        # different unit is legitimate data (POWERGESIC as TABLET and as GEL),
+        # so a plain UNIQUE(item_name) would wrongly reject it.  Databases
+        # created before this change are rebuilt by
+        # _migrate_items_name_unit_unique().
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS items (
                 id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-                item_name           TEXT    NOT NULL UNIQUE,
+                item_name           TEXT    NOT NULL,
                 unit_id             INTEGER REFERENCES units(id) ON DELETE SET NULL,
                 company_id          INTEGER REFERENCES companies(id) ON DELETE SET NULL,
                 category_id         INTEGER REFERENCES categories(id) ON DELETE SET NULL,
                 pack_size           TEXT    DEFAULT '',
                 tax_structure       TEXT    DEFAULT '',
+                legacy_tax_id       INTEGER DEFAULT NULL,
                 discount            REAL    DEFAULT 0.0,
                 mrp                 REAL    DEFAULT 0.0,
                 rate                REAL    DEFAULT 0.0,
@@ -182,7 +190,8 @@ def init_database():
                 scheduled           TEXT    DEFAULT '',
                 location            TEXT    DEFAULT '',
                 pathy               TEXT    DEFAULT '',
-                dpco                TEXT    DEFAULT ''
+                dpco                TEXT    DEFAULT '',
+                UNIQUE(item_name, unit_id)
             )
             """
         )
@@ -492,6 +501,15 @@ def init_database():
                 "INTEGER REFERENCES categories(id) ON DELETE SET NULL"
             )
 
+        # Phase 1 provenance: items.legacy_tax_id records the old Pharma-WINNER
+        # TaxID an imported value came from.  NULL means a genuine new-system
+        # GST selection.  Nullable and never backfilled here — the import tool
+        # writes it — so this only widens the table.
+        if "legacy_tax_id" not in item_cols:
+            cur.execute(
+                "ALTER TABLE items ADD COLUMN legacy_tax_id INTEGER DEFAULT NULL"
+            )
+
         # customers.ledger_id
         cur.execute("PRAGMA table_info(customers)")
         cust_cols = {row[1] for row in cur.fetchall()}
@@ -554,5 +572,142 @@ def init_database():
             )
 
         conn.commit()
+
+        # Runs after the commit above so that no transaction is open: PRAGMA
+        # foreign_keys is a silent no-op inside one, and the rebuild has to be
+        # able to switch foreign keys off.
+        _migrate_items_name_unit_unique(conn)
     finally:
         conn.close()
+
+
+def _snapshot_before_items_rebuild(conn: sqlite3.Connection) -> str | None:
+    """Copy the database beside itself before the items table is rebuilt.
+
+    Uses the SQLite online backup API, so the snapshot is consistent even
+    though the database runs in WAL mode.  Best effort: the rebuild itself is
+    atomic and verified, so a snapshot that cannot be written must not stop the
+    application from starting.
+    """
+    db_path = get_db_path()
+    try:
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_dir = os.path.join(
+            os.path.dirname(os.path.abspath(db_path)), "backups"
+        )
+        os.makedirs(backup_dir, exist_ok=True)
+        backup_path = os.path.join(
+            backup_dir, f"pharmacy_backup_pre_items_rebuild_{stamp}.db"
+        )
+        destination = sqlite3.connect(backup_path)
+        try:
+            conn.backup(destination)
+            destination.commit()
+        finally:
+            destination.close()
+        return backup_path
+    except (OSError, sqlite3.Error):
+        return None
+
+
+def _migrate_items_name_unit_unique(conn: sqlite3.Connection) -> None:
+    """Rebuild ``items`` onto UNIQUE(item_name, unit_id) when it still is not.
+
+    SQLite cannot drop a column-level UNIQUE in place, so a database created
+    before the composite identity existed needs the documented table rebuild.
+    A database that already carries the composite constraint — including every
+    fresh one — is left completely untouched, so this is a no-op on the live
+    dev database.
+
+    Foreign keys are switched off for the duration because ``item_ingredients``
+    and the invoice-item tables reference ``items(id)`` with ON DELETE CASCADE:
+    dropping the old table with enforcement on would delete their rows.
+    """
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'items'"
+    ).fetchone()
+    if row is None or not row[0]:
+        return
+    normalized = "".join(row[0].split()).lower()
+    if ("unique(item_name,unit_id)" in normalized
+            or "unique(unit_id,item_name)" in normalized):
+        return
+
+    target_columns = (
+        "id", "item_name", "unit_id", "company_id", "category_id", "pack_size",
+        "tax_structure", "legacy_tax_id", "discount", "mrp", "rate",
+        "reorder_stock_level", "scheduled", "location", "pathy", "dpco",
+    )
+    existing = {r[1] for r in conn.execute("PRAGMA table_info(items)")}
+    shared = [column for column in target_columns if column in existing]
+    if "id" not in shared or "item_name" not in shared:
+        return
+    column_list = ", ".join(f'"{column}"' for column in shared)
+
+    # The rebuild is transactional and verified, but this carries a legacy
+    # database's item history: snapshot it first, as every other migration in
+    # this project does.
+    _snapshot_before_items_rebuild(conn)
+
+    conn.execute("PRAGMA foreign_keys=OFF")
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        conn.execute(
+            """
+            CREATE TABLE items_rebuild (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                item_name           TEXT    NOT NULL,
+                unit_id             INTEGER REFERENCES units(id) ON DELETE SET NULL,
+                company_id          INTEGER REFERENCES companies(id) ON DELETE SET NULL,
+                category_id         INTEGER REFERENCES categories(id) ON DELETE SET NULL,
+                pack_size           TEXT    DEFAULT '',
+                tax_structure       TEXT    DEFAULT '',
+                legacy_tax_id       INTEGER DEFAULT NULL,
+                discount            REAL    DEFAULT 0.0,
+                mrp                 REAL    DEFAULT 0.0,
+                rate                REAL    DEFAULT 0.0,
+                reorder_stock_level INTEGER DEFAULT 0,
+                scheduled           TEXT    DEFAULT '',
+                location            TEXT    DEFAULT '',
+                pathy               TEXT    DEFAULT '',
+                dpco                TEXT    DEFAULT '',
+                UNIQUE(item_name, unit_id)
+            )
+            """
+        )
+        expected = conn.execute("SELECT COUNT(*) FROM items").fetchone()[0]
+        conn.execute(
+            f"INSERT INTO items_rebuild ({column_list}) "
+            f"SELECT {column_list} FROM items"
+        )
+        conn.execute("DROP TABLE items")
+        conn.execute("ALTER TABLE items_rebuild RENAME TO items")
+
+        # AUTOINCREMENT keeps its high-water mark in sqlite_sequence, and the
+        # rebuild replaced the table; restore it so a new item can never reuse
+        # an ID preserved by the legacy import.
+        high = conn.execute("SELECT COALESCE(MAX(id), 0) FROM items").fetchone()[0]
+        conn.execute(
+            "DELETE FROM sqlite_sequence WHERE name IN ('items', 'items_rebuild')"
+        )
+        if high:
+            conn.execute(
+                "INSERT INTO sqlite_sequence (name, seq) VALUES ('items', ?)",
+                (high,),
+            )
+
+        copied = conn.execute("SELECT COUNT(*) FROM items").fetchone()[0]
+        violations = conn.execute("PRAGMA foreign_key_check").fetchall()
+        if copied != expected or violations:
+            conn.execute("ROLLBACK")
+            raise RuntimeError(
+                "items rebuild failed and was rolled back: "
+                f"{copied} of {expected} rows copied, "
+                f"{len(violations)} foreign key violations"
+            )
+        conn.execute("COMMIT")
+    finally:
+        try:
+            conn.execute("PRAGMA foreign_keys=ON")
+        except sqlite3.Error:  # pragma: no cover - connection already closing
+            pass

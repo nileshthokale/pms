@@ -95,9 +95,21 @@ class TaxStructureDefinitionTests(unittest.TestCase):
                 self.assertIsNone(rate_percent(code),
                                   "legacy code must not invent a GST rate")
 
-    def test_07_display_for_preserves_unknown_values(self):
-        from database.tax_structures import display_for
-        self.assertEqual(display_for("11"), "11")
+    def test_07_display_for_flags_known_legacy_codes(self):
+        """A known legacy code is flagged, never shown bare or as GST.
+
+        Superseded contract: this used to assert ``display_for("11") == "11"``,
+        which displayed a bare legacy number.  See
+        ``test_item_tax_flag_display.py`` and
+        ``docs/item_master_tax_mapping_phase1.md`` ("flag all, convert none").
+        """
+        from database.tax_structures import display_for, legacy_flag_label
+        self.assertEqual(display_for("11"),
+                         "Legacy Tax Code 11 — Mapping Required")
+        self.assertEqual(display_for("11"), legacy_flag_label("11"))
+        self.assertEqual(display_for("6"), legacy_flag_label("6"))
+        # A value that is not a known legacy code is still returned verbatim.
+        self.assertEqual(display_for("VAT @ 12.50%"), "VAT @ 12.50%")
         self.assertEqual(display_for(""), "")
         self.assertEqual(display_for(None), "")
 
@@ -399,7 +411,11 @@ class ItemMasterTaxDialogTests(unittest.TestCase):
             name = page._table.item(row, 1).text()
             cells[name] = page._table.item(row, 7).text()
         self.assertEqual(cells["Grid Gst"], "GST @ 18% (CGST-9% & SGST-9%)")
-        self.assertEqual(cells["Grid Legacy"], "11")
+        # The grid flags the legacy code rather than showing the bare number;
+        # the stored value itself is untouched (checked below).
+        self.assertEqual(cells["Grid Legacy"],
+                         "Legacy Tax Code 11 — Mapping Required")
+        self.assertEqual(ItemDAO.search("Grid Legacy")[0]["tax_structure"], "11")
 
 
 # ======================================================================
