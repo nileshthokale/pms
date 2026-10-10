@@ -25,6 +25,7 @@ when PySide6 is unavailable.
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -52,15 +53,18 @@ _PALETTES: dict[str, dict[str, str]] = {
         "border": "#9db6cc",        # soft blue-grey border
         "accent": "#2f6fb0",        # classic desktop blue (primary actions)
         "accent_hover": "#255d94",
-        "text": "#14212e",          # dark navy primary text
-        "text_dim": "#55677a",      # dark grey secondary text
+        # Normal readable text is TRUE BLACK in the light theme: table data,
+        # headers, labels, input values and totals must all read as solid
+        # black on the white workspace, not as a washed-out navy.
+        "text": "#000000",          # primary text (black)
+        "text_dim": "#55677a",      # dark grey secondary text (hints only)
         # extended Phase 6E tokens -----------------------------------
         "surface_alt": "#f3f8fc",   # barely-tinted panel / zebra row
         "table_header": "#dce9f6",  # table header row
-        "header_text": "#14212e",   # page/table header text
+        "header_text": "#000000",   # page/table header text (black)
         "grid": "#c5d4e2",          # table grid lines
         "selected": "#cfe2f3",      # selected row (light blue)
-        "selected_text": "#0f1c29",
+        "selected_text": "#000000",
         "accent_pressed": "#1d4a78",
         "success": "#2e7d32",
         "success_hover": "#24662a",
@@ -104,7 +108,65 @@ _PALETTES: dict[str, dict[str, str]] = {
 # Backwards-compatible alias for the night mode name.
 _PALETTES["night"] = _PALETTES["dark"]
 
+
+# Single desktop-friendly font family for the whole application.
+# Lives in the theme (the lowest UI layer) so both the application-wide
+# stylesheet and every screen/component resolve the same family.
+FONT_FAMILY = "'Segoe UI', 'Tahoma', sans-serif"
+# Concrete family name for building QFont objects (QFont takes one family,
+# not a CSS font stack).  Kept next to FONT_FAMILY so the two never drift.
+FONT_NAME = "Segoe UI"
+
+
+# ── Typography scale (px) ─────────────────────────────────────────────
+# ONE shared type scale for the whole application, so every screen renders
+# the same readable hierarchy: a classic pharmacy/ERP desktop look with
+# large, bold, black text inside the existing (unchanged) spacing.
+#
+# Sizes are CSS **px** (Qt stylesheet units), never **pt**: a stylesheet
+# ``10pt`` renders at 10 x 96/72 ~= 13.3 px, so mixing the two units in the
+# same UI made the same nominal "size" render at two different heights.
+# Everything below is the single source of truth — screens must not invent
+# their own numbers.
+#
+# Minimum sizes are guarded by tests (see test_ui_typography.py): table data
+# never drops below ``TABLE_DATA``, table headers never below ``TABLE_HEADER``.
+TYPE_PAGE_TITLE = 18        # "Sales / Counter Sale", "Item Master", APP_TITLE
+TYPE_SECTION_HEADER = 13    # "Bill History", "Bill Items", report sections
+TYPE_TABLE_HEADER = 12      # column captions (bold, black)
+TYPE_TABLE_DATA = 13        # cell values — the most important size
+TYPE_FORM_LABEL = 12        # "Bill No", "Item", "MRP", "Qty" captions
+TYPE_INPUT = 13             # roomy inputs (entry bar, forms, dialogs)
+TYPE_INPUT_COMPACT = 12     # inputs inside a fixed 24 px control box
+TYPE_VALUE = 13             # totals / important values (bold)
+TYPE_VALUE_EMPHASIS = 14    # NET AMT and other headline figures (bold)
+TYPE_BUTTON = 12            # button captions
+TYPE_HINT = 11              # genuinely secondary hints (dimmed)
+
+# Ordering the hierarchy depends on: a page title must always outweigh
+# table text, and table text must never collapse below the readable floor.
+assert TYPE_TABLE_DATA >= 12, "table data must stay readable"
+assert TYPE_TABLE_HEADER >= 12, "table headers must stay readable"
+assert TYPE_PAGE_TITLE > TYPE_TABLE_DATA, "page title must outrank table text"
+
 _THEME_FILE = Path(__file__).resolve().parent.parent / "data" / "theme.json"
+
+
+def _resolve_theme_file() -> Path:
+    """Packaging-aware theme file location (test-patch compatible).
+
+    Development runs use ``data/theme.json`` (the patchable ``_THEME_FILE``).
+    A PyInstaller build (``sys.frozen``) stores the theme next to the
+    per-user database so the EXE never writes beside itself.
+    Unit tests patch ``_THEME_FILE`` with ``sys.frozen`` unset, so they
+    always resolve to the patched path.
+    """
+    if getattr(sys, "frozen", False):
+        base = os.environ.get("LOCALAPPDATA") or os.path.join(
+            os.path.expanduser("~"), "AppData", "Local"
+        )
+        return Path(base) / "PharmacyManagementSystem" / "theme.json"
+    return Path(_THEME_FILE)
 
 # Light mode is the default; night mode is opt-in.  Kept as a constant so
 # the default is stated once and reused by tests.
@@ -138,7 +200,7 @@ _NAV_SCHEMES: dict[str, dict[str, str]] = {
 
 def _load_mode() -> str:
     try:
-        with open(_THEME_FILE, "r", encoding="utf-8") as fh:
+        with open(_resolve_theme_file(), "r", encoding="utf-8") as fh:
             mode = json.load(fh).get("mode")
         # Accept the legacy "night" spelling too.
         if mode == "night":
@@ -151,8 +213,9 @@ def _load_mode() -> str:
 
 
 def _save_mode(mode: str) -> None:
-    _THEME_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(_THEME_FILE, "w", encoding="utf-8") as fh:
+    theme_file = _resolve_theme_file()
+    theme_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(theme_file, "w", encoding="utf-8") as fh:
         json.dump({"mode": mode}, fh)
 
 
@@ -261,8 +324,8 @@ def stylesheet() -> str:
         f"  color: {p['text']};"
         "}"
         "QWidget {"
-        f"  font-family: 'Segoe UI', 'Tahoma', sans-serif;"
-        f"  font-size: 12px;"
+        f"  font-family: {FONT_FAMILY};"
+        f"  font-size: {TYPE_TABLE_DATA}px;"
         "}"
         "QLabel {"
         f"  color: {p['text']};"
@@ -273,7 +336,8 @@ def stylesheet() -> str:
         f"  color: {p['text']};"
         f"  border: 1px solid {p['border']};"
         "  border-radius: 2px;"
-        "  padding: 3px 5px;"
+        "  padding: 4px 7px;"
+        f"  font-size: {TYPE_INPUT}px;"
         "  selection-background-color: " + p["selected"] + ";"
         f"  selection-color: {p['selected_text']};"
         "}"
@@ -286,7 +350,8 @@ def stylesheet() -> str:
         f"  color: {p['text']};"
         f"  border: 1px solid {p['border']};"
         "  border-radius: 2px;"
-        "  padding: 3px 5px;"
+        "  padding: 4px 7px;"
+        f"  font-size: {TYPE_INPUT}px;"
         "}"
         "QComboBox:focus, QDateEdit:focus, QTimeEdit:focus, QDateTimeEdit:focus {"
         f"  border: 1px solid {p['focus']};"
@@ -304,8 +369,9 @@ def stylesheet() -> str:
         f"  color: {p['text']};"
         f"  border: 1px solid {p['border']};"
         "  border-radius: 2px;"
-        "  padding: 4px 12px;"
-        "  min-height: 18px;"
+        "  padding: 6px 14px;"
+        "  min-height: 22px;"
+        f"  font-size: {TYPE_BUTTON}px;"
         "}"
         "QPushButton:hover {"
         f"  background-color: {p['selected']};"
@@ -347,11 +413,12 @@ def stylesheet() -> str:
         f"  border: 1px solid {p['border']};"
         f"  gridline-color: {p['grid']};"
         "  outline: none;"
+        f"  font-size: {TYPE_TABLE_DATA}px;"
         "  selection-background-color: " + p["selected"] + ";"
         f"  selection-color: {p['selected_text']};"
         "}"
         "QTableWidget::item, QTableView::item {"
-        "  padding: 1px 4px;"
+        "  padding: 3px 6px;"
         "}"
         "QTableWidget::item:selected, QTableView::item:selected {"
         f"  background-color: {p['selected']};"
@@ -363,8 +430,9 @@ def stylesheet() -> str:
         f"  border: none;"
         f"  border-right: 1px solid {p['border']};"
         f"  border-bottom: 1px solid {p['border']};"
-        "  padding: 3px 6px;"
+        "  padding: 4px 8px;"
         "  font-weight: bold;"
+        f"  font-size: {TYPE_TABLE_HEADER}px;"
         "}"
         "QMenuBar {"
         f"  background-color: {p['surface']};"

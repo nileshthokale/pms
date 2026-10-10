@@ -1,8 +1,35 @@
 import os
 import sqlite3
+import sys
+from pathlib import Path
+
+APP_DATA_DIR_NAME = "PharmacyManagementSystem"
+APP_DB_FILE_NAME = "pharmacy.db"
 
 _DB_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
 _DB_PATH = os.path.join(_DB_DIR, "pharmacy.db")
+
+
+def get_app_data_dir() -> str:
+    """Per-user writable directory for the packaged application.
+
+    Packaging-only helper: development (unfrozen) runs keep using
+    ``data/`` next to the source tree.  A PyInstaller build (``sys.frozen``)
+    resolves to ``%LOCALAPPDATA%\\PharmacyManagementSystem`` so the EXE
+    never writes beside itself (Program Files is not writable) and never
+    touches the development database.
+    """
+    base = os.environ.get("LOCALAPPDATA")
+    if not base:
+        # Non-standard Windows setups: fall back to ~/.AppData/Local.
+        base = os.path.join(os.path.expanduser("~"), "AppData", "Local")
+    return os.path.join(base, APP_DATA_DIR_NAME)
+
+
+def _default_db_path() -> str:
+    if getattr(sys, "frozen", False):
+        return os.path.join(get_app_data_dir(), APP_DB_FILE_NAME)
+    return _DB_PATH
 
 
 def get_db_path() -> str:
@@ -15,9 +42,10 @@ def get_db_path() -> str:
     point at their own database.
 
     Production code never sets PHARMACY_DB and always uses
-    data/pharmacy.db.
+    data/pharmacy.db (development) or the per-user app-data directory
+    (packaged EXE — see get_app_data_dir()).
     """
-    db_path = os.environ.get("PHARMACY_DB") or _DB_PATH
+    db_path = os.environ.get("PHARMACY_DB") or _default_db_path()
     # The full-suite runner sets this guard so a test that accidentally drops
     # PHARMACY_DB (or points it back at the app database) still cannot open
     # the real business database for writing.

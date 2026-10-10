@@ -266,7 +266,7 @@ class SalesReportPage(QWidget):
             f"QHeaderView::section {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: none; border-bottom: 2px solid {_ACCENT};"
-            f"  padding: 3px 6px; font-weight: bold; font-size: 9pt;"
+            f"  padding: 3px 6px; font-weight: bold; font-size: 12px;"
             f"  font-family: 'Segoe UI';"
             f"}}"
         )
@@ -274,7 +274,7 @@ class SalesReportPage(QWidget):
             f"QTableWidget {{"
             f"  background-color: {_DARK_BG}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; gridline-color: {_BORDER};"
-            f"  font-size: 11px; font-family: 'Segoe UI';"
+            f"  font-size: 13px; font-family: 'Segoe UI';"
             f"  selection-background-color: {_ACCENT}; selection-color: white;"
             f"}}"
             f"QTableWidget::item {{ padding: 2px 5px; }}"

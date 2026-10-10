@@ -19,3 +19,7 @@ run*.log
 *.db_restored-journal
 pms/
 PharmaWinner*.sql
+# Windows packaging (PyInstaller) — release output and work files.
+# build/windows/pharmacy_management.spec stays tracked.
+dist/
+build/pharmacy_management/

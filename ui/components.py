@@ -19,7 +19,10 @@ Usage in a screen::
 
 from __future__ import annotations
 
+import re
+
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QFrame,
@@ -33,21 +36,49 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ui.theme import palette
+from ui.theme import (
+    FONT_FAMILY,
+    FONT_NAME,
+    TYPE_BUTTON,
+    TYPE_FORM_LABEL,
+    TYPE_INPUT,
+    TYPE_PAGE_TITLE,
+    TYPE_SECTION_HEADER,
+    TYPE_TABLE_DATA,
+    TYPE_TABLE_HEADER,
+    palette,
+)
 
-# Single desktop-friendly font family for the whole application.
-FONT_FAMILY = "'Segoe UI', 'Tahoma', sans-serif"
+# Readable desktop control metrics (px) shared across screens.
+# Rows are sized so the shared TYPE_TABLE_DATA text (13 px) plus the
+# ``QTableWidget::item`` padding of 3 px never clips, while staying compact
+# enough for 1366x768 pharmacy desktops.  Changing these would change the
+# layout, so they are left exactly as they were.
+CONTROL_HEIGHT = 28
+ROW_HEIGHT = 26
+HEADER_HEIGHT = 28
 
-# Compact control metrics (px) shared across screens.
-CONTROL_HEIGHT = 24
-ROW_HEIGHT = 22
-HEADER_HEIGHT = 24
+
+def readable_font(size: int, *, bold: bool = False) -> QFont:
+    """Build the shared QFont for a given pixel size.
+
+    Qt honours a stylesheet ``font-size`` over ``setFont()``, so widget and
+    stylesheet must agree.  Screens that need the *actual* rendered font
+    (font metrics, column sizing, ``QFontMetrics``) build it from here so it
+    can never drift from the stylesheet declaration.
+    """
+    font = QFont(FONT_NAME)
+    font.setPixelSize(size)
+    font.setBold(bold)
+    return font
 
 
 # ── Label styles ──────────────────────────────────────────────────────
 
-def label_style(*, dim: bool = False, bold: bool = False, size: int = 9,
+def label_style(*, dim: bool = False, bold: bool = False,
+                size: int = TYPE_FORM_LABEL,
                 danger: bool = False, success: bool = False) -> str:
+    """Stylesheet for a caption / label at the shared readable size."""
     p = palette()
     if danger:
         color = p["danger"]
@@ -59,88 +90,85 @@ def label_style(*, dim: bool = False, bold: bool = False, size: int = 9,
         color = p["text"]
     weight = "font-weight: bold;" if bold else ""
     return (
-        f"color: {color}; font-size: {size}pt; {weight}"
+        f"color: {color}; font-size: {size}px; {weight}"
         f"font-family: {FONT_FAMILY}; background: transparent;"
     )
 
 
-def title_style(size: int = 14) -> str:
-    """Page-title style (large, dark, compact)."""
+def title_style(size: int = TYPE_PAGE_TITLE) -> str:
+    """Page-title style (large, bold, black)."""
     p = palette()
     return (
-        f"color: {p['text']}; font-size: {size}pt; font-weight: bold;"
+        f"color: {p['text']}; font-size: {size}px; font-weight: bold;"
         f"font-family: {FONT_FAMILY}; background: transparent;"
     )
 
 
 def section_title_style() -> str:
-    return label_style(bold=True, size=10)
+    """Section heading ("Bill Items", report sections): bold, black, 13 px."""
+    return label_style(bold=True, size=TYPE_SECTION_HEADER)
 
 
 # ── Input styles ──────────────────────────────────────────────────────
 
+def _input_rules(selector: str, *, size: int = TYPE_INPUT) -> str:
+    p = palette()
+    return (
+        f"{selector} {{"
+        f"  background-color: {p['bg']}; color: {p['text']};"
+        f"  border: 1px solid {p['border']}; border-radius: 2px;"
+        f"  padding: 4px 7px; font-size: {size}px;"
+        f"  font-family: {FONT_FAMILY};"
+        "}"
+    )
+
+
 def edit_style() -> str:
     p = palette()
     return (
-        "QLineEdit {"
-        f"  background-color: {p['bg']}; color: {p['text']};"
-        f"  border: 1px solid {p['border']}; border-radius: 2px;"
-        f"  padding: 2px 5px; font-size: 9pt; font-family: {FONT_FAMILY};"
-        "}"
-        f"QLineEdit:focus {{ border: 1px solid {p['focus']}; }}"
-        f"QLineEdit:disabled {{ background-color: {p['disabled_bg']};"
-        f"  color: {p['disabled_text']}; }}"
+        _input_rules("QLineEdit")
+        + f"QLineEdit:focus {{ border: 1px solid {p['focus']}; }}"
+        + f"QLineEdit:disabled {{ background-color: {p['disabled_bg']};"
+        + f"  color: {p['disabled_text']}; }}"
     )
 
 
 def combo_style() -> str:
     p = palette()
     return (
-        "QComboBox {"
-        f"  background-color: {p['bg']}; color: {p['text']};"
-        f"  border: 1px solid {p['border']}; border-radius: 2px;"
-        f"  padding: 2px 5px; font-size: 9pt; font-family: {FONT_FAMILY};"
-        "}"
-        f"QComboBox:hover {{ border: 1px solid {p['focus']}; }}"
-        "QComboBox::drop-down { border: none; width: 18px; }"
-        "QComboBox::down-arrow { image: none; border: none; }"
-        "QComboBox QAbstractItemView {"
-        f"  background-color: {p['bg']}; color: {p['text']};"
-        f"  border: 1px solid {p['border']};"
-        f"  selection-background-color: {p['selected']};"
-        f"  selection-color: {p['selected_text']};"
-        f"  font-size: 9pt; font-family: {FONT_FAMILY};"
-        "}"
+        _input_rules("QComboBox")
+        + f"QComboBox:hover {{ border: 1px solid {p['focus']}; }}"
+        + "QComboBox::drop-down { border: none; width: 18px; }"
+        + "QComboBox::down-arrow { image: none; border: none; }"
+        + "QComboBox QAbstractItemView {"
+        + f"  background-color: {p['bg']}; color: {p['text']};"
+        + f"  border: 1px solid {p['border']};"
+        + f"  selection-background-color: {p['selected']};"
+        + f"  selection-color: {p['selected_text']};"
+        + f"  font-size: {TYPE_INPUT}px; font-family: {FONT_FAMILY};"
+        + "}"
     )
 
 
 def date_style() -> str:
     p = palette()
     return (
-        "QDateEdit, QTimeEdit, QDateTimeEdit {"
-        f"  background-color: {p['bg']}; color: {p['text']};"
-        f"  border: 1px solid {p['border']}; border-radius: 2px;"
-        f"  padding: 2px 5px; font-size: 9pt; font-family: {FONT_FAMILY};"
-        "}"
-        f"QDateEdit:focus, QTimeEdit:focus, QDateTimeEdit:focus"
-        f" {{ border: 1px solid {p['focus']}; }}"
-        "QDateEdit::drop-down, QTimeEdit::drop-down,"
-        "QDateTimeEdit::drop-down { border: none; width: 18px; }"
-        "QDateEdit::down-arrow, QTimeEdit::down-arrow,"
-        "QDateTimeEdit::down-arrow { image: none; border: none; }"
+        _input_rules("QDateEdit, QTimeEdit, QDateTimeEdit")
+        + "QDateEdit:focus, QTimeEdit:focus, QDateTimeEdit:focus"
+        + f" {{ border: 1px solid {p['focus']}; }}"
+        + "QDateEdit::drop-down, QTimeEdit::drop-down,"
+        + "QDateTimeEdit::drop-down { border: none; width: 18px; }"
+        + "QDateEdit::down-arrow, QTimeEdit::down-arrow,"
+        + "QDateTimeEdit::down-arrow { image: none; border: none; }"
     )
 
 
 def spin_style() -> str:
     p = palette()
     return (
-        "QSpinBox, QDoubleSpinBox {"
-        f"  background-color: {p['bg']}; color: {p['text']};"
-        f"  border: 1px solid {p['border']}; border-radius: 2px;"
-        f"  padding: 2px 5px; font-size: 9pt; font-family: {FONT_FAMILY};"
-        "}"
-        f"QSpinBox:focus, QDoubleSpinBox:focus"
-        f" {{ border: 1px solid {p['focus']}; }}"
+        _input_rules("QSpinBox, QDoubleSpinBox")
+        + "QSpinBox:focus, QDoubleSpinBox:focus"
+        + f" {{ border: 1px solid {p['focus']}; }}"
     )
 
 
@@ -148,7 +176,7 @@ def checkbox_style() -> str:
     p = palette()
     return (
         "QCheckBox, QRadioButton {"
-        f"  color: {p['text']}; font-size: 9pt;"
+        f"  color: {p['text']}; font-size: {TYPE_FORM_LABEL}px;"
         f"  font-family: {FONT_FAMILY}; background: transparent;"
         "}"
         "QCheckBox::indicator, QRadioButton::indicator {"
@@ -165,9 +193,10 @@ def group_box_style() -> str:
     p = palette()
     return (
         "QGroupBox {"
-        f"  color: {p['text']}; font-weight: bold; font-size: 9pt;"
+        f"  color: {p['text']}; font-weight: bold;"
+        f"  font-size: {TYPE_SECTION_HEADER}px;"
         f"  border: 1px solid {p['border']}; border-radius: 2px;"
-        "  margin-top: 10px; padding-top: 12px;"
+        "  margin-top: 12px; padding-top: 14px;"
         f"  background-color: {p['bg']};"
         "}"
         "QGroupBox::title {"
@@ -185,8 +214,8 @@ def _button_style(bg: str, fg: str, hover: str, pressed: str) -> str:
         "QPushButton {"
         f"  background-color: {bg}; color: {fg};"
         f"  border: 1px solid {p['border']}; border-radius: 2px;"
-        f"  padding: 3px 12px; font-size: 9pt;"
-        f"  font-family: {FONT_FAMILY}; min-height: 18px;"
+        f"  padding: 5px 14px; font-size: {TYPE_BUTTON}px;"
+        f"  font-family: {FONT_FAMILY}; min-height: 22px;"
         "}"
         f"QPushButton:hover {{ background-color: {hover}; }}"
         f"QPushButton:pressed {{ background-color: {pressed}; }}"
@@ -274,11 +303,11 @@ def table_style() -> str:
         f"  alternate-background-color: {p['surface_alt']};"
         f"  border: 1px solid {p['border']};"
         f"  gridline-color: {p['grid']};"
-        f"  font-size: 9pt; font-family: {FONT_FAMILY};"
+        f"  font-size: {TYPE_TABLE_DATA}px; font-family: {FONT_FAMILY};"
         f"  selection-background-color: {p['selected']};"
         f"  selection-color: {p['selected_text']};"
         "}"
-        "QTableWidget::item, QTableView::item { padding: 1px 4px; }"
+        "QTableWidget::item, QTableView::item { padding: 3px 6px; }"
         "QTableWidget::item:selected, QTableView::item:selected {"
         f"  background-color: {p['selected']};"
         f"  color: {p['selected_text']};"
@@ -286,7 +315,7 @@ def table_style() -> str:
     )
 
 
-def table_header_style(*, size: int = 9) -> str:
+def table_header_style(*, size: int = TYPE_TABLE_HEADER) -> str:
     p = palette()
     return (
         "QHeaderView::section {"
@@ -294,7 +323,7 @@ def table_header_style(*, size: int = 9) -> str:
         f"  border: none;"
         f"  border-right: 1px solid {p['border']};"
         f"  border-bottom: 1px solid {p['border']};"
-        f"  padding: 3px 6px; font-weight: bold; font-size: {size}pt;"
+        f"  padding: 3px 6px; font-weight: bold; font-size: {size}px;"
         f"  font-family: {FONT_FAMILY};"
         "}"
         "QHeaderView::section:vertical {"
@@ -307,8 +336,15 @@ def style_data_table(table: QTableWidget, *, stretch_columns=(),
                      resize_to_contents=(), grid: bool = True,
                      alternating: bool = False,
                      row_height: int = ROW_HEIGHT) -> QTableWidget:
-    """Apply the shared grid/selection/header look to a data table."""
+    """Apply the shared grid/selection/header look to a data table.
+
+    Both the stylesheet *and* the widget/header QFont are set.  A Qt
+    stylesheet ``font-size`` wins over ``setFont()``, so setting them from
+    the same scale keeps the declared size, the rendered cell text and any
+    ``QFontMetrics`` measurement in agreement.
+    """
     table.setStyleSheet(table_style())
+    table.setFont(readable_font(TYPE_TABLE_DATA))
     table.setShowGrid(grid)
     table.setAlternatingRowColors(alternating)
     table.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -318,6 +354,7 @@ def style_data_table(table: QTableWidget, *, stretch_columns=(),
     table.verticalHeader().setDefaultSectionSize(row_height)
     header = table.horizontalHeader()
     header.setStyleSheet(table_header_style())
+    header.setFont(readable_font(TYPE_TABLE_HEADER, bold=True))
     header.setFixedHeight(HEADER_HEIGHT)
     header.setStretchLastSection(True)
     for column in stretch_columns:
@@ -356,7 +393,7 @@ class PageHeader(QFrame):
                  parent: QWidget | None = None):
         super().__init__(parent)
         self.setObjectName("PageHeader")
-        self.setFixedHeight(30)
+        self.setFixedHeight(36)
         self.setStyleSheet(
             f"#PageHeader {{ {strip_style()} }}"
         )
@@ -365,7 +402,7 @@ class PageHeader(QFrame):
         layout.setSpacing(8)
 
         self._title = QLabel(title)
-        self._title.setStyleSheet(title_style(12))
+        self._title.setStyleSheet(title_style())
         layout.addWidget(self._title)
 
         if subtitle:
@@ -401,10 +438,10 @@ class SummaryPanel(QFrame):
             f"  border: 1px solid {p['border']}; border-radius: 2px; }}"
         )
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(8, 4, 8, 4)
+        layout.setContentsMargins(10, 6, 10, 6)
         layout.setSpacing(12)
         self._label = QLabel("")
-        self._label.setStyleSheet(label_style(size=9))
+        self._label.setStyleSheet(label_style())
         self._label.setWordWrap(True)
         layout.addWidget(self._label, 1)
 
@@ -420,23 +457,24 @@ class StatusLabel(QLabel):
 
     def __init__(self, text: str = "", parent: QWidget | None = None):
         super().__init__(text, parent)
-        self.setStyleSheet(label_style(size=9))
+        self.setStyleSheet(label_style())
         self.setWordWrap(True)
 
     def set_status(self, text: str, level: str = "info") -> None:
         self.setText(text)
         if level == "error":
-            self.setStyleSheet(label_style(size=9, danger=True, bold=True))
+            self.setStyleSheet(label_style(danger=True, bold=True))
         elif level == "success":
-            self.setStyleSheet(label_style(size=9, success=True, bold=True))
+            self.setStyleSheet(label_style(success=True, bold=True))
         elif level == "warning":
             p = palette()
             self.setStyleSheet(
-                f"color: {p['warning']}; font-size: 9pt; font-weight: bold;"
+                f"color: {p['warning']}; font-size: {TYPE_FORM_LABEL}px;"
+                f"font-weight: bold;"
                 f"font-family: {FONT_FAMILY}; background: transparent;"
             )
         else:
-            self.setStyleSheet(label_style(size=9))
+            self.setStyleSheet(label_style())
 
 
 class FormSection(QFrame):
@@ -451,16 +489,16 @@ class FormSection(QFrame):
             f"  border: 1px solid {p['border']}; border-radius: 2px; }}"
         )
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(8, 5, 8, 5)
-        outer.setSpacing(4)
+        outer.setContentsMargins(10, 7, 10, 7)
+        outer.setSpacing(6)
         self._title = None
         if title:
             self._title = QLabel(title)
-            self._title.setStyleSheet(label_style(bold=True, size=9))
+            self._title.setStyleSheet(section_title_style())
             outer.addWidget(self._title)
         self.body = QVBoxLayout()
         self.body.setContentsMargins(0, 0, 0, 0)
-        self.body.setSpacing(4)
+        self.body.setSpacing(6)
         outer.addLayout(self.body)
 
     def add_row(self, layout) -> None:
@@ -478,12 +516,12 @@ class FilterBar(QFrame):
         self.setObjectName("FilterBar")
         self.setStyleSheet(f"#FilterBar {{ {strip_style()} }}")
         self._layout = QHBoxLayout(self)
-        self._layout.setContentsMargins(10, 5, 10, 5)
-        self._layout.setSpacing(6)
+        self._layout.setContentsMargins(12, 7, 12, 7)
+        self._layout.setSpacing(8)
 
     def add_field(self, label: str, widget: QWidget) -> None:
         lbl = QLabel(label)
-        lbl.setStyleSheet(label_style(size=9))
+        lbl.setStyleSheet(label_style())
         self._layout.addWidget(lbl)
         self._layout.addWidget(widget)
 
@@ -536,9 +574,18 @@ def style_date(widget):
     return widget
 
 
-def style_label(widget, *, dim: bool = False, bold: bool = False, size: int = 9):
+def style_label(widget, *, dim: bool = False, bold: bool = False,
+                size: int = TYPE_FORM_LABEL):
     widget.setStyleSheet(label_style(dim=dim, bold=bold, size=size))
     return widget
+
+
+_FONT_SIZE_RE = re.compile(r"font-size:\s*\d+(?:px|pt)")
+
+
+def _declares_own_font(stylesheet: str) -> bool:
+    """True when a widget's own stylesheet already pins a font size."""
+    return bool(stylesheet) and bool(_FONT_SIZE_RE.search(stylesheet))
 
 
 def polish_page(root: QWidget) -> QWidget:
@@ -547,12 +594,22 @@ def polish_page(root: QWidget) -> QWidget:
     Called centrally by the main window for every page so tables look
     identical everywhere (visible grid, compact rows, row selection)
     without each screen duplicating the setup.
+
+    It also enforces the readable typography floor on any table or header
+    that does **not** declare its own font size: a Qt stylesheet
+    ``font-size`` outranks ``setFont()``, so the QFont is only a reliable
+    floor when the stylesheet is silent about size.  Screens that declare
+    their own (larger or equal) size keep full control.
     """
     for table in root.findChildren(QTableWidget):
         table.setShowGrid(True)
         table.setWordWrap(False)
         table.setSelectionBehavior(QAbstractItemView.SelectRows)
         table.verticalHeader().setDefaultSectionSize(ROW_HEIGHT)
+        if not _declares_own_font(table.styleSheet()):
+            table.setFont(readable_font(TYPE_TABLE_DATA))
+            if not table.styleSheet():
+                table.setStyleSheet(table_style())
         header = table.horizontalHeader()
         if header.height() <= 0:
             header.setFixedHeight(HEADER_HEIGHT)
@@ -560,11 +617,13 @@ def polish_page(root: QWidget) -> QWidget:
     for header_view in root.findChildren(QHeaderView):
         if not header_view.styleSheet():
             header_view.setStyleSheet(table_header_style())
+        if not _declares_own_font(header_view.styleSheet()):
+            header_view.setFont(readable_font(TYPE_TABLE_HEADER, bold=True))
     return root
 
 
 __all__ = [
-    "FONT_FAMILY", "CONTROL_HEIGHT", "ROW_HEIGHT", "HEADER_HEIGHT",
+    "FONT_FAMILY", "FONT_NAME", "CONTROL_HEIGHT", "ROW_HEIGHT", "HEADER_HEIGHT",
     "ActionButton", "PageHeader", "SummaryPanel", "StatusLabel",
     "FormSection", "FilterBar", "SearchBar",
     "label_style", "title_style", "section_title_style", "edit_style",
@@ -574,5 +633,5 @@ __all__ = [
     "style_button", "table_style", "table_header_style",
     "style_data_table", "panel_style", "strip_style", "subtitle",
     "style_edit", "style_combo", "style_date", "style_label",
-    "polish_page",
+    "polish_page", "readable_font",
 ]

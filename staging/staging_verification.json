@@ -1,0 +1,919 @@
+{
+  "ok": false,
+  "checks": [
+    {
+      "name": "integrity_check",
+      "value": "ok",
+      "ok": true
+    },
+    {
+      "name": "foreign_key_check",
+      "value": 0,
+      "ok": true
+    },
+    {
+      "name": "count:companies",
+      "source": "companymst",
+      "expected": 1219,
+      "actual": 1219,
+      "ok": true
+    },
+    {
+      "name": "count:units",
+      "source": "unitmst",
+      "expected": 16,
+      "actual": 16,
+      "ok": true
+    },
+    {
+      "name": "count:drugs",
+      "source": "drugmst",
+      "expected": 147,
+      "actual": 147,
+      "ok": true
+    },
+    {
+      "name": "count:doctors",
+      "source": "doctormst",
+      "expected": 7,
+      "actual": 7,
+      "ok": true
+    },
+    {
+      "name": "count:items",
+      "source": "itemmst",
+      "expected": 939,
+      "actual": 939,
+      "ok": true
+    },
+    {
+      "name": "count:item_ingredients",
+      "source": "itemdrugs",
+      "expected": 402,
+      "actual": 402,
+      "ok": true
+    },
+    {
+      "name": "count:purchase_invoices",
+      "source": "invoicevhheader",
+      "expected": 5713,
+      "actual": 5713,
+      "ok": true
+    },
+    {
+      "name": "count:purchase_invoice_items",
+      "source": "invoiceitemdetail",
+      "expected": 11891,
+      "actual": 11891,
+      "ok": true
+    },
+    {
+      "name": "count:sales_invoices",
+      "source": "salesvhheader",
+      "expected": 72045,
+      "actual": 72045,
+      "ok": true
+    },
+    {
+      "name": "count:sales_invoice_items",
+      "source": "salesitemdetail",
+      "expected": 233598,
+      "actual": 233598,
+      "ok": true
+    },
+    {
+      "name": "count:credit_notes",
+      "source": "creditnotevhheader",
+      "expected": 1349,
+      "actual": 1349,
+      "ok": true
+    },
+    {
+      "name": "count:credit_note_items",
+      "source": "creditnoteitemdetail",
+      "expected": 3329,
+      "actual": 3329,
+      "ok": true
+    },
+    {
+      "name": "count:debit_notes",
+      "source": "debitnotevhheader",
+      "expected": 14,
+      "actual": 14,
+      "ok": true
+    },
+    {
+      "name": "count:debit_note_items",
+      "source": "debitnoteitemdetail",
+      "expected": 20,
+      "actual": 20,
+      "ok": true
+    },
+    {
+      "name": "count:customer_receipts",
+      "source": "receiptvhheader",
+      "expected": 44,
+      "actual": 44,
+      "ok": true
+    },
+    {
+      "name": "count:supplier_payments",
+      "source": "paymentvhheader",
+      "expected": 785,
+      "actual": 785,
+      "ok": true
+    },
+    {
+      "name": "count:stock_batches",
+      "source": "stockbalance",
+      "expected": 0,
+      "actual": 7616,
+      "ok": false
+    },
+    {
+      "name": "count:financial_years",
+      "source": "acyear",
+      "expected": 12,
+      "actual": 12,
+      "ok": true
+    },
+    {
+      "name": "count:account_ledgers",
+      "expected": 123,
+      "actual": 123,
+      "ok": true
+    },
+    {
+      "name": "count:ledger_transactions",
+      "expected": 157264,
+      "actual": 157264,
+      "ok": true
+    },
+    {
+      "name": "mapping:ledger_ids",
+      "expected": 123,
+      "actual": 123,
+      "ok": true
+    },
+    {
+      "name": "mapping:item_ids",
+      "expected": 942,
+      "actual": 942,
+      "ok": true
+    },
+    {
+      "name": "mapping:company_ids",
+      "expected": 1222,
+      "actual": 1222,
+      "ok": true
+    },
+    {
+      "name": "mapping:unit_ids",
+      "expected": 16,
+      "actual": 16,
+      "ok": true
+    },
+    {
+      "name": "mapping:drug_ids",
+      "expected": 147,
+      "actual": 147,
+      "ok": true
+    },
+    {
+      "name": "mapping:doctor_ids",
+      "expected": 8,
+      "actual": 8,
+      "ok": true
+    },
+    {
+      "name": "no_legacy_password_hashes_active",
+      "value": 0,
+      "ok": true
+    }
+  ],
+  "issues": [
+    "stock_batches: expected 0 from stockbalance, found 7616",
+    "stock reconciliation mismatches: 1866"
+  ],
+  "integrity_check": "ok",
+  "foreign_key_violations": 0,
+  "legacy_users_imported": 0,
+  "stock_reconciliation": {
+    "legacy_batches": 7792,
+    "duplicate_legacy_rows": 1,
+    "imported_batches": 7616,
+    "mismatches": 1866,
+    "missing": 178,
+    "details": [
+      {
+        "legacy_item": 3,
+        "batch": "CARE UNI",
+        "legacy_qty": 1.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 4,
+        "batch": "01129",
+        "legacy_qty": 60.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 6,
+        "batch": "ABB258A",
+        "legacy_qty": 0.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 7,
+        "batch": "JP10131",
+        "legacy_qty": 1.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 8,
+        "batch": "JMS95",
+        "legacy_qty": 1.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 13,
+        "batch": "MN4863",
+        "legacy_qty": 10.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 13,
+        "batch": "MR1748",
+        "legacy_qty": 1.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 14,
+        "batch": "PW 20A017",
+        "legacy_qty": 1.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 16,
+        "batch": "N142033",
+        "legacy_qty": 0.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 18,
+        "batch": "16A14010",
+        "legacy_qty": 3.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 20,
+        "batch": "AEF207A",
+        "legacy_qty": 103.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 22,
+        "batch": "ALA14006",
+        "legacy_qty": 10.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 26,
+        "batch": "NP214",
+        "legacy_qty": 1.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 27,
+        "batch": "GU1406",
+        "legacy_qty": 10.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 29,
+        "batch": "S130604",
+        "legacy_qty": 2.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 34,
+        "batch": "040037",
+        "legacy_qty": 4.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 36,
+        "batch": "BLB236A",
+        "legacy_qty": 70.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 37,
+        "batch": "LOMOJACK12",
+        "legacy_qty": 134.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 39,
+        "batch": "YMS1310",
+        "legacy_qty": 67.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 41,
+        "batch": "GM1858",
+        "legacy_qty": 50.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 42,
+        "batch": "01N4061",
+        "legacy_qty": 7.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 44,
+        "batch": "NMF4001",
+        "legacy_qty": 7.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 44,
+        "batch": "NMF4002",
+        "legacy_qty": 9.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 45,
+        "batch": "3671501",
+        "legacy_qty": 123.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 46,
+        "batch": "ARNMT 3009",
+        "legacy_qty": 9.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 47,
+        "batch": "D300311",
+        "legacy_qty": -2.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 47,
+        "batch": "D3003112",
+        "legacy_qty": 10.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 48,
+        "batch": "CLM401A",
+        "legacy_qty": 51.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 49,
+        "batch": "2131158",
+        "legacy_qty": 60.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 50,
+        "batch": "KN2736",
+        "legacy_qty": 4.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 51,
+        "batch": "PGT041517",
+        "legacy_qty": 1.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 52,
+        "batch": "PGR041407",
+        "legacy_qty": 21.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 53,
+        "batch": "JM10563",
+        "legacy_qty": 120.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 55,
+        "batch": "E400179",
+        "legacy_qty": 10.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 57,
+        "batch": "****",
+        "legacy_qty": 2.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 58,
+        "batch": "LL1249",
+        "legacy_qty": 50.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 59,
+        "batch": "5E07M",
+        "legacy_qty": 3.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 61,
+        "batch": "8G24S",
+        "legacy_qty": 5.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 63,
+        "batch": "2501286",
+        "legacy_qty": 1.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 69,
+        "batch": "TA0034",
+        "legacy_qty": 4.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 70,
+        "batch": "D0042",
+        "legacy_qty": 7.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 71,
+        "batch": "38312",
+        "legacy_qty": 2.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 72,
+        "batch": "146005EH",
+        "legacy_qty": -42.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 72,
+        "batch": "14Z013EH",
+        "legacy_qty": 5.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 74,
+        "batch": "13001AD",
+        "legacy_qty": 60.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 76,
+        "batch": "XZAK 04",
+        "legacy_qty": 2.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 77,
+        "batch": "YTM2082",
+        "legacy_qty": 1.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 82,
+        "batch": "B130115",
+        "legacy_qty": 45.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 85,
+        "batch": "2S31004",
+        "legacy_qty": 1.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 86,
+        "batch": "WG12390",
+        "legacy_qty": 0.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 88,
+        "batch": "FAP2H26",
+        "legacy_qty": 21.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 89,
+        "batch": "S4010",
+        "legacy_qty": 8.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 90,
+        "batch": "PUT-1625",
+        "legacy_qty": 566.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 91,
+        "batch": "B133838",
+        "legacy_qty": 26.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 92,
+        "batch": "ZRP161202",
+        "legacy_qty": 29.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 95,
+        "batch": "A6ABN082",
+        "legacy_qty": 8.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 96,
+        "batch": "EWH014012D",
+        "legacy_qty": 0.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 97,
+        "batch": "1201001889",
+        "legacy_qty": 1.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 98,
+        "batch": "CARE XL",
+        "legacy_qty": 4.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 99,
+        "batch": "4130744",
+        "legacy_qty": 48.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 100,
+        "batch": "EZTF4012MU",
+        "legacy_qty": 1.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 100,
+        "batch": "EZTF5003M",
+        "legacy_qty": 1.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 101,
+        "batch": "11012",
+        "legacy_qty": 2.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 102,
+        "batch": "PVD0013",
+        "legacy_qty": 9.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 104,
+        "batch": "ADM2357",
+        "legacy_qty": 8.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 105,
+        "batch": "12005S",
+        "legacy_qty": 47.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 106,
+        "batch": "16A12001",
+        "legacy_qty": 48.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 110,
+        "batch": "1401001411",
+        "legacy_qty": 0.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 112,
+        "batch": "0140335",
+        "legacy_qty": 1.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 115,
+        "batch": "B1122401",
+        "legacy_qty": 70.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 116,
+        "batch": "AT-090115",
+        "legacy_qty": 37.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 116,
+        "batch": "AT-120812",
+        "legacy_qty": 21.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 117,
+        "batch": "AT-090712",
+        "legacy_qty": 77.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 118,
+        "batch": "RC31217",
+        "legacy_qty": 14.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 118,
+        "batch": "RC40803",
+        "legacy_qty": 5.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 118,
+        "batch": "RC40904",
+        "legacy_qty": 41.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 119,
+        "batch": "RB40705",
+        "legacy_qty": 0.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 120,
+        "batch": "248150",
+        "legacy_qty": 3.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 124,
+        "batch": "**",
+        "legacy_qty": 166.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 125,
+        "batch": "14TRB014A",
+        "legacy_qty": 2.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 125,
+        "batch": "15TRB002A",
+        "legacy_qty": 7.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 127,
+        "batch": "209245",
+        "legacy_qty": 10.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 128,
+        "batch": "ZHM3054",
+        "legacy_qty": 76.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 131,
+        "batch": "3961N",
+        "legacy_qty": 10.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 132,
+        "batch": "CARE",
+        "legacy_qty": 5.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 133,
+        "batch": "DF3170",
+        "legacy_qty": 150.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 136,
+        "batch": "3762N",
+        "legacy_qty": 10.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 139,
+        "batch": "05122171",
+        "legacy_qty": 0.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 141,
+        "batch": "4045",
+        "legacy_qty": 3.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 142,
+        "batch": "**",
+        "legacy_qty": 1.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 143,
+        "batch": "CARE UNI",
+        "legacy_qty": 5.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 146,
+        "batch": "**",
+        "legacy_qty": 3.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 148,
+        "batch": "MVT/2021C",
+        "legacy_qty": 62.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 150,
+        "batch": "5212011",
+        "legacy_qty": 15.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 152,
+        "batch": "A7ACN011",
+        "legacy_qty": 94.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 153,
+        "batch": "CARE",
+        "legacy_qty": 4.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 155,
+        "batch": "VIS",
+        "legacy_qty": 1.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 159,
+        "batch": "BTK034006A",
+        "legacy_qty": 84.0,
+        "new_qty": 0.0,
+        "reason": "quantity differs"
+      },
+      {
+        "legacy_item": 160,
+        "batch": "OPEN PATEL",
+        "legacy_qty": 5.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      },
+      {
+        "legacy_item": 161,
+        "batch": "E300806",
+        "legacy_qty": 1.0,
+        "new_qty": null,
+        "reason": "batch not imported"
+      }
+    ]
+  },
+  "orphans": {
+    "sales_invoice_items_without_invoice": 0,
+    "sales_invoice_items_without_item": 0,
+    "sales_invoice_items_without_batch": 0,
+    "purchase_invoice_items_without_invoice": 0,
+    "ledger_transactions_without_ledger": 0,
+    "customers_without_ledger": 0,
+    "suppliers_without_ledger": 0
+  }
+}

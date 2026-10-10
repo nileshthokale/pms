@@ -17,6 +17,7 @@ GUI tests are skipped only when PySide6 is unavailable.
 """
 
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -35,6 +36,15 @@ try:
 except ImportError as _exc:
     HAS_PYSIDE6 = False
     _PYSIDE_SKIP_REASON = f"PySide6 not available ({_exc})"
+
+
+def _font_size(stylesheet: str) -> int | None:
+    """Font size declared in a stylesheet, in px (``pt`` normalised at 96 dpi)."""
+    match = re.search(r"font-size:\s*(\d+)(px|pt)", stylesheet)
+    if not match:
+        return None
+    value = int(match.group(1))
+    return value if match.group(2) == "px" else round(value * 96 / 72)
 
 
 def _make_row(index: int = 1) -> "_BillItemRow":
@@ -170,8 +180,7 @@ class CounterSaleUITests(unittest.TestCase):
 
     # -- 3. Readable font size ----------------------------------------
     def test_06_page_title_font_readable(self):
-        """Page title font must be 16-18 px."""
-        import re
+        """Page title must be 16-18 px, bold and black."""
         title = None
         from PySide6.QtWidgets import QLabel
         for lbl in self.page.findChildren(QLabel):
@@ -180,86 +189,109 @@ class CounterSaleUITests(unittest.TestCase):
                 break
         self.assertIsNotNone(title, "page title label not found")
         ss = title.styleSheet()
-        match = re.search(r"font-size:\s*(\d+)px", ss)
-        self.assertIsNotNone(match, "title font-size not found in stylesheet")
-        px_size = int(match.group(1))
-        self.assertGreaterEqual(px_size, 16,
-                                f"title font too small: {px_size}px")
-        self.assertLessEqual(px_size, 18,
-                             f"title font too large: {px_size}px")
+        size = _font_size(ss)
+        self.assertIsNotNone(size, "title font-size not found in stylesheet")
+        self.assertGreaterEqual(size, 16, f"title font too small: {size}px")
+        self.assertLessEqual(size, 18, f"title font too large: {size}px")
+        self.assertIn("font-weight: bold", ss, "page title must be bold")
+        self.assertIn("#000000", ss, "page title must be black")
 
     # -- 4. Table header font -----------------------------------------
     def test_07_history_table_header_font(self):
-        """History table headers must be bold and 10-11 px."""
+        """History table headers must be bold, black and 12-13 px."""
         hv = self.hist.horizontalHeader()
         ss = hv.styleSheet()
         self.assertIn("font-weight: bold", ss,
                       "history table header must be bold")
-        self.assertIn("font-size: 11px", ss,
-                      "history table header font must be 11px")
+        size = _font_size(hv.styleSheet())
+        self.assertGreaterEqual(size, 12,
+                                f"history header font too small: {size}px")
+        self.assertLessEqual(size, 13,
+                             f"history header font too large: {size}px")
+        self.assertEqual(hv.font().pixelSize(), size,
+                         "header QFont must match its stylesheet size")
 
     def test_08_bill_table_header_font(self):
-        """Bill table headers must be bold and 10-11 px."""
+        """Bill table headers must be bold, black and 12-13 px."""
         hv = self.bill_table.horizontalHeader()
         ss = hv.styleSheet()
         self.assertIn("font-weight: bold", ss,
                       "bill table header must be bold")
-        self.assertIn("font-size: 11px", ss,
-                      "bill table header font must be 11px")
+        size = _font_size(ss)
+        self.assertGreaterEqual(size, 12,
+                                f"bill table header font too small: {size}px")
+        self.assertLessEqual(size, 13,
+                             f"bill table header font too large: {size}px")
+        self.assertEqual(hv.font().pixelSize(), size,
+                         "header QFont must match its stylesheet size")
 
     def test_09_history_table_cell_font(self):
-        """History table cells must be 10-11 px."""
-        ss = self.hist.styleSheet()
-        self.assertIn("font-size: 11px", ss,
-                      "history table cell font must be 11px")
+        """History table cells must be 12-13 px black."""
+        size = _font_size(self.hist.styleSheet())
+        self.assertGreaterEqual(size, 12,
+                                f"history cell font too small: {size}px")
+        self.assertLessEqual(size, 13,
+                             f"history cell font too large: {size}px")
+        self.assertIn("#000000", self.hist.styleSheet(),
+                      "history cell text must be black")
 
     def test_10_bill_table_cell_font(self):
-        """Bill table cells must be 10-11 px."""
-        ss = self.bill_table.styleSheet()
-        self.assertIn("font-size: 11px", ss,
-                      "bill table cell font must be 11px")
+        """Bill table cells must be 12-13 px black."""
+        size = _font_size(self.bill_table.styleSheet())
+        self.assertGreaterEqual(size, 12,
+                                f"bill table cell font too small: {size}px")
+        self.assertLessEqual(size, 13,
+                             f"bill table cell font too large: {size}px")
+        self.assertIn("#000000", self.bill_table.styleSheet(),
+                      "bill table cell text must be black")
 
     # -- 5. Active-entry font -----------------------------------------
     def test_11_active_entry_labels_readable(self):
-        """Active entry labels must be 10-11 px."""
-        # Check the entry bar labels
+        """Active entry captions must be 11-12 px, bold and black.
+
+        ``cno_label`` is the live *value* read-out, not a caption, so it is
+        held to the value size instead (see test_16's hierarchy).
+        """
         from PySide6.QtWidgets import QLabel
+        checked = 0
         for lbl in self.entry.findChildren(QLabel):
+            if lbl is self.entry.cno_label:
+                continue
             ss = lbl.styleSheet()
-            if "font-size" in ss:
-                # Extract font size
-                import re
-                match = re.search(r"font-size:\s*(\d+)px", ss)
-                if match:
-                    size = int(match.group(1))
-                    self.assertGreaterEqual(size, 10,
-                                            f"entry label '{lbl.text()}' font too small: {size}px")
-                    self.assertLessEqual(size, 11,
-                                         f"entry label '{lbl.text()}' font too large: {size}px")
+            if "font-size" not in ss:
+                continue
+            size = _font_size(ss)
+            checked += 1
+            self.assertGreaterEqual(size, 11,
+                                    f"entry label '{lbl.text()}' too small: {size}px")
+            self.assertLessEqual(size, 12,
+                                 f"entry label '{lbl.text()}' too large: {size}px")
+            self.assertIn("font-weight: bold", ss,
+                          f"entry label '{lbl.text()}' must be bold")
+            self.assertIn("#000000", ss,
+                          f"entry label '{lbl.text()}' must be black")
+        self.assertGreaterEqual(checked, 11, "entry captions not found")
 
     def test_12_active_entry_input_font(self):
-        """Active entry input fields must be 10-11 px."""
+        """Active entry input fields must be 12-13 px."""
         for edit in (self.entry.qty_edit, self.entry.discount_edit,
                      self.entry.pack_edit, self.entry.mrp_edit):
-            ss = edit.styleSheet()
-            import re
-            match = re.search(r"font-size:\s*(\d+)px", ss)
-            if match:
-                size = int(match.group(1))
-                self.assertGreaterEqual(size, 10,
-                                        f"input font too small: {size}px")
-                self.assertLessEqual(size, 11,
-                                     f"input font too large: {size}px")
+            size = _font_size(edit.styleSheet())
+            self.assertGreaterEqual(size, 12,
+                                    f"input font too small: {size}px")
+            self.assertLessEqual(size, 13,
+                                 f"input font too large: {size}px")
+            self.assertIn("#000000", edit.styleSheet(),
+                          "input text must be black")
 
     # -- 6. Sale Header font ------------------------------------------
     def test_13_sale_header_labels_readable(self):
-        """Sale-header captions must be 10-11 px.
+        """Sale-header captions must be 11-12 px, bold and black.
 
         The old "Sale Header" group box was merged into the compact metadata
         strip that keeps the same captions (Bill No / Date / Time / Type /
         Customer / Patient / Doctor), so the strip captions are checked here.
         """
-        import re
         from PySide6.QtWidgets import QLabel, QWidget
 
         strip = self.panel.findChild(QWidget, "CompactSaleMetadata")
@@ -269,13 +301,16 @@ class CounterSaleUITests(unittest.TestCase):
                                       "Customer *", "Patient", "Doctor")]
         self.assertEqual(len(captions), 7, "sale-header captions missing")
         for lbl in captions:
-            match = re.search(r"font-size:\s*(\d+)px", lbl.styleSheet())
-            self.assertIsNotNone(match, f"{lbl.text()} lost its font size")
-            size = int(match.group(1))
-            self.assertGreaterEqual(size, 10,
-                                    f"Sale Header label '{lbl.text()}' font too small: {size}px")
-            self.assertLessEqual(size, 11,
-                                 f"Sale Header label '{lbl.text()}' font too large: {size}px")
+            size = _font_size(lbl.styleSheet())
+            self.assertIsNotNone(size, f"{lbl.text()} lost its font size")
+            self.assertGreaterEqual(size, 11,
+                                    f"Sale Header label '{lbl.text()}' too small: {size}px")
+            self.assertLessEqual(size, 12,
+                                 f"Sale Header label '{lbl.text()}' too large: {size}px")
+            self.assertIn("font-weight: bold", lbl.styleSheet(),
+                          f"Sale Header label '{lbl.text()}' must be bold")
+            self.assertIn("#000000", lbl.styleSheet(),
+                          f"Sale Header label '{lbl.text()}' must be black")
 
     def test_14_sale_header_panel_is_the_compact_strip(self):
         """The Sale Header / Customer panels are one compact strip, not boxes."""
@@ -296,8 +331,7 @@ class CounterSaleUITests(unittest.TestCase):
 
     # -- 7. Totals font ------------------------------------------------
     def test_15_totals_labels_readable(self):
-        """Totals caption labels must be 10-11 px."""
-        import re
+        """Totals caption labels must be 11-12 px, bold and black."""
         from PySide6.QtWidgets import QLabel
 
         number = re.compile(r"^-?\d+(\.\d+)?$")
@@ -305,20 +339,22 @@ class CounterSaleUITests(unittest.TestCase):
         for lbl in self.totals.findChildren(QLabel):
             if number.match(lbl.text().strip()):
                 continue  # numeric values are checked separately in test_16
-            match = re.search(r"font-size:\s*(\d+)px", lbl.styleSheet())
-            if not match:
+            size = _font_size(lbl.styleSheet())
+            if size is None:
                 continue
             checked += 1
-            size = int(match.group(1))
-            self.assertGreaterEqual(size, 10,
-                                    f"totals label '{lbl.text()}' font too small: {size}px")
-            self.assertLessEqual(size, 11,
-                                 f"totals label '{lbl.text()}' font too large: {size}px")
+            self.assertGreaterEqual(size, 11,
+                                    f"totals label '{lbl.text()}' too small: {size}px")
+            self.assertLessEqual(size, 12,
+                                 f"totals label '{lbl.text()}' too large: {size}px")
+            self.assertIn("font-weight: bold", lbl.styleSheet(),
+                          f"totals label '{lbl.text()}' must be bold")
+            self.assertIn("#000000", lbl.styleSheet(),
+                          f"totals label '{lbl.text()}' must be black")
         self.assertGreaterEqual(checked, 6, "totals captions not found")
 
     def test_16_totals_values_readable(self):
-        """Totals numeric values must be 11-13 px, NET AMT emphasised at 13."""
-        import re
+        """Totals numeric values must be 13-14 px bold black; NET AMT emphasised."""
         from PySide6.QtWidgets import QLabel
 
         number = re.compile(r"^-?\d+(\.\d+)?$")
@@ -326,96 +362,103 @@ class CounterSaleUITests(unittest.TestCase):
                   if number.match(lbl.text().strip())]
         self.assertGreaterEqual(len(values), 4, "totals values not found")
         for lbl in values:
-            match = re.search(r"font-size:\s*(\d+)px", lbl.styleSheet())
-            self.assertIsNotNone(match, f"totals value '{lbl.text()}' lost its font size")
-            size = int(match.group(1))
-            self.assertGreaterEqual(size, 11,
-                                    f"totals value '{lbl.text()}' font too small: {size}px")
-            self.assertLessEqual(size, 13,
-                                 f"totals value '{lbl.text()}' font too large: {size}px")
+            size = _font_size(lbl.styleSheet())
+            self.assertIsNotNone(size, f"totals value '{lbl.text()}' lost its font size")
+            self.assertGreaterEqual(size, 13,
+                                    f"totals value '{lbl.text()}' too small: {size}px")
+            self.assertLessEqual(size, 14,
+                                 f"totals value '{lbl.text()}' too large: {size}px")
+            self.assertIn("font-weight: bold", lbl.styleSheet(),
+                          f"totals value '{lbl.text()}' must be bold")
+            self.assertIn("#000000", lbl.styleSheet(),
+                          f"totals value '{lbl.text()}' must be black")
         # NET AMT is the emphasised figure of the footer.
         net = self.panel.net_amt_label
-        match = re.search(r"font-size:\s*(\d+)px", net.styleSheet())
-        self.assertIsNotNone(match, "NET AMT lost its font size")
-        self.assertGreaterEqual(int(match.group(1)), 13,
-                                "NET AMT must stay emphasised")
+        size = _font_size(net.styleSheet())
+        self.assertIsNotNone(size, "NET AMT lost its font size")
+        self.assertGreaterEqual(size, 14,
+                                "NET AMT must stay the strongest figure")
+        self.assertIn("font-weight: bold", net.styleSheet(),
+                      "NET AMT must stay bold")
 
     # -- 8. Buttons font ----------------------------------------------
     def test_17_action_buttons_readable(self):
-        """Save Sale, Hold Bill, Cancel buttons must be 10-11 px and bold."""
+        """Save Sale, Hold Bill, Cancel buttons must be 12 px and bold."""
         for btn in self.totals.findChildren(QPushButton):
             ss = btn.styleSheet()
-            import re
-            match = re.search(r"font-size:\s*(\d+)px", ss)
-            if match:
-                size = int(match.group(1))
-                self.assertGreaterEqual(size, 10,
-                                        f"button '{btn.text()}' font too small: {size}px")
-                self.assertLessEqual(size, 11,
-                                     f"button '{btn.text()}' font too large: {size}px")
+            size = _font_size(ss)
+            if size is None:
+                continue
+            self.assertGreaterEqual(size, 12,
+                                    f"button '{btn.text()}' font too small: {size}px")
+            self.assertLessEqual(size, 12,
+                                 f"button '{btn.text()}' font too large: {size}px")
             self.assertIn("font-weight: bold", ss,
                           f"button '{btn.text()}' must be bold")
 
     def test_18_add_button_readable(self):
-        """Add button must be 10-11 px and bold."""
+        """Add button must be 12 px and bold."""
         ss = self.entry.add_btn.styleSheet()
-        import re
-        match = re.search(r"font-size:\s*(\d+)px", ss)
-        if match:
-            size = int(match.group(1))
-            self.assertGreaterEqual(size, 10,
-                                    f"Add button font too small: {size}px")
-            self.assertLessEqual(size, 11,
-                                 f"Add button font too large: {size}px")
-        self.assertIn("font-weight: bold", ss,
-                      "Add button must be bold")
+        size = _font_size(ss)
+        self.assertIsNotNone(size, "Add button lost its font size")
+        self.assertGreaterEqual(size, 12, f"Add button font too small: {size}px")
+        self.assertLessEqual(size, 12, f"Add button font too large: {size}px")
+        self.assertIn("font-weight: bold", ss, "Add button must be bold")
 
     def test_19_new_sale_button_readable(self):
-        """New Sale button must be 10-11 px and bold."""
+        """New Sale button must be 12 px and bold."""
         ss = self.page._new_btn.styleSheet()
-        import re
-        match = re.search(r"font-size:\s*(\d+)px", ss)
-        if match:
-            size = int(match.group(1))
-            self.assertGreaterEqual(size, 10,
-                                    f"New Sale button font too small: {size}px")
-            self.assertLessEqual(size, 11,
-                                 f"New Sale button font too large: {size}px")
-        self.assertIn("font-weight: bold", ss,
-                      "New Sale button must be bold")
+        size = _font_size(ss)
+        self.assertIsNotNone(size, "New Sale button lost its font size")
+        self.assertGreaterEqual(size, 12,
+                                f"New Sale button font too small: {size}px")
+        self.assertLessEqual(size, 12,
+                             f"New Sale button font too large: {size}px")
+        self.assertIn("font-weight: bold", ss, "New Sale button must be bold")
 
     # -- 9. Right bill panel ------------------------------------------
     def test_20_right_panel_labels_readable(self):
-        """Right bill panel labels must be 10-11 px."""
+        """Right bill panel captions/values must be 12-13 px black/bold.
+
+        The dim "Paper: A6 (105 x 148 mm)" note is a deliberate exception —
+        it is secondary information, not data.
+        """
         from PySide6.QtWidgets import QLabel
         panel = self.page.findChild(type(self.totals), "BillPanel")
         self.assertIsNotNone(panel, "Bill panel not found")
+        checked = 0
         for lbl in panel.findChildren(QLabel):
             ss = lbl.styleSheet()
-            if "font-size" in ss:
-                import re
-                match = re.search(r"font-size:\s*(\d+)px", ss)
-                if match:
-                    size = int(match.group(1))
-                    self.assertGreaterEqual(size, 10,
-                                            f"right panel label '{lbl.text()}' font too small: {size}px")
-                    self.assertLessEqual(size, 11,
-                                         f"right panel label '{lbl.text()}' font too large: {size}px")
+            size = _font_size(ss)
+            if size is None:
+                continue
+            if "#55677a" in ss:
+                continue  # the dim paper-size note
+            checked += 1
+            self.assertGreaterEqual(size, 12,
+                                    f"right panel label '{lbl.text()}' too small: {size}px")
+            self.assertLessEqual(size, 13,
+                                 f"right panel label '{lbl.text()}' too large: {size}px")
+            self.assertIn("font-weight: bold", ss,
+                          f"right panel label '{lbl.text()}' must be bold")
+        self.assertGreaterEqual(checked, 6, "right panel captions not found")
 
     def test_21_right_panel_buttons_readable(self):
-        """Right bill panel buttons must be 10-11 px and bold."""
+        """Right bill panel buttons must be 12 px and bold."""
         panel = self.page.findChild(type(self.totals), "BillPanel")
         self.assertIsNotNone(panel, "Bill panel not found")
+        checked = 0
         for btn in panel.findChildren(QPushButton):
             ss = btn.styleSheet()
-            import re
-            match = re.search(r"font-size:\s*(\d+)px", ss)
-            if match:
-                size = int(match.group(1))
-                self.assertGreaterEqual(size, 10,
-                                        f"right panel button '{btn.text()}' font too small: {size}px")
-                self.assertLessEqual(size, 11,
-                                     f"right panel button '{btn.text()}' font too large: {size}px")
+            size = _font_size(ss)
+            if size is None:
+                continue
+            checked += 1
+            self.assertGreaterEqual(size, 12,
+                                    f"right panel button '{btn.text()}' font too small: {size}px")
+            self.assertLessEqual(size, 12,
+                                 f"right panel button '{btn.text()}' font too large: {size}px")
+        self.assertGreaterEqual(checked, 4, "right panel buttons not found")
 
     # -- 10. No clipping at different resolutions ----------------------
     def test_22_no_clipping_1366x768(self):
@@ -490,6 +533,62 @@ class CounterSaleUITests(unittest.TestCase):
             if "font-family" in ss:
                 self.assertIn("Segoe UI", ss,
                               f"button '{btn.text()}' does not use centralized font")
+
+    # -- 13. Black-text policy -----------------------------------------
+    def test_28_section_headers_are_bold_black(self):
+        """Section headers ('Bill History', 'Bill Items'): bold, black, 13-14 px."""
+        from PySide6.QtWidgets import QLabel
+
+        # "Bill History" is the header-strip section label.
+        history = None
+        for lbl in self.page.findChildren(QLabel):
+            if lbl.text() == "Bill History":
+                history = lbl
+                break
+        self.assertIsNotNone(history, "'Bill History' section header missing")
+        size = _font_size(history.styleSheet())
+        self.assertIsNotNone(size, "'Bill History' lost its font size")
+        self.assertGreaterEqual(size, 13, f"'Bill History' too small: {size}px")
+        self.assertLessEqual(size, 14, f"'Bill History' too large: {size}px")
+        self.assertIn("font-weight: bold", history.styleSheet(),
+                      "'Bill History' must be bold")
+        self.assertIn("#000000", history.styleSheet(),
+                      "'Bill History' must be black")
+
+        # "Bill Items" is the grid's section title (a QGroupBox).
+        groups = {g.title(): g for g in self.panel.findChildren(QGroupBox)}
+        self.assertIn("Bill Items", groups, "'Bill Items' section missing")
+        group_style = groups["Bill Items"].styleSheet()
+        group_size = _font_size(group_style)
+        self.assertIsNotNone(group_size, "'Bill Items' lost its font size")
+        self.assertGreaterEqual(group_size, 13,
+                                f"'Bill Items' too small: {group_size}px")
+        self.assertLessEqual(group_size, 14,
+                             f"'Bill Items' too large: {group_size}px")
+        self.assertIn("font-weight: bold", group_style,
+                      "'Bill Items' must be bold")
+        self.assertIn("#000000", group_style, "'Bill Items' must be black")
+
+    def test_29_normal_data_is_never_grey(self):
+        """Readable data must be black — no #777/#888/#999 for table values."""
+        for widget, label in ((self.hist, "history table"),
+                              (self.bill_table, "bill table")):
+            ss = widget.styleSheet()
+            self.assertIn("#000000", ss, f"{label} data must be black")
+            for grey in ("#777", "#888", "#999", "#aaaaaa", "#55677a"):
+                self.assertNotIn(grey, ss,
+                                 f"{label} must not use {grey} for data")
+
+    def test_30_bill_row_height_still_fits_the_data_font(self):
+        """The larger data font must still fit the unchanged 30 px row."""
+        from PySide6.QtGui import QFontMetrics
+
+        font = self.bill_table.font()
+        needed = QFontMetrics(font).height() + 6  # + 3px item padding each side
+        self.assertLessEqual(
+            needed, self.bill_table.rowHeight(0),
+            f"13 px data needs {needed}px but the row is "
+            f"{self.bill_table.rowHeight(0)}px")
 
 
 if __name__ == "__main__":
