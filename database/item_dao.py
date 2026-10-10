@@ -1,5 +1,10 @@
 from database.connection import get_connection
 
+# Sentinel for ItemDAO.update meaning "the caller did not mention provenance",
+# so whatever is stored must be preserved.  Distinct from an explicit ``None``,
+# which deliberately clears it when the user converts a legacy code to GST.
+_KEEP_PROVENANCE = object()
+
 
 class ItemDAO:
     @staticmethod
@@ -19,6 +24,7 @@ class ItemDAO:
                     cat.category_name,
                     i.pack_size,
                     i.tax_structure,
+                    i.legacy_tax_id,
                     i.discount,
                     i.mrp,
                     i.rate,
@@ -59,6 +65,7 @@ class ItemDAO:
                     cat.category_name,
                     i.pack_size,
                     i.tax_structure,
+                    i.legacy_tax_id,
                     i.discount,
                     i.mrp,
                     i.rate,
@@ -79,18 +86,28 @@ class ItemDAO:
             conn.close()
 
     @staticmethod
-    def name_exists(name: str, exclude_id: int | None = None) -> bool:
+    def name_exists(
+        name: str, unit_id: int | None = None, exclude_id: int | None = None
+    ) -> bool:
+        """True when the (name, unit) identity is already taken.
+
+        Item identity is the composite (item_name, unit_id) — the old
+        Pharma-WINNER key was UNIQUE(UnitID, ItemName) — so the same name under
+        a different unit is legitimate data (POWERGESIC as TABLET and as GEL).
+        ``unit_id IS ?`` rather than ``=`` so a NULL unit compares correctly
+        instead of never matching.
+        """
         conn = get_connection()
         try:
             if exclude_id is not None:
                 row = conn.execute(
-                    "SELECT 1 FROM items WHERE item_name = ? AND id != ?",
-                    (name, exclude_id),
+                    "SELECT 1 FROM items WHERE item_name = ? AND unit_id IS ? AND id != ?",
+                    (name, unit_id, exclude_id),
                 ).fetchone()
             else:
                 row = conn.execute(
-                    "SELECT 1 FROM items WHERE item_name = ?",
-                    (name,),
+                    "SELECT 1 FROM items WHERE item_name = ? AND unit_id IS ?",
+                    (name, unit_id),
                 ).fetchone()
             return row is not None
         finally:
@@ -112,6 +129,7 @@ class ItemDAO:
                     cat.category_name,
                     i.pack_size,
                     i.tax_structure,
+                    i.legacy_tax_id,
                     i.discount,
                     i.mrp,
                     i.rate,
@@ -149,6 +167,7 @@ class ItemDAO:
         pathy: str = "",
         dpco: str = "",
         category_id: int | None = None,
+        legacy_tax_id: int | None = None,
     ) -> int:
         conn = get_connection()
         try:
@@ -156,12 +175,12 @@ class ItemDAO:
             cursor = conn.execute(
                 """INSERT INTO items (
                     item_name, unit_id, company_id, category_id, pack_size,
-                    tax_structure, discount, mrp, rate,
+                    tax_structure, legacy_tax_id, discount, mrp, rate,
                     reorder_stock_level, scheduled, location, pathy, dpco
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     item_name, unit_id, company_id, category_id, pack_size,
-                    tax_structure, discount, mrp, rate,
+                    tax_structure, legacy_tax_id, discount, mrp, rate,
                     reorder_stock_level, scheduled, location, pathy, dpco,
                 ),
             )
@@ -187,13 +206,23 @@ class ItemDAO:
         pathy: str = "",
         dpco: str = "",
         category_id: int | None = None,
+        legacy_tax_id: int | None | object = _KEEP_PROVENANCE,
     ) -> None:
         conn = get_connection()
         try:
-            existing = conn.execute("SELECT category_id FROM items WHERE id = ?", (item_id,)).fetchone()
+            existing = conn.execute(
+                "SELECT category_id, legacy_tax_id FROM items WHERE id = ?", (item_id,)
+            ).fetchone()
             if not existing:
                 raise ValueError("Item not found.")
             ItemDAO._validate_category_assignment(conn, category_id, existing["category_id"])
+            # Provenance survives any edit that does not mention it, so saving
+            # an unrelated field cannot destroy an imported item's tax history.
+            provenance = (
+                existing["legacy_tax_id"]
+                if legacy_tax_id is _KEEP_PROVENANCE
+                else legacy_tax_id
+            )
             conn.execute(
                 """UPDATE items SET
                     item_name = ?,
@@ -202,6 +231,7 @@ class ItemDAO:
                     category_id = ?,
                     pack_size = ?,
                     tax_structure = ?,
+                    legacy_tax_id = ?,
                     discount = ?,
                     mrp = ?,
                     rate = ?,
@@ -213,7 +243,7 @@ class ItemDAO:
                 WHERE id = ?""",
                 (
                     item_name, unit_id, company_id, category_id, pack_size,
-                    tax_structure, discount, mrp, rate,
+                    tax_structure, provenance, discount, mrp, rate,
                     reorder_stock_level, scheduled, location, pathy, dpco,
                     item_id,
                 ),

@@ -6,6 +6,8 @@ from database import auth
 from ui import components as ui
 from version import APP_TITLE
 
+#login file
+
 
 class LoginDialog(QDialog):
     """Login and first-run ADMIN setup dialog."""

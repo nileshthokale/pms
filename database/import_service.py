@@ -232,6 +232,38 @@ def _lookup(conn: sqlite3.Connection, master: str, value: str) -> sqlite3.Row | 
     return conn.execute(f"SELECT id, {key} FROM {table} WHERE lower(trim({key})) = lower(trim(?))", (value,)).fetchone()
 
 
+def _row_unit_id(conn: sqlite3.Connection, values: dict[str, Any]) -> int | None:
+    """The resolved unit id of a mapped item row.
+
+    ``values`` is either a raw mapped row (carrying the ``unit`` *reference
+    name*) or a write dict (carrying the already-resolved ``unit_id``), so both
+    shapes resolve to the same unit.
+    """
+    if "unit_id" in values:
+        return values.get("unit_id")
+    reference = normalize_value(values.get("unit", ""))
+    unit = _lookup(conn, "unit", reference) if reference else None
+    return unit["id"] if unit else None
+
+
+def _find_existing_item(conn: sqlite3.Connection, values: dict[str, Any]) -> sqlite3.Row | None:
+    """The stored item sharing this row's (item_name, unit) identity, if any.
+
+    Item identity is the composite (name, unit) — the old Pharma-WINNER key
+    was UNIQUE(UnitID, ItemName) — so a row whose name already exists under a
+    *different* unit is a new item, not a duplicate to be overwritten.  This
+    mirrors the UNIQUE(item_name, unit_id) constraint in the schema.
+
+    Name comparison matches ``_lookup``: SQLite's own lower(trim(...)) on both
+    sides, so it behaves identically for non-ASCII names.
+    """
+    return conn.execute(
+        "SELECT id, item_name FROM items "
+        "WHERE lower(trim(item_name)) = lower(trim(?)) AND unit_id IS ?",
+        (normalize_value(values.get("item_name", "")), _row_unit_id(conn, values)),
+    ).fetchone()
+
+
 def validate_rows(master_type: str, data: dict[str, Any], mapping: dict[str, str] | None = None, *, conn: sqlite3.Connection | None = None) -> dict[str, Any]:
     master = _canonical_master(master_type)
     mapping = mapping or detect_columns(data.get("headers", []), master)
@@ -259,7 +291,15 @@ def validate_rows(master_type: str, data: dict[str, Any], mapping: dict[str, str
                 except ValueError as exc:
                     issues.append(_issue(number, field, value, str(exc))); row_errors += 1
             key_field = TABLE_KEYS[master][1]
-            identity = normalize_value(row.get(key_field, "")).casefold()
+            if master == "item":
+                # An item's identity is (name, unit), so the same name under a
+                # different unit is legitimate data rather than a duplicate.
+                name = normalize_value(row.get("item_name", "")).casefold()
+                identity = (
+                    f"{name}\x00{_row_unit_id(conn, row)}" if name else ""
+                )
+            else:
+                identity = normalize_value(row.get(key_field, "")).casefold()
             if identity and identity in seen:
                 duplicate_rows.append(number); row["__duplicate"] = True
                 issues.append(_issue(number, key_field, row.get(key_field), "Duplicate row in file", "warning"))
@@ -278,7 +318,11 @@ def validate_rows(master_type: str, data: dict[str, Any], mapping: dict[str, str
                     if not _lookup(conn, "drug", ingredient):
                         issues.append(_issue(number, "ingredients", ingredient, "Referenced drug does not exist")); row_errors += 1
             if row_errors == 0:
-                existing = _lookup(conn, master, normalize_value(row.get(key_field, "")))
+                existing = (
+                    _find_existing_item(conn, row)
+                    if master == "item"
+                    else _lookup(conn, master, normalize_value(row.get(key_field, "")))
+                )
                 parsed["__existing_id"] = existing["id"] if existing else None
                 parsed["__duplicate"] = row.get("__duplicate", False)
                 valid_rows.append(parsed)
@@ -333,7 +377,11 @@ def _write_row(conn: sqlite3.Connection, master: str, row: dict[str, Any]) -> in
         ledger_id = _insert_ledger(conn, values[f"{master}_name"], "Sundry Creditors" if master == "supplier" else "Sundry Debtors", values, opening)
         values["ledger_id"] = ledger_id
     table, key = TABLE_KEYS[master][:2]
-    existing = _lookup(conn, master, values[key])
+    existing = (
+        _find_existing_item(conn, values)
+        if master == "item"
+        else _lookup(conn, master, values[key])
+    )
     if existing:
         values.pop("ledger_id", None)  # linked ledger is maintained below for updates
         assignments = ", ".join(f"{column} = ?" for column in values)
