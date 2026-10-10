@@ -1,0 +1,274 @@
+{
+  "source_file": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\PharmaWinner202610051955.sql",
+  "source_bytes": 35462774,
+  "source_counts": {
+    "ledger": 123,
+    "debtors": 29,
+    "creditors": 85,
+    "sundaryinfo": 113,
+    "doctormst": 8
+  },
+  "target_expected": {
+    "customers": 29,
+    "suppliers": 85,
+    "doctors": 8
+  },
+  "missing_info_ledgers": [
+    7
+  ],
+  "orphan_info_rows": [],
+  "duplicate_doctor_names": {
+    "SELF": [
+      3,
+      6
+    ]
+  },
+  "duplicate_debtor_names": {},
+  "duplicate_creditor_names": {},
+  "opening_balances_not_imported": {
+    "count": 32,
+    "rows": [
+      [
+        21,
+        "MRS R T PALVE",
+        530
+      ],
+      [
+        22,
+        "MR BHAU NIMSE",
+        1372
+      ],
+      [
+        129,
+        "MR NILESH TANPURE",
+        1147
+      ],
+      [
+        8,
+        "KARWA AGENCIES",
+        -652
+      ],
+      [
+        9,
+        "ANAND PHARMA",
+        -10403
+      ],
+      [
+        10,
+        "BHUMI PHARMA",
+        -31900
+      ],
+      [
+        11,
+        "SANJIVANI AGENCIES",
+        -21098
+      ],
+      [
+        12,
+        "SHRI AGENCIES",
+        -7421
+      ],
+      [
+        14,
+        "TRILOK AGENCIES",
+        -15882
+      ],
+      [
+        15,
+        "SHRI BHAGWAN AGENCIES",
+        -7691
+      ]
+    ]
+  },
+  "state_lookup": {
+    "1": "MAHARASHTRA"
+  },
+  "unsupported_fields": [
+    "ledger.OpeningBal (opening balances forbidden in Phase 2)",
+    "ledger.AdminCreated / gpmst (no target; groups not imported)",
+    "ledger.SGpID beyond debtor/creditor split (system ledgers excluded)",
+    "sundaryinfo.StateID=0/unknown -> state '' (no invention)",
+    "suppliers/customers.ledger_id stays NULL (no ledgers in Phase 2)",
+    "customers have no sales_tax_no/vat columns in new schema"
+  ],
+  "mapping": {
+    "ledger(LedHead, debtors) -> customers.customer_name": "verbatim, ID preserved",
+    "ledger(LedHead, creditors) -> suppliers.supplier_name": "verbatim, ID preserved",
+    "sundaryinfo.Address/City -> address/city": "verbatim",
+    "sundaryinfo.StateID -> state via statemst": "1->MAHARASHTRA else ''",
+    "sundaryinfo.ContactPerson/ContactNo": "verbatim",
+    "sundaryinfo.SalesTaxNo/VATorTIN -> suppliers only": "verbatim",
+    "sundaryinfo.DiscountPer/CreditLimit/CreditPeriod": "numeric, verbatim",
+    "doctormst.DoctorName/Specality/City/PhoneNo -> doctors": "verbatim, ID preserved"
+  },
+  "customers_preview": [
+    {
+      "new_id": 7,
+      "legacy_ledger_id": 7,
+      "name": "WALKIN",
+      "address": "",
+      "city": "",
+      "state": "",
+      "contact_person": "",
+      "contact_no": "",
+      "has_info_row": false,
+      "opening_balance_ignored": 0.0
+    },
+    {
+      "new_id": 13,
+      "legacy_ledger_id": 13,
+      "name": "MR DATTA BELHEKAR",
+      "address": "sonai belhekarwadi",
+      "city": "",
+      "state": "",
+      "contact_person": "",
+      "contact_no": "",
+      "has_info_row": true,
+      "opening_balance_ignored": 0.0,
+      "discount": 0.0,
+      "credit_limit": 0.0,
+      "credit_period": 0
+    },
+    {
+      "new_id": 21,
+      "legacy_ledger_id": 21,
+      "name": "MRS R T PALVE",
+      "address": "PANEGAON",
+      "city": "",
+      "state": "",
+      "contact_person": "",
+      "contact_no": "",
+      "has_info_row": true,
+      "opening_balance_ignored": 530,
+      "discount": 0.0,
+      "credit_limit": 0.0,
+      "credit_period": 0
+    },
+    {
+      "new_id": 22,
+      "legacy_ledger_id": 22,
+      "name": "MR BHAU NIMSE",
+      "address": "RAHURI",
+      "city": "",
+      "state": "",
+      "contact_person": "",
+      "contact_no": "",
+      "has_info_row": true,
+      "opening_balance_ignored": 1372,
+      "discount": 0.0,
+      "credit_limit": 0.0,
+      "credit_period": 0
+    },
+    {
+      "new_id": 23,
+      "legacy_ledger_id": 23,
+      "name": "MR BHAUSAHEB BHUJADI",
+      "address": "MUSALWADI",
+      "city": "",
+      "state": "",
+      "contact_person": "",
+      "contact_no": "",
+      "has_info_row": true,
+      "opening_balance_ignored": 0.0,
+      "discount": 0.0,
+      "credit_limit": 0.0,
+      "credit_period": 0
+    }
+  ],
+  "suppliers_preview": [
+    {
+      "new_id": 8,
+      "legacy_ledger_id": 8,
+      "name": "KARWA AGENCIES",
+      "address": "DWARKA,BEHIND STAND SANGAMNER",
+      "city": "SANGAMNER",
+      "state": "",
+      "contact_person": "",
+      "contact_no": "9422906323,02425-225996,220953",
+      "has_info_row": true,
+      "opening_balance_ignored": -652,
+      "sales_tax_no": "",
+      "vat_or_tin": "",
+      "discount": 0.0,
+      "credit_limit": 0.0,
+      "credit_period": 0,
+      "vat_tin": ""
+    },
+    {
+      "new_id": 9,
+      "legacy_ledger_id": 9,
+      "name": "ANAND PHARMA",
+      "address": "P.B.15 KOPARGAON 423601",
+      "city": "KOPARGAON",
+      "state": "",
+      "contact_person": "AVHAD",
+      "contact_no": "02423-222396,221096",
+      "has_info_row": true,
+      "opening_balance_ignored": -10403,
+      "sales_tax_no": "",
+      "vat_or_tin": "",
+      "discount": 0.0,
+      "credit_limit": 0.0,
+      "credit_period": 0,
+      "vat_tin": ""
+    },
+    {
+      "new_id": 10,
+      "legacy_ledger_id": 10,
+      "name": "BHUMI PHARMA",
+      "address": "PUNE 411 014",
+      "city": "PUNE",
+      "state": "",
+      "contact_person": "SHARDUL,ABHISHEKH",
+      "contact_no": "020-40046810,7721880011",
+      "has_info_row": true,
+      "opening_balance_ignored": -31900,
+      "sales_tax_no": "",
+      "vat_or_tin": "",
+      "discount": 0.0,
+      "credit_limit": 0.0,
+      "credit_period": 0,
+      "vat_tin": ""
+    },
+    {
+      "new_id": 11,
+      "legacy_ledger_id": 11,
+      "name": "SANJIVANI AGENCIES",
+      "address": "MANIK CHOWK,AHMEDNAGAR",
+      "city": "AHMEDNAGAR",
+      "state": "",
+      "contact_person": "",
+      "contact_no": "0241-2346816",
+      "has_info_row": true,
+      "opening_balance_ignored": -21098,
+      "sales_tax_no": "",
+      "vat_or_tin": "",
+      "discount": 0.0,
+      "credit_limit": 0.0,
+      "credit_period": 0,
+      "vat_tin": ""
+    },
+    {
+      "new_id": 12,
+      "legacy_ledger_id": 12,
+      "name": "SHRI AGENCIES",
+      "address": "3536,KAPAD BAZAR,AHMEDNAGAR",
+      "city": "",
+      "state": "",
+      "contact_person": "",
+      "contact_no": "0214-2346937,2320228,2431408",
+      "has_info_row": true,
+      "opening_balance_ignored": -7421,
+      "sales_tax_no": "",
+      "vat_or_tin": "",
+      "discount": 0.0,
+      "credit_limit": 0.0,
+      "credit_period": 0,
+      "vat_tin": ""
+    }
+  ],
+  "blockers": [],
+  "internally_consistent": true,
+  "target_db": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\data\\pharmacy.db",
+  "target_guard": "ok (dry-run performs zero writes)"
+}
