@@ -1,6 +1,7 @@
 """Focused keyboard and autocomplete tests for Counter Sale entry."""
 
 import os
+import re
 import unittest
 from unittest import mock
 
@@ -12,6 +13,33 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 
 from screens.counter_sale import _KeyboardCombo
 from test_counter_sale_input import _DBBase
+
+
+def _declared(stylesheet: str, prop: str) -> str | None:
+    """Hex value declared for ``prop`` in a stylesheet.
+
+    The ``[;{]`` anchor keeps ``selection-background-color`` from being
+    mistaken for ``background-color``.
+    """
+    match = re.search(
+        rf"(?:^|[;{{])\s*{prop}\s*:\s*(#[0-9a-fA-F]{{6}})", stylesheet
+    )
+    return match.group(1) if match else None
+
+
+def _contrast(colour_a: str, colour_b: str) -> float:
+    """WCAG relative-contrast ratio between two ``#rrggbb`` colours."""
+
+    def luminance(colour: str) -> float:
+        channels = [int(colour[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+        linear = [
+            c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+            for c in channels
+        ]
+        return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+    high, low = sorted((luminance(colour_a), luminance(colour_b)), reverse=True)
+    return (high + 0.05) / (low + 0.05)
 
 
 class CounterSaleKeyboardTests(_DBBase):
@@ -159,12 +187,100 @@ class CounterSaleKeyboardTests(_DBBase):
         self.batch.lineEdit().setText("not a batch")
         self.assertIsNone(self.entry.get_current_data())
 
-    def test_item_popup_uses_light_colors(self):
-        self.assertIn("#ffffff", self.item.completer().popup().styleSheet())
+    def test_item_popup_text_is_readable_in_the_active_mode(self):
+        sheet = self.item.completer().popup().styleSheet()
+        background = _declared(sheet, "background-color")
+        text = _declared(sheet, "color")
+        self.assertIsNotNone(background, "popup declares no background colour")
+        self.assertIsNotNone(text, "popup declares no text colour")
+        # Blank-popup regression: the popup used to be styled with hardcoded
+        # light colours, so in Night Mode the names were white on white.
+        self.assertNotEqual(background, text,
+                            "popup text must never match its background")
+        self.assertGreaterEqual(_contrast(background, text), 4.5,
+                                f"{text} on {background}")
 
-    def test_item_and_batch_dropdowns_use_light_colors(self):
-        self.assertIn("background-color: #ffffff", self.item.styleSheet())
-        self.assertIn("background-color: #ffffff", self.batch.styleSheet())
+    def test_item_popup_is_readable_in_day_and_night_mode(self):
+        from screens import counter_sale as cs
+        from ui.theme import _PALETTES
+        for mode in ("light", "dark"):
+            colours = cs._popup_palette(_PALETTES[mode])
+            with self.subTest(mode=mode):
+                self.assertGreaterEqual(
+                    _contrast(colours["bg"], colours["text"]), 4.5)
+                self.assertGreaterEqual(
+                    _contrast(colours["selected"], colours["text"]), 4.5)
+
+    def test_day_mode_popup_stays_white_on_black(self):
+        from screens import counter_sale as cs
+        from ui.theme import _PALETTES
+        colours = cs._popup_palette(_PALETTES["light"])
+        self.assertEqual(colours["bg"], "#ffffff")
+        self.assertEqual(colours["text"], "#000000")
+
+    def test_item_and_batch_dropdowns_use_the_theme_popup_colors(self):
+        from screens import counter_sale as cs
+        for combo in (self.item, self.batch):
+            sheet = combo.styleSheet()
+            self.assertIn(f"background-color: {cs._POPUP_BG}", sheet)
+            self.assertIn(f"color: {cs._POPUP_TEXT}", sheet)
+
+    def test_item_popup_scrolls_instead_of_growing_with_many_products(self):
+        from database.item_dao import ItemDAO
+        for index in range(14):
+            ItemDAO.insert(item_name=f"Biotin Test {index:02d}",
+                           unit_id=self.unit_id, company_id=self.company_id,
+                           pack_size="10x10", mrp=50.0)
+        self.entry.load_items()
+        self.item.lineEdit().clear()
+        QTest.keyClicks(self.item.lineEdit(), "biotin")
+        self.app.processEvents()
+        completer = self.item.completer()
+        # Every product is offered...
+        self.assertEqual(completer.completionCount(), 14)
+        # ...but the popup stays bounded, so the rest are reached by scrolling.
+        popup = completer.popup()
+        self.assertTrue(popup.isVisible())
+        row_height = max(24, popup.sizeHintForRow(0))
+        self.assertLessEqual(popup.height(), row_height * 10 + 4)
+        self.assertLess(popup.height(), row_height * 14)
+
+    def test_opening_and_searching_the_dropdown_changes_no_records(self):
+        from database.connection import get_connection
+        from database.stock_dao import StockDAO
+
+        tables = ("sales_invoices", "sales_invoice_items", "stock_batches",
+                  "hold_bills", "hold_bill_items", "ledger_transactions")
+
+        def snapshot():
+            conn = get_connection()
+            try:
+                return {
+                    table: conn.execute(
+                        f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+                    for table in tables
+                }
+            finally:
+                conn.close()
+
+        before = snapshot()
+        stock_before = StockDAO.get_stock_batches_for_item(
+            self.item_id)[0]["stock_qty"]
+
+        self.item.lineEdit().clear()
+        QTest.mouseClick(self.item.lineEdit(), Qt.LeftButton)
+        self.app.processEvents()
+        QTest.keyClicks(self.item.lineEdit(), "Test")
+        self.app.processEvents()
+        QTest.keyClick(self.item.lineEdit(), Qt.Key_Down)
+        QTest.keyClick(self.item.lineEdit(), Qt.Key_Return)
+        self.app.processEvents()
+        self.item.completer().popup().hide()
+
+        self.assertEqual(snapshot(), before)
+        self.assertEqual(
+            StockDAO.get_stock_batches_for_item(self.item_id)[0]["stock_qty"],
+            stock_before)
 
     def test_item_and_batch_popups_stay_inside_application_window(self):
         window_bounds = QRect(
