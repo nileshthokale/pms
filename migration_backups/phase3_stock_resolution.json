@@ -1,0 +1,2520 @@
+{
+  "generated_at": "2026-10-11T12:19:27",
+  "source_file": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\PharmaWinner202610051955.sql",
+  "source_bytes": 35462774,
+  "db_path": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\staging\\stock_final_verify.db",
+  "db_sha256": "b67d6f9c5f55362b72f2b5bfd9ac7a3ed291895eeb0984e76fc610289c6af222",
+  "mode": "resolution-report",
+  "resolution": {
+    "base_plan": {
+      "source_rows": 7793,
+      "source_keys": 7792,
+      "duplicate_source_rows": 0,
+      "target_keys": 7776,
+      "positive": 1965,
+      "zero": 5797,
+      "negative": 14,
+      "negatives": [
+        {
+          "target_item": 992,
+          "batch_no": "D300311",
+          "legacy_item": "47",
+          "net_loose": -2.0,
+          "pack_size": 10.0,
+          "stock_qty": -0.2
+        },
+        {
+          "target_item": 1017,
+          "batch_no": "146005EH",
+          "legacy_item": "72",
+          "net_loose": -42.0,
+          "pack_size": 10.0,
+          "stock_qty": -4.2
+        },
+        {
+          "target_item": 1189,
+          "batch_no": "466",
+          "legacy_item": "245",
+          "net_loose": -2.0,
+          "pack_size": 1.0,
+          "stock_qty": -2.0
+        },
+        {
+          "target_item": 1454,
+          "batch_no": "3115522",
+          "legacy_item": "511",
+          "net_loose": -3.0,
+          "pack_size": 5.0,
+          "stock_qty": -0.6
+        },
+        {
+          "target_item": 1098,
+          "batch_no": "CARE 1",
+          "legacy_item": "153",
+          "net_loose": -1.0,
+          "pack_size": 1.0,
+          "stock_qty": -1.0
+        },
+        {
+          "target_item": 1034,
+          "batch_no": "DH5004",
+          "legacy_item": "89",
+          "net_loose": -1.0,
+          "pack_size": 1.0,
+          "stock_qty": -1.0
+        },
+        {
+          "target_item": 1543,
+          "batch_no": "ST16-2195",
+          "legacy_item": "600",
+          "net_loose": -138.0,
+          "pack_size": 10.0,
+          "stock_qty": -13.8
+        },
+        {
+          "target_item": 1585,
+          "batch_no": "BT-286",
+          "legacy_item": "642",
+          "net_loose": -2.0,
+          "pack_size": 10.0,
+          "stock_qty": -0.2
+        },
+        {
+          "target_item": 1572,
+          "batch_no": "N022",
+          "legacy_item": "629",
+          "net_loose": -9.0,
+          "pack_size": 15.0,
+          "stock_qty": -0.6
+        },
+        {
+          "target_item": 1613,
+          "batch_no": "011E7ALB",
+          "legacy_item": "670",
+          "net_loose": -14.0,
+          "pack_size": 10.0,
+          "stock_qty": -1.4
+        },
+        {
+          "target_item": 1573,
+          "batch_no": "LMI931A",
+          "legacy_item": "630",
+          "net_loose": -3.0,
+          "pack_size": 10.0,
+          "stock_qty": -0.3
+        },
+        {
+          "target_item": 1602,
+          "batch_no": "E2000936",
+          "legacy_item": "659",
+          "net_loose": -60.0,
+          "pack_size": 15.0,
+          "stock_qty": -4.0
+        },
+        {
+          "target_item": 1235,
+          "batch_no": "4SB0416",
+          "legacy_item": "291",
+          "net_loose": -3.0,
+          "pack_size": 10.0,
+          "stock_qty": -0.3
+        },
+        {
+          "target_item": 1827,
+          "batch_no": "BR1E1445",
+          "legacy_item": "885",
+          "net_loose": -1.0,
+          "pack_size": 1.0,
+          "stock_qty": -1.0
+        }
+      ],
+      "unknown_legacy_items": [],
+      "missing_pack_size": [],
+      "merged_groups": [],
+      "conflicts": [],
+      "normalized_collisions": [
+        {
+          "target_item": 961,
+          "normalized_batch_no": "N 142033",
+          "collision_variant": "internal whitespace",
+          "raw_variants": [
+            "N  142033",
+            "N 142033"
+          ],
+          "legacy_items": [
+            "16"
+          ],
+          "source_rows": 2,
+          "net_loose_by_variant": {
+            "N  142033": 0.0,
+            "N 142033": 0.0
+          },
+          "metadata_by_variant": {
+            "N 142033": {
+              "expiry": "2017-05-31",
+              "pack_size": 1.0,
+              "mrp": 210.0,
+              "purchase_rate": 72.0,
+              "net_rate": 72.0,
+              "net_loose": 0.0,
+              "legacy_items": [
+                "16"
+              ]
+            },
+            "N  142033": {
+              "expiry": "2017-05-31",
+              "pack_size": 1.0,
+              "mrp": 270.0,
+              "purchase_rate": 72.0,
+              "net_rate": 72.0,
+              "net_loose": 0.0,
+              "legacy_items": [
+                "16"
+              ]
+            }
+          },
+          "compared_fields": [
+            "expiry",
+            "pack_size",
+            "mrp",
+            "purchase_rate",
+            "net_rate"
+          ],
+          "agreeing_fields": [
+            "expiry",
+            "pack_size",
+            "purchase_rate",
+            "net_rate"
+          ],
+          "conflicting_fields": [
+            "mrp"
+          ],
+          "metadata_conflict": true
+        },
+        {
+          "target_item": 1094,
+          "normalized_batch_no": "KR 2923",
+          "collision_variant": "internal whitespace",
+          "raw_variants": [
+            "KR  2923",
+            "KR 2923"
+          ],
+          "legacy_items": [
+            "149"
+          ],
+          "source_rows": 2,
+          "net_loose_by_variant": {
+            "KR  2923": 0.0,
+            "KR 2923": 0.0
+          },
+          "metadata_by_variant": {
+            "KR  2923": {
+              "expiry": "2016-11-30",
+              "pack_size": 10.0,
+              "mrp": 46.5,
+              "purchase_rate": 35.8,
+              "net_rate": 37.59,
+              "net_loose": 0.0,
+              "legacy_items": [
+                "149"
+              ]
+            },
+            "KR 2923": {
+              "expiry": "2016-11-30",
+              "pack_size": 10.0,
+              "mrp": 46.5,
+              "purchase_rate": 36.49,
+              "net_rate": 38.31,
+              "net_loose": 0.0,
+              "legacy_items": [
+                "149"
+              ]
+            }
+          },
+          "compared_fields": [
+            "expiry",
+            "pack_size",
+            "mrp",
+            "purchase_rate",
+            "net_rate"
+          ],
+          "agreeing_fields": [
+            "expiry",
+            "pack_size",
+            "mrp"
+          ],
+          "conflicting_fields": [
+            "purchase_rate",
+            "net_rate"
+          ],
+          "metadata_conflict": true
+        },
+        {
+          "target_item": 1134,
+          "normalized_batch_no": "CARE UNI",
+          "collision_variant": "internal whitespace",
+          "raw_variants": [
+            "CARE  UNI",
+            "CARE UNI"
+          ],
+          "legacy_items": [
+            "189"
+          ],
+          "source_rows": 2,
+          "net_loose_by_variant": {
+            "CARE  UNI": 9.0,
+            "CARE UNI": 0.0
+          },
+          "metadata_by_variant": {
+            "CARE UNI": {
+              "expiry": "2017-05-31",
+              "pack_size": 1.0,
+              "mrp": 260.0,
+              "purchase_rate": 95.0,
+              "net_rate": 107.44,
+              "net_loose": 0.0,
+              "legacy_items": [
+                "189"
+              ]
+            },
+            "CARE  UNI": {
+              "expiry": "2017-05-31",
+              "pack_size": 1.0,
+              "mrp": 230.0,
+              "purchase_rate": 110.0,
+              "net_rate": 110.0,
+              "net_loose": 9.0,
+              "legacy_items": [
+                "189"
+              ]
+            }
+          },
+          "compared_fields": [
+            "expiry",
+            "pack_size",
+            "mrp",
+            "purchase_rate",
+            "net_rate"
+          ],
+          "agreeing_fields": [
+            "expiry",
+            "pack_size"
+          ],
+          "conflicting_fields": [
+            "mrp",
+            "purchase_rate",
+            "net_rate"
+          ],
+          "metadata_conflict": true
+        },
+        {
+          "target_item": 1182,
+          "normalized_batch_no": "CARE",
+          "collision_variant": "surrounding whitespace",
+          "raw_variants": [
+            " CARE",
+            "CARE"
+          ],
+          "legacy_items": [
+            "238"
+          ],
+          "source_rows": 2,
+          "net_loose_by_variant": {
+            " CARE": 0.0,
+            "CARE": 0.0
+          },
+          "metadata_by_variant": {
+            "CARE": {
+              "expiry": "2017-05-31",
+              "pack_size": 1.0,
+              "mrp": 125.0,
+              "purchase_rate": 52.0,
+              "net_rate": 52.0,
+              "net_loose": 0.0,
+              "legacy_items": [
+                "238"
+              ]
+            },
+            " CARE": {
+              "expiry": "2018-05-31",
+              "pack_size": 1.0,
+              "mrp": 125.0,
+              "purchase_rate": 52.0,
+              "net_rate": 50.0,
+              "net_loose": 0.0,
+              "legacy_items": [
+                "238"
+              ]
+            }
+          },
+          "compared_fields": [
+            "expiry",
+            "pack_size",
+            "mrp",
+            "purchase_rate",
+            "net_rate"
+          ],
+          "agreeing_fields": [
+            "pack_size",
+            "mrp",
+            "purchase_rate"
+          ],
+          "conflicting_fields": [
+            "expiry",
+            "net_rate"
+          ],
+          "metadata_conflict": true
+        },
+        {
+          "target_item": 1294,
+          "normalized_batch_no": "CARE 1",
+          "collision_variant": "internal whitespace",
+          "raw_variants": [
+            "CARE   1",
+            "CARE  1",
+            "CARE 1"
+          ],
+          "legacy_items": [
+            "351"
+          ],
+          "source_rows": 3,
+          "net_loose_by_variant": {
+            "CARE   1": 0.0,
+            "CARE  1": 0.0,
+            "CARE 1": 0.0
+          },
+          "metadata_by_variant": {
+            "CARE   1": {
+              "expiry": "2017-05-31",
+              "pack_size": 1.0,
+              "mrp": 75.0,
+              "purchase_rate": 15.0,
+              "net_rate": 15.0,
+              "net_loose": 0.0,
+              "legacy_items": [
+                "351"
+              ]
+            },
+            "CARE  1": {
+              "expiry": "2017-05-31",
+              "pack_size": 1.0,
+              "mrp": 55.0,
+              "purchase_rate": 15.0,
+              "net_rate": 15.0,
+              "net_loose": 0.0,
+              "legacy_items": [
+                "351"
+              ]
+            },
+            "CARE 1": {
+              "expiry": "2017-05-31",
+              "pack_size": 1.0,
+              "mrp": 65.0,
+              "purchase_rate": 15.0,
+              "net_rate": 15.0,
+              "net_loose": 0.0,
+              "legacy_items": [
+                "351"
+              ]
+            }
+          },
+          "compared_fields": [
+            "expiry",
+            "pack_size",
+            "mrp",
+            "purchase_rate",
+            "net_rate"
+          ],
+          "agreeing_fields": [
+            "expiry",
+            "pack_size",
+            "purchase_rate",
+            "net_rate"
+          ],
+          "conflicting_fields": [
+            "mrp"
+          ],
+          "metadata_conflict": true
+        },
+        {
+          "target_item": 1524,
+          "normalized_batch_no": "LA 60709",
+          "collision_variant": "internal whitespace",
+          "raw_variants": [
+            "LA  60709",
+            "LA 60709"
+          ],
+          "legacy_items": [
+            "581"
+          ],
+          "source_rows": 2,
+          "net_loose_by_variant": {
+            "LA  60709": 0.0,
+            "LA 60709": 0.0
+          },
+          "metadata_by_variant": {
+            "LA 60709": {
+              "expiry": "2019-06-30",
+              "pack_size": 5.0,
+              "mrp": 23.0,
+              "purchase_rate": 17.36,
+              "net_rate": 10.95,
+              "net_loose": 0.0,
+              "legacy_items": [
+                "581"
+              ]
+            },
+            "LA  60709": {
+              "expiry": "2019-06-30",
+              "pack_size": 5.0,
+              "mrp": 23.0,
+              "purchase_rate": 17.36,
+              "net_rate": 19.09,
+              "net_loose": 0.0,
+              "legacy_items": [
+                "581"
+              ]
+            }
+          },
+          "compared_fields": [
+            "expiry",
+            "pack_size",
+            "mrp",
+            "purchase_rate",
+            "net_rate"
+          ],
+          "agreeing_fields": [
+            "expiry",
+            "pack_size",
+            "mrp",
+            "purchase_rate"
+          ],
+          "conflicting_fields": [
+            "net_rate"
+          ],
+          "metadata_conflict": true
+        },
+        {
+          "target_item": 1543,
+          "normalized_batch_no": "ST16 2195",
+          "collision_variant": "internal whitespace",
+          "raw_variants": [
+            "ST16  2195",
+            "ST16 2195"
+          ],
+          "legacy_items": [
+            "600"
+          ],
+          "source_rows": 2,
+          "net_loose_by_variant": {
+            "ST16  2195": 0.0,
+            "ST16 2195": 0.0
+          },
+          "metadata_by_variant": {
+            "ST16 2195": {
+              "expiry": "2018-09-30",
+              "pack_size": 10.0,
+              "mrp": 71.0,
+              "purchase_rate": 50.71,
+              "net_rate": 52.07,
+              "net_loose": 0.0,
+              "legacy_items": [
+                "600"
+              ]
+            },
+            "ST16  2195": {
+              "expiry": "2018-09-30",
+              "pack_size": 10.0,
+              "mrp": 71.0,
+              "purchase_rate": 50.71,
+              "net_rate": 53.25,
+              "net_loose": 0.0,
+              "legacy_items": [
+                "600"
+              ]
+            }
+          },
+          "compared_fields": [
+            "expiry",
+            "pack_size",
+            "mrp",
+            "purchase_rate",
+            "net_rate"
+          ],
+          "agreeing_fields": [
+            "expiry",
+            "pack_size",
+            "mrp",
+            "purchase_rate"
+          ],
+          "conflicting_fields": [
+            "net_rate"
+          ],
+          "metadata_conflict": true
+        }
+      ],
+      "metadata_drift": [],
+      "withheld_keys": [
+        {
+          "target_item": 961,
+          "batch_no": "N  142033",
+          "reason": "normalized batch-key collision",
+          "raw_variants": [
+            "N  142033",
+            "N 142033"
+          ]
+        },
+        {
+          "target_item": 961,
+          "batch_no": "N 142033",
+          "reason": "normalized batch-key collision",
+          "raw_variants": [
+            "N  142033",
+            "N 142033"
+          ]
+        },
+        {
+          "target_item": 1094,
+          "batch_no": "KR  2923",
+          "reason": "normalized batch-key collision",
+          "raw_variants": [
+            "KR  2923",
+            "KR 2923"
+          ]
+        },
+        {
+          "target_item": 1094,
+          "batch_no": "KR 2923",
+          "reason": "normalized batch-key collision",
+          "raw_variants": [
+            "KR  2923",
+            "KR 2923"
+          ]
+        },
+        {
+          "target_item": 1134,
+          "batch_no": "CARE  UNI",
+          "reason": "normalized batch-key collision",
+          "raw_variants": [
+            "CARE  UNI",
+            "CARE UNI"
+          ]
+        },
+        {
+          "target_item": 1134,
+          "batch_no": "CARE UNI",
+          "reason": "normalized batch-key collision",
+          "raw_variants": [
+            "CARE  UNI",
+            "CARE UNI"
+          ]
+        },
+        {
+          "target_item": 1182,
+          "batch_no": "CARE",
+          "reason": "normalized batch-key collision",
+          "raw_variants": [
+            " CARE",
+            "CARE"
+          ]
+        },
+        {
+          "target_item": 1199,
+          "batch_no": "CARE  UNI",
+          "reason": "normalized batch-key collision",
+          "raw_variants": [
+            "CARE  UNI",
+            "CARE UNI"
+          ]
+        },
+        {
+          "target_item": 1199,
+          "batch_no": "CARE UNI",
+          "reason": "normalized batch-key collision",
+          "raw_variants": [
+            "CARE  UNI",
+            "CARE UNI"
+          ]
+        },
+        {
+          "target_item": 1294,
+          "batch_no": "CARE   1",
+          "reason": "normalized batch-key collision",
+          "raw_variants": [
+            "CARE   1",
+            "CARE  1",
+            "CARE 1"
+          ]
+        },
+        {
+          "target_item": 1294,
+          "batch_no": "CARE  1",
+          "reason": "normalized batch-key collision",
+          "raw_variants": [
+            "CARE   1",
+            "CARE  1",
+            "CARE 1"
+          ]
+        },
+        {
+          "target_item": 1294,
+          "batch_no": "CARE 1",
+          "reason": "normalized batch-key collision",
+          "raw_variants": [
+            "CARE   1",
+            "CARE  1",
+            "CARE 1"
+          ]
+        },
+        {
+          "target_item": 1524,
+          "batch_no": "LA  60709",
+          "reason": "normalized batch-key collision",
+          "raw_variants": [
+            "LA  60709",
+            "LA 60709"
+          ]
+        },
+        {
+          "target_item": 1524,
+          "batch_no": "LA 60709",
+          "reason": "normalized batch-key collision",
+          "raw_variants": [
+            "LA  60709",
+            "LA 60709"
+          ]
+        },
+        {
+          "target_item": 1543,
+          "batch_no": "ST16  2195",
+          "reason": "normalized batch-key collision",
+          "raw_variants": [
+            "ST16  2195",
+            "ST16 2195"
+          ]
+        },
+        {
+          "target_item": 1543,
+          "batch_no": "ST16 2195",
+          "reason": "normalized batch-key collision",
+          "raw_variants": [
+            "ST16  2195",
+            "ST16 2195"
+          ]
+        }
+      ],
+      "blocked": true,
+      "blocker_count": 7
+    },
+    "groups": [
+      {
+        "target_item": 961,
+        "normalized_key": "N 142033",
+        "collision_variant": "internal whitespace",
+        "raw_variants": [
+          "N  142033",
+          "N 142033"
+        ],
+        "legacy_items": [
+          "16"
+        ],
+        "has_stripped_collision": false,
+        "canonical_raw": "N 142033",
+        "conflicting_fields": [
+          "mrp"
+        ],
+        "agreeing_fields": [
+          "expiry",
+          "pack_size",
+          "purchase_rate",
+          "net_rate"
+        ],
+        "metadata_conflict": true,
+        "status": "resolved",
+        "block_reason": null,
+        "variants": [
+          {
+            "raw_batch_exact": "N  142033",
+            "stripped_batch": "N  142033",
+            "alias_batch_no": "N  142033",
+            "display_batch_no": "N[2sp]142033",
+            "is_canonical": false,
+            "legacy_items": [
+              "16"
+            ],
+            "expiry": "2017-05-31",
+            "pack_size_src": 1.0,
+            "pack_size_resolved": 1.0,
+            "pack_size_text": "1",
+            "mrp": 270.0,
+            "purchase_rate": 72.0,
+            "net_rate": 72.0,
+            "net_loose": 0.0,
+            "stock_qty": 0.0,
+            "expired": true,
+            "existing_batch_id": 751,
+            "reuses_existing": true,
+            "metadata_update_needed": false,
+            "metadata_update_plan": "none \u2014 existing batch metadata already matches this variant",
+            "source_stockbalance_rows": 1,
+            "source_sales_lines": 21,
+            "source_purchase_lines": 1
+          },
+          {
+            "raw_batch_exact": "N 142033",
+            "stripped_batch": "N 142033",
+            "alias_batch_no": "N 142033",
+            "display_batch_no": "N 142033",
+            "is_canonical": true,
+            "legacy_items": [
+              "16"
+            ],
+            "expiry": "2017-05-31",
+            "pack_size_src": 1.0,
+            "pack_size_resolved": 1.0,
+            "pack_size_text": "1",
+            "mrp": 210.0,
+            "purchase_rate": 72.0,
+            "net_rate": 72.0,
+            "net_loose": 0.0,
+            "stock_qty": 0.0,
+            "expired": true,
+            "existing_batch_id": 372,
+            "reuses_existing": true,
+            "metadata_update_needed": false,
+            "metadata_update_plan": "none \u2014 existing batch metadata already matches this variant",
+            "source_stockbalance_rows": 1,
+            "source_sales_lines": 20,
+            "source_purchase_lines": 1
+          }
+        ],
+        "remap": {
+          "sales_moves_planned": 0,
+          "sales_already_correct": 41,
+          "purchase_lines_documented": 2,
+          "mixed_vouchers": []
+        }
+      },
+      {
+        "target_item": 1094,
+        "normalized_key": "KR 2923",
+        "collision_variant": "internal whitespace",
+        "raw_variants": [
+          "KR  2923",
+          "KR 2923"
+        ],
+        "legacy_items": [
+          "149"
+        ],
+        "has_stripped_collision": false,
+        "canonical_raw": "KR 2923",
+        "conflicting_fields": [
+          "purchase_rate",
+          "net_rate"
+        ],
+        "agreeing_fields": [
+          "expiry",
+          "pack_size",
+          "mrp"
+        ],
+        "metadata_conflict": true,
+        "status": "resolved",
+        "block_reason": null,
+        "variants": [
+          {
+            "raw_batch_exact": "KR  2923",
+            "stripped_batch": "KR  2923",
+            "alias_batch_no": "KR  2923",
+            "display_batch_no": "KR[2sp]2923",
+            "is_canonical": false,
+            "legacy_items": [
+              "149"
+            ],
+            "expiry": "2016-11-30",
+            "pack_size_src": 10.0,
+            "pack_size_resolved": 10.0,
+            "pack_size_text": "10",
+            "mrp": 46.5,
+            "purchase_rate": 35.8,
+            "net_rate": 37.59,
+            "net_loose": 0.0,
+            "stock_qty": 0.0,
+            "expired": true,
+            "existing_batch_id": 120,
+            "reuses_existing": true,
+            "metadata_update_needed": false,
+            "metadata_update_plan": "none \u2014 existing batch metadata already matches this variant",
+            "source_stockbalance_rows": 1,
+            "source_sales_lines": 2,
+            "source_purchase_lines": 1
+          },
+          {
+            "raw_batch_exact": "KR 2923",
+            "stripped_batch": "KR 2923",
+            "alias_batch_no": "KR 2923",
+            "display_batch_no": "KR 2923",
+            "is_canonical": true,
+            "legacy_items": [
+              "149"
+            ],
+            "expiry": "2016-11-30",
+            "pack_size_src": 10.0,
+            "pack_size_resolved": 10.0,
+            "pack_size_text": "10",
+            "mrp": 46.5,
+            "purchase_rate": 36.49,
+            "net_rate": 38.31,
+            "net_loose": 0.0,
+            "stock_qty": 0.0,
+            "expired": true,
+            "existing_batch_id": 338,
+            "reuses_existing": true,
+            "metadata_update_needed": false,
+            "metadata_update_plan": "none \u2014 existing batch metadata already matches this variant",
+            "source_stockbalance_rows": 1,
+            "source_sales_lines": 18,
+            "source_purchase_lines": 1
+          }
+        ],
+        "remap": {
+          "sales_moves_planned": 0,
+          "sales_already_correct": 20,
+          "purchase_lines_documented": 2,
+          "mixed_vouchers": [
+            "6134"
+          ]
+        }
+      },
+      {
+        "target_item": 1134,
+        "normalized_key": "CARE UNI",
+        "collision_variant": "internal whitespace",
+        "raw_variants": [
+          "CARE  UNI",
+          "CARE UNI"
+        ],
+        "legacy_items": [
+          "189"
+        ],
+        "has_stripped_collision": false,
+        "canonical_raw": "CARE UNI",
+        "conflicting_fields": [
+          "mrp",
+          "purchase_rate",
+          "net_rate"
+        ],
+        "agreeing_fields": [
+          "expiry",
+          "pack_size"
+        ],
+        "metadata_conflict": true,
+        "status": "resolved",
+        "block_reason": null,
+        "variants": [
+          {
+            "raw_batch_exact": "CARE  UNI",
+            "stripped_batch": "CARE  UNI",
+            "alias_batch_no": "CARE  UNI",
+            "display_batch_no": "CARE[2sp]UNI",
+            "is_canonical": false,
+            "legacy_items": [
+              "189"
+            ],
+            "expiry": "2017-05-31",
+            "pack_size_src": 1.0,
+            "pack_size_resolved": 1.0,
+            "pack_size_text": "1",
+            "mrp": 230.0,
+            "purchase_rate": 110.0,
+            "net_rate": 110.0,
+            "net_loose": 9.0,
+            "stock_qty": 9.0,
+            "expired": true,
+            "existing_batch_id": 1492,
+            "reuses_existing": true,
+            "metadata_update_needed": false,
+            "metadata_update_plan": "none \u2014 existing batch metadata already matches this variant",
+            "source_stockbalance_rows": 1,
+            "source_sales_lines": 3,
+            "source_purchase_lines": 1
+          },
+          {
+            "raw_batch_exact": "CARE UNI",
+            "stripped_batch": "CARE UNI",
+            "alias_batch_no": "CARE UNI",
+            "display_batch_no": "CARE UNI",
+            "is_canonical": true,
+            "legacy_items": [
+              "189"
+            ],
+            "expiry": "2017-05-31",
+            "pack_size_src": 1.0,
+            "pack_size_resolved": 1.0,
+            "pack_size_text": "1",
+            "mrp": 260.0,
+            "purchase_rate": 95.0,
+            "net_rate": 107.44,
+            "net_loose": 0.0,
+            "stock_qty": 0.0,
+            "expired": true,
+            "existing_batch_id": 1054,
+            "reuses_existing": true,
+            "metadata_update_needed": true,
+            "metadata_update_plan": "UPDATE batch id 1054 fields on apply: mrp 220.0->260.0; purchase 110.0->95.0; net 110.0->107.44; historical invoice-line copies untouched",
+            "source_stockbalance_rows": 1,
+            "source_sales_lines": 7,
+            "source_purchase_lines": 1
+          }
+        ],
+        "remap": {
+          "sales_moves_planned": 0,
+          "sales_already_correct": 10,
+          "purchase_lines_documented": 2,
+          "mixed_vouchers": []
+        }
+      },
+      {
+        "target_item": 1182,
+        "normalized_key": "CARE",
+        "collision_variant": "surrounding whitespace",
+        "raw_variants": [
+          " CARE",
+          "CARE"
+        ],
+        "legacy_items": [
+          "238"
+        ],
+        "has_stripped_collision": true,
+        "canonical_raw": "CARE",
+        "conflicting_fields": [
+          "expiry",
+          "net_rate"
+        ],
+        "agreeing_fields": [
+          "pack_size",
+          "mrp",
+          "purchase_rate"
+        ],
+        "metadata_conflict": true,
+        "status": "resolved",
+        "block_reason": null,
+        "variants": [
+          {
+            "raw_batch_exact": " CARE",
+            "stripped_batch": "CARE",
+            "alias_batch_no": "CARE[exact=' CARE']",
+            "display_batch_no": "CARE[exact=' CARE']",
+            "is_canonical": false,
+            "legacy_items": [
+              "238"
+            ],
+            "expiry": "2018-05-31",
+            "pack_size_src": 1.0,
+            "pack_size_resolved": 1.0,
+            "pack_size_text": "1",
+            "mrp": 125.0,
+            "purchase_rate": 52.0,
+            "net_rate": 50.0,
+            "net_loose": 0.0,
+            "stock_qty": 0.0,
+            "expired": true,
+            "existing_batch_id": null,
+            "reuses_existing": false,
+            "metadata_update_needed": true,
+            "metadata_update_plan": "INSERT new batch \"CARE[exact=' CARE']\" with source metadata (expiry 2018-05-31, pack 1, mrp 125.0, purchase 52.0, net 50.0); history rows untouched",
+            "source_stockbalance_rows": 1,
+            "source_sales_lines": 21,
+            "source_purchase_lines": 1
+          },
+          {
+            "raw_batch_exact": "CARE",
+            "stripped_batch": "CARE",
+            "alias_batch_no": "CARE",
+            "display_batch_no": "CARE",
+            "is_canonical": true,
+            "legacy_items": [
+              "238"
+            ],
+            "expiry": "2017-05-31",
+            "pack_size_src": 1.0,
+            "pack_size_resolved": 1.0,
+            "pack_size_text": "1",
+            "mrp": 125.0,
+            "purchase_rate": 52.0,
+            "net_rate": 52.0,
+            "net_loose": 0.0,
+            "stock_qty": 0.0,
+            "expired": true,
+            "existing_batch_id": 176,
+            "reuses_existing": true,
+            "metadata_update_needed": false,
+            "metadata_update_plan": "none \u2014 existing batch metadata already matches this variant",
+            "source_stockbalance_rows": 1,
+            "source_sales_lines": 112,
+            "source_purchase_lines": 3
+          }
+        ],
+        "remap": {
+          "sales_moves_planned": 21,
+          "sales_already_correct": 0,
+          "purchase_lines_documented": 4,
+          "mixed_vouchers": []
+        }
+      },
+      {
+        "target_item": 1199,
+        "normalized_key": "CARE UNI",
+        "collision_variant": "internal whitespace",
+        "raw_variants": [
+          "CARE  UNI",
+          "CARE UNI"
+        ],
+        "legacy_items": [
+          "255"
+        ],
+        "has_stripped_collision": false,
+        "canonical_raw": "CARE UNI",
+        "conflicting_fields": [
+          "mrp",
+          "purchase_rate",
+          "net_rate"
+        ],
+        "agreeing_fields": [
+          "expiry",
+          "pack_size"
+        ],
+        "metadata_conflict": true,
+        "status": "resolved",
+        "block_reason": null,
+        "variants": [
+          {
+            "raw_batch_exact": "CARE  UNI",
+            "stripped_batch": "CARE  UNI",
+            "alias_batch_no": "CARE  UNI",
+            "display_batch_no": "CARE[2sp]UNI",
+            "is_canonical": false,
+            "legacy_items": [
+              "255"
+            ],
+            "expiry": "2017-05-31",
+            "pack_size_src": 1.0,
+            "pack_size_resolved": 1.0,
+            "pack_size_text": "1",
+            "mrp": 360.0,
+            "purchase_rate": 175.0,
+            "net_rate": 175.0,
+            "net_loose": 0.0,
+            "stock_qty": 0.0,
+            "expired": true,
+            "existing_batch_id": 177,
+            "reuses_existing": true,
+            "metadata_update_needed": false,
+            "metadata_update_plan": "none \u2014 existing batch metadata already matches this variant",
+            "source_stockbalance_rows": 1,
+            "source_sales_lines": 5,
+            "source_purchase_lines": 1
+          },
+          {
+            "raw_batch_exact": "CARE UNI",
+            "stripped_batch": "CARE UNI",
+            "alias_batch_no": "CARE UNI",
+            "display_batch_no": "CARE UNI",
+            "is_canonical": true,
+            "legacy_items": [
+              "255"
+            ],
+            "expiry": "2017-05-31",
+            "pack_size_src": 1.0,
+            "pack_size_resolved": 1.0,
+            "pack_size_text": "1",
+            "mrp": 415.0,
+            "purchase_rate": 160.0,
+            "net_rate": 163.25,
+            "net_loose": 18.0,
+            "stock_qty": 18.0,
+            "expired": true,
+            "existing_batch_id": 1995,
+            "reuses_existing": true,
+            "metadata_update_needed": true,
+            "metadata_update_plan": "UPDATE batch id 1995 fields on apply: expiry '2020-02-29'->'2017-05-31'; mrp 390.0->415.0; purchase 175.0->160.0; net 175.0->163.25; historical invoice-line copies untouched",
+            "source_stockbalance_rows": 1,
+            "source_sales_lines": 8,
+            "source_purchase_lines": 2
+          }
+        ],
+        "remap": {
+          "sales_moves_planned": 0,
+          "sales_already_correct": 13,
+          "purchase_lines_documented": 3,
+          "mixed_vouchers": []
+        }
+      },
+      {
+        "target_item": 1294,
+        "normalized_key": "CARE 1",
+        "collision_variant": "internal whitespace",
+        "raw_variants": [
+          "CARE   1",
+          "CARE  1",
+          "CARE 1"
+        ],
+        "legacy_items": [
+          "351"
+        ],
+        "has_stripped_collision": false,
+        "canonical_raw": "CARE 1",
+        "conflicting_fields": [
+          "mrp"
+        ],
+        "agreeing_fields": [
+          "expiry",
+          "pack_size",
+          "purchase_rate",
+          "net_rate"
+        ],
+        "metadata_conflict": true,
+        "status": "resolved",
+        "block_reason": null,
+        "variants": [
+          {
+            "raw_batch_exact": "CARE   1",
+            "stripped_batch": "CARE   1",
+            "alias_batch_no": "CARE   1",
+            "display_batch_no": "CARE[3sp]1",
+            "is_canonical": false,
+            "legacy_items": [
+              "351"
+            ],
+            "expiry": "2017-05-31",
+            "pack_size_src": 1.0,
+            "pack_size_resolved": 1.0,
+            "pack_size_text": "1",
+            "mrp": 75.0,
+            "purchase_rate": 15.0,
+            "net_rate": 15.0,
+            "net_loose": 0.0,
+            "stock_qty": 0.0,
+            "expired": true,
+            "existing_batch_id": 7393,
+            "reuses_existing": true,
+            "metadata_update_needed": true,
+            "metadata_update_plan": "UPDATE batch id 7393 fields on apply: purchase 75.0->15.0; net 0.0->15.0; historical invoice-line copies untouched",
+            "source_stockbalance_rows": 1,
+            "source_sales_lines": 4,
+            "source_purchase_lines": 0
+          },
+          {
+            "raw_batch_exact": "CARE  1",
+            "stripped_batch": "CARE  1",
+            "alias_batch_no": "CARE  1",
+            "display_batch_no": "CARE[2sp]1",
+            "is_canonical": false,
+            "legacy_items": [
+              "351"
+            ],
+            "expiry": "2017-05-31",
+            "pack_size_src": 1.0,
+            "pack_size_resolved": 1.0,
+            "pack_size_text": "1",
+            "mrp": 55.0,
+            "purchase_rate": 15.0,
+            "net_rate": 15.0,
+            "net_loose": 0.0,
+            "stock_qty": 0.0,
+            "expired": true,
+            "existing_batch_id": 7418,
+            "reuses_existing": true,
+            "metadata_update_needed": true,
+            "metadata_update_plan": "UPDATE batch id 7418 fields on apply: purchase 55.0->15.0; net 0.0->15.0; historical invoice-line copies untouched",
+            "source_stockbalance_rows": 1,
+            "source_sales_lines": 2,
+            "source_purchase_lines": 0
+          },
+          {
+            "raw_batch_exact": "CARE 1",
+            "stripped_batch": "CARE 1",
+            "alias_batch_no": "CARE 1",
+            "display_batch_no": "CARE 1",
+            "is_canonical": true,
+            "legacy_items": [
+              "351"
+            ],
+            "expiry": "2017-05-31",
+            "pack_size_src": 1.0,
+            "pack_size_resolved": 1.0,
+            "pack_size_text": "1",
+            "mrp": 65.0,
+            "purchase_rate": 15.0,
+            "net_rate": 15.0,
+            "net_loose": 0.0,
+            "stock_qty": 0.0,
+            "expired": true,
+            "existing_batch_id": 7392,
+            "reuses_existing": true,
+            "metadata_update_needed": true,
+            "metadata_update_plan": "UPDATE batch id 7392 fields on apply: purchase 65.0->15.0; net 0.0->15.0; historical invoice-line copies untouched",
+            "source_stockbalance_rows": 1,
+            "source_sales_lines": 2,
+            "source_purchase_lines": 0
+          }
+        ],
+        "remap": {
+          "sales_moves_planned": 0,
+          "sales_already_correct": 8,
+          "purchase_lines_documented": 0,
+          "mixed_vouchers": []
+        }
+      },
+      {
+        "target_item": 1524,
+        "normalized_key": "LA 60709",
+        "collision_variant": "internal whitespace",
+        "raw_variants": [
+          "LA  60709",
+          "LA 60709"
+        ],
+        "legacy_items": [
+          "581"
+        ],
+        "has_stripped_collision": false,
+        "canonical_raw": "LA 60709",
+        "conflicting_fields": [
+          "net_rate"
+        ],
+        "agreeing_fields": [
+          "expiry",
+          "pack_size",
+          "mrp",
+          "purchase_rate"
+        ],
+        "metadata_conflict": true,
+        "status": "resolved",
+        "block_reason": null,
+        "variants": [
+          {
+            "raw_batch_exact": "LA  60709",
+            "stripped_batch": "LA  60709",
+            "alias_batch_no": "LA  60709",
+            "display_batch_no": "LA[2sp]60709",
+            "is_canonical": false,
+            "legacy_items": [
+              "581"
+            ],
+            "expiry": "2019-06-30",
+            "pack_size_src": 5.0,
+            "pack_size_resolved": 5.0,
+            "pack_size_text": "5",
+            "mrp": 23.0,
+            "purchase_rate": 17.36,
+            "net_rate": 19.09,
+            "net_loose": 0.0,
+            "stock_qty": 0.0,
+            "expired": true,
+            "existing_batch_id": 1477,
+            "reuses_existing": true,
+            "metadata_update_needed": true,
+            "metadata_update_plan": "UPDATE batch id 1477 fields on apply: net 17.48->19.09; historical invoice-line copies untouched",
+            "source_stockbalance_rows": 1,
+            "source_sales_lines": 25,
+            "source_purchase_lines": 1
+          },
+          {
+            "raw_batch_exact": "LA 60709",
+            "stripped_batch": "LA 60709",
+            "alias_batch_no": "LA 60709",
+            "display_batch_no": "LA 60709",
+            "is_canonical": true,
+            "legacy_items": [
+              "581"
+            ],
+            "expiry": "2019-06-30",
+            "pack_size_src": 5.0,
+            "pack_size_resolved": 5.0,
+            "pack_size_text": "5",
+            "mrp": 23.0,
+            "purchase_rate": 17.36,
+            "net_rate": 10.95,
+            "net_loose": 0.0,
+            "stock_qty": 0.0,
+            "expired": true,
+            "existing_batch_id": 1444,
+            "reuses_existing": true,
+            "metadata_update_needed": true,
+            "metadata_update_plan": "UPDATE batch id 1444 fields on apply: net 17.76->10.95; historical invoice-line copies untouched",
+            "source_stockbalance_rows": 1,
+            "source_sales_lines": 61,
+            "source_purchase_lines": 1
+          }
+        ],
+        "remap": {
+          "sales_moves_planned": 0,
+          "sales_already_correct": 86,
+          "purchase_lines_documented": 2,
+          "mixed_vouchers": []
+        }
+      },
+      {
+        "target_item": 1543,
+        "normalized_key": "ST16 2195",
+        "collision_variant": "internal whitespace",
+        "raw_variants": [
+          "ST16  2195",
+          "ST16 2195"
+        ],
+        "legacy_items": [
+          "600"
+        ],
+        "has_stripped_collision": false,
+        "canonical_raw": "ST16 2195",
+        "conflicting_fields": [
+          "net_rate"
+        ],
+        "agreeing_fields": [
+          "expiry",
+          "pack_size",
+          "mrp",
+          "purchase_rate"
+        ],
+        "metadata_conflict": true,
+        "status": "resolved",
+        "block_reason": null,
+        "variants": [
+          {
+            "raw_batch_exact": "ST16  2195",
+            "stripped_batch": "ST16  2195",
+            "alias_batch_no": "ST16  2195",
+            "display_batch_no": "ST16[2sp]2195",
+            "is_canonical": false,
+            "legacy_items": [
+              "600"
+            ],
+            "expiry": "2018-09-30",
+            "pack_size_src": 10.0,
+            "pack_size_resolved": 10.0,
+            "pack_size_text": "10",
+            "mrp": 71.0,
+            "purchase_rate": 50.71,
+            "net_rate": 53.25,
+            "net_loose": 0.0,
+            "stock_qty": 0.0,
+            "expired": true,
+            "existing_batch_id": 2089,
+            "reuses_existing": true,
+            "metadata_update_needed": true,
+            "metadata_update_plan": "UPDATE batch id 2089 fields on apply: net 56.8->53.25; historical invoice-line copies untouched",
+            "source_stockbalance_rows": 1,
+            "source_sales_lines": 67,
+            "source_purchase_lines": 3
+          },
+          {
+            "raw_batch_exact": "ST16 2195",
+            "stripped_batch": "ST16 2195",
+            "alias_batch_no": "ST16 2195",
+            "display_batch_no": "ST16 2195",
+            "is_canonical": true,
+            "legacy_items": [
+              "600"
+            ],
+            "expiry": "2018-09-30",
+            "pack_size_src": 10.0,
+            "pack_size_resolved": 10.0,
+            "pack_size_text": "10",
+            "mrp": 71.0,
+            "purchase_rate": 50.71,
+            "net_rate": 52.07,
+            "net_loose": 0.0,
+            "stock_qty": 0.0,
+            "expired": true,
+            "existing_batch_id": 2083,
+            "reuses_existing": true,
+            "metadata_update_needed": true,
+            "metadata_update_plan": "UPDATE batch id 2083 fields on apply: net 56.8->52.07; historical invoice-line copies untouched",
+            "source_stockbalance_rows": 1,
+            "source_sales_lines": 90,
+            "source_purchase_lines": 3
+          }
+        ],
+        "remap": {
+          "sales_moves_planned": 0,
+          "sales_already_correct": 157,
+          "purchase_lines_documented": 6,
+          "mixed_vouchers": [
+            "22246",
+            "22495"
+          ]
+        }
+      }
+    ],
+    "resolved_rows": [
+      {
+        "target_item": 961,
+        "alias_batch_no": "N  142033",
+        "raw_batch_exact": "N  142033",
+        "expiry": "2017-05-31",
+        "pack_size": "1",
+        "pack_size_num": 1.0,
+        "mrp": 270.0,
+        "purchase_rate": 72.0,
+        "net_rate": 72.0,
+        "net_loose": 0.0,
+        "stock_qty": 0.0,
+        "expired": true
+      },
+      {
+        "target_item": 961,
+        "alias_batch_no": "N 142033",
+        "raw_batch_exact": "N 142033",
+        "expiry": "2017-05-31",
+        "pack_size": "1",
+        "pack_size_num": 1.0,
+        "mrp": 210.0,
+        "purchase_rate": 72.0,
+        "net_rate": 72.0,
+        "net_loose": 0.0,
+        "stock_qty": 0.0,
+        "expired": true
+      },
+      {
+        "target_item": 1094,
+        "alias_batch_no": "KR  2923",
+        "raw_batch_exact": "KR  2923",
+        "expiry": "2016-11-30",
+        "pack_size": "10",
+        "pack_size_num": 10.0,
+        "mrp": 46.5,
+        "purchase_rate": 35.8,
+        "net_rate": 37.59,
+        "net_loose": 0.0,
+        "stock_qty": 0.0,
+        "expired": true
+      },
+      {
+        "target_item": 1094,
+        "alias_batch_no": "KR 2923",
+        "raw_batch_exact": "KR 2923",
+        "expiry": "2016-11-30",
+        "pack_size": "10",
+        "pack_size_num": 10.0,
+        "mrp": 46.5,
+        "purchase_rate": 36.49,
+        "net_rate": 38.31,
+        "net_loose": 0.0,
+        "stock_qty": 0.0,
+        "expired": true
+      },
+      {
+        "target_item": 1134,
+        "alias_batch_no": "CARE  UNI",
+        "raw_batch_exact": "CARE  UNI",
+        "expiry": "2017-05-31",
+        "pack_size": "1",
+        "pack_size_num": 1.0,
+        "mrp": 230.0,
+        "purchase_rate": 110.0,
+        "net_rate": 110.0,
+        "net_loose": 9.0,
+        "stock_qty": 9.0,
+        "expired": true
+      },
+      {
+        "target_item": 1134,
+        "alias_batch_no": "CARE UNI",
+        "raw_batch_exact": "CARE UNI",
+        "expiry": "2017-05-31",
+        "pack_size": "1",
+        "pack_size_num": 1.0,
+        "mrp": 260.0,
+        "purchase_rate": 95.0,
+        "net_rate": 107.44,
+        "net_loose": 0.0,
+        "stock_qty": 0.0,
+        "expired": true
+      },
+      {
+        "target_item": 1182,
+        "alias_batch_no": "CARE[exact=' CARE']",
+        "raw_batch_exact": " CARE",
+        "expiry": "2018-05-31",
+        "pack_size": "1",
+        "pack_size_num": 1.0,
+        "mrp": 125.0,
+        "purchase_rate": 52.0,
+        "net_rate": 50.0,
+        "net_loose": 0.0,
+        "stock_qty": 0.0,
+        "expired": true
+      },
+      {
+        "target_item": 1182,
+        "alias_batch_no": "CARE",
+        "raw_batch_exact": "CARE",
+        "expiry": "2017-05-31",
+        "pack_size": "1",
+        "pack_size_num": 1.0,
+        "mrp": 125.0,
+        "purchase_rate": 52.0,
+        "net_rate": 52.0,
+        "net_loose": 0.0,
+        "stock_qty": 0.0,
+        "expired": true
+      },
+      {
+        "target_item": 1199,
+        "alias_batch_no": "CARE  UNI",
+        "raw_batch_exact": "CARE  UNI",
+        "expiry": "2017-05-31",
+        "pack_size": "1",
+        "pack_size_num": 1.0,
+        "mrp": 360.0,
+        "purchase_rate": 175.0,
+        "net_rate": 175.0,
+        "net_loose": 0.0,
+        "stock_qty": 0.0,
+        "expired": true
+      },
+      {
+        "target_item": 1199,
+        "alias_batch_no": "CARE UNI",
+        "raw_batch_exact": "CARE UNI",
+        "expiry": "2017-05-31",
+        "pack_size": "1",
+        "pack_size_num": 1.0,
+        "mrp": 415.0,
+        "purchase_rate": 160.0,
+        "net_rate": 163.25,
+        "net_loose": 18.0,
+        "stock_qty": 18.0,
+        "expired": true
+      },
+      {
+        "target_item": 1294,
+        "alias_batch_no": "CARE   1",
+        "raw_batch_exact": "CARE   1",
+        "expiry": "2017-05-31",
+        "pack_size": "1",
+        "pack_size_num": 1.0,
+        "mrp": 75.0,
+        "purchase_rate": 15.0,
+        "net_rate": 15.0,
+        "net_loose": 0.0,
+        "stock_qty": 0.0,
+        "expired": true
+      },
+      {
+        "target_item": 1294,
+        "alias_batch_no": "CARE  1",
+        "raw_batch_exact": "CARE  1",
+        "expiry": "2017-05-31",
+        "pack_size": "1",
+        "pack_size_num": 1.0,
+        "mrp": 55.0,
+        "purchase_rate": 15.0,
+        "net_rate": 15.0,
+        "net_loose": 0.0,
+        "stock_qty": 0.0,
+        "expired": true
+      },
+      {
+        "target_item": 1294,
+        "alias_batch_no": "CARE 1",
+        "raw_batch_exact": "CARE 1",
+        "expiry": "2017-05-31",
+        "pack_size": "1",
+        "pack_size_num": 1.0,
+        "mrp": 65.0,
+        "purchase_rate": 15.0,
+        "net_rate": 15.0,
+        "net_loose": 0.0,
+        "stock_qty": 0.0,
+        "expired": true
+      },
+      {
+        "target_item": 1524,
+        "alias_batch_no": "LA  60709",
+        "raw_batch_exact": "LA  60709",
+        "expiry": "2019-06-30",
+        "pack_size": "5",
+        "pack_size_num": 5.0,
+        "mrp": 23.0,
+        "purchase_rate": 17.36,
+        "net_rate": 19.09,
+        "net_loose": 0.0,
+        "stock_qty": 0.0,
+        "expired": true
+      },
+      {
+        "target_item": 1524,
+        "alias_batch_no": "LA 60709",
+        "raw_batch_exact": "LA 60709",
+        "expiry": "2019-06-30",
+        "pack_size": "5",
+        "pack_size_num": 5.0,
+        "mrp": 23.0,
+        "purchase_rate": 17.36,
+        "net_rate": 10.95,
+        "net_loose": 0.0,
+        "stock_qty": 0.0,
+        "expired": true
+      },
+      {
+        "target_item": 1543,
+        "alias_batch_no": "ST16  2195",
+        "raw_batch_exact": "ST16  2195",
+        "expiry": "2018-09-30",
+        "pack_size": "10",
+        "pack_size_num": 10.0,
+        "mrp": 71.0,
+        "purchase_rate": 50.71,
+        "net_rate": 53.25,
+        "net_loose": 0.0,
+        "stock_qty": 0.0,
+        "expired": true
+      },
+      {
+        "target_item": 1543,
+        "alias_batch_no": "ST16 2195",
+        "raw_batch_exact": "ST16 2195",
+        "expiry": "2018-09-30",
+        "pack_size": "10",
+        "pack_size_num": 10.0,
+        "mrp": 71.0,
+        "purchase_rate": 50.71,
+        "net_rate": 52.07,
+        "net_loose": 0.0,
+        "stock_qty": 0.0,
+        "expired": true
+      }
+    ],
+    "resolved_groups": 8,
+    "blocked_groups": 0,
+    "reconciliation": {
+      "collision_variants_total": 17,
+      "collision_variants_mapped": 17,
+      "collision_variants_withheld": 0,
+      "withheld_stripped_keys_total": 16,
+      "withheld_stripped_keys_covered": 16,
+      "withheld_stripped_keys_omitted": 0,
+      "resolved_positive": 2,
+      "resolved_zero": 15,
+      "resolved_negative": 0,
+      "resolved_negatives": [],
+      "base_target_keys": 7776,
+      "base_withheld": 16,
+      "base_source_keys": 7792,
+      "mapping_partition_math": "7792 source keys = 7776 base rows + 16 withheld; resolution covers 16/16 withheld stripped keys as 17/17 variants"
+    },
+    "uc_rose": {
+      "legacy_item_id": 832,
+      "mapped_target_item_id": 1775,
+      "target_item_row": {
+        "id": 1775,
+        "item_name": "UC-ROSE",
+        "unit_id": 31,
+        "company_id": 3792,
+        "category_id": null,
+        "pack_size": "10",
+        "tax_structure": "11",
+        "discount": 0.0,
+        "mrp": 350.0,
+        "rate": 237.29,
+        "reorder_stock_level": 30,
+        "scheduled": "1",
+        "location": "",
+        "pathy": "ALLOPATHIC MEDICINES",
+        "dpco": "N",
+        "legacy_tax_id": null
+      },
+      "source_stockbalance_rows": [
+        {
+          "batch_no": "STF-089",
+          "expiry": "2024-05-31",
+          "mrp": 350.0,
+          "rate": 237.29,
+          "net_pur_rate": 233.34,
+          "total_purchase_qty_loose": 190.0,
+          "pack_size": 10.0,
+          "total_sales_qty_loose": 190.0,
+          "net_loose_units": 0.0,
+          "net_packs": 0.0
+        },
+        {
+          "batch_no": "STF-007",
+          "expiry": "2024-09-30",
+          "mrp": 350.0,
+          "rate": 237.29,
+          "net_pur_rate": 233.34,
+          "total_purchase_qty_loose": 120.0,
+          "pack_size": 10.0,
+          "total_sales_qty_loose": 120.0,
+          "net_loose_units": 0.0,
+          "net_packs": 0.0
+        },
+        {
+          "batch_no": "STF-026",
+          "expiry": "2024-11-30",
+          "mrp": 350.0,
+          "rate": 237.29,
+          "net_pur_rate": 260.56,
+          "total_purchase_qty_loose": 351.0,
+          "pack_size": 10.0,
+          "total_sales_qty_loose": 351.0,
+          "net_loose_units": 0.0,
+          "net_packs": 0.0
+        },
+        {
+          "batch_no": "STF-2414",
+          "expiry": "2025-10-31",
+          "mrp": 385.0,
+          "rate": 261.02,
+          "net_pur_rate": 256.67,
+          "total_purchase_qty_loose": 120.0,
+          "pack_size": 10.0,
+          "total_sales_qty_loose": 120.0,
+          "net_loose_units": 0.0,
+          "net_packs": 0.0
+        },
+        {
+          "batch_no": "UTF-2414",
+          "expiry": "2025-10-31",
+          "mrp": 385.0,
+          "rate": 261.02,
+          "net_pur_rate": 444.04,
+          "total_purchase_qty_loose": 140.0,
+          "pack_size": 10.0,
+          "total_sales_qty_loose": 139.0,
+          "net_loose_units": 1.0,
+          "net_packs": 0.1
+        },
+        {
+          "batch_no": "JFT-2414",
+          "expiry": "2025-10-31",
+          "mrp": 385.0,
+          "rate": 261.02,
+          "net_pur_rate": 256.67,
+          "total_purchase_qty_loose": 60.0,
+          "pack_size": 10.0,
+          "total_sales_qty_loose": 60.0,
+          "net_loose_units": 0.0,
+          "net_packs": 0.0
+        },
+        {
+          "batch_no": "JFT-2437",
+          "expiry": "2025-12-31",
+          "mrp": 385.0,
+          "rate": 261.02,
+          "net_pur_rate": 256.67,
+          "total_purchase_qty_loose": 60.0,
+          "pack_size": 10.0,
+          "total_sales_qty_loose": 60.0,
+          "net_loose_units": 0.0,
+          "net_packs": 0.0
+        },
+        {
+          "batch_no": "JFT-2475",
+          "expiry": "2026-06-30",
+          "mrp": 385.0,
+          "rate": 261.0,
+          "net_pur_rate": 213.02,
+          "total_purchase_qty_loose": 65.0,
+          "pack_size": 10.0,
+          "total_sales_qty_loose": 63.0,
+          "net_loose_units": 2.0,
+          "net_packs": 0.2
+        },
+        {
+          "batch_no": "JFT-2505",
+          "expiry": "2026-09-30",
+          "mrp": 425.0,
+          "rate": 288.14,
+          "net_pur_rate": 283.34,
+          "total_purchase_qty_loose": 60.0,
+          "pack_size": 10.0,
+          "total_sales_qty_loose": 60.0,
+          "net_loose_units": 0.0,
+          "net_packs": 0.0
+        },
+        {
+          "batch_no": "JFT-2498",
+          "expiry": "2026-06-30",
+          "mrp": 343.0,
+          "rate": 261.01,
+          "net_pur_rate": 228.38,
+          "total_purchase_qty_loose": 60.0,
+          "pack_size": 10.0,
+          "total_sales_qty_loose": 60.0,
+          "net_loose_units": 0.0,
+          "net_packs": 0.0
+        },
+        {
+          "batch_no": "JTF-2505",
+          "expiry": "2026-09-30",
+          "mrp": 378.17,
+          "rate": 288.14,
+          "net_pur_rate": 252.12,
+          "total_purchase_qty_loose": 60.0,
+          "pack_size": 10.0,
+          "total_sales_qty_loose": 60.0,
+          "net_loose_units": 0.0,
+          "net_packs": 0.0
+        },
+        {
+          "batch_no": "JTF-2547",
+          "expiry": "2027-01-31",
+          "mrp": 378.0,
+          "rate": 288.14,
+          "net_pur_rate": 252.12,
+          "total_purchase_qty_loose": 60.0,
+          "pack_size": 10.0,
+          "total_sales_qty_loose": 57.0,
+          "net_loose_units": 3.0,
+          "net_packs": 0.3
+        },
+        {
+          "batch_no": "JFT-2573",
+          "expiry": "2027-04-30",
+          "mrp": 378.16,
+          "rate": 288.14,
+          "net_pur_rate": 252.12,
+          "total_purchase_qty_loose": 60.0,
+          "pack_size": 10.0,
+          "total_sales_qty_loose": 60.0,
+          "net_loose_units": 0.0,
+          "net_packs": 0.0
+        },
+        {
+          "batch_no": "JTF-2573",
+          "expiry": "2027-04-30",
+          "mrp": 378.18,
+          "rate": 288.12,
+          "net_pur_rate": 252.1,
+          "total_purchase_qty_loose": 780.0,
+          "pack_size": 10.0,
+          "total_sales_qty_loose": 549.0,
+          "net_loose_units": 231.0,
+          "net_packs": 23.1
+        }
+      ],
+      "plan_rows": [
+        {
+          "target_item": 1775,
+          "batch_no": "STF-089",
+          "expiry": "2024-05-31",
+          "mrp": 350.0,
+          "purchase_rate": 237.29,
+          "net_rate": 233.34,
+          "pack_size": "10",
+          "net_loose": 0.0,
+          "stock_qty": 0.0,
+          "expired": true,
+          "legacy_items": [
+            "832"
+          ]
+        },
+        {
+          "target_item": 1775,
+          "batch_no": "STF-007",
+          "expiry": "2024-09-30",
+          "mrp": 350.0,
+          "purchase_rate": 237.29,
+          "net_rate": 233.34,
+          "pack_size": "10",
+          "net_loose": 0.0,
+          "stock_qty": 0.0,
+          "expired": true,
+          "legacy_items": [
+            "832"
+          ]
+        },
+        {
+          "target_item": 1775,
+          "batch_no": "STF-026",
+          "expiry": "2024-11-30",
+          "mrp": 350.0,
+          "purchase_rate": 237.29,
+          "net_rate": 260.56,
+          "pack_size": "10",
+          "net_loose": 0.0,
+          "stock_qty": 0.0,
+          "expired": true,
+          "legacy_items": [
+            "832"
+          ]
+        },
+        {
+          "target_item": 1775,
+          "batch_no": "STF-2414",
+          "expiry": "2025-10-31",
+          "mrp": 385.0,
+          "purchase_rate": 261.02,
+          "net_rate": 256.67,
+          "pack_size": "10",
+          "net_loose": 0.0,
+          "stock_qty": 0.0,
+          "expired": true,
+          "legacy_items": [
+            "832"
+          ]
+        },
+        {
+          "target_item": 1775,
+          "batch_no": "UTF-2414",
+          "expiry": "2025-10-31",
+          "mrp": 385.0,
+          "purchase_rate": 261.02,
+          "net_rate": 444.04,
+          "pack_size": "10",
+          "net_loose": 1.0,
+          "stock_qty": 0.1,
+          "expired": true,
+          "legacy_items": [
+            "832"
+          ]
+        },
+        {
+          "target_item": 1775,
+          "batch_no": "JFT-2414",
+          "expiry": "2025-10-31",
+          "mrp": 385.0,
+          "purchase_rate": 261.02,
+          "net_rate": 256.67,
+          "pack_size": "10",
+          "net_loose": 0.0,
+          "stock_qty": 0.0,
+          "expired": true,
+          "legacy_items": [
+            "832"
+          ]
+        },
+        {
+          "target_item": 1775,
+          "batch_no": "JFT-2437",
+          "expiry": "2025-12-31",
+          "mrp": 385.0,
+          "purchase_rate": 261.02,
+          "net_rate": 256.67,
+          "pack_size": "10",
+          "net_loose": 0.0,
+          "stock_qty": 0.0,
+          "expired": true,
+          "legacy_items": [
+            "832"
+          ]
+        },
+        {
+          "target_item": 1775,
+          "batch_no": "JFT-2475",
+          "expiry": "2026-06-30",
+          "mrp": 385.0,
+          "purchase_rate": 261.0,
+          "net_rate": 213.02,
+          "pack_size": "10",
+          "net_loose": 2.0,
+          "stock_qty": 0.2,
+          "expired": true,
+          "legacy_items": [
+            "832"
+          ]
+        },
+        {
+          "target_item": 1775,
+          "batch_no": "JFT-2505",
+          "expiry": "2026-09-30",
+          "mrp": 425.0,
+          "purchase_rate": 288.14,
+          "net_rate": 283.34,
+          "pack_size": "10",
+          "net_loose": 0.0,
+          "stock_qty": 0.0,
+          "expired": true,
+          "legacy_items": [
+            "832"
+          ]
+        },
+        {
+          "target_item": 1775,
+          "batch_no": "JFT-2498",
+          "expiry": "2026-06-30",
+          "mrp": 343.0,
+          "purchase_rate": 261.01,
+          "net_rate": 228.38,
+          "pack_size": "10",
+          "net_loose": 0.0,
+          "stock_qty": 0.0,
+          "expired": true,
+          "legacy_items": [
+            "832"
+          ]
+        },
+        {
+          "target_item": 1775,
+          "batch_no": "JTF-2505",
+          "expiry": "2026-09-30",
+          "mrp": 378.17,
+          "purchase_rate": 288.14,
+          "net_rate": 252.12,
+          "pack_size": "10",
+          "net_loose": 0.0,
+          "stock_qty": 0.0,
+          "expired": true,
+          "legacy_items": [
+            "832"
+          ]
+        },
+        {
+          "target_item": 1775,
+          "batch_no": "JTF-2547",
+          "expiry": "2027-01-31",
+          "mrp": 378.0,
+          "purchase_rate": 288.14,
+          "net_rate": 252.12,
+          "pack_size": "10",
+          "net_loose": 3.0,
+          "stock_qty": 0.3,
+          "expired": false,
+          "legacy_items": [
+            "832"
+          ]
+        },
+        {
+          "target_item": 1775,
+          "batch_no": "JFT-2573",
+          "expiry": "2027-04-30",
+          "mrp": 378.16,
+          "purchase_rate": 288.14,
+          "net_rate": 252.12,
+          "pack_size": "10",
+          "net_loose": 0.0,
+          "stock_qty": 0.0,
+          "expired": false,
+          "legacy_items": [
+            "832"
+          ]
+        },
+        {
+          "target_item": 1775,
+          "batch_no": "JTF-2573",
+          "expiry": "2027-04-30",
+          "mrp": 378.18,
+          "purchase_rate": 288.12,
+          "net_rate": 252.1,
+          "pack_size": "10",
+          "net_loose": 231.0,
+          "stock_qty": 23.1,
+          "expired": false,
+          "legacy_items": [
+            "832"
+          ]
+        }
+      ],
+      "projected_batches": [
+        {
+          "item_id": 1775,
+          "batch_no": "STF-089",
+          "expiry": "2024-05-31",
+          "pack_size": "10",
+          "mrp": 350.0,
+          "purchase_rate": 237.29,
+          "net_rate": 233.34,
+          "stock_qty": 0.0
+        },
+        {
+          "item_id": 1775,
+          "batch_no": "STF-007",
+          "expiry": "2024-09-30",
+          "pack_size": "10",
+          "mrp": 350.0,
+          "purchase_rate": 237.29,
+          "net_rate": 233.34,
+          "stock_qty": 0.0
+        },
+        {
+          "item_id": 1775,
+          "batch_no": "STF-026",
+          "expiry": "2024-11-30",
+          "pack_size": "10",
+          "mrp": 350.0,
+          "purchase_rate": 237.29,
+          "net_rate": 260.56,
+          "stock_qty": 0.0
+        },
+        {
+          "item_id": 1775,
+          "batch_no": "STF-2414",
+          "expiry": "2025-10-31",
+          "pack_size": "10",
+          "mrp": 385.0,
+          "purchase_rate": 261.02,
+          "net_rate": 256.67,
+          "stock_qty": 0.0
+        },
+        {
+          "item_id": 1775,
+          "batch_no": "UTF-2414",
+          "expiry": "2025-10-31",
+          "pack_size": "10",
+          "mrp": 385.0,
+          "purchase_rate": 261.02,
+          "net_rate": 444.04,
+          "stock_qty": 0.1
+        },
+        {
+          "item_id": 1775,
+          "batch_no": "JFT-2414",
+          "expiry": "2025-10-31",
+          "pack_size": "10",
+          "mrp": 385.0,
+          "purchase_rate": 261.02,
+          "net_rate": 256.67,
+          "stock_qty": 0.0
+        },
+        {
+          "item_id": 1775,
+          "batch_no": "JFT-2437",
+          "expiry": "2025-12-31",
+          "pack_size": "10",
+          "mrp": 385.0,
+          "purchase_rate": 261.02,
+          "net_rate": 256.67,
+          "stock_qty": 0.0
+        },
+        {
+          "item_id": 1775,
+          "batch_no": "JFT-2475",
+          "expiry": "2026-06-30",
+          "pack_size": "10",
+          "mrp": 385.0,
+          "purchase_rate": 261.0,
+          "net_rate": 213.02,
+          "stock_qty": 0.2
+        },
+        {
+          "item_id": 1775,
+          "batch_no": "JFT-2505",
+          "expiry": "2026-09-30",
+          "pack_size": "10",
+          "mrp": 425.0,
+          "purchase_rate": 288.14,
+          "net_rate": 283.34,
+          "stock_qty": 0.0
+        },
+        {
+          "item_id": 1775,
+          "batch_no": "JFT-2498",
+          "expiry": "2026-06-30",
+          "pack_size": "10",
+          "mrp": 343.0,
+          "purchase_rate": 261.01,
+          "net_rate": 228.38,
+          "stock_qty": 0.0
+        },
+        {
+          "item_id": 1775,
+          "batch_no": "JTF-2505",
+          "expiry": "2026-09-30",
+          "pack_size": "10",
+          "mrp": 378.17,
+          "purchase_rate": 288.14,
+          "net_rate": 252.12,
+          "stock_qty": 0.0
+        },
+        {
+          "item_id": 1775,
+          "batch_no": "JTF-2547",
+          "expiry": "2027-01-31",
+          "pack_size": "10",
+          "mrp": 378.0,
+          "purchase_rate": 288.14,
+          "net_rate": 252.12,
+          "stock_qty": 0.3
+        },
+        {
+          "item_id": 1775,
+          "batch_no": "JFT-2573",
+          "expiry": "2027-04-30",
+          "pack_size": "10",
+          "mrp": 378.16,
+          "purchase_rate": 288.14,
+          "net_rate": 252.12,
+          "stock_qty": 0.0
+        },
+        {
+          "item_id": 1775,
+          "batch_no": "JTF-2573",
+          "expiry": "2027-04-30",
+          "pack_size": "10",
+          "mrp": 378.18,
+          "purchase_rate": 288.12,
+          "net_rate": 252.1,
+          "stock_qty": 23.1
+        }
+      ],
+      "projected_positive_batches": [
+        {
+          "item_id": 1775,
+          "batch_no": "UTF-2414",
+          "expiry": "2025-10-31",
+          "pack_size": "10",
+          "mrp": 385.0,
+          "purchase_rate": 261.02,
+          "net_rate": 444.04,
+          "stock_qty": 0.1
+        },
+        {
+          "item_id": 1775,
+          "batch_no": "JFT-2475",
+          "expiry": "2026-06-30",
+          "pack_size": "10",
+          "mrp": 385.0,
+          "purchase_rate": 261.0,
+          "net_rate": 213.02,
+          "stock_qty": 0.2
+        },
+        {
+          "item_id": 1775,
+          "batch_no": "JTF-2547",
+          "expiry": "2027-01-31",
+          "pack_size": "10",
+          "mrp": 378.0,
+          "purchase_rate": 288.14,
+          "net_rate": 252.12,
+          "stock_qty": 0.3
+        },
+        {
+          "item_id": 1775,
+          "batch_no": "JTF-2573",
+          "expiry": "2027-04-30",
+          "pack_size": "10",
+          "mrp": 378.18,
+          "purchase_rate": 288.12,
+          "net_rate": 252.1,
+          "stock_qty": 23.1
+        }
+      ],
+      "projected_sellable_batches": [
+        {
+          "item_id": 1775,
+          "batch_no": "JTF-2547",
+          "expiry": "2027-01-31",
+          "pack_size": "10",
+          "mrp": 378.0,
+          "purchase_rate": 288.14,
+          "net_rate": 252.12,
+          "stock_qty": 0.3
+        },
+        {
+          "item_id": 1775,
+          "batch_no": "JTF-2573",
+          "expiry": "2027-04-30",
+          "pack_size": "10",
+          "mrp": 378.18,
+          "purchase_rate": 288.12,
+          "net_rate": 252.1,
+          "stock_qty": 23.1
+        }
+      ],
+      "projected_expired_with_stock": [
+        {
+          "item_id": 1775,
+          "batch_no": "UTF-2414",
+          "expiry": "2025-10-31",
+          "pack_size": "10",
+          "mrp": 385.0,
+          "purchase_rate": 261.02,
+          "net_rate": 444.04,
+          "stock_qty": 0.1
+        },
+        {
+          "item_id": 1775,
+          "batch_no": "JFT-2475",
+          "expiry": "2026-06-30",
+          "pack_size": "10",
+          "mrp": 385.0,
+          "purchase_rate": 261.0,
+          "net_rate": 213.02,
+          "stock_qty": 0.2
+        }
+      ],
+      "projected_counter_sale_rows": [
+        {
+          "item_id": 1775,
+          "batch_no": "JTF-2547",
+          "expiry": "2027-01-31",
+          "pack_size": "10",
+          "mrp": 378.0,
+          "purchase_rate": 288.14,
+          "net_rate": 252.12,
+          "stock_qty": 0.3
+        },
+        {
+          "item_id": 1775,
+          "batch_no": "JTF-2573",
+          "expiry": "2027-04-30",
+          "pack_size": "10",
+          "mrp": 378.18,
+          "purchase_rate": 288.12,
+          "net_rate": 252.1,
+          "stock_qty": 23.1
+        }
+      ],
+      "withheld_keys": [],
+      "current_target_batches": [
+        {
+          "id": 6275,
+          "item_id": 1775,
+          "batch_no": "JFT-2414",
+          "expiry": "2025-10-31",
+          "pack_size": "10",
+          "mrp": 385.0,
+          "purchase_rate": 261.02,
+          "net_rate": 256.67,
+          "stock_qty": 0.0
+        },
+        {
+          "id": 6341,
+          "item_id": 1775,
+          "batch_no": "JFT-2437",
+          "expiry": "2025-12-31",
+          "pack_size": "10",
+          "mrp": 385.0,
+          "purchase_rate": 261.02,
+          "net_rate": 256.67,
+          "stock_qty": 0.0
+        },
+        {
+          "id": 6396,
+          "item_id": 1775,
+          "batch_no": "JFT-2475",
+          "expiry": "2026-06-30",
+          "pack_size": "10",
+          "mrp": 385.0,
+          "purchase_rate": 261.0,
+          "net_rate": 256.65,
+          "stock_qty": 0.0
+        },
+        {
+          "id": 6646,
+          "item_id": 1775,
+          "batch_no": "JFT-2498",
+          "expiry": "2026-06-30",
+          "pack_size": "10",
+          "mrp": 343.0,
+          "purchase_rate": 261.01,
+          "net_rate": 228.38,
+          "stock_qty": 0.0
+        },
+        {
+          "id": 6523,
+          "item_id": 1775,
+          "batch_no": "JFT-2505",
+          "expiry": "2026-09-30",
+          "pack_size": "10",
+          "mrp": 425.0,
+          "purchase_rate": 288.14,
+          "net_rate": 283.34,
+          "stock_qty": 0.0
+        },
+        {
+          "id": 6880,
+          "item_id": 1775,
+          "batch_no": "JFT-2573",
+          "expiry": "2027-04-30",
+          "pack_size": "10",
+          "mrp": 378.16,
+          "purchase_rate": 288.14,
+          "net_rate": 252.12,
+          "stock_qty": 0.0
+        },
+        {
+          "id": 6738,
+          "item_id": 1775,
+          "batch_no": "JTF-2505",
+          "expiry": "2026-09-30",
+          "pack_size": "10",
+          "mrp": 378.17,
+          "purchase_rate": 288.14,
+          "net_rate": 252.12,
+          "stock_qty": 0.0
+        },
+        {
+          "id": 6810,
+          "item_id": 1775,
+          "batch_no": "JTF-2547",
+          "expiry": "2027-01-31",
+          "pack_size": "10",
+          "mrp": 378.0,
+          "purchase_rate": 288.14,
+          "net_rate": 252.12,
+          "stock_qty": 0.0
+        },
+        {
+          "id": 6904,
+          "item_id": 1775,
+          "batch_no": "JTF-2573",
+          "expiry": "2027-04-30",
+          "pack_size": "10",
+          "mrp": 378.18,
+          "purchase_rate": 288.12,
+          "net_rate": 252.1,
+          "stock_qty": 0.0
+        },
+        {
+          "id": 5436,
+          "item_id": 1775,
+          "batch_no": "STF-007",
+          "expiry": "2024-09-30",
+          "pack_size": "10",
+          "mrp": 350.0,
+          "purchase_rate": 237.29,
+          "net_rate": 233.34,
+          "stock_qty": 0.0
+        },
+        {
+          "id": 5573,
+          "item_id": 1775,
+          "batch_no": "STF-026",
+          "expiry": "2024-11-30",
+          "pack_size": "10",
+          "mrp": 350.0,
+          "purchase_rate": 237.29,
+          "net_rate": 233.34,
+          "stock_qty": 0.0
+        },
+        {
+          "id": 5346,
+          "item_id": 1775,
+          "batch_no": "STF-089",
+          "expiry": "2024-05-31",
+          "pack_size": "10",
+          "mrp": 350.0,
+          "purchase_rate": 237.29,
+          "net_rate": 233.34,
+          "stock_qty": 0.0
+        },
+        {
+          "id": 6015,
+          "item_id": 1775,
+          "batch_no": "STF-2414",
+          "expiry": "2025-10-31",
+          "pack_size": "10",
+          "mrp": 385.0,
+          "purchase_rate": 261.02,
+          "net_rate": 256.67,
+          "stock_qty": 0.0
+        },
+        {
+          "id": 6071,
+          "item_id": 1775,
+          "batch_no": "UTF-2414",
+          "expiry": "2025-10-31",
+          "pack_size": "10",
+          "mrp": 385.0,
+          "purchase_rate": 261.02,
+          "net_rate": 256.67,
+          "stock_qty": 0.0
+        }
+      ],
+      "current_positive_batches": [],
+      "current_counter_sale_rows": []
+    }
+  }
+}

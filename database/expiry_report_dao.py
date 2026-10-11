@@ -227,16 +227,20 @@ class ExpiryReportDAO:
     def _summarize(rows: list[dict]) -> dict:
         """Summary over the returned (filtered) rows.
 
-        estimated_value = Σ stock_qty × purchase_rate — the same
-        informational stock-value formula the Stock screen uses. It is
-        NOT an accounting/inventory valuation.
+        estimated_value = Σ stock_qty × purchase_rate / pack_size — the same
+        informational stock-value formula the Stock screen uses (stock is
+        loose units, purchase_rate is per pack). It is NOT an
+        accounting/inventory valuation.
         """
+        from database.purchase_dao import pack_factor
         expired = sum(1 for r in rows if r["status"] == STATUS_EXPIRED)
         soon = sum(1 for r in rows if r["status"] == STATUS_EXPIRING_SOON)
         invalid = sum(1 for r in rows if r["status"] == "invalid")
         total_qty = sum(r["stock_qty"] for r in rows)
         estimated_value = sum(
-            r["stock_qty"] * (r["purchase_rate"] or 0.0) for r in rows
+            r["stock_qty"] * (r["purchase_rate"] or 0.0)
+            / pack_factor(r.get("pack_size", ""))
+            for r in rows
         )
         return {
             "expired_count": expired,
