@@ -310,6 +310,38 @@ class HistoryDateControlTests(_HistorySeedMixin, unittest.TestCase):
         self.assertIsNot(self.page._hist_date, panel.sale_date,
                          "the history Date must never drive the new bill date")
 
+    def test_05a_date_defaults_to_todays_live_date(self):
+        # A bare QDateEdit opens on 01/01/2000; the field must show the
+        # system's current date instead of that hardcoded default.
+        self.assertNotEqual(self.page._hist_date.date(), QDate(2000, 1, 1))
+        self.assertEqual(self.page._hist_date.date(), QDate.currentDate(),
+                         "the history Date must open on today's system date")
+        # The default is a display value only: the grid still opens
+        # unfiltered, exactly as it did before.
+        self.assertEqual(self.page._history_filter, HISTORY_FILTER_ALL)
+
+    def test_05b_manual_date_survives_a_refresh(self):
+        self._pick("2026-03-01")
+        self.page._hist_refresh_btn.click()
+        self.assertEqual(self.page._hist_date.date(),
+                         QDate.fromString("2026-03-01", "yyyy-MM-dd"),
+                         "a refresh must not reset the user's chosen date")
+        self.assertEqual(self.page._history_filter, HISTORY_FILTER_DATE)
+
+    def test_05c_all_dates_leaves_the_shown_date_alone(self):
+        self._pick("2026-03-01")
+        self.page._hist_all_btn.click()
+        self.assertEqual(self.page._hist_date.date(),
+                         QDate.fromString("2026-03-01", "yyyy-MM-dd"))
+        self.assertEqual(self.page._history_filter, HISTORY_FILTER_ALL)
+
+    def test_05d_a_new_sale_still_uses_the_live_date(self):
+        self._pick("2026-03-01")
+        self.page._sale_panel.reset_for_new()
+        self.assertEqual(self.page._sale_panel.sale_date.date(),
+                         QDate.currentDate(),
+                         "the history date must never drive a new bill")
+
     # -- filtering ----------------------------------------------------
     def test_06_selecting_a_date_filters_to_that_exact_day(self):
         self._pick("2026-03-01")

@@ -91,10 +91,30 @@ _SELECTED = _p["selected"]
 _SELECTED_TEXT = _p["selected_text"]
 _ERROR = "#c0392b"
 _WARNING = "#b26a00"
-_POPUP_BG = "#ffffff"
-_POPUP_TEXT = _TEXT
-_POPUP_BORDER = "#9db6cc"
-_POPUP_SELECTED = "#cfe2f3"
+# Completion-popup colours follow the active Day/Night theme.  They used to be
+# hardcoded light-mode values, which left every popup in this screen blank in
+# Night Mode: the popup background stayed white while the primary text colour
+# flipped to white, so the product names were painted white on white.
+def _popup_palette(p: dict | None = None) -> dict:
+    """Popup colours derived from a theme palette (the active one by default).
+
+    ``bg``/``text`` are the same pair the shared stylesheet uses for item
+    views, so the popup matches the combo it drops from in both modes.
+    """
+    p = p or palette()
+    return {
+        "bg": p["bg"],
+        "text": p["text"],
+        "border": p["border"],
+        "selected": p["selected"],
+    }
+
+
+_POPUP = _popup_palette()
+_POPUP_BG = _POPUP["bg"]
+_POPUP_TEXT = _POPUP["text"]
+_POPUP_BORDER = _POPUP["border"]
+_POPUP_SELECTED = _POPUP["selected"]
 
 _COMBO_STYLE = (
     f"QComboBox {{"
@@ -518,8 +538,10 @@ class _KeyboardCombo(QComboBox):
         completer.setMaxVisibleItems(10)
         completer.popup().setFocusPolicy(Qt.NoFocus)
         completer.popup().setSelectionMode(QAbstractItemView.SingleSelection)
-        # QCompleter owns a separate popup; style it explicitly so it does
-        # not fall back to the platform's dark palette on Windows.
+        # QCompleter owns a separate popup window; style it explicitly from
+        # the active Day/Night palette so it never falls back to the
+        # platform's own colours and never ends up as unreadable text (a
+        # white popup with white names was the Night Mode blank-list bug).
         completer.popup().setStyleSheet(
             f"QAbstractItemView {{ background-color: {_POPUP_BG}; color: {_POPUP_TEXT}; "
             f"border: 1px solid {_POPUP_BORDER}; selection-background-color: {_POPUP_SELECTED}; "
@@ -1681,7 +1703,13 @@ class _SalePanel(QWidget):
             # Customer panels; the same field objects and data bindings
             # are retained.
             self._build_compact_sale_metadata()
+            # The strip's fields (Bill No / Date / Time / Type and
+            # Customer / Patient / Doctor) are no longer shown.  Every
+            # field and binding is still built exactly as before, so
+            # save / load / hold logic is untouched; the strip itself is
+            # simply not displayed.
             root.addWidget(self._metadata_strip)
+            self._metadata_strip.setVisible(False)
 
             # -- Totals + actions --
             self._build_totals()
@@ -4051,6 +4079,12 @@ class CounterSalePage(QWidget):
         self._hist_date = _make_compact_date()
         self._hist_date.setCalendarPopup(True)
         self._hist_date.setFixedWidth(118)
+        # A bare QDateEdit starts on 01/01/2000, which is what the history
+        # filter used to show.  It opens on today's live system date instead.
+        # Set here, before dateChanged is connected below, so this stays a
+        # display default: it never selects the date filter and never
+        # overrides a date the user picks afterwards.
+        self._hist_date.setDate(QDate.currentDate())
         self._hist_date.setToolTip(
             "Show Counter Sale history for this date only"
         )
