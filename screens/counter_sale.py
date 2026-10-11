@@ -1703,7 +1703,13 @@ class _SalePanel(QWidget):
             # Customer panels; the same field objects and data bindings
             # are retained.
             self._build_compact_sale_metadata()
+            # The strip's fields (Bill No / Date / Time / Type and
+            # Customer / Patient / Doctor) are no longer shown.  Every
+            # field and binding is still built exactly as before, so
+            # save / load / hold logic is untouched; the strip itself is
+            # simply not displayed.
             root.addWidget(self._metadata_strip)
+            self._metadata_strip.setVisible(False)
 
             # -- Totals + actions --
             self._build_totals()
