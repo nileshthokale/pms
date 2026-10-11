@@ -1,0 +1,4777 @@
+{
+  "generated_at": "2026-10-10T15:39:54",
+  "databases": [
+    {
+      "label": "runtime_exe_LOCALAPPDATA",
+      "path": "C:\\Users\\Nilesh\\AppData\\Local\\PharmacyManagementSystem\\pharmacy.db",
+      "status": "present",
+      "size_bytes": 249856,
+      "mtime": "2026-10-07T13:01:12",
+      "sha256": "c5672f3817900f57f8e3bea9cc9e7af526b4ab6f3572c4f11b67fa4dd9974fcb",
+      "table_count": 31,
+      "tables": [
+        "account_groups",
+        "account_ledgers",
+        "app_users",
+        "auth_audit_log",
+        "categories",
+        "companies",
+        "credit_note_items",
+        "credit_notes",
+        "customer_receipts",
+        "customers",
+        "debit_note_items",
+        "debit_notes",
+        "doctors",
+        "drugs",
+        "financial_years",
+        "hold_bill_items",
+        "hold_bills",
+        "item_ingredients",
+        "items",
+        "journal_entries",
+        "journal_entry_items",
+        "ledger_transactions",
+        "purchase_invoice_items",
+        "purchase_invoices",
+        "sales_invoice_items",
+        "sales_invoices",
+        "sqlite_sequence",
+        "stock_batches",
+        "supplier_payments",
+        "suppliers",
+        "units"
+      ],
+      "row_counts": {
+        "items": 0,
+        "companies": 0,
+        "units": 0,
+        "drugs": 0,
+        "doctors": 0,
+        "customers": 0,
+        "suppliers": 0,
+        "account_groups": 0,
+        "account_ledgers": 0,
+        "financial_years": 1,
+        "sales_invoices": 0,
+        "sales_invoice_items": 0,
+        "purchase_invoices": 0,
+        "purchase_invoice_items": 0,
+        "credit_notes": 0,
+        "credit_note_items": 0,
+        "debit_notes": 0,
+        "debit_note_items": 0,
+        "customer_receipts": 0,
+        "supplier_payments": 0,
+        "stock_batches": 0,
+        "ledger_transactions": 0,
+        "journal_entries": 0,
+        "app_users": 1,
+        "hold_bills": 0
+      },
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "financial_years": [
+        {
+          "id": 1,
+          "name": "2026-2027",
+          "start_date": "2026-04-01",
+          "end_date": "2027-03-31",
+          "is_active": 1,
+          "created_at": "2026-10-06T13:32:34.742547+00:00"
+        }
+      ],
+      "items_columns": [
+        "id",
+        "item_name",
+        "unit_id",
+        "company_id",
+        "category_id",
+        "pack_size",
+        "tax_structure",
+        "discount",
+        "mrp",
+        "rate",
+        "reorder_stock_level",
+        "scheduled",
+        "location",
+        "pathy",
+        "dpco"
+      ],
+      "stock_batches_columns": [
+        "id",
+        "item_id",
+        "batch_no",
+        "expiry",
+        "pack_size",
+        "mrp",
+        "purchase_rate",
+        "net_rate",
+        "stock_qty"
+      ],
+      "ucrose": {
+        "items_like_rose": [],
+        "batches_for_rose_items": [],
+        "rose_positive_batches": [],
+        "stock_batches_total": 0,
+        "stock_batches_positive": 0,
+        "stock_batches_zero": 0,
+        "stock_batches_negative": 0
+      }
+    },
+    {
+      "label": "dev_data_pharmacy",
+      "path": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\data\\pharmacy.db",
+      "status": "present",
+      "size_bytes": 44331008,
+      "mtime": "2026-10-10T15:19:30",
+      "sha256": "0ff1d449b03d5bd060d9daff1c09d449acf96777e62f0afb99d4e298d6dc2c3c",
+      "table_count": 33,
+      "tables": [
+        "account_groups",
+        "account_ledgers",
+        "app_users",
+        "auth_audit_log",
+        "categories",
+        "companies",
+        "credit_note_items",
+        "credit_notes",
+        "customer_receipts",
+        "customers",
+        "debit_note_items",
+        "debit_notes",
+        "doctors",
+        "drugs",
+        "financial_years",
+        "hold_bill_items",
+        "hold_bills",
+        "item_ingredients",
+        "items",
+        "journal_entries",
+        "journal_entry_items",
+        "ledger_transactions",
+        "legacy_id_map",
+        "legacy_migration_meta",
+        "purchase_invoice_items",
+        "purchase_invoices",
+        "sales_invoice_items",
+        "sales_invoices",
+        "sqlite_sequence",
+        "stock_batches",
+        "supplier_payments",
+        "suppliers",
+        "units"
+      ],
+      "row_counts": {
+        "items": 939,
+        "companies": 1219,
+        "units": 16,
+        "drugs": 147,
+        "doctors": 7,
+        "customers": 29,
+        "suppliers": 85,
+        "account_groups": 13,
+        "account_ledgers": 123,
+        "financial_years": 12,
+        "sales_invoices": 72045,
+        "sales_invoice_items": 233598,
+        "purchase_invoices": 5713,
+        "purchase_invoice_items": 11891,
+        "credit_notes": 1349,
+        "credit_note_items": 3329,
+        "debit_notes": 14,
+        "debit_note_items": 20,
+        "customer_receipts": 44,
+        "supplier_payments": 785,
+        "stock_batches": 7616,
+        "ledger_transactions": 157264,
+        "journal_entries": 0,
+        "app_users": 1,
+        "legacy_id_map": 82563,
+        "legacy_migration_meta": 125,
+        "hold_bills": 0
+      },
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "financial_years": [
+        {
+          "id": 2,
+          "name": "2015-2016",
+          "start_date": "2015-04-01",
+          "end_date": "2016-03-31",
+          "is_active": 0,
+          "created_at": "2026-10-10 05:11:46"
+        },
+        {
+          "id": 3,
+          "name": "2016-2017",
+          "start_date": "2016-04-01",
+          "end_date": "2017-03-31",
+          "is_active": 0,
+          "created_at": "2026-10-10 05:11:46"
+        },
+        {
+          "id": 4,
+          "name": "2017-2018",
+          "start_date": "2017-04-01",
+          "end_date": "2018-03-31",
+          "is_active": 0,
+          "created_at": "2026-10-10 05:11:46"
+        },
+        {
+          "id": 5,
+          "name": "2018-2019",
+          "start_date": "2018-04-01",
+          "end_date": "2019-03-31",
+          "is_active": 0,
+          "created_at": "2026-10-10 05:11:46"
+        },
+        {
+          "id": 6,
+          "name": "2019-2020",
+          "start_date": "2019-04-01",
+          "end_date": "2020-03-31",
+          "is_active": 0,
+          "created_at": "2026-10-10 05:11:46"
+        },
+        {
+          "id": 7,
+          "name": "2020-2021",
+          "start_date": "2020-04-01",
+          "end_date": "2021-03-31",
+          "is_active": 0,
+          "created_at": "2026-10-10 05:11:46"
+        },
+        {
+          "id": 8,
+          "name": "2021-2022",
+          "start_date": "2021-04-01",
+          "end_date": "2022-03-31",
+          "is_active": 0,
+          "created_at": "2026-10-10 05:11:46"
+        },
+        {
+          "id": 9,
+          "name": "2022-2023",
+          "start_date": "2022-04-01",
+          "end_date": "2023-03-31",
+          "is_active": 0,
+          "created_at": "2026-10-10 05:11:46"
+        },
+        {
+          "id": 10,
+          "name": "2023-2024",
+          "start_date": "2023-04-01",
+          "end_date": "2024-03-31",
+          "is_active": 0,
+          "created_at": "2026-10-10 05:11:46"
+        },
+        {
+          "id": 11,
+          "name": "2024-2025",
+          "start_date": "2024-04-01",
+          "end_date": "2025-03-31",
+          "is_active": 0,
+          "created_at": "2026-10-10 05:11:46"
+        },
+        {
+          "id": 12,
+          "name": "2025-2026",
+          "start_date": "2025-04-01",
+          "end_date": "2026-03-31",
+          "is_active": 0,
+          "created_at": "2026-10-10 05:11:46"
+        },
+        {
+          "id": 13,
+          "name": "2026-2027",
+          "start_date": "2026-04-01",
+          "end_date": "2027-03-31",
+          "is_active": 1,
+          "created_at": "2026-10-10 05:11:46"
+        }
+      ],
+      "items_columns": [
+        "id",
+        "item_name",
+        "unit_id",
+        "company_id",
+        "category_id",
+        "pack_size",
+        "tax_structure",
+        "discount",
+        "mrp",
+        "rate",
+        "reorder_stock_level",
+        "scheduled",
+        "location",
+        "pathy",
+        "dpco",
+        "legacy_tax_id"
+      ],
+      "stock_batches_columns": [
+        "id",
+        "item_id",
+        "batch_no",
+        "expiry",
+        "pack_size",
+        "mrp",
+        "purchase_rate",
+        "net_rate",
+        "stock_qty"
+      ],
+      "ucrose": {
+        "items_like_rose": [
+          {
+            "id": 1491,
+            "item_name": "MFC ROSE 2PCS",
+            "unit_id": 18,
+            "company_id": 3640,
+            "pack_size": "1",
+            "mrp": 0.0,
+            "rate": 0.0
+          },
+          {
+            "id": 1775,
+            "item_name": "UC-ROSE",
+            "unit_id": 31,
+            "company_id": 3792,
+            "pack_size": "10",
+            "mrp": 350.0,
+            "rate": 237.29
+          }
+        ],
+        "batches_for_rose_items": [
+          {
+            "id": 833,
+            "item_id": 1491,
+            "batch_no": "H7E10002",
+            "expiry": "2018-04-30",
+            "pack_size": "1",
+            "mrp": 15.0,
+            "purchase_rate": 12.0,
+            "net_rate": 12.0,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 6275,
+            "item_id": 1775,
+            "batch_no": "JFT-2414",
+            "expiry": "2025-10-31",
+            "pack_size": "10",
+            "mrp": 385.0,
+            "purchase_rate": 261.02,
+            "net_rate": 256.67,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 6341,
+            "item_id": 1775,
+            "batch_no": "JFT-2437",
+            "expiry": "2025-12-31",
+            "pack_size": "10",
+            "mrp": 385.0,
+            "purchase_rate": 261.02,
+            "net_rate": 256.67,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 6396,
+            "item_id": 1775,
+            "batch_no": "JFT-2475",
+            "expiry": "2026-06-30",
+            "pack_size": "10",
+            "mrp": 385.0,
+            "purchase_rate": 261.0,
+            "net_rate": 256.65,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 6646,
+            "item_id": 1775,
+            "batch_no": "JFT-2498",
+            "expiry": "2026-06-30",
+            "pack_size": "10",
+            "mrp": 343.0,
+            "purchase_rate": 261.01,
+            "net_rate": 228.38,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 6523,
+            "item_id": 1775,
+            "batch_no": "JFT-2505",
+            "expiry": "2026-09-30",
+            "pack_size": "10",
+            "mrp": 425.0,
+            "purchase_rate": 288.14,
+            "net_rate": 283.34,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 6880,
+            "item_id": 1775,
+            "batch_no": "JFT-2573",
+            "expiry": "2027-04-30",
+            "pack_size": "10",
+            "mrp": 378.16,
+            "purchase_rate": 288.14,
+            "net_rate": 252.12,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 6738,
+            "item_id": 1775,
+            "batch_no": "JTF-2505",
+            "expiry": "2026-09-30",
+            "pack_size": "10",
+            "mrp": 378.17,
+            "purchase_rate": 288.14,
+            "net_rate": 252.12,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 6810,
+            "item_id": 1775,
+            "batch_no": "JTF-2547",
+            "expiry": "2027-01-31",
+            "pack_size": "10",
+            "mrp": 378.0,
+            "purchase_rate": 288.14,
+            "net_rate": 252.12,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 6904,
+            "item_id": 1775,
+            "batch_no": "JTF-2573",
+            "expiry": "2027-04-30",
+            "pack_size": "10",
+            "mrp": 378.18,
+            "purchase_rate": 288.12,
+            "net_rate": 252.1,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 5436,
+            "item_id": 1775,
+            "batch_no": "STF-007",
+            "expiry": "2024-09-30",
+            "pack_size": "10",
+            "mrp": 350.0,
+            "purchase_rate": 237.29,
+            "net_rate": 233.34,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 5573,
+            "item_id": 1775,
+            "batch_no": "STF-026",
+            "expiry": "2024-11-30",
+            "pack_size": "10",
+            "mrp": 350.0,
+            "purchase_rate": 237.29,
+            "net_rate": 233.34,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 5346,
+            "item_id": 1775,
+            "batch_no": "STF-089",
+            "expiry": "2024-05-31",
+            "pack_size": "10",
+            "mrp": 350.0,
+            "purchase_rate": 237.29,
+            "net_rate": 233.34,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 6015,
+            "item_id": 1775,
+            "batch_no": "STF-2414",
+            "expiry": "2025-10-31",
+            "pack_size": "10",
+            "mrp": 385.0,
+            "purchase_rate": 261.02,
+            "net_rate": 256.67,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 6071,
+            "item_id": 1775,
+            "batch_no": "UTF-2414",
+            "expiry": "2025-10-31",
+            "pack_size": "10",
+            "mrp": 385.0,
+            "purchase_rate": 261.02,
+            "net_rate": 256.67,
+            "stock_qty": 0.0
+          }
+        ],
+        "rose_positive_batches": [],
+        "stock_batches_total": 7616,
+        "stock_batches_positive": 0,
+        "stock_batches_zero": 7616,
+        "stock_batches_negative": 0
+      },
+      "legacy_migration_meta": [
+        {
+          "key": "source_dump",
+          "value": "PharmaWinner202610051955.sql"
+        },
+        {
+          "key": "source_bytes",
+          "value": "35462774"
+        },
+        {
+          "key": "migrated_at",
+          "value": "2026-10-10 10:42:09"
+        },
+        {
+          "key": "dry_run_rows",
+          "value": "500236"
+        },
+        {
+          "key": "imported_rows",
+          "value": "489025"
+        },
+        {
+          "key": "skipped_rows",
+          "value": "11212"
+        },
+        {
+          "key": "warnings",
+          "value": "114"
+        },
+        {
+          "key": "legacy_passwords_imported",
+          "value": "0"
+        },
+        {
+          "key": "demo_rows_imported",
+          "value": "0"
+        },
+        {
+          "key": "stat.acyear.rows",
+          "value": "12"
+        },
+        {
+          "key": "stat.acyear.imported",
+          "value": "12"
+        },
+        {
+          "key": "stat.acyear.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.acyear",
+          "value": "financial_years"
+        },
+        {
+          "key": "stat.companymst.rows",
+          "value": "1222"
+        },
+        {
+          "key": "stat.companymst.imported",
+          "value": "1219"
+        },
+        {
+          "key": "stat.companymst.skipped",
+          "value": "3"
+        },
+        {
+          "key": "target.companymst",
+          "value": "companies"
+        },
+        {
+          "key": "stat.unitmst.rows",
+          "value": "16"
+        },
+        {
+          "key": "stat.unitmst.imported",
+          "value": "16"
+        },
+        {
+          "key": "stat.unitmst.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.unitmst",
+          "value": "units"
+        },
+        {
+          "key": "stat.drugmst.rows",
+          "value": "147"
+        },
+        {
+          "key": "stat.drugmst.imported",
+          "value": "147"
+        },
+        {
+          "key": "stat.drugmst.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.drugmst",
+          "value": "drugs"
+        },
+        {
+          "key": "stat.doctormst.rows",
+          "value": "8"
+        },
+        {
+          "key": "stat.doctormst.imported",
+          "value": "7"
+        },
+        {
+          "key": "stat.doctormst.skipped",
+          "value": "1"
+        },
+        {
+          "key": "target.doctormst",
+          "value": "doctors"
+        },
+        {
+          "key": "stat.itemmst.rows",
+          "value": "942"
+        },
+        {
+          "key": "stat.itemmst.imported",
+          "value": "939"
+        },
+        {
+          "key": "stat.itemmst.skipped",
+          "value": "3"
+        },
+        {
+          "key": "target.itemmst",
+          "value": "items"
+        },
+        {
+          "key": "stat.itemdrugs.rows",
+          "value": "402"
+        },
+        {
+          "key": "stat.itemdrugs.imported",
+          "value": "402"
+        },
+        {
+          "key": "stat.itemdrugs.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.itemdrugs",
+          "value": "item_ingredients"
+        },
+        {
+          "key": "stat.ledger.rows",
+          "value": "123"
+        },
+        {
+          "key": "stat.ledger.imported",
+          "value": "117"
+        },
+        {
+          "key": "stat.ledger.skipped",
+          "value": "6"
+        },
+        {
+          "key": "target.ledger",
+          "value": "account_ledgers"
+        },
+        {
+          "key": "stat.sundaryinfo.rows",
+          "value": "113"
+        },
+        {
+          "key": "stat.sundaryinfo.imported",
+          "value": "114"
+        },
+        {
+          "key": "stat.sundaryinfo.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.sundaryinfo",
+          "value": "customers / suppliers"
+        },
+        {
+          "key": "stat.stockbalance.rows",
+          "value": "7793"
+        },
+        {
+          "key": "stat.stockbalance.imported",
+          "value": "0"
+        },
+        {
+          "key": "stat.stockbalance.skipped",
+          "value": "7793"
+        },
+        {
+          "key": "target.stockbalance",
+          "value": "stock_batches (deferred \u2014 separate phase)"
+        },
+        {
+          "key": "stat.stockadjusted.rows",
+          "value": "3406"
+        }
+      ]
+    },
+    {
+      "label": "staging",
+      "path": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\staging\\pharmacy_staging.db",
+      "status": "present",
+      "size_bytes": 44670976,
+      "mtime": "2026-10-10T10:27:49",
+      "sha256": "a8ae9b314c1dbdac0cd3514f8e430c5c91fe1cb3dcfe4d2028562d757d70e058",
+      "table_count": 33,
+      "tables": [
+        "account_groups",
+        "account_ledgers",
+        "app_users",
+        "auth_audit_log",
+        "categories",
+        "companies",
+        "credit_note_items",
+        "credit_notes",
+        "customer_receipts",
+        "customers",
+        "debit_note_items",
+        "debit_notes",
+        "doctors",
+        "drugs",
+        "financial_years",
+        "hold_bill_items",
+        "hold_bills",
+        "item_ingredients",
+        "items",
+        "journal_entries",
+        "journal_entry_items",
+        "ledger_transactions",
+        "legacy_id_map",
+        "legacy_migration_meta",
+        "purchase_invoice_items",
+        "purchase_invoices",
+        "sales_invoice_items",
+        "sales_invoices",
+        "sqlite_sequence",
+        "stock_batches",
+        "supplier_payments",
+        "suppliers",
+        "units"
+      ],
+      "row_counts": {
+        "items": 939,
+        "companies": 1219,
+        "units": 16,
+        "drugs": 147,
+        "doctors": 7,
+        "customers": 29,
+        "suppliers": 85,
+        "account_groups": 13,
+        "account_ledgers": 123,
+        "financial_years": 12,
+        "sales_invoices": 72045,
+        "sales_invoice_items": 233598,
+        "purchase_invoices": 5713,
+        "purchase_invoice_items": 11891,
+        "credit_notes": 1349,
+        "credit_note_items": 3329,
+        "debit_notes": 14,
+        "debit_note_items": 20,
+        "customer_receipts": 44,
+        "supplier_payments": 785,
+        "stock_batches": 7616,
+        "ledger_transactions": 157264,
+        "journal_entries": 0,
+        "app_users": 1,
+        "legacy_id_map": 82563,
+        "legacy_migration_meta": 123,
+        "hold_bills": 0
+      },
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "financial_years": [
+        {
+          "id": 14,
+          "name": "2015-2016",
+          "start_date": "2015-04-01",
+          "end_date": "2016-03-31",
+          "is_active": 0,
+          "created_at": "2026-10-10 04:57:28"
+        },
+        {
+          "id": 15,
+          "name": "2016-2017",
+          "start_date": "2016-04-01",
+          "end_date": "2017-03-31",
+          "is_active": 0,
+          "created_at": "2026-10-10 04:57:28"
+        },
+        {
+          "id": 16,
+          "name": "2017-2018",
+          "start_date": "2017-04-01",
+          "end_date": "2018-03-31",
+          "is_active": 0,
+          "created_at": "2026-10-10 04:57:28"
+        },
+        {
+          "id": 17,
+          "name": "2018-2019",
+          "start_date": "2018-04-01",
+          "end_date": "2019-03-31",
+          "is_active": 0,
+          "created_at": "2026-10-10 04:57:28"
+        },
+        {
+          "id": 18,
+          "name": "2019-2020",
+          "start_date": "2019-04-01",
+          "end_date": "2020-03-31",
+          "is_active": 0,
+          "created_at": "2026-10-10 04:57:28"
+        },
+        {
+          "id": 19,
+          "name": "2020-2021",
+          "start_date": "2020-04-01",
+          "end_date": "2021-03-31",
+          "is_active": 0,
+          "created_at": "2026-10-10 04:57:28"
+        },
+        {
+          "id": 20,
+          "name": "2021-2022",
+          "start_date": "2021-04-01",
+          "end_date": "2022-03-31",
+          "is_active": 0,
+          "created_at": "2026-10-10 04:57:28"
+        },
+        {
+          "id": 21,
+          "name": "2022-2023",
+          "start_date": "2022-04-01",
+          "end_date": "2023-03-31",
+          "is_active": 0,
+          "created_at": "2026-10-10 04:57:28"
+        },
+        {
+          "id": 22,
+          "name": "2023-2024",
+          "start_date": "2023-04-01",
+          "end_date": "2024-03-31",
+          "is_active": 0,
+          "created_at": "2026-10-10 04:57:28"
+        },
+        {
+          "id": 23,
+          "name": "2024-2025",
+          "start_date": "2024-04-01",
+          "end_date": "2025-03-31",
+          "is_active": 0,
+          "created_at": "2026-10-10 04:57:28"
+        },
+        {
+          "id": 24,
+          "name": "2025-2026",
+          "start_date": "2025-04-01",
+          "end_date": "2026-03-31",
+          "is_active": 0,
+          "created_at": "2026-10-10 04:57:28"
+        },
+        {
+          "id": 25,
+          "name": "2026-2027",
+          "start_date": "2026-04-01",
+          "end_date": "2027-03-31",
+          "is_active": 1,
+          "created_at": "2026-10-10 04:57:28"
+        }
+      ],
+      "items_columns": [
+        "id",
+        "item_name",
+        "unit_id",
+        "company_id",
+        "category_id",
+        "pack_size",
+        "tax_structure",
+        "discount",
+        "mrp",
+        "rate",
+        "reorder_stock_level",
+        "scheduled",
+        "location",
+        "pathy",
+        "dpco",
+        "legacy_tax_id"
+      ],
+      "stock_batches_columns": [
+        "id",
+        "item_id",
+        "batch_no",
+        "expiry",
+        "pack_size",
+        "mrp",
+        "purchase_rate",
+        "net_rate",
+        "stock_qty"
+      ],
+      "ucrose": {
+        "items_like_rose": [
+          {
+            "id": 2430,
+            "item_name": "MFC ROSE 2PCS",
+            "unit_id": 34,
+            "company_id": 4859,
+            "pack_size": "1",
+            "mrp": 0.0,
+            "rate": 0.0
+          },
+          {
+            "id": 2714,
+            "item_name": "UC-ROSE",
+            "unit_id": 47,
+            "company_id": 5011,
+            "pack_size": "10",
+            "mrp": 350.0,
+            "rate": 237.29
+          }
+        ],
+        "batches_for_rose_items": [
+          {
+            "id": 8449,
+            "item_id": 2430,
+            "batch_no": "H7E10002",
+            "expiry": "2018-04-30",
+            "pack_size": "1",
+            "mrp": 15.0,
+            "purchase_rate": 12.0,
+            "net_rate": 12.0,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 13891,
+            "item_id": 2714,
+            "batch_no": "JFT-2414",
+            "expiry": "2025-10-31",
+            "pack_size": "10",
+            "mrp": 385.0,
+            "purchase_rate": 261.02,
+            "net_rate": 256.67,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 13957,
+            "item_id": 2714,
+            "batch_no": "JFT-2437",
+            "expiry": "2025-12-31",
+            "pack_size": "10",
+            "mrp": 385.0,
+            "purchase_rate": 261.02,
+            "net_rate": 256.67,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 14012,
+            "item_id": 2714,
+            "batch_no": "JFT-2475",
+            "expiry": "2026-06-30",
+            "pack_size": "10",
+            "mrp": 385.0,
+            "purchase_rate": 261.0,
+            "net_rate": 256.65,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 14262,
+            "item_id": 2714,
+            "batch_no": "JFT-2498",
+            "expiry": "2026-06-30",
+            "pack_size": "10",
+            "mrp": 343.0,
+            "purchase_rate": 261.01,
+            "net_rate": 228.38,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 14139,
+            "item_id": 2714,
+            "batch_no": "JFT-2505",
+            "expiry": "2026-09-30",
+            "pack_size": "10",
+            "mrp": 425.0,
+            "purchase_rate": 288.14,
+            "net_rate": 283.34,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 14496,
+            "item_id": 2714,
+            "batch_no": "JFT-2573",
+            "expiry": "2027-04-30",
+            "pack_size": "10",
+            "mrp": 378.16,
+            "purchase_rate": 288.14,
+            "net_rate": 252.12,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 14354,
+            "item_id": 2714,
+            "batch_no": "JTF-2505",
+            "expiry": "2026-09-30",
+            "pack_size": "10",
+            "mrp": 378.17,
+            "purchase_rate": 288.14,
+            "net_rate": 252.12,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 14426,
+            "item_id": 2714,
+            "batch_no": "JTF-2547",
+            "expiry": "2027-01-31",
+            "pack_size": "10",
+            "mrp": 378.0,
+            "purchase_rate": 288.14,
+            "net_rate": 252.12,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 14520,
+            "item_id": 2714,
+            "batch_no": "JTF-2573",
+            "expiry": "2027-04-30",
+            "pack_size": "10",
+            "mrp": 378.18,
+            "purchase_rate": 288.12,
+            "net_rate": 252.1,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 13052,
+            "item_id": 2714,
+            "batch_no": "STF-007",
+            "expiry": "2024-09-30",
+            "pack_size": "10",
+            "mrp": 350.0,
+            "purchase_rate": 237.29,
+            "net_rate": 233.34,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 13189,
+            "item_id": 2714,
+            "batch_no": "STF-026",
+            "expiry": "2024-11-30",
+            "pack_size": "10",
+            "mrp": 350.0,
+            "purchase_rate": 237.29,
+            "net_rate": 233.34,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 12962,
+            "item_id": 2714,
+            "batch_no": "STF-089",
+            "expiry": "2024-05-31",
+            "pack_size": "10",
+            "mrp": 350.0,
+            "purchase_rate": 237.29,
+            "net_rate": 233.34,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 13631,
+            "item_id": 2714,
+            "batch_no": "STF-2414",
+            "expiry": "2025-10-31",
+            "pack_size": "10",
+            "mrp": 385.0,
+            "purchase_rate": 261.02,
+            "net_rate": 256.67,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 13687,
+            "item_id": 2714,
+            "batch_no": "UTF-2414",
+            "expiry": "2025-10-31",
+            "pack_size": "10",
+            "mrp": 385.0,
+            "purchase_rate": 261.02,
+            "net_rate": 256.67,
+            "stock_qty": 0.0
+          }
+        ],
+        "rose_positive_batches": [],
+        "stock_batches_total": 7616,
+        "stock_batches_positive": 0,
+        "stock_batches_zero": 7616,
+        "stock_batches_negative": 0
+      },
+      "legacy_migration_meta": [
+        {
+          "key": "source_dump",
+          "value": "PharmaWinner202610051955.sql"
+        },
+        {
+          "key": "source_bytes",
+          "value": "35462774"
+        },
+        {
+          "key": "migrated_at",
+          "value": "2026-10-10 10:27:49"
+        },
+        {
+          "key": "dry_run_rows",
+          "value": "500236"
+        },
+        {
+          "key": "imported_rows",
+          "value": "489025"
+        },
+        {
+          "key": "skipped_rows",
+          "value": "11212"
+        },
+        {
+          "key": "warnings",
+          "value": "114"
+        },
+        {
+          "key": "legacy_passwords_imported",
+          "value": "0"
+        },
+        {
+          "key": "demo_rows_imported",
+          "value": "0"
+        },
+        {
+          "key": "stat.acyear.rows",
+          "value": "12"
+        },
+        {
+          "key": "stat.acyear.imported",
+          "value": "12"
+        },
+        {
+          "key": "stat.acyear.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.acyear",
+          "value": "financial_years"
+        },
+        {
+          "key": "stat.companymst.rows",
+          "value": "1222"
+        },
+        {
+          "key": "stat.companymst.imported",
+          "value": "1219"
+        },
+        {
+          "key": "stat.companymst.skipped",
+          "value": "3"
+        },
+        {
+          "key": "target.companymst",
+          "value": "companies"
+        },
+        {
+          "key": "stat.unitmst.rows",
+          "value": "16"
+        },
+        {
+          "key": "stat.unitmst.imported",
+          "value": "16"
+        },
+        {
+          "key": "stat.unitmst.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.unitmst",
+          "value": "units"
+        },
+        {
+          "key": "stat.drugmst.rows",
+          "value": "147"
+        },
+        {
+          "key": "stat.drugmst.imported",
+          "value": "147"
+        },
+        {
+          "key": "stat.drugmst.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.drugmst",
+          "value": "drugs"
+        },
+        {
+          "key": "stat.doctormst.rows",
+          "value": "8"
+        },
+        {
+          "key": "stat.doctormst.imported",
+          "value": "7"
+        },
+        {
+          "key": "stat.doctormst.skipped",
+          "value": "1"
+        },
+        {
+          "key": "target.doctormst",
+          "value": "doctors"
+        },
+        {
+          "key": "stat.itemmst.rows",
+          "value": "942"
+        },
+        {
+          "key": "stat.itemmst.imported",
+          "value": "939"
+        },
+        {
+          "key": "stat.itemmst.skipped",
+          "value": "3"
+        },
+        {
+          "key": "target.itemmst",
+          "value": "items"
+        },
+        {
+          "key": "stat.itemdrugs.rows",
+          "value": "402"
+        },
+        {
+          "key": "stat.itemdrugs.imported",
+          "value": "402"
+        },
+        {
+          "key": "stat.itemdrugs.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.itemdrugs",
+          "value": "item_ingredients"
+        },
+        {
+          "key": "stat.ledger.rows",
+          "value": "123"
+        },
+        {
+          "key": "stat.ledger.imported",
+          "value": "117"
+        },
+        {
+          "key": "stat.ledger.skipped",
+          "value": "6"
+        },
+        {
+          "key": "target.ledger",
+          "value": "account_ledgers"
+        },
+        {
+          "key": "stat.sundaryinfo.rows",
+          "value": "113"
+        },
+        {
+          "key": "stat.sundaryinfo.imported",
+          "value": "114"
+        },
+        {
+          "key": "stat.sundaryinfo.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.sundaryinfo",
+          "value": "customers / suppliers"
+        },
+        {
+          "key": "stat.stockbalance.rows",
+          "value": "7793"
+        },
+        {
+          "key": "stat.stockbalance.imported",
+          "value": "0"
+        },
+        {
+          "key": "stat.stockbalance.skipped",
+          "value": "7793"
+        },
+        {
+          "key": "target.stockbalance",
+          "value": "stock_batches (deferred \u2014 separate phase)"
+        },
+        {
+          "key": "stat.stockadjusted.rows",
+          "value": "3406"
+        }
+      ]
+    },
+    {
+      "label": "staging_backup",
+      "path": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\staging\\backups\\pharmacy_backup_20261010_102540.db",
+      "status": "present",
+      "size_bytes": 372736,
+      "mtime": "2026-10-10T10:25:40",
+      "sha256": "a7991c6f85da28976c41c855a7618c37b1c3e8cd4753466bcb823748fa771f0f",
+      "table_count": 31,
+      "tables": [
+        "account_groups",
+        "account_ledgers",
+        "app_users",
+        "auth_audit_log",
+        "categories",
+        "companies",
+        "credit_note_items",
+        "credit_notes",
+        "customer_receipts",
+        "customers",
+        "debit_note_items",
+        "debit_notes",
+        "doctors",
+        "drugs",
+        "financial_years",
+        "hold_bill_items",
+        "hold_bills",
+        "item_ingredients",
+        "items",
+        "journal_entries",
+        "journal_entry_items",
+        "ledger_transactions",
+        "purchase_invoice_items",
+        "purchase_invoices",
+        "sales_invoice_items",
+        "sales_invoices",
+        "sqlite_sequence",
+        "stock_batches",
+        "supplier_payments",
+        "suppliers",
+        "units"
+      ],
+      "row_counts": {
+        "items": 942,
+        "companies": 219,
+        "units": 14,
+        "drugs": 137,
+        "doctors": 8,
+        "customers": 29,
+        "suppliers": 85,
+        "account_groups": 0,
+        "account_ledgers": 0,
+        "financial_years": 1,
+        "sales_invoices": 0,
+        "sales_invoice_items": 0,
+        "purchase_invoices": 0,
+        "purchase_invoice_items": 0,
+        "credit_notes": 0,
+        "credit_note_items": 0,
+        "debit_notes": 0,
+        "debit_note_items": 0,
+        "customer_receipts": 0,
+        "supplier_payments": 0,
+        "stock_batches": 0,
+        "ledger_transactions": 0,
+        "journal_entries": 0,
+        "app_users": 1,
+        "hold_bills": 0
+      },
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "financial_years": [
+        {
+          "id": 1,
+          "name": "2026-2027",
+          "start_date": "2026-04-01",
+          "end_date": "2027-03-31",
+          "is_active": 1,
+          "created_at": "2026-10-07T07:38:21.356442+00:00"
+        }
+      ],
+      "items_columns": [
+        "id",
+        "item_name",
+        "unit_id",
+        "company_id",
+        "category_id",
+        "pack_size",
+        "tax_structure",
+        "discount",
+        "mrp",
+        "rate",
+        "reorder_stock_level",
+        "scheduled",
+        "location",
+        "pathy",
+        "dpco",
+        "legacy_tax_id"
+      ],
+      "stock_batches_columns": [
+        "id",
+        "item_id",
+        "batch_no",
+        "expiry",
+        "pack_size",
+        "mrp",
+        "purchase_rate",
+        "net_rate",
+        "stock_qty"
+      ],
+      "ucrose": {
+        "items_like_rose": [
+          {
+            "id": 548,
+            "item_name": "MFC ROSE 2PCS",
+            "unit_id": 16,
+            "company_id": 2179,
+            "pack_size": "1",
+            "mrp": 0.0,
+            "rate": 0.0
+          },
+          {
+            "id": 832,
+            "item_name": "UC-ROSE",
+            "unit_id": 12,
+            "company_id": 2574,
+            "pack_size": "10",
+            "mrp": 350.0,
+            "rate": 237.29
+          }
+        ],
+        "batches_for_rose_items": [],
+        "rose_positive_batches": [],
+        "stock_batches_total": 0,
+        "stock_batches_positive": 0,
+        "stock_batches_zero": 0,
+        "stock_batches_negative": 0
+      }
+    },
+    {
+      "label": "dl_backup_20261010_150357",
+      "path": "C:\\Users\\Nilesh\\Downloads\\pharmacy_backup_20261010_150357.db",
+      "status": "present",
+      "size_bytes": 44331008,
+      "mtime": "2026-10-10T15:04:07",
+      "sha256": "2b44a9cf3eb2747e576a1f2c312688f197e0ada76c0ffeae83c2a64103d0fc16",
+      "table_count": 33,
+      "tables": [
+        "account_groups",
+        "account_ledgers",
+        "app_users",
+        "auth_audit_log",
+        "categories",
+        "companies",
+        "credit_note_items",
+        "credit_notes",
+        "customer_receipts",
+        "customers",
+        "debit_note_items",
+        "debit_notes",
+        "doctors",
+        "drugs",
+        "financial_years",
+        "hold_bill_items",
+        "hold_bills",
+        "item_ingredients",
+        "items",
+        "journal_entries",
+        "journal_entry_items",
+        "ledger_transactions",
+        "legacy_id_map",
+        "legacy_migration_meta",
+        "purchase_invoice_items",
+        "purchase_invoices",
+        "sales_invoice_items",
+        "sales_invoices",
+        "sqlite_sequence",
+        "stock_batches",
+        "supplier_payments",
+        "suppliers",
+        "units"
+      ],
+      "row_counts": {
+        "items": 939,
+        "companies": 1219,
+        "units": 16,
+        "drugs": 147,
+        "doctors": 7,
+        "customers": 29,
+        "suppliers": 85,
+        "account_groups": 13,
+        "account_ledgers": 123,
+        "financial_years": 12,
+        "sales_invoices": 72045,
+        "sales_invoice_items": 233598,
+        "purchase_invoices": 5713,
+        "purchase_invoice_items": 11891,
+        "credit_notes": 1349,
+        "credit_note_items": 3329,
+        "debit_notes": 14,
+        "debit_note_items": 20,
+        "customer_receipts": 44,
+        "supplier_payments": 785,
+        "stock_batches": 7616,
+        "ledger_transactions": 157264,
+        "journal_entries": 0,
+        "app_users": 1,
+        "legacy_id_map": 82563,
+        "legacy_migration_meta": 125,
+        "hold_bills": 0
+      },
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "financial_years": [
+        {
+          "id": 2,
+          "name": "2015-2016",
+          "start_date": "2015-04-01",
+          "end_date": "2016-03-31",
+          "is_active": 0,
+          "created_at": "2026-10-10 05:11:46"
+        },
+        {
+          "id": 3,
+          "name": "2016-2017",
+          "start_date": "2016-04-01",
+          "end_date": "2017-03-31",
+          "is_active": 0,
+          "created_at": "2026-10-10 05:11:46"
+        },
+        {
+          "id": 4,
+          "name": "2017-2018",
+          "start_date": "2017-04-01",
+          "end_date": "2018-03-31",
+          "is_active": 0,
+          "created_at": "2026-10-10 05:11:46"
+        },
+        {
+          "id": 5,
+          "name": "2018-2019",
+          "start_date": "2018-04-01",
+          "end_date": "2019-03-31",
+          "is_active": 0,
+          "created_at": "2026-10-10 05:11:46"
+        },
+        {
+          "id": 6,
+          "name": "2019-2020",
+          "start_date": "2019-04-01",
+          "end_date": "2020-03-31",
+          "is_active": 0,
+          "created_at": "2026-10-10 05:11:46"
+        },
+        {
+          "id": 7,
+          "name": "2020-2021",
+          "start_date": "2020-04-01",
+          "end_date": "2021-03-31",
+          "is_active": 0,
+          "created_at": "2026-10-10 05:11:46"
+        },
+        {
+          "id": 8,
+          "name": "2021-2022",
+          "start_date": "2021-04-01",
+          "end_date": "2022-03-31",
+          "is_active": 0,
+          "created_at": "2026-10-10 05:11:46"
+        },
+        {
+          "id": 9,
+          "name": "2022-2023",
+          "start_date": "2022-04-01",
+          "end_date": "2023-03-31",
+          "is_active": 0,
+          "created_at": "2026-10-10 05:11:46"
+        },
+        {
+          "id": 10,
+          "name": "2023-2024",
+          "start_date": "2023-04-01",
+          "end_date": "2024-03-31",
+          "is_active": 0,
+          "created_at": "2026-10-10 05:11:46"
+        },
+        {
+          "id": 11,
+          "name": "2024-2025",
+          "start_date": "2024-04-01",
+          "end_date": "2025-03-31",
+          "is_active": 0,
+          "created_at": "2026-10-10 05:11:46"
+        },
+        {
+          "id": 12,
+          "name": "2025-2026",
+          "start_date": "2025-04-01",
+          "end_date": "2026-03-31",
+          "is_active": 0,
+          "created_at": "2026-10-10 05:11:46"
+        },
+        {
+          "id": 13,
+          "name": "2026-2027",
+          "start_date": "2026-04-01",
+          "end_date": "2027-03-31",
+          "is_active": 1,
+          "created_at": "2026-10-10 05:11:46"
+        }
+      ],
+      "items_columns": [
+        "id",
+        "item_name",
+        "unit_id",
+        "company_id",
+        "category_id",
+        "pack_size",
+        "tax_structure",
+        "discount",
+        "mrp",
+        "rate",
+        "reorder_stock_level",
+        "scheduled",
+        "location",
+        "pathy",
+        "dpco",
+        "legacy_tax_id"
+      ],
+      "stock_batches_columns": [
+        "id",
+        "item_id",
+        "batch_no",
+        "expiry",
+        "pack_size",
+        "mrp",
+        "purchase_rate",
+        "net_rate",
+        "stock_qty"
+      ],
+      "ucrose": {
+        "items_like_rose": [
+          {
+            "id": 1491,
+            "item_name": "MFC ROSE 2PCS",
+            "unit_id": 18,
+            "company_id": 3640,
+            "pack_size": "1",
+            "mrp": 0.0,
+            "rate": 0.0
+          },
+          {
+            "id": 1775,
+            "item_name": "UC-ROSE",
+            "unit_id": 31,
+            "company_id": 3792,
+            "pack_size": "10",
+            "mrp": 350.0,
+            "rate": 237.29
+          }
+        ],
+        "batches_for_rose_items": [
+          {
+            "id": 833,
+            "item_id": 1491,
+            "batch_no": "H7E10002",
+            "expiry": "2018-04-30",
+            "pack_size": "1",
+            "mrp": 15.0,
+            "purchase_rate": 12.0,
+            "net_rate": 12.0,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 6275,
+            "item_id": 1775,
+            "batch_no": "JFT-2414",
+            "expiry": "2025-10-31",
+            "pack_size": "10",
+            "mrp": 385.0,
+            "purchase_rate": 261.02,
+            "net_rate": 256.67,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 6341,
+            "item_id": 1775,
+            "batch_no": "JFT-2437",
+            "expiry": "2025-12-31",
+            "pack_size": "10",
+            "mrp": 385.0,
+            "purchase_rate": 261.02,
+            "net_rate": 256.67,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 6396,
+            "item_id": 1775,
+            "batch_no": "JFT-2475",
+            "expiry": "2026-06-30",
+            "pack_size": "10",
+            "mrp": 385.0,
+            "purchase_rate": 261.0,
+            "net_rate": 256.65,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 6646,
+            "item_id": 1775,
+            "batch_no": "JFT-2498",
+            "expiry": "2026-06-30",
+            "pack_size": "10",
+            "mrp": 343.0,
+            "purchase_rate": 261.01,
+            "net_rate": 228.38,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 6523,
+            "item_id": 1775,
+            "batch_no": "JFT-2505",
+            "expiry": "2026-09-30",
+            "pack_size": "10",
+            "mrp": 425.0,
+            "purchase_rate": 288.14,
+            "net_rate": 283.34,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 6880,
+            "item_id": 1775,
+            "batch_no": "JFT-2573",
+            "expiry": "2027-04-30",
+            "pack_size": "10",
+            "mrp": 378.16,
+            "purchase_rate": 288.14,
+            "net_rate": 252.12,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 6738,
+            "item_id": 1775,
+            "batch_no": "JTF-2505",
+            "expiry": "2026-09-30",
+            "pack_size": "10",
+            "mrp": 378.17,
+            "purchase_rate": 288.14,
+            "net_rate": 252.12,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 6810,
+            "item_id": 1775,
+            "batch_no": "JTF-2547",
+            "expiry": "2027-01-31",
+            "pack_size": "10",
+            "mrp": 378.0,
+            "purchase_rate": 288.14,
+            "net_rate": 252.12,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 6904,
+            "item_id": 1775,
+            "batch_no": "JTF-2573",
+            "expiry": "2027-04-30",
+            "pack_size": "10",
+            "mrp": 378.18,
+            "purchase_rate": 288.12,
+            "net_rate": 252.1,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 5436,
+            "item_id": 1775,
+            "batch_no": "STF-007",
+            "expiry": "2024-09-30",
+            "pack_size": "10",
+            "mrp": 350.0,
+            "purchase_rate": 237.29,
+            "net_rate": 233.34,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 5573,
+            "item_id": 1775,
+            "batch_no": "STF-026",
+            "expiry": "2024-11-30",
+            "pack_size": "10",
+            "mrp": 350.0,
+            "purchase_rate": 237.29,
+            "net_rate": 233.34,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 5346,
+            "item_id": 1775,
+            "batch_no": "STF-089",
+            "expiry": "2024-05-31",
+            "pack_size": "10",
+            "mrp": 350.0,
+            "purchase_rate": 237.29,
+            "net_rate": 233.34,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 6015,
+            "item_id": 1775,
+            "batch_no": "STF-2414",
+            "expiry": "2025-10-31",
+            "pack_size": "10",
+            "mrp": 385.0,
+            "purchase_rate": 261.02,
+            "net_rate": 256.67,
+            "stock_qty": 0.0
+          },
+          {
+            "id": 6071,
+            "item_id": 1775,
+            "batch_no": "UTF-2414",
+            "expiry": "2025-10-31",
+            "pack_size": "10",
+            "mrp": 385.0,
+            "purchase_rate": 261.02,
+            "net_rate": 256.67,
+            "stock_qty": 0.0
+          }
+        ],
+        "rose_positive_batches": [],
+        "stock_batches_total": 7616,
+        "stock_batches_positive": 0,
+        "stock_batches_zero": 7616,
+        "stock_batches_negative": 0
+      },
+      "legacy_migration_meta": [
+        {
+          "key": "source_dump",
+          "value": "PharmaWinner202610051955.sql"
+        },
+        {
+          "key": "source_bytes",
+          "value": "35462774"
+        },
+        {
+          "key": "migrated_at",
+          "value": "2026-10-10 10:42:09"
+        },
+        {
+          "key": "dry_run_rows",
+          "value": "500236"
+        },
+        {
+          "key": "imported_rows",
+          "value": "489025"
+        },
+        {
+          "key": "skipped_rows",
+          "value": "11212"
+        },
+        {
+          "key": "warnings",
+          "value": "114"
+        },
+        {
+          "key": "legacy_passwords_imported",
+          "value": "0"
+        },
+        {
+          "key": "demo_rows_imported",
+          "value": "0"
+        },
+        {
+          "key": "stat.acyear.rows",
+          "value": "12"
+        },
+        {
+          "key": "stat.acyear.imported",
+          "value": "12"
+        },
+        {
+          "key": "stat.acyear.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.acyear",
+          "value": "financial_years"
+        },
+        {
+          "key": "stat.companymst.rows",
+          "value": "1222"
+        },
+        {
+          "key": "stat.companymst.imported",
+          "value": "1219"
+        },
+        {
+          "key": "stat.companymst.skipped",
+          "value": "3"
+        },
+        {
+          "key": "target.companymst",
+          "value": "companies"
+        },
+        {
+          "key": "stat.unitmst.rows",
+          "value": "16"
+        },
+        {
+          "key": "stat.unitmst.imported",
+          "value": "16"
+        },
+        {
+          "key": "stat.unitmst.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.unitmst",
+          "value": "units"
+        },
+        {
+          "key": "stat.drugmst.rows",
+          "value": "147"
+        },
+        {
+          "key": "stat.drugmst.imported",
+          "value": "147"
+        },
+        {
+          "key": "stat.drugmst.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.drugmst",
+          "value": "drugs"
+        },
+        {
+          "key": "stat.doctormst.rows",
+          "value": "8"
+        },
+        {
+          "key": "stat.doctormst.imported",
+          "value": "7"
+        },
+        {
+          "key": "stat.doctormst.skipped",
+          "value": "1"
+        },
+        {
+          "key": "target.doctormst",
+          "value": "doctors"
+        },
+        {
+          "key": "stat.itemmst.rows",
+          "value": "942"
+        },
+        {
+          "key": "stat.itemmst.imported",
+          "value": "939"
+        },
+        {
+          "key": "stat.itemmst.skipped",
+          "value": "3"
+        },
+        {
+          "key": "target.itemmst",
+          "value": "items"
+        },
+        {
+          "key": "stat.itemdrugs.rows",
+          "value": "402"
+        },
+        {
+          "key": "stat.itemdrugs.imported",
+          "value": "402"
+        },
+        {
+          "key": "stat.itemdrugs.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.itemdrugs",
+          "value": "item_ingredients"
+        },
+        {
+          "key": "stat.ledger.rows",
+          "value": "123"
+        },
+        {
+          "key": "stat.ledger.imported",
+          "value": "117"
+        },
+        {
+          "key": "stat.ledger.skipped",
+          "value": "6"
+        },
+        {
+          "key": "target.ledger",
+          "value": "account_ledgers"
+        },
+        {
+          "key": "stat.sundaryinfo.rows",
+          "value": "113"
+        },
+        {
+          "key": "stat.sundaryinfo.imported",
+          "value": "114"
+        },
+        {
+          "key": "stat.sundaryinfo.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.sundaryinfo",
+          "value": "customers / suppliers"
+        },
+        {
+          "key": "stat.stockbalance.rows",
+          "value": "7793"
+        },
+        {
+          "key": "stat.stockbalance.imported",
+          "value": "0"
+        },
+        {
+          "key": "stat.stockbalance.skipped",
+          "value": "7793"
+        },
+        {
+          "key": "target.stockbalance",
+          "value": "stock_batches (deferred \u2014 separate phase)"
+        },
+        {
+          "key": "stat.stockadjusted.rows",
+          "value": "3406"
+        }
+      ]
+    },
+    {
+      "label": "dl_backup_20261009_131947",
+      "path": "C:\\Users\\Nilesh\\Downloads\\pharmacy_backup_20261009_131947.db",
+      "status": "present",
+      "size_bytes": 372736,
+      "mtime": "2026-10-09T13:19:55",
+      "sha256": "784517e58fd1ca625e0f4615172da22954c81cbae99c6a2f3f24565ab8734153",
+      "table_count": 31,
+      "tables": [
+        "account_groups",
+        "account_ledgers",
+        "app_users",
+        "auth_audit_log",
+        "categories",
+        "companies",
+        "credit_note_items",
+        "credit_notes",
+        "customer_receipts",
+        "customers",
+        "debit_note_items",
+        "debit_notes",
+        "doctors",
+        "drugs",
+        "financial_years",
+        "hold_bill_items",
+        "hold_bills",
+        "item_ingredients",
+        "items",
+        "journal_entries",
+        "journal_entry_items",
+        "ledger_transactions",
+        "purchase_invoice_items",
+        "purchase_invoices",
+        "sales_invoice_items",
+        "sales_invoices",
+        "sqlite_sequence",
+        "stock_batches",
+        "supplier_payments",
+        "suppliers",
+        "units"
+      ],
+      "row_counts": {
+        "items": 942,
+        "companies": 219,
+        "units": 14,
+        "drugs": 137,
+        "doctors": 0,
+        "customers": 0,
+        "suppliers": 0,
+        "account_groups": 0,
+        "account_ledgers": 0,
+        "financial_years": 1,
+        "sales_invoices": 0,
+        "sales_invoice_items": 0,
+        "purchase_invoices": 0,
+        "purchase_invoice_items": 0,
+        "credit_notes": 0,
+        "credit_note_items": 0,
+        "debit_notes": 0,
+        "debit_note_items": 0,
+        "customer_receipts": 0,
+        "supplier_payments": 0,
+        "stock_batches": 0,
+        "ledger_transactions": 0,
+        "journal_entries": 0,
+        "app_users": 1,
+        "hold_bills": 0
+      },
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "financial_years": [
+        {
+          "id": 1,
+          "name": "2026-2027",
+          "start_date": "2026-04-01",
+          "end_date": "2027-03-31",
+          "is_active": 1,
+          "created_at": "2026-10-07T07:38:21.356442+00:00"
+        }
+      ],
+      "items_columns": [
+        "id",
+        "item_name",
+        "unit_id",
+        "company_id",
+        "category_id",
+        "pack_size",
+        "tax_structure",
+        "discount",
+        "mrp",
+        "rate",
+        "reorder_stock_level",
+        "scheduled",
+        "location",
+        "pathy",
+        "dpco",
+        "legacy_tax_id"
+      ],
+      "stock_batches_columns": [
+        "id",
+        "item_id",
+        "batch_no",
+        "expiry",
+        "pack_size",
+        "mrp",
+        "purchase_rate",
+        "net_rate",
+        "stock_qty"
+      ],
+      "ucrose": {
+        "items_like_rose": [
+          {
+            "id": 548,
+            "item_name": "MFC ROSE 2PCS",
+            "unit_id": 16,
+            "company_id": 2179,
+            "pack_size": "1",
+            "mrp": 0.0,
+            "rate": 0.0
+          },
+          {
+            "id": 832,
+            "item_name": "UC-ROSE",
+            "unit_id": 12,
+            "company_id": 2574,
+            "pack_size": "10",
+            "mrp": 350.0,
+            "rate": 237.29
+          }
+        ],
+        "batches_for_rose_items": [],
+        "rose_positive_batches": [],
+        "stock_batches_total": 0,
+        "stock_batches_positive": 0,
+        "stock_batches_zero": 0,
+        "stock_batches_negative": 0
+      }
+    },
+    {
+      "label": "data_backup_20261005_183419",
+      "path": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\data\\pharmacy_backup_20261005_183419.db",
+      "status": "present",
+      "size_bytes": 42618880,
+      "mtime": "2026-10-05T18:34:20",
+      "sha256": "61edc9f132176ceea58103aa2637b8f8d1a0b11ffd67d3319033b27700c3f920",
+      "table_count": 33,
+      "tables": [
+        "account_groups",
+        "account_ledgers",
+        "app_users",
+        "auth_audit_log",
+        "categories",
+        "companies",
+        "credit_note_items",
+        "credit_notes",
+        "customer_receipts",
+        "customers",
+        "debit_note_items",
+        "debit_notes",
+        "doctors",
+        "drugs",
+        "financial_years",
+        "hold_bill_items",
+        "hold_bills",
+        "item_ingredients",
+        "items",
+        "journal_entries",
+        "journal_entry_items",
+        "ledger_transactions",
+        "legacy_id_map",
+        "legacy_migration_meta",
+        "purchase_invoice_items",
+        "purchase_invoices",
+        "sales_invoice_items",
+        "sales_invoices",
+        "sqlite_sequence",
+        "stock_batches",
+        "supplier_payments",
+        "suppliers",
+        "units"
+      ],
+      "row_counts": {
+        "items": 939,
+        "companies": 1218,
+        "units": 16,
+        "drugs": 147,
+        "doctors": 7,
+        "customers": 29,
+        "suppliers": 85,
+        "account_groups": 13,
+        "account_ledgers": 123,
+        "financial_years": 12,
+        "sales_invoices": 71817,
+        "sales_invoice_items": 44251,
+        "purchase_invoices": 5681,
+        "purchase_invoice_items": 11829,
+        "credit_notes": 1345,
+        "credit_note_items": 779,
+        "debit_notes": 13,
+        "debit_note_items": 8,
+        "customer_receipts": 44,
+        "supplier_payments": 785,
+        "stock_batches": 1963,
+        "ledger_transactions": 156768,
+        "journal_entries": 0,
+        "app_users": 5,
+        "legacy_id_map": 82282,
+        "legacy_migration_meta": 117,
+        "hold_bills": 3
+      },
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "financial_years": [
+        {
+          "id": 2,
+          "name": "2015-2016",
+          "start_date": "2015-04-01",
+          "end_date": "2016-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 3,
+          "name": "2016-2017",
+          "start_date": "2016-04-01",
+          "end_date": "2017-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 4,
+          "name": "2017-2018",
+          "start_date": "2017-04-01",
+          "end_date": "2018-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 5,
+          "name": "2018-2019",
+          "start_date": "2018-04-01",
+          "end_date": "2019-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 6,
+          "name": "2019-2020",
+          "start_date": "2019-04-01",
+          "end_date": "2020-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 7,
+          "name": "2020-2021",
+          "start_date": "2020-04-01",
+          "end_date": "2021-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 8,
+          "name": "2021-2022",
+          "start_date": "2021-04-01",
+          "end_date": "2022-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 9,
+          "name": "2022-2023",
+          "start_date": "2022-04-01",
+          "end_date": "2023-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 10,
+          "name": "2023-2024",
+          "start_date": "2023-04-01",
+          "end_date": "2024-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 11,
+          "name": "2024-2025",
+          "start_date": "2024-04-01",
+          "end_date": "2025-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 12,
+          "name": "2025-2026",
+          "start_date": "2025-04-01",
+          "end_date": "2026-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 13,
+          "name": "2026-2027",
+          "start_date": "2026-04-01",
+          "end_date": "2027-03-31",
+          "is_active": 1,
+          "created_at": "2026-09-18 04:31:40"
+        }
+      ],
+      "items_columns": [
+        "id",
+        "item_name",
+        "unit_id",
+        "company_id",
+        "pack_size",
+        "tax_structure",
+        "discount",
+        "mrp",
+        "rate",
+        "reorder_stock_level",
+        "scheduled",
+        "location",
+        "pathy",
+        "dpco",
+        "category_id"
+      ],
+      "stock_batches_columns": [
+        "id",
+        "item_id",
+        "batch_no",
+        "expiry",
+        "pack_size",
+        "mrp",
+        "purchase_rate",
+        "net_rate",
+        "stock_qty"
+      ],
+      "ucrose": {
+        "items_like_rose": [
+          {
+            "id": 10781,
+            "item_name": "MFC ROSE 2PCS",
+            "unit_id": 10511,
+            "company_id": 11614,
+            "pack_size": "1",
+            "mrp": 0.0,
+            "rate": 0.0
+          },
+          {
+            "id": 11065,
+            "item_name": "UC-ROSE",
+            "unit_id": 10524,
+            "company_id": 11766,
+            "pack_size": "10",
+            "mrp": 350.0,
+            "rate": 237.29
+          }
+        ],
+        "batches_for_rose_items": [
+          {
+            "id": 7549,
+            "item_id": 10781,
+            "batch_no": "H7E10002",
+            "expiry": "2018-04-30",
+            "pack_size": "1",
+            "mrp": 15.0,
+            "purchase_rate": 12.0,
+            "net_rate": 12.0,
+            "stock_qty": 14.0
+          },
+          {
+            "id": 13307,
+            "item_id": 11065,
+            "batch_no": "JFT-2475",
+            "expiry": "2026-06-30",
+            "pack_size": "10",
+            "mrp": 385.0,
+            "purchase_rate": 261.0,
+            "net_rate": 213.02,
+            "stock_qty": 2.0
+          },
+          {
+            "id": 13726,
+            "item_id": 11065,
+            "batch_no": "JTF-2547",
+            "expiry": "2027-01-31",
+            "pack_size": "10",
+            "mrp": 378.0,
+            "purchase_rate": 288.14,
+            "net_rate": 252.12,
+            "stock_qty": 3.0
+          },
+          {
+            "id": 13822,
+            "item_id": 11065,
+            "batch_no": "JTF-2573",
+            "expiry": "2027-04-30",
+            "pack_size": "10",
+            "mrp": 378.18,
+            "purchase_rate": 288.12,
+            "net_rate": 252.1,
+            "stock_qty": 5.0
+          },
+          {
+            "id": 12971,
+            "item_id": 11065,
+            "batch_no": "UTF-2414",
+            "expiry": "2025-10-31",
+            "pack_size": "10",
+            "mrp": 385.0,
+            "purchase_rate": 261.02,
+            "net_rate": 444.04,
+            "stock_qty": 1.0
+          }
+        ],
+        "rose_positive_batches": [
+          {
+            "id": 7549,
+            "item_id": 10781,
+            "batch_no": "H7E10002",
+            "expiry": "2018-04-30",
+            "pack_size": "1",
+            "mrp": 15.0,
+            "purchase_rate": 12.0,
+            "net_rate": 12.0,
+            "stock_qty": 14.0
+          },
+          {
+            "id": 13307,
+            "item_id": 11065,
+            "batch_no": "JFT-2475",
+            "expiry": "2026-06-30",
+            "pack_size": "10",
+            "mrp": 385.0,
+            "purchase_rate": 261.0,
+            "net_rate": 213.02,
+            "stock_qty": 2.0
+          },
+          {
+            "id": 13726,
+            "item_id": 11065,
+            "batch_no": "JTF-2547",
+            "expiry": "2027-01-31",
+            "pack_size": "10",
+            "mrp": 378.0,
+            "purchase_rate": 288.14,
+            "net_rate": 252.12,
+            "stock_qty": 3.0
+          },
+          {
+            "id": 13822,
+            "item_id": 11065,
+            "batch_no": "JTF-2573",
+            "expiry": "2027-04-30",
+            "pack_size": "10",
+            "mrp": 378.18,
+            "purchase_rate": 288.12,
+            "net_rate": 252.1,
+            "stock_qty": 5.0
+          },
+          {
+            "id": 12971,
+            "item_id": 11065,
+            "batch_no": "UTF-2414",
+            "expiry": "2025-10-31",
+            "pack_size": "10",
+            "mrp": 385.0,
+            "purchase_rate": 261.02,
+            "net_rate": 444.04,
+            "stock_qty": 1.0
+          }
+        ],
+        "stock_batches_total": 1963,
+        "stock_batches_positive": 1962,
+        "stock_batches_zero": 1,
+        "stock_batches_negative": 0
+      },
+      "legacy_migration_meta": [
+        {
+          "key": "source_dump",
+          "value": "PharmaWinner202609142001.sql"
+        },
+        {
+          "key": "source_bytes",
+          "value": "35325237"
+        },
+        {
+          "key": "migrated_at",
+          "value": "2026-09-18 10:01:57"
+        },
+        {
+          "key": "dry_run_rows",
+          "value": "494771"
+        },
+        {
+          "key": "imported_rows",
+          "value": "494994"
+        },
+        {
+          "key": "skipped_rows",
+          "value": "14"
+        },
+        {
+          "key": "warnings",
+          "value": "14"
+        },
+        {
+          "key": "legacy_passwords_imported",
+          "value": "0"
+        },
+        {
+          "key": "demo_rows_imported",
+          "value": "0"
+        },
+        {
+          "key": "stat.acyear.rows",
+          "value": "12"
+        },
+        {
+          "key": "stat.acyear.imported",
+          "value": "12"
+        },
+        {
+          "key": "stat.acyear.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.acyear",
+          "value": "financial_years"
+        },
+        {
+          "key": "stat.companymst.rows",
+          "value": "1221"
+        },
+        {
+          "key": "stat.companymst.imported",
+          "value": "1218"
+        },
+        {
+          "key": "stat.companymst.skipped",
+          "value": "3"
+        },
+        {
+          "key": "target.companymst",
+          "value": "companies"
+        },
+        {
+          "key": "stat.unitmst.rows",
+          "value": "16"
+        },
+        {
+          "key": "stat.unitmst.imported",
+          "value": "16"
+        },
+        {
+          "key": "stat.unitmst.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.unitmst",
+          "value": "units"
+        },
+        {
+          "key": "stat.drugmst.rows",
+          "value": "147"
+        },
+        {
+          "key": "stat.drugmst.imported",
+          "value": "147"
+        },
+        {
+          "key": "stat.drugmst.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.drugmst",
+          "value": "drugs"
+        },
+        {
+          "key": "stat.doctormst.rows",
+          "value": "8"
+        },
+        {
+          "key": "stat.doctormst.imported",
+          "value": "7"
+        },
+        {
+          "key": "stat.doctormst.skipped",
+          "value": "1"
+        },
+        {
+          "key": "target.doctormst",
+          "value": "doctors"
+        },
+        {
+          "key": "stat.itemmst.rows",
+          "value": "941"
+        },
+        {
+          "key": "stat.itemmst.imported",
+          "value": "938"
+        },
+        {
+          "key": "stat.itemmst.skipped",
+          "value": "3"
+        },
+        {
+          "key": "target.itemmst",
+          "value": "items"
+        },
+        {
+          "key": "stat.itemdrugs.rows",
+          "value": "402"
+        },
+        {
+          "key": "stat.itemdrugs.imported",
+          "value": "402"
+        },
+        {
+          "key": "stat.itemdrugs.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.itemdrugs",
+          "value": "item_ingredients"
+        },
+        {
+          "key": "stat.ledger.rows",
+          "value": "0"
+        },
+        {
+          "key": "stat.ledger.imported",
+          "value": "117"
+        },
+        {
+          "key": "stat.ledger.skipped",
+          "value": "6"
+        },
+        {
+          "key": "target.ledger",
+          "value": "account_ledgers"
+        },
+        {
+          "key": "stat.sundaryinfo.rows",
+          "value": "0"
+        },
+        {
+          "key": "stat.sundaryinfo.imported",
+          "value": "114"
+        },
+        {
+          "key": "stat.sundaryinfo.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.sundaryinfo",
+          "value": "customers / suppliers"
+        },
+        {
+          "key": "stat.stockbalance.rows",
+          "value": "7764"
+        },
+        {
+          "key": "stat.stockbalance.imported",
+          "value": "7763"
+        },
+        {
+          "key": "stat.stockbalance.skipped",
+          "value": "1"
+        },
+        {
+          "key": "target.stockbalance",
+          "value": "stock_batches"
+        },
+        {
+          "key": "stat.invoicevhheader.rows",
+          "value": "5681"
+        }
+      ]
+    },
+    {
+      "label": "data_backup_20261005_183659",
+      "path": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\data\\pharmacy_backup_20261005_183659.db",
+      "status": "present",
+      "size_bytes": 42618880,
+      "mtime": "2026-10-05T18:36:59",
+      "sha256": "3f31a688df9b16bb72fb6a48b949c2f38e91747dc402847799509276580a4782",
+      "table_count": 33,
+      "tables": [
+        "account_groups",
+        "account_ledgers",
+        "app_users",
+        "auth_audit_log",
+        "categories",
+        "companies",
+        "credit_note_items",
+        "credit_notes",
+        "customer_receipts",
+        "customers",
+        "debit_note_items",
+        "debit_notes",
+        "doctors",
+        "drugs",
+        "financial_years",
+        "hold_bill_items",
+        "hold_bills",
+        "item_ingredients",
+        "items",
+        "journal_entries",
+        "journal_entry_items",
+        "ledger_transactions",
+        "legacy_id_map",
+        "legacy_migration_meta",
+        "purchase_invoice_items",
+        "purchase_invoices",
+        "sales_invoice_items",
+        "sales_invoices",
+        "sqlite_sequence",
+        "stock_batches",
+        "supplier_payments",
+        "suppliers",
+        "units"
+      ],
+      "row_counts": {
+        "items": 939,
+        "companies": 1218,
+        "units": 16,
+        "drugs": 147,
+        "doctors": 7,
+        "customers": 29,
+        "suppliers": 85,
+        "account_groups": 13,
+        "account_ledgers": 123,
+        "financial_years": 12,
+        "sales_invoices": 71817,
+        "sales_invoice_items": 44251,
+        "purchase_invoices": 5681,
+        "purchase_invoice_items": 11829,
+        "credit_notes": 1345,
+        "credit_note_items": 779,
+        "debit_notes": 13,
+        "debit_note_items": 8,
+        "customer_receipts": 44,
+        "supplier_payments": 785,
+        "stock_batches": 1963,
+        "ledger_transactions": 156776,
+        "journal_entries": 0,
+        "app_users": 5,
+        "legacy_id_map": 82282,
+        "legacy_migration_meta": 117,
+        "hold_bills": 3
+      },
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "financial_years": [
+        {
+          "id": 2,
+          "name": "2015-2016",
+          "start_date": "2015-04-01",
+          "end_date": "2016-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 3,
+          "name": "2016-2017",
+          "start_date": "2016-04-01",
+          "end_date": "2017-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 4,
+          "name": "2017-2018",
+          "start_date": "2017-04-01",
+          "end_date": "2018-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 5,
+          "name": "2018-2019",
+          "start_date": "2018-04-01",
+          "end_date": "2019-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 6,
+          "name": "2019-2020",
+          "start_date": "2019-04-01",
+          "end_date": "2020-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 7,
+          "name": "2020-2021",
+          "start_date": "2020-04-01",
+          "end_date": "2021-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 8,
+          "name": "2021-2022",
+          "start_date": "2021-04-01",
+          "end_date": "2022-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 9,
+          "name": "2022-2023",
+          "start_date": "2022-04-01",
+          "end_date": "2023-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 10,
+          "name": "2023-2024",
+          "start_date": "2023-04-01",
+          "end_date": "2024-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 11,
+          "name": "2024-2025",
+          "start_date": "2024-04-01",
+          "end_date": "2025-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 12,
+          "name": "2025-2026",
+          "start_date": "2025-04-01",
+          "end_date": "2026-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 13,
+          "name": "2026-2027",
+          "start_date": "2026-04-01",
+          "end_date": "2027-03-31",
+          "is_active": 1,
+          "created_at": "2026-09-18 04:31:40"
+        }
+      ],
+      "items_columns": [
+        "id",
+        "item_name",
+        "unit_id",
+        "company_id",
+        "pack_size",
+        "tax_structure",
+        "discount",
+        "mrp",
+        "rate",
+        "reorder_stock_level",
+        "scheduled",
+        "location",
+        "pathy",
+        "dpco",
+        "category_id"
+      ],
+      "stock_batches_columns": [
+        "id",
+        "item_id",
+        "batch_no",
+        "expiry",
+        "pack_size",
+        "mrp",
+        "purchase_rate",
+        "net_rate",
+        "stock_qty"
+      ],
+      "ucrose": {
+        "items_like_rose": [
+          {
+            "id": 10781,
+            "item_name": "MFC ROSE 2PCS",
+            "unit_id": 10511,
+            "company_id": 11614,
+            "pack_size": "1",
+            "mrp": 0.0,
+            "rate": 0.0
+          },
+          {
+            "id": 11065,
+            "item_name": "UC-ROSE",
+            "unit_id": 10524,
+            "company_id": 11766,
+            "pack_size": "10",
+            "mrp": 350.0,
+            "rate": 237.29
+          }
+        ],
+        "batches_for_rose_items": [
+          {
+            "id": 7549,
+            "item_id": 10781,
+            "batch_no": "H7E10002",
+            "expiry": "2018-04-30",
+            "pack_size": "1",
+            "mrp": 15.0,
+            "purchase_rate": 12.0,
+            "net_rate": 12.0,
+            "stock_qty": 14.0
+          },
+          {
+            "id": 13307,
+            "item_id": 11065,
+            "batch_no": "JFT-2475",
+            "expiry": "2026-06-30",
+            "pack_size": "10",
+            "mrp": 385.0,
+            "purchase_rate": 261.0,
+            "net_rate": 213.02,
+            "stock_qty": 2.0
+          },
+          {
+            "id": 13726,
+            "item_id": 11065,
+            "batch_no": "JTF-2547",
+            "expiry": "2027-01-31",
+            "pack_size": "10",
+            "mrp": 378.0,
+            "purchase_rate": 288.14,
+            "net_rate": 252.12,
+            "stock_qty": 3.0
+          },
+          {
+            "id": 13822,
+            "item_id": 11065,
+            "batch_no": "JTF-2573",
+            "expiry": "2027-04-30",
+            "pack_size": "10",
+            "mrp": 378.18,
+            "purchase_rate": 288.12,
+            "net_rate": 252.1,
+            "stock_qty": 5.0
+          },
+          {
+            "id": 12971,
+            "item_id": 11065,
+            "batch_no": "UTF-2414",
+            "expiry": "2025-10-31",
+            "pack_size": "10",
+            "mrp": 385.0,
+            "purchase_rate": 261.02,
+            "net_rate": 444.04,
+            "stock_qty": 1.0
+          }
+        ],
+        "rose_positive_batches": [
+          {
+            "id": 7549,
+            "item_id": 10781,
+            "batch_no": "H7E10002",
+            "expiry": "2018-04-30",
+            "pack_size": "1",
+            "mrp": 15.0,
+            "purchase_rate": 12.0,
+            "net_rate": 12.0,
+            "stock_qty": 14.0
+          },
+          {
+            "id": 13307,
+            "item_id": 11065,
+            "batch_no": "JFT-2475",
+            "expiry": "2026-06-30",
+            "pack_size": "10",
+            "mrp": 385.0,
+            "purchase_rate": 261.0,
+            "net_rate": 213.02,
+            "stock_qty": 2.0
+          },
+          {
+            "id": 13726,
+            "item_id": 11065,
+            "batch_no": "JTF-2547",
+            "expiry": "2027-01-31",
+            "pack_size": "10",
+            "mrp": 378.0,
+            "purchase_rate": 288.14,
+            "net_rate": 252.12,
+            "stock_qty": 3.0
+          },
+          {
+            "id": 13822,
+            "item_id": 11065,
+            "batch_no": "JTF-2573",
+            "expiry": "2027-04-30",
+            "pack_size": "10",
+            "mrp": 378.18,
+            "purchase_rate": 288.12,
+            "net_rate": 252.1,
+            "stock_qty": 5.0
+          },
+          {
+            "id": 12971,
+            "item_id": 11065,
+            "batch_no": "UTF-2414",
+            "expiry": "2025-10-31",
+            "pack_size": "10",
+            "mrp": 385.0,
+            "purchase_rate": 261.02,
+            "net_rate": 444.04,
+            "stock_qty": 1.0
+          }
+        ],
+        "stock_batches_total": 1963,
+        "stock_batches_positive": 1962,
+        "stock_batches_zero": 1,
+        "stock_batches_negative": 0
+      },
+      "legacy_migration_meta": [
+        {
+          "key": "source_dump",
+          "value": "PharmaWinner202609142001.sql"
+        },
+        {
+          "key": "source_bytes",
+          "value": "35325237"
+        },
+        {
+          "key": "migrated_at",
+          "value": "2026-09-18 10:01:57"
+        },
+        {
+          "key": "dry_run_rows",
+          "value": "494771"
+        },
+        {
+          "key": "imported_rows",
+          "value": "494994"
+        },
+        {
+          "key": "skipped_rows",
+          "value": "14"
+        },
+        {
+          "key": "warnings",
+          "value": "14"
+        },
+        {
+          "key": "legacy_passwords_imported",
+          "value": "0"
+        },
+        {
+          "key": "demo_rows_imported",
+          "value": "0"
+        },
+        {
+          "key": "stat.acyear.rows",
+          "value": "12"
+        },
+        {
+          "key": "stat.acyear.imported",
+          "value": "12"
+        },
+        {
+          "key": "stat.acyear.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.acyear",
+          "value": "financial_years"
+        },
+        {
+          "key": "stat.companymst.rows",
+          "value": "1221"
+        },
+        {
+          "key": "stat.companymst.imported",
+          "value": "1218"
+        },
+        {
+          "key": "stat.companymst.skipped",
+          "value": "3"
+        },
+        {
+          "key": "target.companymst",
+          "value": "companies"
+        },
+        {
+          "key": "stat.unitmst.rows",
+          "value": "16"
+        },
+        {
+          "key": "stat.unitmst.imported",
+          "value": "16"
+        },
+        {
+          "key": "stat.unitmst.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.unitmst",
+          "value": "units"
+        },
+        {
+          "key": "stat.drugmst.rows",
+          "value": "147"
+        },
+        {
+          "key": "stat.drugmst.imported",
+          "value": "147"
+        },
+        {
+          "key": "stat.drugmst.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.drugmst",
+          "value": "drugs"
+        },
+        {
+          "key": "stat.doctormst.rows",
+          "value": "8"
+        },
+        {
+          "key": "stat.doctormst.imported",
+          "value": "7"
+        },
+        {
+          "key": "stat.doctormst.skipped",
+          "value": "1"
+        },
+        {
+          "key": "target.doctormst",
+          "value": "doctors"
+        },
+        {
+          "key": "stat.itemmst.rows",
+          "value": "941"
+        },
+        {
+          "key": "stat.itemmst.imported",
+          "value": "938"
+        },
+        {
+          "key": "stat.itemmst.skipped",
+          "value": "3"
+        },
+        {
+          "key": "target.itemmst",
+          "value": "items"
+        },
+        {
+          "key": "stat.itemdrugs.rows",
+          "value": "402"
+        },
+        {
+          "key": "stat.itemdrugs.imported",
+          "value": "402"
+        },
+        {
+          "key": "stat.itemdrugs.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.itemdrugs",
+          "value": "item_ingredients"
+        },
+        {
+          "key": "stat.ledger.rows",
+          "value": "0"
+        },
+        {
+          "key": "stat.ledger.imported",
+          "value": "117"
+        },
+        {
+          "key": "stat.ledger.skipped",
+          "value": "6"
+        },
+        {
+          "key": "target.ledger",
+          "value": "account_ledgers"
+        },
+        {
+          "key": "stat.sundaryinfo.rows",
+          "value": "0"
+        },
+        {
+          "key": "stat.sundaryinfo.imported",
+          "value": "114"
+        },
+        {
+          "key": "stat.sundaryinfo.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.sundaryinfo",
+          "value": "customers / suppliers"
+        },
+        {
+          "key": "stat.stockbalance.rows",
+          "value": "7764"
+        },
+        {
+          "key": "stat.stockbalance.imported",
+          "value": "7763"
+        },
+        {
+          "key": "stat.stockbalance.skipped",
+          "value": "1"
+        },
+        {
+          "key": "target.stockbalance",
+          "value": "stock_batches"
+        },
+        {
+          "key": "stat.invoicevhheader.rows",
+          "value": "5681"
+        }
+      ]
+    },
+    {
+      "label": "data_backup_20261005_184515",
+      "path": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\data\\pharmacy_backup_20261005_184515.db",
+      "status": "present",
+      "size_bytes": 42618880,
+      "mtime": "2026-10-05T18:45:15",
+      "sha256": "7c6db39b76ea4508311cb1c69b036b6f2cde6c12c41de56cb17ea3baf8290a22",
+      "table_count": 33,
+      "tables": [
+        "account_groups",
+        "account_ledgers",
+        "app_users",
+        "auth_audit_log",
+        "categories",
+        "companies",
+        "credit_note_items",
+        "credit_notes",
+        "customer_receipts",
+        "customers",
+        "debit_note_items",
+        "debit_notes",
+        "doctors",
+        "drugs",
+        "financial_years",
+        "hold_bill_items",
+        "hold_bills",
+        "item_ingredients",
+        "items",
+        "journal_entries",
+        "journal_entry_items",
+        "ledger_transactions",
+        "legacy_id_map",
+        "legacy_migration_meta",
+        "purchase_invoice_items",
+        "purchase_invoices",
+        "sales_invoice_items",
+        "sales_invoices",
+        "sqlite_sequence",
+        "stock_batches",
+        "supplier_payments",
+        "suppliers",
+        "units"
+      ],
+      "row_counts": {
+        "items": 939,
+        "companies": 1218,
+        "units": 16,
+        "drugs": 147,
+        "doctors": 7,
+        "customers": 29,
+        "suppliers": 85,
+        "account_groups": 13,
+        "account_ledgers": 123,
+        "financial_years": 12,
+        "sales_invoices": 71817,
+        "sales_invoice_items": 44251,
+        "purchase_invoices": 5681,
+        "purchase_invoice_items": 11829,
+        "credit_notes": 1345,
+        "credit_note_items": 779,
+        "debit_notes": 13,
+        "debit_note_items": 8,
+        "customer_receipts": 44,
+        "supplier_payments": 785,
+        "stock_batches": 1963,
+        "ledger_transactions": 156784,
+        "journal_entries": 0,
+        "app_users": 5,
+        "legacy_id_map": 82282,
+        "legacy_migration_meta": 117,
+        "hold_bills": 3
+      },
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "financial_years": [
+        {
+          "id": 2,
+          "name": "2015-2016",
+          "start_date": "2015-04-01",
+          "end_date": "2016-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 3,
+          "name": "2016-2017",
+          "start_date": "2016-04-01",
+          "end_date": "2017-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 4,
+          "name": "2017-2018",
+          "start_date": "2017-04-01",
+          "end_date": "2018-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 5,
+          "name": "2018-2019",
+          "start_date": "2018-04-01",
+          "end_date": "2019-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 6,
+          "name": "2019-2020",
+          "start_date": "2019-04-01",
+          "end_date": "2020-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 7,
+          "name": "2020-2021",
+          "start_date": "2020-04-01",
+          "end_date": "2021-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 8,
+          "name": "2021-2022",
+          "start_date": "2021-04-01",
+          "end_date": "2022-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 9,
+          "name": "2022-2023",
+          "start_date": "2022-04-01",
+          "end_date": "2023-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 10,
+          "name": "2023-2024",
+          "start_date": "2023-04-01",
+          "end_date": "2024-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 11,
+          "name": "2024-2025",
+          "start_date": "2024-04-01",
+          "end_date": "2025-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 12,
+          "name": "2025-2026",
+          "start_date": "2025-04-01",
+          "end_date": "2026-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 13,
+          "name": "2026-2027",
+          "start_date": "2026-04-01",
+          "end_date": "2027-03-31",
+          "is_active": 1,
+          "created_at": "2026-09-18 04:31:40"
+        }
+      ],
+      "items_columns": [
+        "id",
+        "item_name",
+        "unit_id",
+        "company_id",
+        "pack_size",
+        "tax_structure",
+        "discount",
+        "mrp",
+        "rate",
+        "reorder_stock_level",
+        "scheduled",
+        "location",
+        "pathy",
+        "dpco",
+        "category_id"
+      ],
+      "stock_batches_columns": [
+        "id",
+        "item_id",
+        "batch_no",
+        "expiry",
+        "pack_size",
+        "mrp",
+        "purchase_rate",
+        "net_rate",
+        "stock_qty"
+      ],
+      "ucrose": {
+        "items_like_rose": [
+          {
+            "id": 10781,
+            "item_name": "MFC ROSE 2PCS",
+            "unit_id": 10511,
+            "company_id": 11614,
+            "pack_size": "1",
+            "mrp": 0.0,
+            "rate": 0.0
+          },
+          {
+            "id": 11065,
+            "item_name": "UC-ROSE",
+            "unit_id": 10524,
+            "company_id": 11766,
+            "pack_size": "10",
+            "mrp": 350.0,
+            "rate": 237.29
+          }
+        ],
+        "batches_for_rose_items": [
+          {
+            "id": 7549,
+            "item_id": 10781,
+            "batch_no": "H7E10002",
+            "expiry": "2018-04-30",
+            "pack_size": "1",
+            "mrp": 15.0,
+            "purchase_rate": 12.0,
+            "net_rate": 12.0,
+            "stock_qty": 14.0
+          },
+          {
+            "id": 13307,
+            "item_id": 11065,
+            "batch_no": "JFT-2475",
+            "expiry": "2026-06-30",
+            "pack_size": "10",
+            "mrp": 385.0,
+            "purchase_rate": 261.0,
+            "net_rate": 213.02,
+            "stock_qty": 2.0
+          },
+          {
+            "id": 13726,
+            "item_id": 11065,
+            "batch_no": "JTF-2547",
+            "expiry": "2027-01-31",
+            "pack_size": "10",
+            "mrp": 378.0,
+            "purchase_rate": 288.14,
+            "net_rate": 252.12,
+            "stock_qty": 3.0
+          },
+          {
+            "id": 13822,
+            "item_id": 11065,
+            "batch_no": "JTF-2573",
+            "expiry": "2027-04-30",
+            "pack_size": "10",
+            "mrp": 378.18,
+            "purchase_rate": 288.12,
+            "net_rate": 252.1,
+            "stock_qty": 5.0
+          },
+          {
+            "id": 12971,
+            "item_id": 11065,
+            "batch_no": "UTF-2414",
+            "expiry": "2025-10-31",
+            "pack_size": "10",
+            "mrp": 385.0,
+            "purchase_rate": 261.02,
+            "net_rate": 444.04,
+            "stock_qty": 1.0
+          }
+        ],
+        "rose_positive_batches": [
+          {
+            "id": 7549,
+            "item_id": 10781,
+            "batch_no": "H7E10002",
+            "expiry": "2018-04-30",
+            "pack_size": "1",
+            "mrp": 15.0,
+            "purchase_rate": 12.0,
+            "net_rate": 12.0,
+            "stock_qty": 14.0
+          },
+          {
+            "id": 13307,
+            "item_id": 11065,
+            "batch_no": "JFT-2475",
+            "expiry": "2026-06-30",
+            "pack_size": "10",
+            "mrp": 385.0,
+            "purchase_rate": 261.0,
+            "net_rate": 213.02,
+            "stock_qty": 2.0
+          },
+          {
+            "id": 13726,
+            "item_id": 11065,
+            "batch_no": "JTF-2547",
+            "expiry": "2027-01-31",
+            "pack_size": "10",
+            "mrp": 378.0,
+            "purchase_rate": 288.14,
+            "net_rate": 252.12,
+            "stock_qty": 3.0
+          },
+          {
+            "id": 13822,
+            "item_id": 11065,
+            "batch_no": "JTF-2573",
+            "expiry": "2027-04-30",
+            "pack_size": "10",
+            "mrp": 378.18,
+            "purchase_rate": 288.12,
+            "net_rate": 252.1,
+            "stock_qty": 5.0
+          },
+          {
+            "id": 12971,
+            "item_id": 11065,
+            "batch_no": "UTF-2414",
+            "expiry": "2025-10-31",
+            "pack_size": "10",
+            "mrp": 385.0,
+            "purchase_rate": 261.02,
+            "net_rate": 444.04,
+            "stock_qty": 1.0
+          }
+        ],
+        "stock_batches_total": 1963,
+        "stock_batches_positive": 1962,
+        "stock_batches_zero": 1,
+        "stock_batches_negative": 0
+      },
+      "legacy_migration_meta": [
+        {
+          "key": "source_dump",
+          "value": "PharmaWinner202609142001.sql"
+        },
+        {
+          "key": "source_bytes",
+          "value": "35325237"
+        },
+        {
+          "key": "migrated_at",
+          "value": "2026-09-18 10:01:57"
+        },
+        {
+          "key": "dry_run_rows",
+          "value": "494771"
+        },
+        {
+          "key": "imported_rows",
+          "value": "494994"
+        },
+        {
+          "key": "skipped_rows",
+          "value": "14"
+        },
+        {
+          "key": "warnings",
+          "value": "14"
+        },
+        {
+          "key": "legacy_passwords_imported",
+          "value": "0"
+        },
+        {
+          "key": "demo_rows_imported",
+          "value": "0"
+        },
+        {
+          "key": "stat.acyear.rows",
+          "value": "12"
+        },
+        {
+          "key": "stat.acyear.imported",
+          "value": "12"
+        },
+        {
+          "key": "stat.acyear.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.acyear",
+          "value": "financial_years"
+        },
+        {
+          "key": "stat.companymst.rows",
+          "value": "1221"
+        },
+        {
+          "key": "stat.companymst.imported",
+          "value": "1218"
+        },
+        {
+          "key": "stat.companymst.skipped",
+          "value": "3"
+        },
+        {
+          "key": "target.companymst",
+          "value": "companies"
+        },
+        {
+          "key": "stat.unitmst.rows",
+          "value": "16"
+        },
+        {
+          "key": "stat.unitmst.imported",
+          "value": "16"
+        },
+        {
+          "key": "stat.unitmst.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.unitmst",
+          "value": "units"
+        },
+        {
+          "key": "stat.drugmst.rows",
+          "value": "147"
+        },
+        {
+          "key": "stat.drugmst.imported",
+          "value": "147"
+        },
+        {
+          "key": "stat.drugmst.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.drugmst",
+          "value": "drugs"
+        },
+        {
+          "key": "stat.doctormst.rows",
+          "value": "8"
+        },
+        {
+          "key": "stat.doctormst.imported",
+          "value": "7"
+        },
+        {
+          "key": "stat.doctormst.skipped",
+          "value": "1"
+        },
+        {
+          "key": "target.doctormst",
+          "value": "doctors"
+        },
+        {
+          "key": "stat.itemmst.rows",
+          "value": "941"
+        },
+        {
+          "key": "stat.itemmst.imported",
+          "value": "938"
+        },
+        {
+          "key": "stat.itemmst.skipped",
+          "value": "3"
+        },
+        {
+          "key": "target.itemmst",
+          "value": "items"
+        },
+        {
+          "key": "stat.itemdrugs.rows",
+          "value": "402"
+        },
+        {
+          "key": "stat.itemdrugs.imported",
+          "value": "402"
+        },
+        {
+          "key": "stat.itemdrugs.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.itemdrugs",
+          "value": "item_ingredients"
+        },
+        {
+          "key": "stat.ledger.rows",
+          "value": "0"
+        },
+        {
+          "key": "stat.ledger.imported",
+          "value": "117"
+        },
+        {
+          "key": "stat.ledger.skipped",
+          "value": "6"
+        },
+        {
+          "key": "target.ledger",
+          "value": "account_ledgers"
+        },
+        {
+          "key": "stat.sundaryinfo.rows",
+          "value": "0"
+        },
+        {
+          "key": "stat.sundaryinfo.imported",
+          "value": "114"
+        },
+        {
+          "key": "stat.sundaryinfo.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.sundaryinfo",
+          "value": "customers / suppliers"
+        },
+        {
+          "key": "stat.stockbalance.rows",
+          "value": "7764"
+        },
+        {
+          "key": "stat.stockbalance.imported",
+          "value": "7763"
+        },
+        {
+          "key": "stat.stockbalance.skipped",
+          "value": "1"
+        },
+        {
+          "key": "target.stockbalance",
+          "value": "stock_batches"
+        },
+        {
+          "key": "stat.invoicevhheader.rows",
+          "value": "5681"
+        }
+      ]
+    },
+    {
+      "label": "data_backup_temp",
+      "path": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\data\\pharmacy_temp.db",
+      "status": "present",
+      "size_bytes": 42618880,
+      "mtime": "2026-10-05T18:49:15",
+      "sha256": "f40ee7ad4e67a4028373ac9d089631468d78321df150aee4608e69524c9528f4",
+      "table_count": 33,
+      "tables": [
+        "account_groups",
+        "account_ledgers",
+        "app_users",
+        "auth_audit_log",
+        "categories",
+        "companies",
+        "credit_note_items",
+        "credit_notes",
+        "customer_receipts",
+        "customers",
+        "debit_note_items",
+        "debit_notes",
+        "doctors",
+        "drugs",
+        "financial_years",
+        "hold_bill_items",
+        "hold_bills",
+        "item_ingredients",
+        "items",
+        "journal_entries",
+        "journal_entry_items",
+        "ledger_transactions",
+        "legacy_id_map",
+        "legacy_migration_meta",
+        "purchase_invoice_items",
+        "purchase_invoices",
+        "sales_invoice_items",
+        "sales_invoices",
+        "sqlite_sequence",
+        "stock_batches",
+        "supplier_payments",
+        "suppliers",
+        "units"
+      ],
+      "row_counts": {
+        "items": 939,
+        "companies": 1218,
+        "units": 16,
+        "drugs": 147,
+        "doctors": 7,
+        "customers": 29,
+        "suppliers": 85,
+        "account_groups": 13,
+        "account_ledgers": 123,
+        "financial_years": 12,
+        "sales_invoices": 71811,
+        "sales_invoice_items": 44245,
+        "purchase_invoices": 5681,
+        "purchase_invoice_items": 11829,
+        "credit_notes": 1345,
+        "credit_note_items": 779,
+        "debit_notes": 13,
+        "debit_note_items": 8,
+        "customer_receipts": 44,
+        "supplier_payments": 785,
+        "stock_batches": 1962,
+        "ledger_transactions": 156748,
+        "journal_entries": 0,
+        "app_users": 2,
+        "legacy_id_map": 82282,
+        "legacy_migration_meta": 117,
+        "hold_bills": 0
+      },
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "financial_years": [
+        {
+          "id": 2,
+          "name": "2015-2016",
+          "start_date": "2015-04-01",
+          "end_date": "2016-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 3,
+          "name": "2016-2017",
+          "start_date": "2016-04-01",
+          "end_date": "2017-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 4,
+          "name": "2017-2018",
+          "start_date": "2017-04-01",
+          "end_date": "2018-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 5,
+          "name": "2018-2019",
+          "start_date": "2018-04-01",
+          "end_date": "2019-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 6,
+          "name": "2019-2020",
+          "start_date": "2019-04-01",
+          "end_date": "2020-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 7,
+          "name": "2020-2021",
+          "start_date": "2020-04-01",
+          "end_date": "2021-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 8,
+          "name": "2021-2022",
+          "start_date": "2021-04-01",
+          "end_date": "2022-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 9,
+          "name": "2022-2023",
+          "start_date": "2022-04-01",
+          "end_date": "2023-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 10,
+          "name": "2023-2024",
+          "start_date": "2023-04-01",
+          "end_date": "2024-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 11,
+          "name": "2024-2025",
+          "start_date": "2024-04-01",
+          "end_date": "2025-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 12,
+          "name": "2025-2026",
+          "start_date": "2025-04-01",
+          "end_date": "2026-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:31:40"
+        },
+        {
+          "id": 13,
+          "name": "2026-2027",
+          "start_date": "2026-04-01",
+          "end_date": "2027-03-31",
+          "is_active": 1,
+          "created_at": "2026-09-18 04:31:40"
+        }
+      ],
+      "items_columns": [
+        "id",
+        "item_name",
+        "unit_id",
+        "company_id",
+        "pack_size",
+        "tax_structure",
+        "discount",
+        "mrp",
+        "rate",
+        "reorder_stock_level",
+        "scheduled",
+        "location",
+        "pathy",
+        "dpco",
+        "category_id"
+      ],
+      "stock_batches_columns": [
+        "id",
+        "item_id",
+        "batch_no",
+        "expiry",
+        "pack_size",
+        "mrp",
+        "purchase_rate",
+        "net_rate",
+        "stock_qty"
+      ],
+      "ucrose": {
+        "items_like_rose": [
+          {
+            "id": 10781,
+            "item_name": "MFC ROSE 2PCS",
+            "unit_id": 10511,
+            "company_id": 11614,
+            "pack_size": "1",
+            "mrp": 0.0,
+            "rate": 0.0
+          },
+          {
+            "id": 11065,
+            "item_name": "UC-ROSE",
+            "unit_id": 10524,
+            "company_id": 11766,
+            "pack_size": "10",
+            "mrp": 350.0,
+            "rate": 237.29
+          }
+        ],
+        "batches_for_rose_items": [
+          {
+            "id": 7549,
+            "item_id": 10781,
+            "batch_no": "H7E10002",
+            "expiry": "2018-04-30",
+            "pack_size": "1",
+            "mrp": 15.0,
+            "purchase_rate": 12.0,
+            "net_rate": 12.0,
+            "stock_qty": 14.0
+          },
+          {
+            "id": 13307,
+            "item_id": 11065,
+            "batch_no": "JFT-2475",
+            "expiry": "2026-06-30",
+            "pack_size": "10",
+            "mrp": 385.0,
+            "purchase_rate": 261.0,
+            "net_rate": 213.02,
+            "stock_qty": 2.0
+          },
+          {
+            "id": 13726,
+            "item_id": 11065,
+            "batch_no": "JTF-2547",
+            "expiry": "2027-01-31",
+            "pack_size": "10",
+            "mrp": 378.0,
+            "purchase_rate": 288.14,
+            "net_rate": 252.12,
+            "stock_qty": 3.0
+          },
+          {
+            "id": 13822,
+            "item_id": 11065,
+            "batch_no": "JTF-2573",
+            "expiry": "2027-04-30",
+            "pack_size": "10",
+            "mrp": 378.18,
+            "purchase_rate": 288.12,
+            "net_rate": 252.1,
+            "stock_qty": 5.0
+          },
+          {
+            "id": 12971,
+            "item_id": 11065,
+            "batch_no": "UTF-2414",
+            "expiry": "2025-10-31",
+            "pack_size": "10",
+            "mrp": 385.0,
+            "purchase_rate": 261.02,
+            "net_rate": 444.04,
+            "stock_qty": 1.0
+          }
+        ],
+        "rose_positive_batches": [
+          {
+            "id": 7549,
+            "item_id": 10781,
+            "batch_no": "H7E10002",
+            "expiry": "2018-04-30",
+            "pack_size": "1",
+            "mrp": 15.0,
+            "purchase_rate": 12.0,
+            "net_rate": 12.0,
+            "stock_qty": 14.0
+          },
+          {
+            "id": 13307,
+            "item_id": 11065,
+            "batch_no": "JFT-2475",
+            "expiry": "2026-06-30",
+            "pack_size": "10",
+            "mrp": 385.0,
+            "purchase_rate": 261.0,
+            "net_rate": 213.02,
+            "stock_qty": 2.0
+          },
+          {
+            "id": 13726,
+            "item_id": 11065,
+            "batch_no": "JTF-2547",
+            "expiry": "2027-01-31",
+            "pack_size": "10",
+            "mrp": 378.0,
+            "purchase_rate": 288.14,
+            "net_rate": 252.12,
+            "stock_qty": 3.0
+          },
+          {
+            "id": 13822,
+            "item_id": 11065,
+            "batch_no": "JTF-2573",
+            "expiry": "2027-04-30",
+            "pack_size": "10",
+            "mrp": 378.18,
+            "purchase_rate": 288.12,
+            "net_rate": 252.1,
+            "stock_qty": 5.0
+          },
+          {
+            "id": 12971,
+            "item_id": 11065,
+            "batch_no": "UTF-2414",
+            "expiry": "2025-10-31",
+            "pack_size": "10",
+            "mrp": 385.0,
+            "purchase_rate": 261.02,
+            "net_rate": 444.04,
+            "stock_qty": 1.0
+          }
+        ],
+        "stock_batches_total": 1962,
+        "stock_batches_positive": 1962,
+        "stock_batches_zero": 0,
+        "stock_batches_negative": 0
+      },
+      "legacy_migration_meta": [
+        {
+          "key": "source_dump",
+          "value": "PharmaWinner202609142001.sql"
+        },
+        {
+          "key": "source_bytes",
+          "value": "35325237"
+        },
+        {
+          "key": "migrated_at",
+          "value": "2026-09-18 10:01:57"
+        },
+        {
+          "key": "dry_run_rows",
+          "value": "494771"
+        },
+        {
+          "key": "imported_rows",
+          "value": "494994"
+        },
+        {
+          "key": "skipped_rows",
+          "value": "14"
+        },
+        {
+          "key": "warnings",
+          "value": "14"
+        },
+        {
+          "key": "legacy_passwords_imported",
+          "value": "0"
+        },
+        {
+          "key": "demo_rows_imported",
+          "value": "0"
+        },
+        {
+          "key": "stat.acyear.rows",
+          "value": "12"
+        },
+        {
+          "key": "stat.acyear.imported",
+          "value": "12"
+        },
+        {
+          "key": "stat.acyear.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.acyear",
+          "value": "financial_years"
+        },
+        {
+          "key": "stat.companymst.rows",
+          "value": "1221"
+        },
+        {
+          "key": "stat.companymst.imported",
+          "value": "1218"
+        },
+        {
+          "key": "stat.companymst.skipped",
+          "value": "3"
+        },
+        {
+          "key": "target.companymst",
+          "value": "companies"
+        },
+        {
+          "key": "stat.unitmst.rows",
+          "value": "16"
+        },
+        {
+          "key": "stat.unitmst.imported",
+          "value": "16"
+        },
+        {
+          "key": "stat.unitmst.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.unitmst",
+          "value": "units"
+        },
+        {
+          "key": "stat.drugmst.rows",
+          "value": "147"
+        },
+        {
+          "key": "stat.drugmst.imported",
+          "value": "147"
+        },
+        {
+          "key": "stat.drugmst.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.drugmst",
+          "value": "drugs"
+        },
+        {
+          "key": "stat.doctormst.rows",
+          "value": "8"
+        },
+        {
+          "key": "stat.doctormst.imported",
+          "value": "7"
+        },
+        {
+          "key": "stat.doctormst.skipped",
+          "value": "1"
+        },
+        {
+          "key": "target.doctormst",
+          "value": "doctors"
+        },
+        {
+          "key": "stat.itemmst.rows",
+          "value": "941"
+        },
+        {
+          "key": "stat.itemmst.imported",
+          "value": "938"
+        },
+        {
+          "key": "stat.itemmst.skipped",
+          "value": "3"
+        },
+        {
+          "key": "target.itemmst",
+          "value": "items"
+        },
+        {
+          "key": "stat.itemdrugs.rows",
+          "value": "402"
+        },
+        {
+          "key": "stat.itemdrugs.imported",
+          "value": "402"
+        },
+        {
+          "key": "stat.itemdrugs.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.itemdrugs",
+          "value": "item_ingredients"
+        },
+        {
+          "key": "stat.ledger.rows",
+          "value": "0"
+        },
+        {
+          "key": "stat.ledger.imported",
+          "value": "117"
+        },
+        {
+          "key": "stat.ledger.skipped",
+          "value": "6"
+        },
+        {
+          "key": "target.ledger",
+          "value": "account_ledgers"
+        },
+        {
+          "key": "stat.sundaryinfo.rows",
+          "value": "0"
+        },
+        {
+          "key": "stat.sundaryinfo.imported",
+          "value": "114"
+        },
+        {
+          "key": "stat.sundaryinfo.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.sundaryinfo",
+          "value": "customers / suppliers"
+        },
+        {
+          "key": "stat.stockbalance.rows",
+          "value": "7764"
+        },
+        {
+          "key": "stat.stockbalance.imported",
+          "value": "7763"
+        },
+        {
+          "key": "stat.stockbalance.skipped",
+          "value": "1"
+        },
+        {
+          "key": "target.stockbalance",
+          "value": "stock_batches"
+        },
+        {
+          "key": "stat.invoicevhheader.rows",
+          "value": "5681"
+        }
+      ]
+    },
+    {
+      "label": "regression_fixture",
+      "path": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\data\\pharmacy.db_test_fixture_after_regression_20260918.db",
+      "status": "present",
+      "size_bytes": 42864640,
+      "mtime": "2026-09-18T14:21:14",
+      "sha256": "5208f76ced3cbf5950b68e852237b6d9368dfa0317e44418086e6be5496aa557",
+      "table_count": 33,
+      "tables": [
+        "account_groups",
+        "account_ledgers",
+        "app_users",
+        "auth_audit_log",
+        "categories",
+        "companies",
+        "credit_note_items",
+        "credit_notes",
+        "customer_receipts",
+        "customers",
+        "debit_note_items",
+        "debit_notes",
+        "doctors",
+        "drugs",
+        "financial_years",
+        "hold_bill_items",
+        "hold_bills",
+        "item_ingredients",
+        "items",
+        "journal_entries",
+        "journal_entry_items",
+        "ledger_transactions",
+        "legacy_id_map",
+        "legacy_migration_meta",
+        "purchase_invoice_items",
+        "purchase_invoices",
+        "sales_invoice_items",
+        "sales_invoices",
+        "sqlite_sequence",
+        "stock_batches",
+        "supplier_payments",
+        "suppliers",
+        "units"
+      ],
+      "row_counts": {
+        "items": 1,
+        "companies": 1,
+        "units": 1,
+        "drugs": 1,
+        "doctors": 1,
+        "customers": 2,
+        "suppliers": 1,
+        "account_groups": 13,
+        "account_ledgers": 9,
+        "financial_years": 12,
+        "sales_invoices": 0,
+        "sales_invoice_items": 0,
+        "purchase_invoices": 1,
+        "purchase_invoice_items": 1,
+        "credit_notes": 0,
+        "credit_note_items": 0,
+        "debit_notes": 0,
+        "debit_note_items": 0,
+        "customer_receipts": 0,
+        "supplier_payments": 0,
+        "stock_batches": 1,
+        "ledger_transactions": 2,
+        "journal_entries": 0,
+        "app_users": 1,
+        "legacy_id_map": 82282,
+        "legacy_migration_meta": 117,
+        "hold_bills": 0
+      },
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "financial_years": [
+        {
+          "id": 14,
+          "name": "2015-2016",
+          "start_date": "2015-04-01",
+          "end_date": "2016-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:52:21"
+        },
+        {
+          "id": 15,
+          "name": "2016-2017",
+          "start_date": "2016-04-01",
+          "end_date": "2017-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:52:21"
+        },
+        {
+          "id": 16,
+          "name": "2017-2018",
+          "start_date": "2017-04-01",
+          "end_date": "2018-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:52:21"
+        },
+        {
+          "id": 17,
+          "name": "2018-2019",
+          "start_date": "2018-04-01",
+          "end_date": "2019-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:52:21"
+        },
+        {
+          "id": 18,
+          "name": "2019-2020",
+          "start_date": "2019-04-01",
+          "end_date": "2020-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:52:21"
+        },
+        {
+          "id": 19,
+          "name": "2020-2021",
+          "start_date": "2020-04-01",
+          "end_date": "2021-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:52:21"
+        },
+        {
+          "id": 20,
+          "name": "2021-2022",
+          "start_date": "2021-04-01",
+          "end_date": "2022-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:52:21"
+        },
+        {
+          "id": 21,
+          "name": "2022-2023",
+          "start_date": "2022-04-01",
+          "end_date": "2023-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:52:21"
+        },
+        {
+          "id": 22,
+          "name": "2023-2024",
+          "start_date": "2023-04-01",
+          "end_date": "2024-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:52:21"
+        },
+        {
+          "id": 23,
+          "name": "2024-2025",
+          "start_date": "2024-04-01",
+          "end_date": "2025-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:52:21"
+        },
+        {
+          "id": 24,
+          "name": "2025-2026",
+          "start_date": "2025-04-01",
+          "end_date": "2026-03-31",
+          "is_active": 0,
+          "created_at": "2026-09-18 04:52:21"
+        },
+        {
+          "id": 25,
+          "name": "2026-2027",
+          "start_date": "2026-04-01",
+          "end_date": "2027-03-31",
+          "is_active": 1,
+          "created_at": "2026-09-18 04:52:21"
+        }
+      ],
+      "items_columns": [
+        "id",
+        "item_name",
+        "unit_id",
+        "company_id",
+        "pack_size",
+        "tax_structure",
+        "discount",
+        "mrp",
+        "rate",
+        "reorder_stock_level",
+        "scheduled",
+        "location",
+        "pathy",
+        "dpco",
+        "category_id"
+      ],
+      "stock_batches_columns": [
+        "id",
+        "item_id",
+        "batch_no",
+        "expiry",
+        "pack_size",
+        "mrp",
+        "purchase_rate",
+        "net_rate",
+        "stock_qty"
+      ],
+      "ucrose": {
+        "items_like_rose": [],
+        "batches_for_rose_items": [],
+        "rose_positive_batches": [],
+        "stock_batches_total": 1,
+        "stock_batches_positive": 1,
+        "stock_batches_zero": 0,
+        "stock_batches_negative": 0
+      },
+      "legacy_migration_meta": [
+        {
+          "key": "source_dump",
+          "value": "PharmaWinner202609142001.sql"
+        },
+        {
+          "key": "source_bytes",
+          "value": "35325237"
+        },
+        {
+          "key": "migrated_at",
+          "value": "2026-09-18 10:22:36"
+        },
+        {
+          "key": "dry_run_rows",
+          "value": "495007"
+        },
+        {
+          "key": "imported_rows",
+          "value": "494994"
+        },
+        {
+          "key": "skipped_rows",
+          "value": "14"
+        },
+        {
+          "key": "warnings",
+          "value": "14"
+        },
+        {
+          "key": "legacy_passwords_imported",
+          "value": "0"
+        },
+        {
+          "key": "demo_rows_imported",
+          "value": "0"
+        },
+        {
+          "key": "stat.acyear.rows",
+          "value": "12"
+        },
+        {
+          "key": "stat.acyear.imported",
+          "value": "12"
+        },
+        {
+          "key": "stat.acyear.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.acyear",
+          "value": "financial_years"
+        },
+        {
+          "key": "stat.companymst.rows",
+          "value": "1221"
+        },
+        {
+          "key": "stat.companymst.imported",
+          "value": "1218"
+        },
+        {
+          "key": "stat.companymst.skipped",
+          "value": "3"
+        },
+        {
+          "key": "target.companymst",
+          "value": "companies"
+        },
+        {
+          "key": "stat.unitmst.rows",
+          "value": "16"
+        },
+        {
+          "key": "stat.unitmst.imported",
+          "value": "16"
+        },
+        {
+          "key": "stat.unitmst.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.unitmst",
+          "value": "units"
+        },
+        {
+          "key": "stat.drugmst.rows",
+          "value": "147"
+        },
+        {
+          "key": "stat.drugmst.imported",
+          "value": "147"
+        },
+        {
+          "key": "stat.drugmst.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.drugmst",
+          "value": "drugs"
+        },
+        {
+          "key": "stat.doctormst.rows",
+          "value": "8"
+        },
+        {
+          "key": "stat.doctormst.imported",
+          "value": "7"
+        },
+        {
+          "key": "stat.doctormst.skipped",
+          "value": "1"
+        },
+        {
+          "key": "target.doctormst",
+          "value": "doctors"
+        },
+        {
+          "key": "stat.itemmst.rows",
+          "value": "941"
+        },
+        {
+          "key": "stat.itemmst.imported",
+          "value": "938"
+        },
+        {
+          "key": "stat.itemmst.skipped",
+          "value": "3"
+        },
+        {
+          "key": "target.itemmst",
+          "value": "items"
+        },
+        {
+          "key": "stat.itemdrugs.rows",
+          "value": "402"
+        },
+        {
+          "key": "stat.itemdrugs.imported",
+          "value": "402"
+        },
+        {
+          "key": "stat.itemdrugs.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.itemdrugs",
+          "value": "item_ingredients"
+        },
+        {
+          "key": "stat.ledger.rows",
+          "value": "123"
+        },
+        {
+          "key": "stat.ledger.imported",
+          "value": "117"
+        },
+        {
+          "key": "stat.ledger.skipped",
+          "value": "6"
+        },
+        {
+          "key": "target.ledger",
+          "value": "account_ledgers"
+        },
+        {
+          "key": "stat.sundaryinfo.rows",
+          "value": "113"
+        },
+        {
+          "key": "stat.sundaryinfo.imported",
+          "value": "114"
+        },
+        {
+          "key": "stat.sundaryinfo.skipped",
+          "value": "0"
+        },
+        {
+          "key": "target.sundaryinfo",
+          "value": "customers / suppliers"
+        },
+        {
+          "key": "stat.stockbalance.rows",
+          "value": "7764"
+        },
+        {
+          "key": "stat.stockbalance.imported",
+          "value": "7763"
+        },
+        {
+          "key": "stat.stockbalance.skipped",
+          "value": "1"
+        },
+        {
+          "key": "target.stockbalance",
+          "value": "stock_batches"
+        },
+        {
+          "key": "stat.invoicevhheader.rows",
+          "value": "5681"
+        }
+      ]
+    }
+  ]
+}

@@ -304,15 +304,20 @@ class SalesDAO:
                     ),
                 )
 
-                # Verify stock and deduct
+                # Verify stock, expiry and deduct
                 cur.execute(
-                    "SELECT id, stock_qty FROM stock_batches WHERE id = ?",
+                    "SELECT id, stock_qty, expiry FROM stock_batches WHERE id = ?",
                     (item["stock_batch_id"],),
                 )
                 batch = cur.fetchone()
                 if not batch:
                     raise ValueError(
                         f"Stock batch id {item['stock_batch_id']} not found."
+                    )
+                if SalesDAO.is_expired(batch["expiry"] or ""):
+                    raise ValueError(
+                        f"Batch {item['batch_no']} expired on "
+                        f"{batch['expiry']}; expired stock cannot be sold."
                     )
                 if batch["stock_qty"] < item["sale_qty"]:
                     raise ValueError(
@@ -420,13 +425,18 @@ class SalesDAO:
                     ),
                 )
                 cur.execute(
-                    "SELECT id, stock_qty FROM stock_batches WHERE id = ?",
+                    "SELECT id, stock_qty, expiry FROM stock_batches WHERE id = ?",
                     (item["stock_batch_id"],),
                 )
                 batch = cur.fetchone()
                 if not batch:
                     raise ValueError(
                         f"Stock batch id {item['stock_batch_id']} not found."
+                    )
+                if SalesDAO.is_expired(batch["expiry"] or ""):
+                    raise ValueError(
+                        f"Batch {item['batch_no']} expired on "
+                        f"{batch['expiry']}; expired stock cannot be sold."
                     )
                 if batch["stock_qty"] < item["sale_qty"]:
                     raise ValueError(
@@ -480,8 +490,10 @@ class SalesDAO:
             # Delete invoice
             cur.execute("DELETE FROM sales_invoices WHERE id = ?", (invoice_id,))
 
-            # Clean up empty stock batches
-            cur.execute("DELETE FROM stock_batches WHERE stock_qty <= 0")
+            # NOTE: zero/negative stock batches are intentionally preserved:
+            # historical sales/return rows reference them, negative balances
+            # are legitimate exceptions, and depleted batches remain visible
+            # in the Expiry Report / stock master for write-off.
 
             conn.commit()
         except Exception:
@@ -496,12 +508,16 @@ class SalesDAO:
 
     @staticmethod
     def get_stock_batches_for_item(item_id: int) -> list[dict]:
-        """Return available (stock_qty > 0) batches for an item.
+        """Return the batches an item can actually be sold from.
 
-        Sellable batches keep the original expiry order and are listed
-        first; expired batches follow them.  Nothing is filtered out or
-        changed — only the order — so keyboard selection (Down, Enter) and
-        the batch popup always reach a batch that can actually be sold.
+        A batch is offerable only when it holds stock **and** has not
+        expired.  Expired stock is never offered for a new sale: it stays
+        visible in the Expiry Report and the stock master so it can be
+        written off, but it never reaches the Counter Sale batch list.
+
+        Batches come back in expiry order (first-expiry-first-out), so
+        keyboard selection (Down, Enter) and the batch popup always reach
+        a batch that can actually be sold.
         """
         conn = get_connection()
         try:
@@ -515,15 +531,15 @@ class SalesDAO:
                 """,
                 (item_id,),
             )
-            batches = [dict(r) for r in cur.fetchall()]
+            rows = [dict(r) for r in cur.fetchall()]
         finally:
             conn.close()
+        batches = [
+            b for b in rows
+            if not SalesDAO.is_expired(b.get("expiry") or "")
+        ]
         batches.sort(
-            key=lambda b: (
-                SalesDAO.is_expired(b.get("expiry") or ""),
-                b.get("expiry") or "",
-                b.get("batch_no") or "",
-            )
+            key=lambda b: (b.get("expiry") or "", b.get("batch_no") or "")
         )
         return batches
 

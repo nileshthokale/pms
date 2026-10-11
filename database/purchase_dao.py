@@ -15,6 +15,21 @@ def _require_delete_permission(actor: dict | None) -> None:
         raise auth.PermissionDenied("Permission required: delete_transactions")
 
 
+def pack_factor(pack_size) -> float:
+    """Units per pack for stock conversion (stock is loose units/tablets).
+
+    Purchase ``pay_qty``/``free_qty`` are recorded in packs while
+    ``stock_batches.stock_qty`` holds individual loose units, so postings
+    multiply by this factor.  Non-numeric or missing pack sizes fall back
+    to 1.0 (one unit per pack), matching pack-size-1 items.
+    """
+    try:
+        factor = float(str(pack_size).strip())
+    except (TypeError, ValueError, AttributeError):
+        return 1.0
+    return factor if factor > 0 else 1.0
+
+
 class PurchaseDAO:
     """Data access for purchase invoices, invoice items, and stock batches."""
 
@@ -187,7 +202,9 @@ class PurchaseDAO:
                     (item["item_id"], item["batch_no"]),
                 )
                 batch = cur.fetchone()
-                qty_to_add = item["pay_qty"] + item["free_qty"]
+                # pay/free are packs; stock is loose units.
+                qty_to_add = (item["pay_qty"] + item["free_qty"]) * pack_factor(
+                    item.get("pack_size", ""))
                 if batch:
                     cur.execute(
                         "UPDATE stock_batches SET stock_qty = stock_qty + ? WHERE id = ?",
@@ -242,13 +259,15 @@ class PurchaseDAO:
             # Reverse previous accounting posting inside THIS transaction
             posting_engine.reverse(SOURCE_PURCHASE_INVOICE, invoice_id, cur=cur)
 
-            # Reverse old stock
+            # Reverse old stock (pay/free are packs; stock is loose units;
+            # the line's own pack_size is authoritative for the reversal).
             cur.execute(
-                "SELECT item_id, batch_no, pay_qty, free_qty FROM purchase_invoice_items WHERE purchase_invoice_id = ?",
+                "SELECT item_id, batch_no, pay_qty, free_qty, pack_size FROM purchase_invoice_items WHERE purchase_invoice_id = ?",
                 (invoice_id,),
             )
             for old in cur.fetchall():
-                qty_to_sub = old["pay_qty"] + old["free_qty"]
+                qty_to_sub = (old["pay_qty"] + old["free_qty"]) * pack_factor(
+                    old["pack_size"])
                 cur.execute(
                     """
                     UPDATE stock_batches
@@ -314,7 +333,9 @@ class PurchaseDAO:
                     (item["item_id"], item["batch_no"]),
                 )
                 batch = cur.fetchone()
-                qty_to_add = item["pay_qty"] + item["free_qty"]
+                # pay/free are packs; stock is loose units.
+                qty_to_add = (item["pay_qty"] + item["free_qty"]) * pack_factor(
+                    item.get("pack_size", ""))
                 if batch:
                     cur.execute(
                         "UPDATE stock_batches SET stock_qty = stock_qty + ? WHERE id = ?",
@@ -389,13 +410,14 @@ class PurchaseDAO:
             # Reverse the accounting posting inside THIS transaction
             posting_engine.reverse(SOURCE_PURCHASE_INVOICE, invoice_id, cur=cur)
 
-            # Reverse stock
+            # Reverse stock (pay/free are packs; stock is loose units).
             cur.execute(
-                "SELECT item_id, batch_no, pay_qty, free_qty FROM purchase_invoice_items WHERE purchase_invoice_id = ?",
+                "SELECT item_id, batch_no, pay_qty, free_qty, pack_size FROM purchase_invoice_items WHERE purchase_invoice_id = ?",
                 (invoice_id,),
             )
             for old in cur.fetchall():
-                qty_to_sub = old["pay_qty"] + old["free_qty"]
+                qty_to_sub = (old["pay_qty"] + old["free_qty"]) * pack_factor(
+                    old["pack_size"])
                 batch = cur.execute(
                     "SELECT id, stock_qty FROM stock_batches WHERE item_id = ? AND batch_no = ?",
                     (old["item_id"], old["batch_no"]),

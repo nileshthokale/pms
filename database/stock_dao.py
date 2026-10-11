@@ -157,11 +157,17 @@ class StockDAO:
 
     @staticmethod
     def get_summary(rows: list[dict]) -> dict:
-        """Compute summary statistics from a list of stock batch rows."""
+        """Compute summary statistics from a list of stock batch rows.
+
+        ``stock_qty`` holds loose units while ``purchase_rate`` is quoted
+        per pack, so value is ``qty × rate / pack_size``.
+        """
+        from database.purchase_dao import pack_factor
         total_batches = len(rows)
         total_qty = sum(r.get("stock_qty", 0.0) for r in rows)
         total_value = sum(
             r.get("stock_qty", 0.0) * r.get("purchase_rate", 0.0)
+            / pack_factor(r.get("pack_size", ""))
             for r in rows
         )
         return {
