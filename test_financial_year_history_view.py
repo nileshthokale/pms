@@ -232,8 +232,6 @@ class TestReportScreensFollowFinancialYear(_BaseTest):
 
     def test_10_sales_report_opens_scoped_to_the_active_year(self):
         page = self._page("sales_report", "SalesReportPage")
-        self.assertTrue(page.from_check.isChecked())
-        self.assertTrue(page.to_check.isChecked())
         self.assertEqual(
             page._current_filters()["from_date"], "2026-04-01"
         )
@@ -247,8 +245,8 @@ class TestReportScreensFollowFinancialYear(_BaseTest):
         page = self._page("sales_report", "SalesReportPage")
         page.set_history_financial_year(self.fy_2017)
 
-        self.assertEqual(page.from_edit.date().toString("yyyy-MM-dd"), "2017-04-01")
-        self.assertEqual(page.to_edit.date().toString("yyyy-MM-dd"), "2018-03-31")
+        self.assertEqual(page._current_filters()["from_date"], "2017-04-01")
+        self.assertEqual(page._current_filters()["to_date"], "2018-03-31")
         rows = [page._table.item(i, 1).text() for i in range(page._table.rowCount())]
         self.assertEqual(rows, ["2017-06-15"])
 
@@ -267,13 +265,35 @@ class TestReportScreensFollowFinancialYear(_BaseTest):
         )
         self.assertEqual(page._current_filters()["to_date"], "2027-03-31")
 
-    def test_13_selecting_a_year_keeps_the_filter_ticked(self):
+    def test_13_clear_keeps_the_financial_year_constraint(self):
         page = self._page("sales_report", "SalesReportPage")
-        page.from_check.setChecked(False)
-        page.to_check.setChecked(False)
         page.set_history_financial_year(self.fy_2017)
-        self.assertTrue(page.from_check.isChecked())
-        self.assertTrue(page.to_check.isChecked())
+        page._on_clear()
+        self.assertEqual(page._current_filters()["from_date"], "2017-04-01")
+        self.assertEqual(page._current_filters()["to_date"], "2018-03-31")
+
+    def test_13b_sales_report_switches_2017_2018_2026_without_changing_active_year(self):
+        fy_2018 = financial_year.create_financial_year(
+            "2018-2019", "2018-04-01", "2019-03-31"
+        )
+        self._seed_sale("B-2017-first", "2017-04-01")
+        self._seed_sale("B-2017-last", "2018-03-31")
+        self._seed_sale("B-2018-first", "2018-04-01")
+        self._seed_sale("B-2018-last", "2019-03-31")
+        self._seed_sale("B-2026", "2026-04-01")
+        page = self._page("sales_report", "SalesReportPage")
+        active_id = financial_year.get_active_financial_year()["id"]
+
+        for year, expected in (
+            (self.fy_2017, ["2017-04-01", "2018-03-31"]),
+            (fy_2018, ["2018-04-01", "2019-03-31"]),
+            (self.active, ["2026-04-01"]),
+            (self.fy_2017, ["2017-04-01", "2018-03-31"]),
+        ):
+            page.set_history_financial_year(year)
+            dates = [page._table.item(row, 1).text() for row in range(page._table.rowCount())]
+            self.assertEqual(dates, expected)
+            self.assertEqual(financial_year.get_active_financial_year()["id"], active_id)
 
     def test_14_purchase_report_follows_the_year(self):
         page = self._page("purchase_report", "PurchaseReportPage")
