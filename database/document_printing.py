@@ -274,6 +274,64 @@ def generate_sales_report_pdf(
     return str(path)
 
 
+def generate_purchase_report_pdf(
+    rows: list[dict], summary: dict, financial_year: str, filter_summary: str,
+    output_path: str | os.PathLike[str] | None = None,
+) -> str:
+    """Write the current, already-filtered Purchase Report as landscape PDF."""
+    path = _output_path(output_path, "purchase_report", financial_year.replace(" ", "_"))
+    headings = [
+        "Voucher", "V Date", "Invoice", "I Date", "Supplier", "Item", "Company",
+        "Pack", "Batch", "Expiry", "Pay", "Free", "Rate", "MRP", "Disc",
+        "GST%", "GST Amt", "Amount", "Purc Rt", "Net Rt",
+    ]
+    widths = [9, 10, 9, 10, 12, 14, 11, 7, 9, 7, 6, 6, 8, 8, 7, 6, 9, 9, 8, 8]
+
+    def clip(value: Any, width: int) -> str:
+        value = _text(value).replace("\n", " ")
+        return value[:width - 1] + "…" if len(value) > width else value
+
+    def report_row(row: dict) -> str:
+        values = [
+            row.get("voucher_no"), row.get("voucher_date"), row.get("invoice_no"),
+            row.get("invoice_date"), row.get("supplier_name"), row.get("item_name"),
+            row.get("company_name"), row.get("pack_size"), row.get("batch_no"),
+            row.get("expiry"), row.get("pay_qty"), row.get("free_qty"),
+            _money(row.get("rate")), _money(row.get("mrp")), _money(row.get("discount")),
+            row.get("gst_percent"), _money(row.get("gst_amount")), _money(row.get("amount")),
+            _money(row.get("purchase_rate")), _money(row.get("net_rate")),
+        ]
+        return " ".join(clip(value, width).ljust(width) for value, width in zip(values, widths))
+
+    header = " ".join(name.ljust(width) for name, width in zip(headings, widths))
+    page_capacity = 37
+    chunks = [rows[index:index + page_capacity] for index in range(0, len(rows), page_capacity)] or [[]]
+    pages: list[list[str]] = []
+    for page_index, chunk in enumerate(chunks):
+        lines = ["Purchase Report", f"Financial Year: {financial_year}", f"Filters: {filter_summary}", "", header, "-" * len(header)]
+        lines.extend(report_row(row) for row in chunk)
+        if page_index == len(chunks) - 1:
+            lines.extend([
+                "",
+                "Totals: " + " | ".join([
+                    f"Bills: {summary.get('total_bills', 0)}",
+                    f"Pay Qty: {summary.get('total_pay_qty', 0):g}",
+                    f"Free Qty: {summary.get('total_free_qty', 0):g}",
+                    f"Gross: {summary.get('total_gross', 0):,.2f}",
+                    f"GST: {summary.get('total_gst', 0):,.2f}",
+                    f"Discount: {summary.get('total_discount', 0):,.2f}",
+                    f"Net: {summary.get('total_net', 0):,.2f}",
+                ]),
+                "Printed from stored application data. No transaction data was changed.",
+            ])
+        pages.append(lines)
+    try:
+        path.write_bytes(_landscape_pdf_bytes(pages, "Purchase Report"))
+    except OSError as exc:
+        raise DocumentPrintError(f"Could not create PDF at {path}: {exc}") from exc
+    return str(path)
+
+
 def _landscape_pdf_bytes(pages: list[list[str]], title: str) -> bytes:
     """Minimal landscape A4 writer used for report tables (842 × 595 points)."""
     objects: list[bytes] = [b"<< /Type /Catalog /Pages 2 0 R >>", b"", b"<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>"]
@@ -405,7 +463,7 @@ def print_pdf(path: str | os.PathLike[str], parent=None) -> bool:
 
 
 __all__ = [
-    "DocumentPrintError", "generate_document", "generate_sales_report_pdf", "generate_sales_bill", "generate_counter_sale_bill",
+    "DocumentPrintError", "generate_document", "generate_sales_report_pdf", "generate_purchase_report_pdf", "generate_sales_bill", "generate_counter_sale_bill",
     "generate_purchase_invoice", "generate_credit_note", "generate_debit_note",
     "generate_customer_receipt", "generate_supplier_payment", "preview_document", "print_pdf",
     "generate_pharmacy_a6_bill", "print_pharmacy_a6_bill", "preview_pharmacy_a6_bill", "a6_profile",
