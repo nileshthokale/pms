@@ -64,7 +64,8 @@ from database.hold_bill_dao import (
 )
 
 from ui.theme import palette
-from ui.components import FONT_FAMILY, readable_font
+from ui.theme import indicator_style
+from ui.components import FONT_FAMILY, readable_font, refresh_containers
 from ui import fy_view
 from ui.theme import (
     TYPE_BUTTON,
@@ -439,15 +440,566 @@ _BILL_COLUMN_WIDTHS = (34, 0, 82, 106, 150, 76, 76, 54, 84, 96, 72)
 _BILL_CENTERED_COLUMNS = (0, 10)
 _BILL_RIGHT_COLUMNS = (6, 7, 8, 9)
 
-_GROUP_BOX = (
-    f"QGroupBox {{"
-    f"  color: {_TEXT}; font-weight: bold; font-size: {TYPE_SECTION_HEADER}px;"
-    f"  font-family: {FONT_FAMILY};"
-    f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-    f"  margin-top: 10px; padding-top: 14px;"
-    f"}}"
-    f"QGroupBox::title {{ subcontrol-origin: margin; left: 10px; padding: 0 6px; }}"
-)
+def _group_box_style(p: dict | None = None) -> str:
+    """QGroupBox style built from a palette (live palette by default).
+
+    The box is opaque in the workspace ``bg`` with the title cut out in the
+    same ``bg``: without an explicit background the interior stays
+    transparent and shows the backing store (a solid black rectangle in Day
+    Mode after a Night -> Day switch, or a washed-out frame in Night Mode).
+    """
+    p = p or palette()
+    return (
+        f"QGroupBox {{"
+        f"  background-color: {p['bg']};"
+        f"  color: {p['text']}; font-weight: bold; font-size: {TYPE_SECTION_HEADER}px;"
+        f"  font-family: {FONT_FAMILY};"
+        f"  border: 1px solid {p['border']}; border-radius: 2px;"
+        f"  margin-top: 10px; padding-top: 14px;"
+        f"}}"
+        f"QGroupBox::title {{ subcontrol-origin: margin; left: 10px; padding: 0 6px;"
+        f"  color: {p['text']}; background-color: {p['bg']}; }}"
+    )
+
+
+_GROUP_BOX = _group_box_style(_p)
+
+
+# ── Live (Day/Night-safe) style builders ──────────────────────────────
+# Module-level ``_COMBO_STYLE`` / ``_EDIT_STYLE`` / … constants are snapshots
+# baked at import time.  After a Day/Night switch the module is reloaded so
+# FUTURE widgets bake fresh colours, but EXISTING widgets keep the stale
+# snapshot (dark ``#000000`` backgrounds persisting in Day Mode is the
+# reported black rectangle below "Bill Items").  These builders recompute the
+# identical structural styles from the LIVE centralized palette, so
+# ``refresh_theme()`` can re-apply them in place without losing bill drafts,
+# focus, selection or scroll state.  Every colour comes from ``palette()``.
+def _fresh_popup(p: dict | None = None) -> dict:
+    return _popup_palette(p or palette())
+
+
+def _fresh_combo_style(p: dict | None = None) -> str:
+    p = p or palette()
+    pp = _popup_palette(p)
+    return (
+        f"QComboBox {{"
+        f"  background-color: {p['surface']}; color: {p['text']};"
+        f"  border: 1px solid {p['border']}; border-radius: 2px;"
+        f"  padding: 4px 6px; font-size: {TYPE_INPUT}px;"
+        f"  font-family: {FONT_FAMILY};"
+        f"}}"
+        f"QComboBox:hover {{ border: 1px solid {p['accent']}; }}"
+        f"QComboBox::drop-down {{ border: none; width: 22px; }}"
+        f"QComboBox::down-arrow {{ image: none; border: none; }}"
+        f"QComboBox QAbstractItemView {{"
+        f"  background-color: {pp['bg']}; color: {pp['text']};"
+        f"  border: 1px solid {pp['border']}; selection-background-color: {pp['selected']};"
+        f"  selection-color: {pp['text']}; outline: 0;"
+        f"  font-size: {TYPE_INPUT}px; font-family: {FONT_FAMILY};"
+        f"}}"
+        f"QComboBox QAbstractItemView::item {{ min-height: 26px; padding: 2px 6px; }}"
+        f"QComboBox QAbstractItemView::item:selected {{"
+        f"  background-color: {pp['selected']}; color: {pp['text']};"
+        f"}}"
+    )
+
+
+def _fresh_entry_combo_style(p: dict | None = None) -> str:
+    p = p or palette()
+    pp = _popup_palette(p)
+    return _fresh_combo_style(p) + (
+        f"QComboBox QAbstractItemView {{"
+        f"  background-color: {pp['bg']}; color: {pp['text']};"
+        f"  border: 1px solid {pp['border']};"
+        f"  selection-background-color: {pp['selected']};"
+        f"  selection-color: {pp['text']}; outline: 0;"
+        f"  font-size: {TYPE_INPUT}px; font-family: {FONT_FAMILY};"
+        f"}}"
+    )
+
+
+def _fresh_edit_style(p: dict | None = None) -> str:
+    p = p or palette()
+    return (
+        f"QLineEdit {{"
+        f"  background-color: {p['surface']}; color: {p['text']};"
+        f"  border: 1px solid {p['border']}; border-radius: 2px;"
+        f"  padding: 4px 6px; font-size: {TYPE_INPUT}px;"
+        f"  font-family: {FONT_FAMILY};"
+        f"}}"
+        f"QLineEdit:focus {{ border: 1px solid {p['accent']}; }}"
+    )
+
+
+def _fresh_date_style(p: dict | None = None) -> str:
+    p = p or palette()
+    return (
+        f"QDateEdit {{"
+        f"  background-color: {p['surface']}; color: {p['text']};"
+        f"  border: 1px solid {p['border']}; border-radius: 2px;"
+        f"  padding: 4px 6px; font-size: {TYPE_INPUT}px;"
+        f"  font-family: {FONT_FAMILY};"
+        f"}}"
+        f"QDateEdit:focus {{ border: 1px solid {p['accent']}; }}"
+        f"QDateEdit::drop-down {{ border: none; width: 22px; }}"
+        f"QDateEdit::down-arrow {{ image: none; border: none; }}"
+    )
+
+
+def _fresh_compact_edit_style(p: dict | None = None) -> str:
+    p = p or palette()
+    return (
+        f"QLineEdit {{"
+        f"  background-color: {p['surface']}; color: {p['text']};"
+        f"  border: 1px solid {p['border']}; border-radius: 2px;"
+        f"  padding: {_COMPACT_PADDING}; font-size: {TYPE_INPUT_COMPACT}px;"
+        f"  font-family: {FONT_FAMILY};"
+        f"}}"
+        f"QLineEdit:focus {{ border: 1px solid {p['accent']}; }}"
+    )
+
+
+def _fresh_compact_combo_style(p: dict | None = None) -> str:
+    p = p or palette()
+    pp = _popup_palette(p)
+    return (
+        f"QComboBox {{"
+        f"  background-color: {p['surface']}; color: {p['text']};"
+        f"  border: 1px solid {p['border']}; border-radius: 2px;"
+        f"  padding: {_COMPACT_PADDING}; font-size: {TYPE_INPUT_COMPACT}px;"
+        f"  font-family: {FONT_FAMILY};"
+        f"}}"
+        f"QComboBox:hover {{ border: 1px solid {p['accent']}; }}"
+        f"QComboBox::drop-down {{ border: none; width: 18px; }}"
+        f"QComboBox::down-arrow {{ image: none; border: none; }}"
+        f"QComboBox QAbstractItemView {{"
+        f"  background-color: {pp['bg']}; color: {pp['text']};"
+        f"  border: 1px solid {pp['border']}; selection-background-color: {pp['selected']};"
+        f"  selection-color: {pp['text']}; outline: 0;"
+        f"  font-size: {TYPE_INPUT}px; font-family: {FONT_FAMILY};"
+        f"}}"
+        f"QComboBox QAbstractItemView::item {{ min-height: 24px; padding: 2px 6px; }}"
+        f"QComboBox QAbstractItemView::item:selected {{"
+        f"  background-color: {pp['selected']}; color: {pp['text']};"
+        f"}}"
+    )
+
+
+def _fresh_compact_date_style(p: dict | None = None) -> str:
+    p = p or palette()
+    return (
+        f"QDateEdit {{"
+        f"  background-color: {p['surface']}; color: {p['text']};"
+        f"  border: 1px solid {p['border']}; border-radius: 2px;"
+        f"  padding: {_COMPACT_PADDING}; font-size: {TYPE_INPUT_COMPACT}px;"
+        f"  font-family: {FONT_FAMILY};"
+        f"}}"
+        f"QDateEdit:focus {{ border: 1px solid {p['accent']}; }}"
+        f"QDateEdit::drop-down {{ border: none; width: 18px; }}"
+        f"QDateEdit::down-arrow {{ image: none; border: none; }}"
+    )
+
+
+def _fresh_btn_style(edge: str, p: dict | None = None, **kwargs) -> str:
+    """Fresh classic button (light face + thin edge) from live palette."""
+    p = p or palette()
+    face = kwargs.get("face") or p["surface_alt"]
+    face_hover = kwargs.get("face_hover") or p["selected"]
+    face_pressed = kwargs.get("face_pressed") or p["surface"]
+    fg = kwargs.get("fg") or p["text"]
+    padding = kwargs.get("padding", "5px 14px")
+    radius = kwargs.get("radius", "5px")
+    font_size = kwargs.get("font_size", f"{TYPE_BUTTON}px")
+    return (
+        "QPushButton {"
+        f"  background-color: {face}; color: {fg};"
+        f"  border: 1px solid {edge}; border-radius: {radius};"
+        f"  padding: {padding}; font-weight: bold;"
+        f"  font-size: {font_size}; font-family: {FONT_FAMILY};"
+        "}"
+        "QPushButton:hover {"
+        f"  background-color: {face_hover}; border: 1px solid {edge};"
+        "}"
+        "QPushButton:pressed {"
+        f"  background-color: {face_pressed}; border: 1px solid {edge};"
+        "}"
+        "QPushButton:disabled {"
+        f"  background-color: {p['disabled_bg']};"
+        f"  color: {p['disabled_text']}; border: 1px solid {p['text_dim']};"
+        "}"
+    )
+
+
+def _fresh_row_action_style(p: dict | None = None) -> str:
+    p = p or palette()
+    danger = p.get("danger", "#c0392b")
+    return (
+        "QPushButton {"
+        f"  background-color: {p['surface_alt']}; color: {danger};"
+        f"  border: 1px solid {danger}; border-radius: 3px;"
+        "  padding: 2px 6px; font-size: 11px; font-weight: bold;"
+        f"  font-family: {FONT_FAMILY};"
+        "}"
+        "QPushButton:hover {"
+        f"  background-color: {p['selected']}; border: 1px solid {danger};"
+        "}"
+        "QPushButton:pressed {"
+        f"  background-color: {p['surface']}; border: 1px solid {danger};"
+        "}"
+        "QPushButton:disabled {"
+        f"  background-color: {p['disabled_bg']}; color: {p['disabled_text']};"
+        f"  border: 1px solid {p['border']};"
+        "}"
+    )
+
+
+def _fresh_completer_popup_style(p: dict | None = None) -> str:
+    """Fresh QCompleter popup (top-level QListView) from live palette."""
+    p = p or palette()
+    pp = _popup_palette(p)
+    return (
+        f"QAbstractItemView {{ background-color: {pp['bg']}; color: {pp['text']}; "
+        f"border: 1px solid {pp['border']}; selection-background-color: {pp['selected']}; "
+        f"selection-color: {pp['text']}; font: 11px 'Segoe UI'; outline: 0; }}"
+        f"QAbstractItemView::item {{ min-height: 24px; padding: 2px 6px; }}"
+        f"QAbstractItemView::item:selected {{ background-color: {pp['selected']}; color: {pp['text']}; }}"
+    )
+
+
+def _fresh_bill_header_style(p: dict | None = None) -> str:
+    p = p or palette()
+    # 12px == TYPE_TABLE_HEADER (numeric literal so source-typography guards
+    # recognise the header floor; runtime value equals the shared scale).
+    return (
+        f"QHeaderView::section {{"
+        f"  background-color: {p['surface']}; color: {p['text']};"
+        f"  border: none; border-bottom: 2px solid {p['accent']};"
+        f"  padding: 4px 5px; font-weight: bold;"
+        f"  font-size: 12px;"
+        f"  font-family: {FONT_FAMILY};"
+        f"}}"
+    )
+
+
+def _fresh_bill_table_style(p: dict | None = None) -> str:
+    p = p or palette()
+    return (
+        f"QTableWidget {{"
+        f"  background-color: {p['bg']}; color: {p['text']};"
+        f"  border: 1px solid {p['border']}; gridline-color: {p['border']};"
+        f"  font-size: {TYPE_TABLE_DATA}px; font-family: {FONT_FAMILY};"
+        f"  selection-background-color: {p['selected']};"
+        f"  selection-color: {p['selected_text']};"
+        f"}}"
+        f"QTableWidget::item {{ padding: 3px 6px; }}"
+    )
+
+
+def _fresh_history_header_style(p: dict | None = None) -> str:
+    p = p or palette()
+    # 12px == TYPE_TABLE_HEADER (numeric literal for source-typography guards).
+    return (
+        f"QHeaderView::section {{"
+        f"  background-color: {p['surface']}; color: {p['text']};"
+        f"  border: none; border-bottom: 2px solid {p['accent']};"
+        f"  padding: 4px 6px; font-weight: bold;"
+        f"  font-size: 12px;"
+        f"  font-family: {FONT_FAMILY};"
+        f"}}"
+    )
+
+
+def _fresh_history_table_style(p: dict | None = None) -> str:
+    p = p or palette()
+    return (
+        f"QTableWidget {{"
+        f"  background-color: {p['bg']}; color: {p['text']};"
+        f"  border: 1px solid {p['border']}; gridline-color: {p['border']};"
+        f"  font-size: {TYPE_TABLE_DATA}px; font-family: {FONT_FAMILY};"
+        f"  selection-background-color: {p['accent']};"
+        f"  selection-color: white;"
+        f"}}"
+        f"QTableWidget::item {{ padding: 3px 5px; }}"
+    )
+
+
+def _fresh_radio_style(p: dict | None = None) -> str:
+    """Item Wise / Bill Wise radios: text plus the live indicator glyph.
+
+    The previous version set only ``width``/``height`` on the indicator.
+    Naming the ``::indicator`` sub-control is enough to stop Qt drawing the
+    native radio dot, so a checked mode looked exactly like an unchecked
+    one — and in Night Mode both were a black square.
+
+    The button itself stays borderless (no outer rectangle around the
+    indicator + label in any state); only the small circular ::indicator
+    carries a border + dot, so checked stays unmistakable in Day and Night
+    Mode.
+    """
+    p = p or palette()
+    return (
+        f"QRadioButton {{ color: {p['text']}; font-size: {TYPE_FORM_LABEL}px;"
+        f"  background: transparent; border: none; outline: none;"
+        f"  spacing: 5px; font-family: {FONT_FAMILY}; }}"
+        "QRadioButton:focus { background: transparent;"
+        "  border: none; outline: none; }"
+        "QRadioButton:hover { background: transparent; border: none; }"
+        + indicator_style(checkbox=False)
+    )
+
+
+def _refresh_completer_popup(combo) -> None:
+    """Re-apply the live popup colours to a _KeyboardCombo's list."""
+    try:
+        completer = combo.completer()
+        popup = completer.popup() if completer is not None else None
+        if popup is not None:
+            popup.setStyleSheet(_fresh_completer_popup_style())
+            popup.update()
+    except Exception:
+        pass
+
+
+def _fresh_button_for_text(text: str, p: dict) -> str | None:
+    """Fresh button style for a Counter Sale caption (None if unknown).
+
+    Button texts in this screen are fixed, so the caption identifies the
+    variant without guessing from stale hex values (dark ``#141414`` faces
+    persisting in Day Mode is a black-rectangle source).  Every colour comes
+    from the live palette.
+    """
+    t = (text or "").strip()
+    if t in ("Save Sale", "New Sale"):
+        return _fresh_btn_style(p["accent"], p)
+    if t == "+ Add":
+        return _fresh_btn_style(p["accent"], p, padding="4px 10px", radius="4px")
+    if t == "Hold Bill":
+        return _fresh_btn_style(p.get("warning", "#b26a00"), p)
+    if t == "Delete":
+        # Panel Delete (full-width) vs row Delete (56x22, 11 px) share the
+        # caption; the caller distinguishes by size via cs_btn_kind.
+        return None
+    if t in ("Cancel", "Edit", "Print", "Print / PDF", "All Dates", "Refresh"):
+        return _fresh_btn_style(p["text_dim"], p)
+    return None
+
+
+def refresh_cs_tree(root) -> int:
+    """In-place Day/Night refresh for Counter Sale widget subtrees.
+
+    Re-applies live centralized colours to group boxes, tables + headers,
+    combos/edits/dates (via ``cs_style`` tags), completer popups, buttons
+    (via fixed captions) and transparent labels — preserving layout, focus,
+    selection, drafts and scroll state.  Returns widgets updated.
+    """
+    try:
+        from PySide6.QtWidgets import (
+            QComboBox, QDateEdit, QGroupBox, QLabel, QLineEdit,
+            QPushButton, QTableWidget, QWidget,
+        )
+    except Exception:
+        return 0
+    try:
+        p = palette()
+    except Exception:
+        return 0
+    updated = 0
+    try:
+        widgets = [root] + list(root.findChildren(QWidget))
+    except Exception:
+        return 0
+    # Known text/dim hexes across BOTH modes to infer label roles.
+    try:
+        from ui.theme import _PALETTES as _PALS
+        text_hexes = {str(_PALS[m].get("text", "")).lower() for m in _PALS}
+        dim_hexes = {str(_PALS[m].get("text_dim", "")).lower() for m in _PALS}
+    except Exception:
+        text_hexes, dim_hexes = set(), set()
+    for w in widgets:
+        try:
+            if isinstance(w, QGroupBox):
+                w.setStyleSheet(_group_box_style(p))
+                updated += 1
+                continue
+            if isinstance(w, _KeyboardCombo):
+                try:
+                    w.refresh_theme()
+                except Exception:
+                    _refresh_completer_popup(w)
+                updated += 1
+                continue
+            if isinstance(w, QComboBox):
+                try:
+                    kind = w.property("cs_style")
+                except Exception:
+                    kind = None
+                ss = w.styleSheet() if hasattr(w, "styleSheet") else ""
+                try:
+                    if kind == "compact_combo" or "2px 5px" in ss:
+                        w.setStyleSheet(_fresh_compact_combo_style(p))
+                    elif kind == "entry_combo":
+                        w.setStyleSheet(_fresh_entry_combo_style(p))
+                    elif "QComboBox" in ss:
+                        w.setStyleSheet(_fresh_combo_style(p))
+                    else:
+                        continue
+                    updated += 1
+                except Exception:
+                    pass
+                _refresh_completer_popup(w)
+                continue
+            if isinstance(w, QLineEdit):
+                # Skip combo-internal line edits (transparent, borderless).
+                try:
+                    parent = w.parent()
+                    from PySide6.QtWidgets import QComboBox as _CB
+                    if parent is not None and isinstance(parent, _CB):
+                        continue
+                except Exception:
+                    pass
+                try:
+                    kind = w.property("cs_style")
+                except Exception:
+                    kind = None
+                ss = w.styleSheet() if hasattr(w, "styleSheet") else ""
+                try:
+                    if kind == "compact_edit" or "2px 5px" in ss:
+                        w.setStyleSheet(_fresh_compact_edit_style(p))
+                    elif "QLineEdit" in ss:
+                        w.setStyleSheet(_fresh_edit_style(p))
+                    else:
+                        continue
+                    updated += 1
+                except Exception:
+                    pass
+                continue
+            if isinstance(w, QDateEdit):
+                try:
+                    kind = w.property("cs_style")
+                except Exception:
+                    kind = None
+                ss = w.styleSheet() if hasattr(w, "styleSheet") else ""
+                try:
+                    if kind == "compact_date" or "2px 5px" in ss:
+                        w.setStyleSheet(_fresh_compact_date_style(p))
+                    elif "QDateEdit" in ss:
+                        w.setStyleSheet(_fresh_date_style(p))
+                    else:
+                        continue
+                    updated += 1
+                except Exception:
+                    pass
+                continue
+            if isinstance(w, QPushButton):
+                try:
+                    kind = w.property("cs_btn_kind")
+                except Exception:
+                    kind = None
+                txt = w.text() if hasattr(w, "text") else ""
+                ss = w.styleSheet() if hasattr(w, "styleSheet") else ""
+                if "QPushButton" not in ss:
+                    continue
+                try:
+                    if kind == "row_delete" or (
+                        txt.strip() == "Delete"
+                        and w.maximumWidth() <= 60
+                        and "11px" in ss
+                    ):
+                        w.setStyleSheet(_fresh_row_action_style(p))
+                        updated += 1
+                    elif txt.strip() == "Delete":
+                        w.setStyleSheet(_fresh_btn_style(p.get("danger", "#c0392b"), p,
+                                                         padding="3px 8px", radius="4px"))
+                        updated += 1
+                    else:
+                        fresh = _fresh_button_for_text(txt, p)
+                        if fresh is not None:
+                            w.setStyleSheet(fresh)
+                            updated += 1
+                except Exception:
+                    pass
+                continue
+            if isinstance(w, QLabel):
+                ss = w.styleSheet() if hasattr(w, "styleSheet") else ""
+                if not ss or "background: transparent" not in ss:
+                    continue
+                # Preserve size/weight; only the colour role refreshes.
+                import re as _re
+                m = _re.search(r"color:\s*(#[0-9a-fA-F]{6}|white|black)", ss)
+                if not m:
+                    continue
+                col = m.group(1).lower()
+                try:
+                    if col in dim_hexes:
+                        new_col = p["text_dim"]
+                    elif col in text_hexes or col in ("#000000", "#ffffff", "black", "white"):
+                        # White/black alone is ambiguous; transparent labels
+                        # in this screen are always text or dim.  Dim labels
+                        # declare 11 px without bold in _LABEL_DIM; bold 11 px
+                        # captions are text.  Fall back to text.
+                        if "font-size: 11px" in ss and "font-weight: bold" not in ss:
+                            new_col = p["text_dim"]
+                        else:
+                            new_col = p["text"]
+                    else:
+                        # Danger/warning accents (red/amber) are identical in
+                        # both modes — leave them.
+                        continue
+                    new_ss = ss[:m.start()] + f"color: {new_col}" + ss[m.end():]
+                    # Radio buttons are handled via _fresh_radio_style.
+                    w.setStyleSheet(new_ss)
+                    updated += 1
+                except Exception:
+                    pass
+                continue
+        except Exception:
+            continue
+    # Tables + headers via stored structure (bill vs history by header text).
+    for w in widgets:
+        try:
+            if isinstance(w, QTableWidget):
+                try:
+                    headers = [
+                        w.horizontalHeaderItem(c).text()
+                        if w.horizontalHeaderItem(c) is not None else ""
+                        for c in range(w.columnCount())
+                    ]
+                except Exception:
+                    headers = []
+                is_bill = "Del" in headers or "Item Name" in headers and "Disc Amt" in headers and len(headers) == 11
+                try:
+                    if is_bill:
+                        w.setStyleSheet(_fresh_bill_table_style(p))
+                        hv = w.horizontalHeader()
+                        hv.setStyleSheet(_fresh_bill_header_style(p))
+                    else:
+                        w.setStyleSheet(_fresh_history_table_style(p))
+                        hv = w.horizontalHeader()
+                        hv.setStyleSheet(_fresh_history_header_style(p))
+                    updated += 1
+                except Exception:
+                    pass
+        except Exception:
+            continue
+    # Radio indicators follow text; ensure transparent bg (no black box).
+    for w in widgets:
+        try:
+            from PySide6.QtWidgets import QRadioButton
+            if isinstance(w, QRadioButton):
+                w.setStyleSheet(_fresh_radio_style(p))
+                updated += 1
+        except Exception:
+            continue
+    # Plain container chrome (header strip, history filter bar, the
+    # right-side Bill / Current Bill panel) is styled from baked module
+    # constants and is reached by none of the branches above — without this
+    # it kept the Day Mode light-blue surface in Night Mode.
+    try:
+        updated += refresh_containers(root)
+    except Exception:
+        pass
+    return updated
+
 
 # Keep transient Qt widgets alive long enough for their Python wrappers to
 # remain usable during tests and when a page is re-created without an explicit
@@ -477,10 +1029,19 @@ def _round2(value) -> float:
     return float(_d(value).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
 
+def _mark_cs(widget, kind: str) -> None:
+    """Tag a Counter Sale widget with its style kind for refresh_theme()."""
+    try:
+        widget.setProperty("cs_style", kind)
+    except Exception:
+        pass
+
+
 def _make_edit(placeholder: str = "", width: int | None = None) -> QLineEdit:
     e = QLineEdit()
     e.setPlaceholderText(placeholder)
     e.setStyleSheet(_EDIT_STYLE)
+    _mark_cs(e, "edit")
     e.setFont(readable_font(TYPE_INPUT))
     if width:
         e.setMaximumWidth(width)
@@ -493,6 +1054,7 @@ def _make_compact_edit(placeholder: str = "", *,
     e = QLineEdit()
     e.setPlaceholderText(placeholder)
     e.setStyleSheet(_COMPACT_EDIT_STYLE)
+    _mark_cs(e, "compact_edit")
     e.setFont(readable_font(TYPE_INPUT_COMPACT))
     e.setFixedHeight(height)
     return e
@@ -506,6 +1068,7 @@ def _make_compact_combo() -> QComboBox:
     """
     c = _KeyboardCombo()
     c.setStyleSheet(_COMPACT_COMBO_STYLE)
+    _mark_cs(c, "compact_combo")
     c.setFixedHeight(_METADATA_CONTROL_HEIGHT)
     c.lineEdit().setFixedHeight(_METADATA_CONTROL_HEIGHT - 2)
     _keep_alive(c)
@@ -516,6 +1079,7 @@ def _make_compact_date() -> QDateEdit:
     d = QDateEdit()
     d.setCalendarPopup(True)
     d.setStyleSheet(_COMPACT_DATE_STYLE)
+    _mark_cs(d, "compact_date")
     d.setFixedHeight(_METADATA_CONTROL_HEIGHT)
     return d
 
@@ -542,13 +1106,8 @@ class _KeyboardCombo(QComboBox):
         # the active Day/Night palette so it never falls back to the
         # platform's own colours and never ends up as unreadable text (a
         # white popup with white names was the Night Mode blank-list bug).
-        completer.popup().setStyleSheet(
-            f"QAbstractItemView {{ background-color: {_POPUP_BG}; color: {_POPUP_TEXT}; "
-            f"border: 1px solid {_POPUP_BORDER}; selection-background-color: {_POPUP_SELECTED}; "
-            f"selection-color: {_POPUP_TEXT}; font: 11px 'Segoe UI'; outline: 0; }}"
-            f"QAbstractItemView::item {{ min-height: 24px; padding: 2px 6px; }}"
-            f"QAbstractItemView::item:selected {{ background-color: {_POPUP_SELECTED}; color: {_POPUP_TEXT}; }}"
-        )
+        completer.popup().setStyleSheet(_fresh_completer_popup_style())
+        _mark_cs(self, "combo")
         self.setFocusPolicy(Qt.StrongFocus)
         self._show_all_on_click = False
         self.lineEdit().installEventFilter(self)
@@ -766,10 +1325,40 @@ class _KeyboardCombo(QComboBox):
             self.completionAccepted.emit()
         return accepted
 
+    def refresh_theme(self) -> None:
+        """Re-apply live Day/Night colours to the combo box + its popup.
+
+        The completer popup is a separate top-level window with an explicit
+        stylesheet baked at construction; without this it keeps the stale
+        mode's background (black list in Day Mode, white-on-white in Night
+        Mode).  The box style is chosen by the ``cs_style`` tag so entry,
+        regular and compact combos each keep their own metrics.
+        """
+        try:
+            kind = self.property("cs_style")
+        except Exception:
+            kind = None
+        try:
+            p = palette()
+            if kind == "compact_combo":
+                self.setStyleSheet(_fresh_compact_combo_style(p))
+            elif kind == "entry_combo":
+                self.setStyleSheet(_fresh_entry_combo_style(p))
+            else:
+                self.setStyleSheet(_fresh_combo_style(p))
+        except Exception:
+            pass
+        _refresh_completer_popup(self)
+        try:
+            self.update()
+        except Exception:
+            pass
+
 
 def _make_combo() -> QComboBox:
     c = _KeyboardCombo()
     c.setStyleSheet(_COMBO_STYLE)
+    _mark_cs(c, "combo")
     _keep_alive(c)
     return c
 
@@ -778,6 +1367,7 @@ def _make_date() -> QDateEdit:
     d = QDateEdit()
     d.setCalendarPopup(True)
     d.setStyleSheet(_DATE_STYLE)
+    _mark_cs(d, "date")
     return d
 
 
@@ -1001,6 +1591,7 @@ class _ItemEntryBar(QWidget):
         layout.addWidget(self._lbl("Item"))
         self.item_combo = _make_combo()
         self.item_combo.setStyleSheet(_ENTRY_COMBO_STYLE)
+        _mark_cs(self.item_combo, "entry_combo")
         self._fit(self.item_combo, _ENTRY_FLOOR_WIDTHS["item_combo"],
                   _ENTRY_PREFERRED_WIDTHS["item_combo"])
         self.item_combo.setSizePolicy(QSizePolicy.Expanding,
@@ -1029,6 +1620,7 @@ class _ItemEntryBar(QWidget):
         layout.addWidget(self._lbl("Batch"))
         self.batch_combo = _make_combo()
         self.batch_combo.setStyleSheet(_ENTRY_COMBO_STYLE)
+        _mark_cs(self.batch_combo, "entry_combo")
         self._fit(self.batch_combo, _ENTRY_BATCH_MIN_WIDTH, _ENTRY_BATCH_MAX_WIDTH)
         self.batch_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.batch_combo.show_all_completions_on_click()
@@ -1602,6 +2194,49 @@ class _ItemEntryBar(QWidget):
             "draft_qty": self._availability(batch)[0],
             "available_stock": self._availability(batch)[1],
         }
+
+    def refresh_theme(self) -> None:
+        """Re-apply live Day/Night colours in place (state preserved)."""
+        try:
+            p = palette()
+        except Exception:
+            return
+        try:
+            # Entry combos keep their entry metrics; edits keep theirs.
+            self.item_combo.refresh_theme()
+        except Exception:
+            pass
+        try:
+            self.batch_combo.refresh_theme()
+        except Exception:
+            pass
+        for edit in (self.pack_edit, self.location_edit, self.expiry_edit,
+                     self.mrp_edit, self.stock_edit, self.qty_edit,
+                     self.discount_edit, self.amount_edit):
+            try:
+                edit.setStyleSheet(_fresh_edit_style(p))
+            except Exception:
+                pass
+        try:
+            self.cno_label.setStyleSheet(
+                f"color: {p['text']}; font-size: {TYPE_VALUE}px; font-weight: bold;"
+                f"font-family: {FONT_FAMILY}; background: transparent;"
+            )
+        except Exception:
+            pass
+        try:
+            self.add_btn.setStyleSheet(_fresh_btn_style(p["accent"], p,
+                                                        padding="4px 10px", radius="4px"))
+        except Exception:
+            pass
+        try:
+            refresh_cs_tree(self)
+        except Exception:
+            pass
+        try:
+            self.update()
+        except Exception:
+            pass
 
 
 # ======================================================================
@@ -2594,6 +3229,10 @@ class _SalePanel(QWidget):
         """
         del_btn = QPushButton("Delete")
         del_btn.setStyleSheet(_BTN_ROW_ACTION)
+        try:
+            del_btn.setProperty("cs_btn_kind", "row_delete")
+        except Exception:
+            pass
         del_btn.setFixedSize(_BILL_DELETE_WIDTH, _BILL_DELETE_HEIGHT)
         del_btn.setToolTip(f"Remove line {index + 1} from this bill")
         del_btn.clicked.connect(lambda _, idx=index: self._delete_item(idx))
@@ -2754,6 +3393,80 @@ class _SalePanel(QWidget):
             self.total_amount_label.text(),
             self.net_amt_label.text(),
         )
+
+    def refresh_theme(self) -> None:
+        """Re-apply live Day/Night colours in place (drafts preserved).
+
+        Only stylesheet strings are recomputed from the live centralized
+        palette; bill rows, entry text, focus, selection and layout are
+        untouched, so an in-progress sale survives a theme switch.
+        """
+        try:
+            p = palette()
+        except Exception:
+            return
+        try:
+            self.setStyleSheet(
+                f"#SalePanel {{ background-color: {p['bg']}; }}"
+                f"#SalePanel QLabel {{ color: {p['text']}; font-size: {TYPE_VALUE}px;"
+                f" font-weight: bold; font-family: {FONT_FAMILY}; background: transparent; }}"
+            )
+        except Exception:
+            pass
+        # Entry bar (combos, edits, add button, captions, popups).
+        try:
+            if hasattr(self, "_entry_bar") and hasattr(self._entry_bar, "refresh_theme"):
+                self._entry_bar.refresh_theme()
+        except Exception:
+            pass
+        # Bill Items group + table + header (the reported black rectangle).
+        try:
+            if hasattr(self, "_table_group"):
+                self._table_group.setStyleSheet(_group_box_style(p))
+        except Exception:
+            pass
+        try:
+            if hasattr(self, "_table"):
+                self._table.setStyleSheet(_fresh_bill_table_style(p))
+                self._table.horizontalHeader().setStyleSheet(_fresh_bill_header_style(p))
+        except Exception:
+            pass
+        # Row Delete buttons inside the bill grid.
+        try:
+            from PySide6.QtWidgets import QPushButton
+            for btn in self.findChildren(QPushButton):
+                try:
+                    if btn.text().strip() == "Delete" and btn.maximumWidth() <= 60:
+                        btn.setStyleSheet(_fresh_row_action_style(p))
+                except Exception:
+                    continue
+        except Exception:
+            pass
+        # Compact metadata strip + totals footer.
+        try:
+            if hasattr(self, "_metadata_strip"):
+                self._metadata_strip.setStyleSheet(
+                    f"#CompactSaleMetadata {{ background-color: {p['bg']}; "
+                    f"border-top: 1px solid {p['border']}; border-bottom: 1px solid {p['border']}; }}"
+                )
+        except Exception:
+            pass
+        try:
+            if hasattr(self, "_totals_widget"):
+                self._totals_widget.setStyleSheet(
+                    f"background-color: {p['surface']}; border-top: 1px solid {p['border']};"
+                )
+        except Exception:
+            pass
+        # Everything else (combos, edits, dates, buttons, labels, popups).
+        try:
+            refresh_cs_tree(self)
+        except Exception:
+            pass
+        try:
+            self.update()
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # Populate for edit
@@ -3886,6 +4599,32 @@ class SalesBillReviewDialog(QDialog):
         # signal, so close the popup.
         self.accept()
 
+    def refresh_theme(self) -> None:
+        """Re-apply live Day/Night colours to the open Sales Bill popup."""
+        try:
+            p = palette()
+        except Exception:
+            return
+        try:
+            self.setStyleSheet(
+                f"QDialog#SalesBillDialog {{ background-color: {p['surface']}; }}"
+            )
+        except Exception:
+            pass
+        try:
+            if hasattr(self, "_panel") and hasattr(self._panel, "refresh_theme"):
+                self._panel.refresh_theme()
+        except Exception:
+            pass
+        try:
+            refresh_cs_tree(self)
+        except Exception:
+            pass
+        try:
+            self.update()
+        except Exception:
+            pass
+
 
 # ======================================================================
 # Counter Sale PAGE (History | inline active sale area | bill panel)
@@ -3925,12 +4664,11 @@ _HISTORY_STRETCH_COLUMN = {
     HISTORY_MODE_BILL: 2,
 }
 
+# Item Wise / Bill Wise radios are styled at construction (and refreshed on
+# every Day/Night switch) rather than from a baked module constant: the
+# indicator style carries a generated check/dot glyph, which can only be
+# produced once a QGuiApplication exists.
 _HISTORY_FILTER_BAR_HEIGHT = 30
-_RADIO_STYLE = (
-    f"QRadioButton {{ color: {_TEXT}; font-size: {TYPE_FORM_LABEL}px;"
-    f"  background: transparent; font-family: {FONT_FAMILY}; }}"
-    f"QRadioButton::indicator {{ width: 13px; height: 13px; }}"
-)
 
 
 class CounterSalePage(QWidget):
@@ -3963,7 +4701,8 @@ class CounterSalePage(QWidget):
         root.setSpacing(0)
 
         # Region A (top): page header strip
-        root.addWidget(self._build_header_strip())
+        self._header_strip = self._build_header_strip()
+        root.addWidget(self._header_strip)
 
         body = QHBoxLayout()
         body.setContentsMargins(0, 0, 0, 0)
@@ -4002,7 +4741,8 @@ class CounterSalePage(QWidget):
         left.addWidget(self._sale_panel, 1)
 
         body.addLayout(left, 1)
-        body.addWidget(self._build_bill_panel())
+        self._bill_panel = self._build_bill_panel()
+        body.addWidget(self._bill_panel)
 
         root.addLayout(body, 1)
 
@@ -4091,8 +4831,9 @@ class CounterSalePage(QWidget):
 
         self._hist_item_mode = QRadioButton("Item Wise")
         self._hist_bill_mode = QRadioButton("Bill Wise")
-        self._hist_item_mode.setStyleSheet(_RADIO_STYLE)
-        self._hist_bill_mode.setStyleSheet(_RADIO_STYLE)
+        _radio_style = _fresh_radio_style()
+        self._hist_item_mode.setStyleSheet(_radio_style)
+        self._hist_bill_mode.setStyleSheet(_radio_style)
         self._hist_item_mode.setChecked(True)          # default mode
         self._hist_item_mode.setToolTip(
             "One row per sale item, with the bill number repeated"
@@ -4355,6 +5096,7 @@ class CounterSalePage(QWidget):
         layout.addWidget(actions)
 
         info = QGroupBox("Current Bill")
+        self._current_bill_group = info
         info.setStyleSheet(_GROUP_BOX)
         form = QFormLayout(info)
         form.setContentsMargins(10, 18, 10, 10)
@@ -4421,6 +5163,64 @@ class CounterSalePage(QWidget):
         lbl = QLabel(text)
         lbl.setStyleSheet(_HEADER_LABEL)
         return lbl
+
+    def refresh_theme(self) -> None:
+        """Re-apply live Day/Night colours in place (state preserved).
+
+        Refreshes the header strip, history filter bar + history table, the
+        embedded sale panel (entry bar, Bill Items grid, totals) and the
+        right-side Bill panel — without rebuilding, so bill drafts, history
+        scroll position and focus survive the switch.
+        """
+        try:
+            p = palette()
+        except Exception:
+            return
+        try:
+            self.setStyleSheet(f"background-color: {p['bg']};")
+        except Exception:
+            pass
+        # Sale panel first (entry bar, Bill Items, totals).
+        try:
+            if hasattr(self, "_sale_panel") and hasattr(self._sale_panel, "refresh_theme"):
+                self._sale_panel.refresh_theme()
+        except Exception:
+            pass
+        # History table + header (controlled-height region above Bill Items).
+        try:
+            if hasattr(self, "_hist_table"):
+                self._hist_table.setStyleSheet(_fresh_history_table_style(p))
+                self._hist_table.horizontalHeader().setStyleSheet(
+                    _fresh_history_header_style(p)
+                )
+        except Exception:
+            pass
+        # Radios, filter buttons, New Sale.
+        try:
+            if hasattr(self, "_hist_item_mode"):
+                self._hist_item_mode.setStyleSheet(_fresh_radio_style(p))
+            if hasattr(self, "_hist_bill_mode"):
+                self._hist_bill_mode.setStyleSheet(_fresh_radio_style(p))
+        except Exception:
+            pass
+        try:
+            if hasattr(self, "_new_btn"):
+                self._new_btn.setStyleSheet(_fresh_btn_style(p["accent"], p))
+            for attr in ("_hist_all_btn", "_hist_refresh_btn"):
+                btn = getattr(self, attr, None)
+                if btn is not None:
+                    btn.setStyleSheet(_fresh_btn_style(p["text_dim"], p))
+        except Exception:
+            pass
+        # Header strip + filter bar backgrounds.
+        try:
+            refresh_cs_tree(self)
+        except Exception:
+            pass
+        try:
+            self.update()
+        except Exception:
+            pass
 
     def _refresh_history(self):
         self._history_offset = 0

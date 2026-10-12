@@ -130,6 +130,7 @@ class NavigationBar(QWidget):
         tl.addWidget(self._brand_label)
 
         self._menu_hint = QLabel("")
+        self._menu_hint.setObjectName("NavMenuHint")
         tl.addWidget(self._menu_hint)
         tl.addStretch()
 
@@ -147,6 +148,7 @@ class NavigationBar(QWidget):
         tl.addWidget(self.fy_button)
 
         self.user_label = QLabel()
+        self.user_label.setObjectName("NavUserLabel")
         self.user_label.setToolTip("Signed-in user and role")
         tl.addWidget(self.user_label)
 
@@ -236,6 +238,14 @@ class NavigationBar(QWidget):
         p = theme.theme_manager.palette()
         nav = theme.nav_palette()
 
+        # ``#TitleBar > QLabel`` (child, not descendant) is deliberate.
+        # Qt's tooltip widget (``QTipLabel``) is a QLabel whose QObject
+        # parent is the widget that owns the tooltip, so a *descendant*
+        # ``QLabel`` rule here also matched the tooltip and — because a
+        # widget-level rule outranks the application stylesheet — replaced
+        # the readable tooltip note with ``background: transparent`` and
+        # the strip's text colour, which rendered as a black box.
+        # ``theme.tooltip_rule()`` is appended for the same reason.
         self.setStyleSheet(
             f"#NavigationBar {{ background-color: {nav['bg']}; }}"
             f"#TitleBar {{"
@@ -246,19 +256,22 @@ class NavigationBar(QWidget):
             f"  background-color: {p['surface_alt']};"
             f"  border-bottom: 1px solid {p['border']};"
             f"}}"
-            f"#TitleBar QLabel {{"
+            f"#TitleBar > QLabel {{"
             f"  color: {nav['text']}; background: transparent;"
             f"  font-size: {TYPE_FORM_LABEL}px; font-family: {ui.FONT_FAMILY};"
             f"}}"
-            f"#TitleBar QLabel#BrandLabel {{"
+            f"#TitleBar > QLabel#BrandLabel {{"
             f"  color: {nav['text']}; font-size: {NAV_BRAND_PX}px;"
             f"  font-weight: bold;"
             f"}}"
+            + theme.tooltip_rule()
         )
         self._brand_label.setStyleSheet(
-            f"color: {nav['text']}; font-size: {NAV_BRAND_PX}px;"
-            f"font-weight: bold;"
-            f"font-family: {ui.FONT_FAMILY}; background: transparent;"
+            f"#BrandLabel {{"
+            f"  color: {nav['text']}; font-size: {NAV_BRAND_PX}px;"
+            f"  font-weight: bold;"
+            f"  font-family: {ui.FONT_FAMILY}; background: transparent;"
+            f"}}"
         )
         self.fy_button.setStyleSheet(
             "#FinancialYearButton {"
@@ -276,20 +289,30 @@ class NavigationBar(QWidget):
             f"  background-color: {p['surface']};"
             "}"
         )
+        # Scoped by object name rather than left as a bare declaration
+        # block.  A selector-less block only ever applies to the widget it
+        # is set on, so this is hygiene rather than a fix, but it keeps
+        # every rule in this strip explicitly bounded to its own widget.
         self.user_label.setStyleSheet(
-            f"color: {nav['text']}; background: transparent;"
-            f"font-size: {TYPE_FORM_LABEL}px; padding: 0 6px;"
-            f"font-family: {ui.FONT_FAMILY};"
+            "#NavUserLabel {"
+            f"  color: {nav['text']}; background: transparent;"
+            f"  font-size: {TYPE_FORM_LABEL}px; padding: 0 6px;"
+            f"  font-family: {ui.FONT_FAMILY};"
+            "}"
         )
         self._menu_hint.setStyleSheet(
-            f"color: {nav['text']}; background: transparent;"
-            f"font-size: {TYPE_HINT}px; font-style: italic; padding-left: 8px;"
-            f"font-family: {ui.FONT_FAMILY};"
+            "#NavMenuHint {"
+            f"  color: {nav['text']}; background: transparent;"
+            f"  font-size: {TYPE_HINT}px; font-style: italic; padding-left: 8px;"
+            f"  font-family: {ui.FONT_FAMILY};"
+            "}"
         )
         self.status_label.setStyleSheet(
-            f"color: {p['text_dim']}; background: transparent;"
-            f"font-size: {TYPE_HINT}px; padding-right: 6px;"
-            f"font-family: {ui.FONT_FAMILY};"
+            "#NavStatus {"
+            f"  color: {p['text_dim']}; background: transparent;"
+            f"  font-size: {TYPE_HINT}px; padding-right: 6px;"
+            f"  font-family: {ui.FONT_FAMILY};"
+            "}"
         )
 
         for btn in self.findChildren(QPushButton):

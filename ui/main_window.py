@@ -204,32 +204,110 @@ class PharmacyMainWindow(QMainWindow):
 
     # ── theme ────────────────────────────────────────────────────────
     def _apply_theme(self):
+        # Centralized palette + application stylesheet so dialogs, message
+        # boxes, menus, tooltips, combo dropdowns, completer popups and
+        # calendar popups follow the Day/Night mode immediately.
+        theme.apply_to_app()
         p = theme.theme_manager.palette()
-        # Application-wide stylesheet styles dialogs and any widget that a
-        # screen does not style itself.  Widget-level stylesheets in the
-        # screens always win, so this is a safe global fallback.
-        app = QApplication.instance()
-        if app is not None:
-            app.setStyleSheet(theme.stylesheet())
         self.setStyleSheet(
             f"QMainWindow, QStackedWidget, QWidget#CentralWorkspace"
             f" {{ background-color: {p['bg']}; }}"
         )
 
     def _on_theme_changed(self, mode: str):
-        # Screen modules were reloaded with the new palette; rebuild the
-        # page stack so every page re-renders in the new mode, keeping
-        # the currently selected page selected.
-        current_key = next(
-            (k for k, v in self._page_map.items() if v == self._stack.currentIndex()),
-            None,
-        )
-        while self._stack.count():
-            widget = self._stack.widget(0)
-            self._stack.removeWidget(widget)
-            widget.deleteLater()
-        self._page_map.clear()
-        self._build_pages()
+        # In-place refresh: every existing page keeps its state (bill
+        # drafts, form inputs, selection, scroll position) and only its
+        # colours are recomputed from the live centralized palette.  The
+        # previous destroy-and-rebuild approach wiped in-progress drafts
+        # on every Day/Night switch.
         self._apply_theme()
-        if current_key is not None and current_key in self._page_map:
-            self._stack.setCurrentIndex(self._page_map[current_key])
+        for index in range(self._stack.count()):
+            page = self._stack.widget(index)
+            if page is None:
+                continue
+            self._refresh_widget_tree(page)
+        self._refresh_open_dialogs()
+        try:
+            theme.repolish_all()
+        except Exception:
+            pass
+
+    def _refresh_widget_tree(self, root):
+        """Re-apply the live theme to an existing widget tree, in place.
+
+        The page's own ``refresh_theme()`` has full role knowledge but is
+        written per screen and, on Counter Sale, never reached the plain
+        container chrome (the page title strip, the history filter bar and
+        the right-side Bill panel).  The shared passes are therefore run as
+        well: ``refresh_tree`` only touches components-tagged widgets and
+        ``refresh_containers`` only rewrites baked background/border roles,
+        so neither can disturb a screen's own styling.  State (drafts,
+        selection, scroll) is preserved — nothing is rebuilt.
+        """
+        refreshed = False
+        refresh = getattr(root, "refresh_theme", None)
+        if callable(refresh):
+            try:
+                refresh()
+                refreshed = True
+            except Exception:
+                refreshed = False
+        # The shared passes always run.  They are disjoint by construction:
+        # ``refresh_tree`` only touches components-tagged widgets and
+        # ``refresh_containers`` skips exactly those (and any widget whose
+        # style the screen owner already refreshed), so one can never undo
+        # the other.
+        try:
+            ui.refresh_tree(root)
+        except Exception:
+            pass
+        try:
+            ui.refresh_containers(root)
+        except Exception:
+            pass
+        if not refreshed:
+            # Fallback for pages without an explicit refresh_theme():
+            # components widgets, generic baked screen patterns (group
+            # boxes, tables, inputs, buttons, labels, popups), then
+            # repaint.
+            try:
+                ui.refresh_generic_screen(root)
+            except Exception:
+                pass
+            try:
+                ui.refresh_popups(root)
+            except Exception:
+                pass
+        try:
+            style = root.style()
+            if style is not None:
+                style.unpolish(root)
+                style.polish(root)
+            root.update()
+        except Exception:
+            pass
+
+    def _refresh_open_dialogs(self):
+        """Refresh visible dialogs owned by this window (in place).
+
+        An open Sales Bill review popup (or any other modal) is not part of
+        the page stack, so without this it kept its baked colours until it
+        was closed and reopened.
+        """
+        try:
+            from PySide6.QtWidgets import QApplication, QDialog
+        except Exception:
+            return
+        try:
+            widgets = list(QApplication.topLevelWidgets())
+        except Exception:
+            return
+        for widget in widgets:
+            try:
+                if widget is self or not isinstance(widget, QDialog):
+                    continue
+                if not widget.isVisible() or not self.isAncestorOf(widget):
+                    continue
+            except Exception:
+                continue
+            self._refresh_widget_tree(widget)
