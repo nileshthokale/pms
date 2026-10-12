@@ -117,11 +117,13 @@ _HEADER_LABEL = f"color: {_TEXT}; font-size: 12px; font-family: 'Segoe UI'; back
 
 _GROUP_BOX = (
     f"QGroupBox {{"
+    f"  background-color: {_DARK_BG};"
     f"  color: {_TEXT}; font-weight: bold; font-size: 12px;"
     f"  border: 1px solid {_BORDER}; border-radius: 2px;"
     f"  margin-top: 10px; padding-top: 14px;"
     f"}}"
-    f"QGroupBox::title {{ subcontrol-origin: margin; left: 10px; padding: 0 6px; }}"
+    f"QGroupBox::title {{ subcontrol-origin: margin; left: 10px; padding: 0 6px;"
+    f"  color: {_TEXT}; background-color: {_DARK_BG}; }}"
 )
 
 

@@ -155,12 +155,150 @@ def capture(out_dir: pathlib.Path, sizes: list[tuple[int, int]]) -> int:
     return written
 
 
+# ── Day / Night theme evidence ────────────────────────────────────────
+# The Day/Night switch is the one thing a stylesheet assertion cannot
+# prove: the reported defects were a light-blue strip and a black checkbox
+# that only existed once the widget was actually painted.  These captures
+# render the same page in both modes, three switch cycles deep, and add
+# zoomed close-ups of the Counter Sale Item Wise / Bill Wise indicators
+# checked and unchecked.
+
+THEME_CYCLES = 3
+INDICATOR_ZOOM = 4
+
+
+def _apply_mode(window, mode: str) -> None:
+    """Switch mode through the same in-place path the button uses."""
+    from PySide6.QtTest import QTest
+
+    from ui import theme
+
+    # notify=False + the window's own handler reproduces the real switch
+    # without re-importing every screen module mid-capture.
+    theme.theme_manager.set_mode(mode, notify=False)
+    window._on_theme_changed(mode)
+    QTest.qWait(300)
+
+
+def _capture_theme(out_dir: pathlib.Path, sizes) -> int:
+    """Render every page in Day and Night Mode, plus the indicator zoom."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import QApplication
+
+    from database.connection import init_database
+    from database import financial_year
+    from ui import theme
+
+    init_database()
+    financial_year.ensure_default_financial_year()
+    provision_admin()
+
+    app = QApplication.instance() or QApplication(sys.argv)
+    app.setStyle("Fusion")
+
+    # Never touch the user's saved Day/Night preference: the mode is
+    # persisted on every switch, so redirect it to a throwaway file.
+    fd, theme_name = tempfile.mkstemp(prefix="pharmacy_visual_", suffix=".json")
+    os.close(fd)
+    theme_tmp = pathlib.Path(theme_name)
+    theme._THEME_FILE = theme_tmp
+
+    from ui import PharmacyMainWindow
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    window = PharmacyMainWindow()
+    window.resize(*sizes[0])
+    window.show()
+    QTest.qWait(400)
+    window._on_menu_action("Sales", "New Bill")
+    QTest.qWait(400)
+    app.processEvents()
+
+    written = 0
+
+    def save(pixmap, name: str) -> None:
+        nonlocal written
+        path = out_dir / name
+        if pixmap.save(str(path)):
+            written += 1
+            print(f"  captured {path.relative_to(ROOT)}")
+        else:
+            print(f"  FAILED to save {path}")
+
+    for cycle in range(THEME_CYCLES):
+        last = cycle == THEME_CYCLES - 1
+        for mode in ("light", "dark"):
+            _apply_mode(window, mode)
+
+            page = window._stack.currentWidget()
+            bar = getattr(page, "_history_filter_bar", None)
+            if bar is not None:
+                # Zoomed so the check mark / dot is legible in the file.
+                save(
+                    bar.grab().scaled(
+                        bar.width() * INDICATOR_ZOOM,
+                        bar.height() * INDICATOR_ZOOM,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation,
+                    ),
+                    f"theme_counter_sale_filterbar_{mode}_cycle{cycle + 1}.png",
+                )
+
+            item = getattr(page, "_hist_item_mode", None)
+            bill = getattr(page, "_hist_bill_mode", None)
+            for widget, label in ((item, "item_wise"), (bill, "bill_wise")):
+                if widget is None:
+                    continue
+                for checked in (False, True):
+                    widget.setChecked(checked)
+                    QTest.qWait(120)
+                    app.processEvents()
+                    save(
+                        widget.grab().scaled(
+                            widget.width() * INDICATOR_ZOOM,
+                            widget.height() * INDICATOR_ZOOM,
+                            Qt.AspectRatioMode.KeepAspectRatio,
+                            Qt.TransformationMode.SmoothTransformation,
+                        ),
+                        f"theme_counter_sale_{label}_{mode}_cycle"
+                        f"{cycle + 1}_{'checked' if checked else 'unchecked'}.png",
+                    )
+            if item is not None:
+                item.setChecked(True)      # restore the default view mode
+                QTest.qWait(120)
+
+            if last:
+                for width, height in sizes:
+                    window.resize(width, height)
+                    QTest.qWait(250)
+                    for menu, action, slug in PAGES:
+                        window._on_menu_action(menu, action)
+                        QTest.qWait(400)
+                        app.processEvents()
+                        save(window.grab(),
+                             f"theme_{slug}_{mode}_{width}x{height}.png")
+
+    window.close()
+    try:
+        theme_tmp.unlink()
+    except OSError:
+        pass
+    return written
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", default="docs/typography_screenshots")
     parser.add_argument("--sizes", default="1366x768,1920x1080")
     parser.add_argument("--keep", action="store_true",
                         help="keep the cloned database for inspection")
+    parser.add_argument("--theme", action="store_true",
+                        help="also capture every page in Day and Night Mode "
+                             "plus zoomed Counter Sale checkbox/radio "
+                             "close-ups, three switch cycles deep")
+    parser.add_argument("--theme-only", action="store_true",
+                        help="capture only the Day/Night theme evidence")
     args = parser.parse_args()
 
     sizes = []
@@ -173,7 +311,11 @@ def main() -> int:
     print(f"isolated database: {resolved}")
 
     try:
-        written = capture(ROOT / args.out, sizes)
+        written = 0
+        if not args.theme_only:
+            written += capture(ROOT / args.out, sizes)
+        if args.theme or args.theme_only:
+            written += _capture_theme(ROOT / args.out, sizes)
     finally:
         for suffix in ("", "-wal", "-shm"):
             sidecar = pathlib.Path(f"{clone}{suffix}")

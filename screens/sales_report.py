@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QDate, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QCheckBox,
-    QComboBox,
-    QDateEdit,
+    QFileDialog,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -18,8 +16,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from database import document_printing
 from database.sales_report_dao import SalesReportDAO
-from database.financial_year import active_date_range
+from ui.fy_view import view_year_bounds
+from ui.searchable_filter import SearchableFilterEdit
 from ui.theme import palette
 
 _p = palette()
@@ -31,21 +31,6 @@ _ACCENT_HOVER = _p["accent_hover"]
 _TEXT = _p["text"]
 _TEXT_DIM = _p["text_dim"]
 
-_COMBO_STYLE = (
-    f"QComboBox {{"
-    f"  background-color: {_SURFACE}; color: {_TEXT};"
-    f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-    f"  padding: 5px 8px; font-size: 12px; font-family: 'Segoe UI';"
-    f"}}"
-    f"QComboBox:hover {{ border: 1px solid {_ACCENT}; }}"
-    f"QComboBox::drop-down {{ border: none; width: 22px; }}"
-    f"QComboBox QAbstractItemView {{"
-    f"  background-color: {_SURFACE}; color: {_TEXT};"
-    f"  border: 1px solid {_BORDER}; selection-background-color: {_ACCENT};"
-    f"  font-size: 12px; font-family: 'Segoe UI';"
-    f"}}"
-)
-
 _EDIT_STYLE = (
     f"QLineEdit {{"
     f"  background-color: {_SURFACE}; color: {_TEXT};"
@@ -53,16 +38,6 @@ _EDIT_STYLE = (
     f"  padding: 5px 8px; font-size: 12px; font-family: 'Segoe UI';"
     f"}}"
     f"QLineEdit:focus {{ border: 1px solid {_ACCENT}; }}"
-)
-
-_DATE_STYLE = (
-    f"QDateEdit {{"
-    f"  background-color: {_SURFACE}; color: {_TEXT};"
-    f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-    f"  padding: 4px 6px; font-size: 12px; font-family: 'Segoe UI';"
-    f"}}"
-    f"QDateEdit:disabled {{ color: {_TEXT_DIM}; }}"
-    f"QDateEdit::drop-down {{ border: none; }}"
 )
 
 _BTN_PRIMARY = (
@@ -84,14 +59,32 @@ _LABEL_STYLE = (
     f"font-family: 'Segoe UI';"
 )
 
-_CHECK_STYLE = (
-    f"QCheckBox {{ color: {_TEXT}; font-size: 12px;"
-    f"  font-family: 'Segoe UI'; background: transparent; }}"
-    f"QCheckBox::indicator {{ width: 14px; height: 14px;"
-    f"  border: 1px solid {_BORDER}; border-radius: 3px;"
-    f"  background-color: {_SURFACE}; }}"
-)
 
+def _edit_style(p: dict) -> str:
+    return (
+        "QLineEdit {"
+        f" background-color: {p['surface']}; color: {p['text']};"
+        f" border: 1px solid {p['border']}; border-radius: 2px;"
+        " padding: 5px 8px; font-size: 12px; font-family: 'Segoe UI';"
+        "} QLineEdit:focus {"
+        f" border: 1px solid {p['accent']}; }}"
+    )
+
+
+def _button_style(p: dict, primary: bool = False) -> str:
+    if primary:
+        return (
+            f"QPushButton {{ background-color: {p['accent']}; color: white;"
+            " border: none; border-radius: 2px; padding: 7px 18px;"
+            " font-weight: bold; font-size: 12px; font-family: 'Segoe UI'; }"
+            f"QPushButton:hover {{ background-color: {p['accent_hover']}; }}"
+        )
+    return (
+        f"QPushButton {{ background-color: {p['border']}; color: {p['text']};"
+        " border: none; border-radius: 2px; padding: 7px 18px;"
+        " font-size: 12px; font-family: 'Segoe UI'; }"
+        f"QPushButton:hover {{ background-color: {p['text_dim']}; }}"
+    )
 
 class SalesReportPage(QWidget):
     """Sales Report page (Reports → Sales Report) — read-only.
@@ -103,6 +96,11 @@ class SalesReportPage(QWidget):
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
+        # The navbar changes this display-only value through
+        # ``set_history_financial_year``.  It deliberately never changes the
+        # active FY in the database.
+        self._history_financial_year: dict | None = None
+        self._last_report: dict | None = None
         self.setStyleSheet(f"background-color: {_DARK_BG};")
 
         root = QVBoxLayout(self)
@@ -111,6 +109,7 @@ class SalesReportPage(QWidget):
 
         # ── Header ───────────────────────────────────────────────
         header = QWidget()
+        self._header = header
         header.setFixedHeight(52)
         header.setStyleSheet(
             f"background-color: {_SURFACE}; border-bottom: 1px solid {_BORDER};"
@@ -133,14 +132,11 @@ class SalesReportPage(QWidget):
         )
         hl.addWidget(hint)
 
-        refresh_btn = QPushButton("Refresh")
-        refresh_btn.setStyleSheet(_BTN_SECONDARY)
-        refresh_btn.clicked.connect(self._on_refresh)
-        hl.addWidget(refresh_btn)
         root.addWidget(header)
 
         # ── Filter area ──────────────────────────────────────────
         filters = QWidget()
+        self._filters = filters
         filters.setStyleSheet(
             f"background-color: {_SURFACE}; border-bottom: 1px solid {_BORDER};"
         )
@@ -148,98 +144,64 @@ class SalesReportPage(QWidget):
         fv.setContentsMargins(16, 6, 16, 6)
         fv.setSpacing(6)
 
-        # Row 1: dates + customer + doctor
+        # One compact row.  The navbar FY is the only period control; report
+        # filters below can never disable or override that date constraint.
         row1 = QHBoxLayout()
         row1.setSpacing(8)
 
-        self.from_check = QCheckBox("From")
-        self.from_check.setStyleSheet(_CHECK_STYLE)
-        self.from_check.toggled.connect(self._on_date_toggle)
-        row1.addWidget(self.from_check)
-
-        self.from_edit = QDateEdit()
-        self.from_edit.setCalendarPopup(True)
-        self.from_edit.setDisplayFormat("yyyy-MM-dd")
-        fy_start, fy_end = active_date_range()
-        self.from_edit.setDate(QDate.fromString(fy_start, "yyyy-MM-dd"))
-        self.from_edit.setFixedWidth(120)
-        self.from_edit.setStyleSheet(_DATE_STYLE)
-        self.from_edit.setEnabled(False)
-        row1.addWidget(self.from_edit)
-
-        self.to_check = QCheckBox("To")
-        self.to_check.setStyleSheet(_CHECK_STYLE)
-        self.to_check.toggled.connect(self._on_date_toggle)
-        row1.addWidget(self.to_check)
-
-        self.to_edit = QDateEdit()
-        self.to_edit.setCalendarPopup(True)
-        self.to_edit.setDisplayFormat("yyyy-MM-dd")
-        self.to_edit.setDate(QDate.fromString(fy_end, "yyyy-MM-dd"))
-        self.to_edit.setFixedWidth(120)
-        self.to_edit.setStyleSheet(_DATE_STYLE)
-        self.to_edit.setEnabled(False)
-        row1.addWidget(self.to_edit)
-
-        row1.addSpacing(12)
         row1.addWidget(self._label("Customer"))
-        self.customer_combo = QComboBox()
-        self.customer_combo.setStyleSheet(_COMBO_STYLE)
-        self.customer_combo.setMinimumWidth(150)
-        row1.addWidget(self.customer_combo)
+        self.customer_edit = SearchableFilterEdit("All customers")
+        self.customer_edit.setMinimumWidth(150)
+        row1.addWidget(self.customer_edit)
 
-        row1.addWidget(self._label("Doctor"))
-        self.doctor_combo = QComboBox()
-        self.doctor_combo.setStyleSheet(_COMBO_STYLE)
-        self.doctor_combo.setMinimumWidth(140)
-        row1.addWidget(self.doctor_combo)
-        row1.addStretch()
-        fv.addLayout(row1)
+        row1.addWidget(self._label("Company"))
+        self.company_edit = SearchableFilterEdit("All companies")
+        self.company_edit.setMinimumWidth(135)
+        row1.addWidget(self.company_edit)
 
-        # Row 2: company + item + bill no + patient + actions
-        row2 = QHBoxLayout()
-        row2.setSpacing(8)
+        row1.addWidget(self._label("Item"))
+        self.item_edit = SearchableFilterEdit("All items")
+        self.item_edit.setMinimumWidth(155)
+        row1.addWidget(self.item_edit)
 
-        row2.addWidget(self._label("Company"))
-        self.company_combo = QComboBox()
-        self.company_combo.setStyleSheet(_COMBO_STYLE)
-        self.company_combo.setMinimumWidth(130)
-        row2.addWidget(self.company_combo)
-
-        row2.addWidget(self._label("Item"))
-        self.item_combo = QComboBox()
-        self.item_combo.setStyleSheet(_COMBO_STYLE)
-        self.item_combo.setMinimumWidth(150)
-        row2.addWidget(self.item_combo)
-
-        row2.addWidget(self._label("Bill No"))
+        row1.addWidget(self._label("Bill No"))
         self.bill_edit = QLineEdit()
         self.bill_edit.setStyleSheet(_EDIT_STYLE)
         self.bill_edit.setPlaceholderText("e.g. CS-0001")
         self.bill_edit.setFixedWidth(110)
         self.bill_edit.returnPressed.connect(self._on_generate)
-        row2.addWidget(self.bill_edit)
+        row1.addWidget(self.bill_edit)
 
-        row2.addWidget(self._label("Patient"))
+        row1.addWidget(self._label("Patient"))
         self.patient_edit = QLineEdit()
         self.patient_edit.setStyleSheet(_EDIT_STYLE)
         self.patient_edit.setPlaceholderText("patient name")
         self.patient_edit.setFixedWidth(120)
         self.patient_edit.returnPressed.connect(self._on_generate)
-        row2.addWidget(self.patient_edit)
+        row1.addWidget(self.patient_edit)
 
-        row2.addStretch()
+        row1.addStretch()
 
         search_btn = QPushButton("Search")
         search_btn.setStyleSheet(_BTN_PRIMARY)
         search_btn.clicked.connect(self._on_generate)
-        row2.addWidget(search_btn)
+        row1.addWidget(search_btn)
 
         clear_btn = QPushButton("Clear")
         clear_btn.setStyleSheet(_BTN_SECONDARY)
         clear_btn.clicked.connect(self._on_clear)
-        row2.addWidget(clear_btn)
-        fv.addLayout(row2)
+        row1.addWidget(clear_btn)
+
+        refresh_btn = QPushButton("Refresh")
+        refresh_btn.setStyleSheet(_BTN_SECONDARY)
+        refresh_btn.clicked.connect(self._on_refresh)
+        row1.addWidget(refresh_btn)
+
+        print_btn = QPushButton("Print")
+        print_btn.setStyleSheet(_BTN_SECONDARY)
+        print_btn.clicked.connect(self._on_print)
+        row1.addWidget(print_btn)
+        fv.addLayout(row1)
 
         root.addWidget(filters)
 
@@ -283,6 +245,7 @@ class SalesReportPage(QWidget):
 
         # ── Summary bar ──────────────────────────────────────────
         summary = QWidget()
+        self._summary = summary
         summary.setFixedHeight(40)
         summary.setStyleSheet(
             f"background-color: {_SURFACE}; border-top: 1px solid {_BORDER};"
@@ -321,41 +284,31 @@ class SalesReportPage(QWidget):
 
     def _load_filter_options(self):
         options = SalesReportDAO.get_filter_options()
-        for combo, rows, id_key, name_key in (
-            (self.customer_combo, options["customers"], "id", "customer_name"),
-            (self.doctor_combo, options["doctors"], "id", "doctor_name"),
-            (self.company_combo, options["companies"], "id", "company_name"),
-            (self.item_combo, options["items"], "id", "item_name"),
+        for edit, rows, id_key, name_key in (
+            (self.customer_edit, options["customers"], "id", "customer_name"),
+            (self.company_edit, options["companies"], "id", "company_name"),
+            (self.item_edit, options["items"], "id", "item_name"),
         ):
-            combo.blockSignals(True)
-            combo.clear()
-            combo.addItem("All", None)
-            for row in rows:
-                combo.addItem(row[name_key], row[id_key])
-            combo.setCurrentIndex(0)
-            combo.blockSignals(False)
-
-    def _on_date_toggle(self):
-        self.from_edit.setEnabled(self.from_check.isChecked())
-        self.to_edit.setEnabled(self.to_check.isChecked())
+            edit.set_options(rows, id_key, name_key)
 
     def _current_filters(self) -> dict:
+        # `view_year_bounds` falls back to the active FY, so this call can
+        # never form an unbounded query even before a navbar selection.
+        from_date, to_date = view_year_bounds(self._history_financial_year)
         return {
-            "from_date": (
-                self.from_edit.date().toString("yyyy-MM-dd")
-                if self.from_check.isChecked() else None
-            ),
-            "to_date": (
-                self.to_edit.date().toString("yyyy-MM-dd")
-                if self.to_check.isChecked() else None
-            ),
-            "customer_id": self.customer_combo.currentData(),
-            "item_id": self.item_combo.currentData(),
-            "company_id": self.company_combo.currentData(),
+            "from_date": from_date,
+            "to_date": to_date,
+            "customer_id": self.customer_edit.selected_id,
+            "item_id": self.item_edit.selected_id,
+            "company_id": self.company_edit.selected_id,
             "bill_no": self.bill_edit.text().strip() or None,
             "patient": self.patient_edit.text().strip() or None,
-            "doctor_id": self.doctor_combo.currentData(),
         }
+
+    def set_history_financial_year(self, year: dict | None):
+        """Refresh for the navbar's view-only selected financial year."""
+        self._history_financial_year = dict(year) if year else None
+        self._on_generate()
 
     # ------------------------------------------------------------------
     def _render(self, report: dict):
@@ -394,7 +347,8 @@ class SalesReportPage(QWidget):
 
     def _on_generate(self):
         try:
-            self._render(SalesReportDAO.get_sales_report(**self._current_filters()))
+            self._last_report = SalesReportDAO.get_sales_report(**self._current_filters())
+            self._render(self._last_report)
         except Exception as e:
             QMessageBox.critical(
                 self, "Error", f"Failed to generate Sales Report:\n{e}"
@@ -405,12 +359,104 @@ class SalesReportPage(QWidget):
         self._on_generate()
 
     def _on_clear(self):
-        self.from_check.setChecked(False)
-        self.to_check.setChecked(False)
-        self.customer_combo.setCurrentIndex(0)
-        self.doctor_combo.setCurrentIndex(0)
-        self.company_combo.setCurrentIndex(0)
-        self.item_combo.setCurrentIndex(0)
+        self.customer_edit.clear_filter()
+        self.company_edit.clear_filter()
+        self.item_edit.clear_filter()
         self.bill_edit.clear()
         self.patient_edit.clear()
         self._on_generate()
+
+    def _filter_summary(self) -> str:
+        parts = [f"Financial year: {self._financial_year_name()}"]
+        for label, edit in (("Customer", self.customer_edit),
+                            ("Company", self.company_edit), ("Item", self.item_edit)):
+            if edit.selected_id is not None:
+                parts.append(f"{label}: {edit.text()}")
+        if self.bill_edit.text().strip(): parts.append(f"Bill: {self.bill_edit.text().strip()}")
+        if self.patient_edit.text().strip(): parts.append(f"Patient: {self.patient_edit.text().strip()}")
+        return " | ".join(parts)
+
+    def _financial_year_name(self) -> str:
+        year = self._history_financial_year or {}
+        return str(year.get("name") or "FY " + "–".join(
+            (self._current_filters()["from_date"][:4], self._current_filters()["to_date"][:4])
+        ))
+
+    def _on_print(self):
+        # Re-query so printed output exactly matches the current controls.
+        try:
+            report = SalesReportDAO.get_sales_report(**self._current_filters())
+        except Exception as exc:
+            QMessageBox.warning(self, "Sales Report", f"Could not prepare report: {exc}")
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Save Sales Report PDF", "sales_report.pdf", "PDF (*.pdf)"
+        )
+        if not path:
+            return
+        try:
+            output = document_printing.generate_sales_report_pdf(
+                report["rows"], report["summary"], self._financial_year_name(),
+                self._filter_summary(), path,
+            )
+        except document_printing.DocumentPrintError as exc:
+            QMessageBox.warning(self, "Sales Report", str(exc))
+            return
+        QMessageBox.information(self, "Sales Report PDF", f"Saved to:\n{output}\n\nUse your PDF viewer's Print command to choose a printer.")
+
+    def refresh_theme(self):
+        """Refresh screen and completion popup colours without losing state."""
+        p = palette()
+        self.setStyleSheet(f"background-color: {p['bg']};")
+        self._header.setStyleSheet(
+            f"background-color: {p['surface']}; border-bottom: 1px solid {p['border']};"
+        )
+        self._filters.setStyleSheet(
+            f"background-color: {p['surface']}; border-bottom: 1px solid {p['border']};"
+        )
+        self._summary.setStyleSheet(
+            f"background-color: {p['surface']}; border-top: 1px solid {p['border']};"
+        )
+        for edit in (self.customer_edit, self.company_edit, self.item_edit):
+            edit.refresh_theme()
+        for edit in (self.bill_edit, self.patient_edit):
+            edit.setStyleSheet(_edit_style(p))
+        for button in self.findChildren(QPushButton):
+            button.setStyleSheet(_button_style(p, button.text() == "Search"))
+        self._table.setStyleSheet(
+            "QTableWidget {"
+            f" background-color: {p['bg']}; color: {p['text']};"
+            f" border: 1px solid {p['border']}; gridline-color: {p['border']};"
+            " font-size: 13px; font-family: 'Segoe UI';"
+            f" selection-background-color: {p['accent']}; selection-color: white;"
+            "} QTableWidget::item { padding: 2px 5px; }"
+        )
+        self._table.horizontalHeader().setStyleSheet(
+            "QHeaderView::section {"
+            f" background-color: {p['surface']}; color: {p['text']};"
+            f" border: none; border-bottom: 2px solid {p['accent']};"
+            " padding: 3px 6px; font-weight: bold; font-size: 12px;"
+            " font-family: 'Segoe UI'; }"
+        )
+        for label in self.findChildren(QLabel):
+            text = label.text()
+            if text == "Sales Report":
+                label.setStyleSheet(
+                    f"color: {p['text']}; font-size: 18px; font-weight: bold;"
+                    "background: transparent; font-family: 'Segoe UI';"
+                )
+            elif "Based on sales bills" in text:
+                label.setStyleSheet(
+                    f"color: {p['text_dim']}; font-size: 11px; background: transparent;"
+                    "font-family: 'Segoe UI'; margin-right: 10px;"
+                )
+            elif label in self._summary_labels.values():
+                label.setStyleSheet(
+                    f"color: {p['text']}; font-size: 12px; font-weight: bold;"
+                    "background: transparent; font-family: 'Segoe UI';"
+                )
+            else:
+                label.setStyleSheet(
+                    f"color: {p['text']}; font-size: 12px; background: transparent;"
+                    "font-family: 'Segoe UI';"
+                )

@@ -145,7 +145,9 @@ class _DBBase(unittest.TestCase):
 
     def _seed_stock(self, item_id, pack_size="15", mrp=341.34, qty=130.0,
                     batch_no="14255775A", expiry="09/28"):
-        """Seed stock with qty individual units."""
+        """Seed stock with qty individual units (pay_qty is packs)."""
+        from database.purchase_dao import pack_factor as _pf
+        pay_packs = qty / _pf(pack_size)
         PurchaseDAO.insert_invoice(
             voucher_no="PV-SEED", voucher_date="2026-01-01", voucher_time="",
             purchase_type="Cash", supplier_id=self.supplier_id,
@@ -156,7 +158,7 @@ class _DBBase(unittest.TestCase):
             net_amount=qty * mrp, remarks="",
             items=[{
                 "item_id": item_id, "pack_size": pack_size,
-                "pay_qty": qty, "free_qty": 0, "batch_no": batch_no,
+                "pay_qty": pay_packs, "free_qty": 0, "batch_no": batch_no,
                 "expiry": expiry, "rate": mrp * 0.76, "mrp": mrp,
                 "discount": 0, "gst_percent": 0, "gst_amount": 0,
                 "amount": qty * mrp * 0.76,
