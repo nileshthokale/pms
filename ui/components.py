@@ -47,6 +47,9 @@ from ui.theme import (
     TYPE_TABLE_DATA,
     TYPE_TABLE_HEADER,
     palette,
+    indicator_style,
+    remap_baked_colors,
+    tooltip_rule,
 )
 
 # Readable desktop control metrics (px) shared across screens.
@@ -178,14 +181,19 @@ def checkbox_style() -> str:
         "QCheckBox, QRadioButton {"
         f"  color: {p['text']}; font-size: {TYPE_FORM_LABEL}px;"
         f"  font-family: {FONT_FAMILY}; background: transparent;"
+        "  border: none; outline: none;"
+        "  spacing: 5px;"
         "}"
-        "QCheckBox::indicator, QRadioButton::indicator {"
-        f"  width: 13px; height: 13px; border: 1px solid {p['border']};"
-        f"  background-color: {p['bg']};"
+        "QCheckBox:focus, QRadioButton:focus {"
+        "  background: transparent; border: none; outline: none;"
         "}"
-        "QCheckBox::indicator:checked {"
-        f"  background-color: {p['accent']};"
+        "QCheckBox:hover, QRadioButton:hover {"
+        "  background: transparent; border: none;"
         "}"
+        # Shared with the application stylesheet: the check mark / radio dot
+        # follows the mode, so a checked control never renders as a plain
+        # square that is indistinguishable from an unchecked one.
+        + indicator_style()
     )
 
 
@@ -279,6 +287,16 @@ def style_button(button: QPushButton, variant: str = "secondary",
     }
     button.setStyleSheet(styles.get(variant, btn_secondary_style)())
     button.setCursor(Qt.PointingHandCursor)
+    # Remember the variant + height so refresh_tree() can re-apply the same
+    # centralized style after a Day/Night switch without losing the variant
+    # (primary white-on-accent must stay white; secondary text must flip).
+    try:
+        button.setProperty("theme_source", "components")
+        button.setProperty("theme_kind", f"button:{variant}")
+        if height is not None:
+            button.setProperty("theme_height", int(height))
+    except Exception:
+        pass
     if height:
         button.setMinimumHeight(height)
     return button
@@ -332,6 +350,15 @@ def table_header_style(*, size: int = TYPE_TABLE_HEADER) -> str:
     )
 
 
+def _mark(widget, kind: str) -> None:
+    """Tag a components-styled widget so refresh_tree() can update it."""
+    try:
+        widget.setProperty("theme_source", "components")
+        widget.setProperty("theme_kind", kind)
+    except Exception:
+        pass
+
+
 def style_data_table(table: QTableWidget, *, stretch_columns=(),
                      resize_to_contents=(), grid: bool = True,
                      alternating: bool = False,
@@ -344,6 +371,7 @@ def style_data_table(table: QTableWidget, *, stretch_columns=(),
     ``QFontMetrics`` measurement in agreement.
     """
     table.setStyleSheet(table_style())
+    _mark(table, "table")
     table.setFont(readable_font(TYPE_TABLE_DATA))
     table.setShowGrid(grid)
     table.setAlternatingRowColors(alternating)
@@ -354,6 +382,7 @@ def style_data_table(table: QTableWidget, *, stretch_columns=(),
     table.verticalHeader().setDefaultSectionSize(row_height)
     header = table.horizontalHeader()
     header.setStyleSheet(table_header_style())
+    _mark(header, "table_header")
     header.setFont(readable_font(TYPE_TABLE_HEADER, bold=True))
     header.setFixedHeight(HEADER_HEIGHT)
     header.setStretchLastSection(True)
@@ -393,6 +422,7 @@ class PageHeader(QFrame):
                  parent: QWidget | None = None):
         super().__init__(parent)
         self.setObjectName("PageHeader")
+        _mark(self, "page_header")
         self.setFixedHeight(36)
         self.setStyleSheet(
             f"#PageHeader {{ {strip_style()} }}"
@@ -432,6 +462,7 @@ class SummaryPanel(QFrame):
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self.setObjectName("SummaryPanel")
+        _mark(self, "summary_panel")
         p = palette()
         self.setStyleSheet(
             f"#SummaryPanel {{ background-color: {p['surface_alt']};"
@@ -458,10 +489,19 @@ class StatusLabel(QLabel):
     def __init__(self, text: str = "", parent: QWidget | None = None):
         super().__init__(text, parent)
         self.setStyleSheet(label_style())
+        _mark(self, "status_label")
+        try:
+            self.setProperty("theme_level", "info")
+        except Exception:
+            pass
         self.setWordWrap(True)
 
     def set_status(self, text: str, level: str = "info") -> None:
         self.setText(text)
+        try:
+            self.setProperty("theme_level", level)
+        except Exception:
+            pass
         if level == "error":
             self.setStyleSheet(label_style(danger=True, bold=True))
         elif level == "success":
@@ -483,6 +523,7 @@ class FormSection(QFrame):
     def __init__(self, title: str = "", parent: QWidget | None = None):
         super().__init__(parent)
         self.setObjectName("FormSection")
+        _mark(self, "form_section")
         p = palette()
         self.setStyleSheet(
             f"#FormSection {{ background-color: {p['surface']};"
@@ -514,6 +555,7 @@ class FilterBar(QFrame):
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self.setObjectName("FilterBar")
+        _mark(self, "filter_bar")
         self.setStyleSheet(f"#FilterBar {{ {strip_style()} }}")
         self._layout = QHBoxLayout(self)
         self._layout.setContentsMargins(12, 7, 12, 7)
@@ -545,7 +587,7 @@ class SearchBar(FilterBar):
 
         self.search_edit = QLineEdit()
         self.search_edit.setPlaceholderText(placeholder)
-        self.search_edit.setStyleSheet(edit_style())
+        style_edit(self.search_edit)
         self.search_edit.setMinimumWidth(220)
         self.search_edit.setClearButtonEnabled(True)
         super().add_field("Search", self.search_edit)
@@ -561,22 +603,43 @@ def subtitle(text: str) -> QLabel:
 
 def style_edit(widget):
     widget.setStyleSheet(edit_style())
+    _mark(widget, "edit")
     return widget
 
 
 def style_combo(widget):
     widget.setStyleSheet(combo_style())
+    _mark(widget, "combo")
+    # Editable combo text fields + dropdown views follow the app theme, but
+    # an explicit mark lets refresh_tree() re-apply without guessing.
+    try:
+        from PySide6.QtWidgets import QComboBox
+        if isinstance(widget, QComboBox) and widget.isEditable():
+            line = widget.lineEdit()
+            if line is not None:
+                _mark(line, "combo_line")
+    except Exception:
+        pass
     return widget
 
 
 def style_date(widget):
     widget.setStyleSheet(date_style())
+    _mark(widget, "date")
     return widget
 
 
 def style_label(widget, *, dim: bool = False, bold: bool = False,
                 size: int = TYPE_FORM_LABEL):
     widget.setStyleSheet(label_style(dim=dim, bold=bold, size=size))
+    try:
+        widget.setProperty("theme_source", "components")
+        widget.setProperty("theme_kind", "label")
+        widget.setProperty("theme_dim", bool(dim))
+        widget.setProperty("theme_bold", bool(bold))
+        widget.setProperty("theme_size", int(size))
+    except Exception:
+        pass
     return widget
 
 
@@ -601,7 +664,15 @@ def polish_page(root: QWidget) -> QWidget:
     floor when the stylesheet is silent about size.  Screens that declare
     their own (larger or equal) size keep full control.
     """
-    for table in root.findChildren(QTableWidget):
+    # Include the root itself when it IS a table/header (unit tests pass a
+    # bare QTableWidget as root; findChildren() only returns descendants).
+    try:
+        tables = list(root.findChildren(QTableWidget))
+        if isinstance(root, QTableWidget) and root not in tables:
+            tables.insert(0, root)
+    except Exception:
+        tables = []
+    for table in tables:
         table.setShowGrid(True)
         table.setWordWrap(False)
         table.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -610,16 +681,706 @@ def polish_page(root: QWidget) -> QWidget:
             table.setFont(readable_font(TYPE_TABLE_DATA))
             if not table.styleSheet():
                 table.setStyleSheet(table_style())
+                _mark(table, "table")
+        else:
+            # Screen pins its own size: mirror it into the QFont so metrics
+            # (column sizing, row-height checks) agree with the stylesheet.
+            # Stylesheet wins rendering; the font is only the measurement.
+            try:
+                m = _FONT_SIZE_RE.search(table.styleSheet())
+                if m:
+                    size = int(re.search(r"\d+", m.group(0)).group(0))
+                    table.setFont(readable_font(size))
+            except Exception:
+                pass
         header = table.horizontalHeader()
         if header.height() <= 0:
             header.setFixedHeight(HEADER_HEIGHT)
         header.setHighlightSections(False)
-    for header_view in root.findChildren(QHeaderView):
+    try:
+        headers = list(root.findChildren(QHeaderView))
+        if isinstance(root, QHeaderView) and root not in headers:
+            headers.insert(0, root)
+        # A bare table root owns a header that findChildren missed.
+        if isinstance(root, QTableWidget):
+            hv = root.horizontalHeader()
+            if hv is not None and hv not in headers:
+                headers.insert(0, hv)
+    except Exception:
+        headers = []
+    for header_view in headers:
         if not header_view.styleSheet():
             header_view.setStyleSheet(table_header_style())
+            _mark(header_view, "table_header")
         if not _declares_own_font(header_view.styleSheet()):
             header_view.setFont(readable_font(TYPE_TABLE_HEADER, bold=True))
+        else:
+            try:
+                m = _FONT_SIZE_RE.search(header_view.styleSheet())
+                if m:
+                    size = int(re.search(r"\d+", m.group(0)).group(0))
+                    header_view.setFont(readable_font(size, bold=True))
+            except Exception:
+                pass
+    # Controls that carry their own ``::indicator`` rule need the check-mark
+    # glyph before the first paint, not only after the first Day/Night switch.
+    try:
+        refresh_indicators(root)
+    except Exception:
+        pass
     return root
+
+
+def refresh_tree(root: QWidget) -> int:
+    """Re-apply centralized components styles to a widget tree in place.
+
+    Only widgets created through ``ui.components`` helpers (tagged with the
+    ``theme_source=components`` property) are touched, so screen-specific
+    custom styles (entry bars, bill tables, variant buttons) are never
+    overwritten here — their owning screen's ``refresh_theme()`` handles
+    those with full role knowledge.  Returns the number of widgets updated.
+
+    This preserves layout, focus, selection and all business state: only
+    stylesheet strings (and matching QFonts) are recomputed from the live
+    centralized palette.
+    """
+    try:
+        widgets = [root] + list(root.findChildren(QWidget))
+    except Exception:
+        return 0
+    updated = 0
+    for widget in widgets:
+        try:
+            source = widget.property("theme_source")
+        except Exception:
+            continue
+        if source != "components":
+            continue
+        try:
+            kind = widget.property("theme_kind")
+        except Exception:
+            continue
+        if not kind:
+            continue
+        try:
+            if kind == "table":
+                from PySide6.QtWidgets import QTableWidget
+                if isinstance(widget, QTableWidget):
+                    widget.setStyleSheet(table_style())
+                    widget.setFont(readable_font(TYPE_TABLE_DATA))
+                    updated += 1
+            elif kind == "table_header":
+                from PySide6.QtWidgets import QHeaderView
+                if isinstance(widget, QHeaderView):
+                    widget.setStyleSheet(table_header_style())
+                    widget.setFont(readable_font(TYPE_TABLE_HEADER, bold=True))
+                    updated += 1
+            elif kind == "edit":
+                widget.setStyleSheet(edit_style())
+                updated += 1
+            elif kind == "combo":
+                widget.setStyleSheet(combo_style())
+                updated += 1
+            elif kind == "date":
+                widget.setStyleSheet(date_style())
+                updated += 1
+            elif kind == "label":
+                try:
+                    dim = bool(widget.property("theme_dim"))
+                    bold = bool(widget.property("theme_bold"))
+                    size = int(widget.property("theme_size") or TYPE_FORM_LABEL)
+                except Exception:
+                    dim, bold, size = False, False, TYPE_FORM_LABEL
+                widget.setStyleSheet(
+                    label_style(dim=dim, bold=bold, size=size)
+                )
+                updated += 1
+            elif kind == "status_label":
+                try:
+                    level = str(widget.property("theme_level") or "info")
+                except Exception:
+                    level = "info"
+                if hasattr(widget, "set_status"):
+                    # Recompute without changing text.
+                    text = widget.text()
+                    widget.set_status(text, level)
+                    updated += 1
+                else:
+                    widget.setStyleSheet(label_style())
+                    updated += 1
+            elif isinstance(kind, str) and kind.startswith("button:"):
+                variant = kind.split(":", 1)[1] or "secondary"
+                try:
+                    height = widget.property("theme_height")
+                    height = int(height) if height else None
+                except Exception:
+                    height = None
+                style_button(widget, variant, height=height)
+                updated += 1
+            elif kind in ("page_header", "filter_bar"):
+                widget.setStyleSheet(
+                    f"#{widget.objectName()} {{ {strip_style()} }}"
+                )
+                updated += 1
+            elif kind == "summary_panel":
+                p = palette()
+                widget.setStyleSheet(
+                    f"#SummaryPanel {{ background-color: {p['surface_alt']};"
+                    f"  border: 1px solid {p['border']}; border-radius: 2px; }}"
+                )
+                updated += 1
+            elif kind == "form_section":
+                p = palette()
+                widget.setStyleSheet(
+                    f"#FormSection {{ background-color: {p['surface']};"
+                    f"  border: 1px solid {p['border']}; border-radius: 2px; }}"
+                )
+                updated += 1
+        except Exception:
+            continue
+    # Title / subtitle labels inside PageHeader follow the title style.
+    for widget in widgets:
+        try:
+            parent = widget.parent()
+            if (parent is not None
+                    and parent.objectName() == "PageHeader"
+                    and source != "components"):
+                pass
+        except Exception:
+            pass
+    return updated
+
+
+def refresh_popups(root: QWidget) -> int:
+    """Refresh combo-dropdown and completer-popup views under a widget.
+
+    QCompleter popups and QComboBox dropdown views are top-level windows
+    owned by their combo but styled explicitly at construction with baked
+    hex values.  The application stylesheet already covers the generic
+    ``QComboBox QAbstractItemView`` / ``QAbstractItemView`` selectors, so
+    explicitly-styled popups only need a repolish here; screens with custom
+    popup colours refresh them in their own ``refresh_theme()``.
+    """
+    updated = 0
+    try:
+        from PySide6.QtWidgets import QComboBox
+        combos = root.findChildren(QComboBox)
+    except Exception:
+        return 0
+    for combo in combos:
+        try:
+            view = combo.view()
+            if view is not None:
+                style = view.style()
+                if style is not None:
+                    style.unpolish(view)
+                    style.polish(view)
+                view.update()
+                updated += 1
+        except Exception:
+            continue
+        try:
+            completer = combo.completer()
+            popup = completer.popup() if completer is not None else None
+            if popup is not None:
+                style = popup.style()
+                if style is not None:
+                    style.unpolish(popup)
+                    style.polish(popup)
+                popup.update()
+                updated += 1
+        except Exception:
+            continue
+    return updated
+
+
+def refresh_generic_screen(root: QWidget) -> int:
+    """In-place Day/Night refresh for screens with baked module styles.
+
+    Most screens (Purchase, Account, Reports, Masters) build their
+    stylesheets once at import from ``palette()`` (``_DARK_BG``,
+    ``_SURFACE``, ``_GROUP_BOX``, ``_COMBO_STYLE`` …).  After a theme switch
+    those baked hex values are stale (dark ``#000000`` persisting in Day
+    Mode is the black-rectangle bug).  This refreshes the common patterns
+    in place — preserving layout, inputs, selection and drafts — using only
+    the live centralized palette:
+
+    * page / panel backgrounds (``background-color`` bg role — safe),
+    * QGroupBox (adds the missing opaque ``bg`` + title ``bg``),
+    * tables + headers (bg / text / border / grid; selection maps to the
+      screen's own accent convention — white on accent stays readable),
+    * combos / edits / dates (surface bg, text, border, accent focus;
+      dropdown + completer popups follow the item-view colours),
+    * buttons (variant inferred from fixed structure; primary white-on-
+      accent text is preserved, never flipped to black),
+    * transparent labels (text vs dim roles inferred from both palettes).
+
+    Screens with their own ``refresh_theme()`` (Counter Sale) are handled
+    there with full role knowledge; this is the safe fallback for every
+    other screen.  Returns widgets updated.
+    """
+    try:
+        from PySide6.QtWidgets import (
+            QCheckBox, QComboBox, QDateEdit, QGroupBox, QLabel, QLineEdit,
+            QPushButton, QRadioButton, QTableWidget, QWidget, QHeaderView,
+        )
+    except Exception:
+        return 0
+    try:
+        p = palette()
+    except Exception:
+        return 0
+    try:
+        widgets = [root] + list(root.findChildren(QWidget))
+    except Exception:
+        return 0
+    try:
+        from ui.theme import _PALETTES as _PALS
+        all_bg = {str(_PALS[m].get("bg", "")).lower() for m in _PALS}
+        all_surface = {str(_PALS[m].get("surface", "")).lower() for m in _PALS}
+        all_text = {str(_PALS[m].get("text", "")).lower() for m in _PALS}
+        all_dim = {str(_PALS[m].get("text_dim", "")).lower() for m in _PALS}
+        all_border = {str(_PALS[m].get("border", "")).lower() for m in _PALS}
+        all_accent = {str(_PALS[m].get("accent", "")).lower() for m in _PALS}
+    except Exception:
+        all_bg = all_surface = all_text = all_dim = set()
+        all_border = all_accent = set()
+    updated = 0
+    import re as _re
+    for w in widgets:
+        try:
+            # Skip components-tagged widgets (handled by refresh_tree) and
+            # Counter Sale widgets (handled by refresh_cs_tree).
+            try:
+                if w.property("theme_source") == "components":
+                    continue
+                if w.property("cs_style") is not None:
+                    continue
+            except Exception:
+                pass
+            if isinstance(w, QGroupBox):
+                ss = w.styleSheet() if hasattr(w, "styleSheet") else ""
+                if "QGroupBox" not in ss:
+                    continue
+                # Preserve the screen's own font-size/weight; only colours.
+                size_m = _re.search(r"font-size:\s*(\d+)px", ss)
+                size = size_m.group(1) if size_m else "12"
+                weight = "font-weight: bold;" if "font-weight: bold" in ss else ""
+                w.setStyleSheet(
+                    f"QGroupBox {{"
+                    f"  background-color: {p['bg']};"
+                    f"  color: {p['text']}; {weight} font-size: {size}px;"
+                    f"  font-family: {FONT_FAMILY};"
+                    f"  border: 1px solid {p['border']}; border-radius: 2px;"
+                    f"  margin-top: 10px; padding-top: 14px;"
+                    f"}}"
+                    f"QGroupBox::title {{ subcontrol-origin: margin; left: 10px;"
+                    f" padding: 0 6px; color: {p['text']};"
+                    f" background-color: {p['bg']}; }}"
+                )
+                updated += 1
+                continue
+            if isinstance(w, (QCheckBox, QRadioButton)):
+                if _apply_indicator(w):
+                    updated += 1
+                continue
+            if isinstance(w, QTableWidget):
+                ss = w.styleSheet() if hasattr(w, "styleSheet") else ""
+                if "QTableWidget" not in ss and not ss.strip() == "":
+                    # Unstyled tables follow the app stylesheet + palette.
+                    continue
+                if "QTableWidget" not in ss:
+                    continue
+                pad_m = _re.search(r"QTableWidget::item\s*\{\{\s*padding:\s*([^;]+);", ss)
+                pad = pad_m.group(1).strip() if pad_m else "3px 6px"
+                # Screens use accent selection + white text (readable both).
+                w.setStyleSheet(
+                    f"QTableWidget {{"
+                    f"  background-color: {p['bg']}; color: {p['text']};"
+                    f"  border: 1px solid {p['border']}; gridline-color: {p['grid']};"
+                    f"  font-size: {TYPE_TABLE_DATA}px; font-family: {FONT_FAMILY};"
+                    f"  selection-background-color: {p['accent']};"
+                    f"  selection-color: white;"
+                    f"}}"
+                    f"QTableWidget::item {{ padding: {pad}; }}"
+                )
+                try:
+                    hv = w.horizontalHeader()
+                    hss = hv.styleSheet() if hasattr(hv, "styleSheet") else ""
+                    if "QHeaderView::section" in hss or True:
+                        hv.setStyleSheet(table_header_style())
+                except Exception:
+                    pass
+                updated += 1
+                continue
+            if isinstance(w, QHeaderView):
+                # Standalone header views (covered with their table above).
+                continue
+            if isinstance(w, QComboBox):
+                ss = w.styleSheet() if hasattr(w, "styleSheet") else ""
+                if "QComboBox" not in ss:
+                    continue
+                # In-place colour refresh: preserve the screen's own metrics
+                # (padding, fonts, drop-down width) and surface-vs-bg roles;
+                # only centralized hex values are swapped.  Screens use
+                # surface fills with palette text; dropdown selection stays
+                # accent (white on accent is readable both modes).
+                try:
+                    new_ss = ss
+                    for old, new in (
+                        (_PALS["dark"]["surface"], p["surface"]),
+                        (_PALS["light"]["surface"], p["surface"]),
+                        (_PALS["dark"]["bg"], p["bg"]),
+                        (_PALS["light"]["bg"], p["bg"]),
+                        (_PALS["dark"]["text"], p["text"]),
+                        (_PALS["light"]["text"], p["text"]),
+                        (_PALS["dark"]["border"], p["border"]),
+                        (_PALS["light"]["border"], p["border"]),
+                        (_PALS["dark"]["accent"], p["accent"]),
+                        (_PALS["light"]["accent"], p["accent"]),
+                    ):
+                        if old and new and old.lower() != new.lower():
+                            new_ss = _re.sub(_re.escape(old), new, new_ss,
+                                             flags=_re.IGNORECASE)
+                    # Focus ring follows the focus token (== accent).
+                    if new_ss != ss:
+                        w.setStyleSheet(new_ss)
+                        updated += 1
+                except Exception:
+                    pass
+                try:
+                    view = w.view()
+                    if view is not None:
+                        view.update()
+                except Exception:
+                    pass
+                try:
+                    comp = w.completer()
+                    pop = comp.popup() if comp is not None else None
+                    if pop is not None:
+                        try:
+                            pss = pop.styleSheet() if hasattr(pop, "styleSheet") else ""
+                            if pss and "QAbstractItemView" in pss:
+                                new_pss = pss
+                                for old, new in (
+                                    (_PALS["dark"]["surface"], p["surface"]),
+                                    (_PALS["light"]["surface"], p["surface"]),
+                                    (_PALS["dark"]["bg"], p["bg"]),
+                                    (_PALS["light"]["bg"], p["bg"]),
+                                    (_PALS["dark"]["text"], p["text"]),
+                                    (_PALS["light"]["text"], p["text"]),
+                                    (_PALS["dark"]["border"], p["border"]),
+                                    (_PALS["light"]["border"], p["border"]),
+                                    (_PALS["dark"]["accent"], p["accent"]),
+                                    (_PALS["light"]["accent"], p["accent"]),
+                                ):
+                                    if old and new and old.lower() != new.lower():
+                                        new_pss = _re.sub(_re.escape(old), new, new_pss,
+                                                          flags=_re.IGNORECASE)
+                                if new_pss != pss:
+                                    pop.setStyleSheet(new_pss)
+                            pop.update()
+                        except Exception:
+                            try:
+                                pop.update()
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+                continue
+            if isinstance(w, QLineEdit):
+                try:
+                    parent = w.parent()
+                    from PySide6.QtWidgets import QComboBox as _CB
+                    if parent is not None and isinstance(parent, _CB):
+                        continue
+                except Exception:
+                    pass
+                ss = w.styleSheet() if hasattr(w, "styleSheet") else ""
+                if "QLineEdit" not in ss:
+                    continue
+                try:
+                    new_ss = ss
+                    for old, new in (
+                        (_PALS["dark"]["surface"], p["surface"]),
+                        (_PALS["light"]["surface"], p["surface"]),
+                        (_PALS["dark"]["bg"], p["bg"]),
+                        (_PALS["light"]["bg"], p["bg"]),
+                        (_PALS["dark"]["text"], p["text"]),
+                        (_PALS["light"]["text"], p["text"]),
+                        (_PALS["dark"]["border"], p["border"]),
+                        (_PALS["light"]["border"], p["border"]),
+                        (_PALS["dark"]["accent"], p["accent"]),
+                        (_PALS["light"]["accent"], p["accent"]),
+                    ):
+                        if old and new and old.lower() != new.lower():
+                            new_ss = _re.sub(_re.escape(old), new, new_ss,
+                                             flags=_re.IGNORECASE)
+                    if new_ss != ss:
+                        w.setStyleSheet(new_ss)
+                        updated += 1
+                except Exception:
+                    pass
+                continue
+            if isinstance(w, QDateEdit):
+                ss = w.styleSheet() if hasattr(w, "styleSheet") else ""
+                if "QDateEdit" not in ss:
+                    continue
+                try:
+                    new_ss = ss
+                    for old, new in (
+                        (_PALS["dark"]["surface"], p["surface"]),
+                        (_PALS["light"]["surface"], p["surface"]),
+                        (_PALS["dark"]["bg"], p["bg"]),
+                        (_PALS["light"]["bg"], p["bg"]),
+                        (_PALS["dark"]["text"], p["text"]),
+                        (_PALS["light"]["text"], p["text"]),
+                        (_PALS["dark"]["border"], p["border"]),
+                        (_PALS["light"]["border"], p["border"]),
+                        (_PALS["dark"]["accent"], p["accent"]),
+                        (_PALS["light"]["accent"], p["accent"]),
+                    ):
+                        if old and new and old.lower() != new.lower():
+                            new_ss = _re.sub(_re.escape(old), new, new_ss,
+                                             flags=_re.IGNORECASE)
+                    if new_ss != ss:
+                        w.setStyleSheet(new_ss)
+                        updated += 1
+                except Exception:
+                    pass
+                continue
+            if isinstance(w, QPushButton):
+                ss = w.styleSheet() if hasattr(w, "styleSheet") else ""
+                if "QPushButton" not in ss:
+                    continue
+                # In-place variant-aware refresh: saturated fills (accent /
+                # error red) keep white text in both modes; muted fills
+                # follow the palette text.  Padding, radius and fonts are
+                # preserved so layout never shifts.
+                try:
+                    lower = ss.lower()
+                    saturated = (
+                        "#c0392b" in lower or "#c62828" in lower
+                        or "#2e7d32" in lower or "#2f6fb0" in lower
+                        or any(a and a.lower() in lower for a in all_accent)
+                    )
+                    new_ss = ss
+                    # Background fills follow their roles.
+                    for old, new in (
+                        (_PALS["dark"]["accent"], p["accent"]),
+                        (_PALS["light"]["accent"], p["accent"]),
+                        (_PALS["dark"]["border"], p["border"]),
+                        (_PALS["light"]["border"], p["border"]),
+                        (_PALS["dark"]["surface"], p["surface"]),
+                        (_PALS["light"]["surface"], p["surface"]),
+                        (_PALS["dark"]["bg"], p["bg"]),
+                        (_PALS["light"]["bg"], p["bg"]),
+                    ):
+                        if old and new and old.lower() != new.lower():
+                            # Only swap background-color occurrences to avoid
+                            # touching border/text hexes that share values.
+                            new_ss = _re.sub(
+                                r"(background-color:\s*)" + _re.escape(old),
+                                r"\1" + new, new_ss, flags=_re.IGNORECASE)
+                    if not saturated:
+                        # Muted button: text follows the palette.
+                        for old, new in (
+                            (_PALS["dark"]["text"], p["text"]),
+                            (_PALS["light"]["text"], p["text"]),
+                        ):
+                            if old and new and old.lower() != new.lower():
+                                new_ss = _re.sub(
+                                    r"(^|[;{}]\s*color:\s*)" + _re.escape(old),
+                                    r"\1" + new, new_ss, flags=_re.IGNORECASE)
+                    if new_ss != ss:
+                        w.setStyleSheet(new_ss)
+                        updated += 1
+                except Exception:
+                    pass
+                continue
+            if isinstance(w, QLabel):
+                ss = w.styleSheet() if hasattr(w, "styleSheet") else ""
+                if not ss or "background: transparent" not in ss:
+                    continue
+                m = _re.search(r"color:\s*(#[0-9a-fA-F]{6}|white|black)", ss)
+                if not m:
+                    continue
+                col = m.group(1).lower()
+                try:
+                    if col in all_dim:
+                        new_col = p["text_dim"]
+                    elif col in all_text or col in ("#000000", "#ffffff", "black", "white"):
+                        if "font-size: 11px" in ss and "font-weight: bold" not in ss:
+                            new_col = p["text_dim"]
+                        else:
+                            new_col = p["text"]
+                    else:
+                        continue
+                    w.setStyleSheet(ss[:m.start()] + f"color: {new_col}" + ss[m.end():])
+                    updated += 1
+                except Exception:
+                    pass
+                continue
+        except Exception:
+            continue
+    # Page-level background (simple `background-color: <bg>` on the root).
+    try:
+        ss = root.styleSheet() if hasattr(root, "styleSheet") else ""
+        if ss and "background-color:" in ss and "Q" not in ss.split("background-color:")[0][-20:]:
+            import re as _re2
+            root.setStyleSheet(f"background-color: {p['bg']};")
+            updated += 1
+        elif root.objectName() in ("", None) and ss.strip().startswith("background-color"):
+            root.setStyleSheet(f"background-color: {p['bg']};")
+            updated += 1
+    except Exception:
+        pass
+    # Plain containers (page title strips, filter/tool bars, side panels).
+    try:
+        updated += refresh_containers(root)
+    except Exception:
+        pass
+    return updated
+
+
+# Property prefixes a container may legitimately carry a theme role under.
+# ``color`` is deliberately absent: a container's foreground is either
+# inherited from the shared stylesheet or is a deliberate constant (the
+# white caption on the blue sales-bill header), and rewriting it would
+# break the constant cases.
+_CONTAINER_PROPS = ("background", "border", "gridline", "selection-background")
+
+# A tooltip rule this module appended on an earlier switch.
+_TOOLTIP_RULE_RE = re.compile(r"QToolTip\s*\{[^}]*\}")
+
+# Any rule whose selector names the ``::indicator`` sub-control.
+_INDICATOR_RULE_RE = re.compile(r"[^{}]*::indicator[^{}]*\{[^}]*\}")
+
+
+def _with_tooltip_rule(sheet: str) -> str:
+    """Append the mode's tooltip rule to a sheet that styles bare labels.
+
+    Qt's tooltip widget is a ``QLabel``, so a widget-level rule like
+    ``QLabel { color: …; background: transparent; }`` — used by most
+    dialogs in this codebase — also matches the tooltip, and a widget-level
+    rule outranks the application stylesheet.  The result was a transparent
+    black tooltip in both modes.  Emitting the tooltip rule *after* it, at
+    the same specificity, restores the readable note.
+
+    Any tooltip rule appended by an earlier switch is removed first, so the
+    sheet always ends up carrying the *current* mode's colours.  A sheet
+    that cannot capture a tooltip is returned untouched.
+    """
+    stripped = _TOOLTIP_RULE_RE.sub("", sheet)
+    if "QLabel" not in stripped:
+        return sheet
+    return stripped + tooltip_rule()
+
+
+def _apply_indicator(widget) -> bool:
+    """Rewrite one control's local ``::indicator`` rule; True if it changed.
+
+    Screens that style the indicator themselves (Reports, Trial Balance)
+    bake a size and colours into a module-level rule at import time.  Naming
+    the ``::indicator`` sub-control is enough to stop Qt drawing the native
+    check mark, so the rule has to carry the glyph explicitly — and it has
+    to follow the mode.  The local size and the widget's own text rule are
+    preserved.  Controls that do not style the indicator are left alone:
+    they follow the application stylesheet.
+    """
+    from PySide6.QtWidgets import QRadioButton
+
+    sheet = widget.styleSheet() if hasattr(widget, "styleSheet") else ""
+    if "::indicator" not in sheet:
+        return False
+    size_m = re.search(r"width:\s*(\d+)px", sheet)
+    size = int(size_m.group(1)) if size_m else 13
+    base = _INDICATOR_RULE_RE.sub("", sheet).strip()
+    if "#" in base:
+        base = remap_baked_colors(base)
+    is_radio = isinstance(widget, QRadioButton)
+    fresh = base + indicator_style(
+        checkbox=not is_radio, radio=is_radio, size=size
+    )
+    if fresh == sheet:
+        return False
+    widget.setStyleSheet(fresh)
+    return True
+
+
+def refresh_indicators(root: QWidget) -> int:
+    """Refresh every checkbox / radio in a tree that styles its indicator.
+
+    Called at page build time (so the check mark is right from the first
+    paint) and on every Day/Night switch.  Returns widgets updated.
+    """
+    try:
+        from PySide6.QtWidgets import QCheckBox, QRadioButton
+    except Exception:  # pragma: no cover - headless
+        return 0
+    try:
+        widgets = list(root.findChildren(QCheckBox)) + list(
+            root.findChildren(QRadioButton)
+        )
+    except Exception:
+        return 0
+    updated = 0
+    for widget in widgets:
+        try:
+            if _apply_indicator(widget):
+                updated += 1
+        except Exception:
+            continue
+    return updated
+
+
+def refresh_containers(root: QWidget) -> int:
+    """Re-apply live background/border roles to baked container stylesheets.
+
+    Every screen styles its chrome — the page title strip, the search /
+    filter toolbar and, on Counter Sale, the right-side ``BillPanel`` — with
+    module-level constants captured at import time (``_SURFACE``,
+    ``_BORDER``).  Those widgets are plain ``QWidget``/``QFrame`` containers,
+    so none of the class-specific passes in this module or in
+    ``screens.counter_sale.refresh_cs_tree`` reached them: after switching
+    to Night Mode the strips and panels kept the Day Mode light-blue
+    ``#dce9f6`` surface, and after switching back a stale dark surface could
+    survive.  That is the mixed-theme defect.
+
+    This pass rewrites only *background* and *border* declarations, and only
+    when the baked value is the same role in one of the centralized
+    palettes, so screen-specific constants (the Counter Sale error red, the
+    sales-bill header blue) are never touched.  Layout, fonts and metrics
+    are untouched.  Returns the number of widgets updated.
+    """
+    try:
+        from PySide6.QtWidgets import QWidget as _QW
+    except Exception:  # pragma: no cover - headless
+        return 0
+    try:
+        widgets = [root] + list(root.findChildren(_QW))
+    except Exception:
+        return 0
+    updated = 0
+    for widget in widgets:
+        try:
+            if widget.property("theme_source") == "components":
+                continue        # handled by refresh_tree
+            if widget.property("cs_style") is not None:
+                continue        # handled by refresh_cs_tree
+            sheet = widget.styleSheet() if hasattr(widget, "styleSheet") else ""
+            if not sheet:
+                continue
+            fresh = sheet
+            if "#" in sheet:
+                fresh = remap_baked_colors(sheet, only=_CONTAINER_PROPS)
+            fresh = _with_tooltip_rule(fresh)
+            if fresh != sheet:
+                widget.setStyleSheet(fresh)
+                updated += 1
+        except Exception:
+            continue
+    return updated
 
 
 __all__ = [
@@ -633,5 +1394,6 @@ __all__ = [
     "style_button", "table_style", "table_header_style",
     "style_data_table", "panel_style", "strip_style", "subtitle",
     "style_edit", "style_combo", "style_date", "style_label",
-    "polish_page", "readable_font",
+    "polish_page", "readable_font", "refresh_tree", "refresh_popups",
+    "refresh_generic_screen", "refresh_containers", "refresh_indicators",
 ]

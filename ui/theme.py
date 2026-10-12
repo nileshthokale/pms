@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -75,6 +76,14 @@ _PALETTES: dict[str, dict[str, str]] = {
         "focus": "#2f6fb0",
         "disabled_text": "#9aa7b4",
         "disabled_bg": "#e9eef3",
+        # Tooltip note.  Day Mode keeps the classic light-yellow note with
+        # dark text: readable over the light workspace.  These three values
+        # are deliberately distinct from every other palette entry so the
+        # role-based colour migration used by the refresh pass can never
+        # mistake them for a surface or text role.
+        "tooltip_bg": "#ffffe1",
+        "tooltip_text": "#14212e",
+        "tooltip_border": "#b8b88a",
     },
     "dark": {
         # legacy keys (original night look, unchanged) ---------------
@@ -102,6 +111,11 @@ _PALETTES: dict[str, dict[str, str]] = {
         "focus": "#388e3c",
         "disabled_text": "#777777",
         "disabled_bg": "#242424",
+        # Night Mode tooltip: dark note, light text.  The old light-yellow
+        # note was unreadable against the dark workspace.
+        "tooltip_bg": "#2b2b2b",
+        "tooltip_text": "#e8e8e8",
+        "tooltip_border": "#4a4a4a",
     },
 }
 
@@ -277,9 +291,35 @@ class ThemeManager:
         return self._mode
 
     def apply(self) -> None:
-        """Propagate the current mode: reload screens, notify listeners."""
-        _reload_screen_modules()
-        self._notify()
+        """Propagate the current mode to the live application.
+
+        Order matters for the black-rectangle fix:
+
+        1. Application palette + stylesheet first, so dialogs, menus,
+           tooltips, combo dropdowns, completer popups, calendar popups
+           and any widget following the app theme refresh immediately.
+        2. Reload screen modules (best effort) so widgets created AFTER
+           the switch bake the new centralized colours at construction.
+        3. Notify listeners for IN-PLACE refresh of existing widgets
+           (pages, navigation bar, open dialogs/popups).  Existing widgets
+           must not retain stale baked hex values (dark ``#000000`` in Day
+           Mode or light ``#ffffff`` in Night Mode).
+        """
+        try:
+            apply_to_app()
+        except Exception:
+            pass
+        try:
+            _reload_screen_modules()
+        except Exception:
+            pass
+        try:
+            self._notify()
+        finally:
+            try:
+                repolish_all()
+            except Exception:
+                pass
 
     # ── change notification ──────────────────────────────────────────
     def on_changed(self, callback) -> None:
@@ -309,6 +349,596 @@ def nav_palette() -> dict[str, str]:
     return _NAV_SCHEMES[theme_manager.mode()]
 
 
+def apply_palette(app=None) -> None:
+    """Apply the centralized theme colours to the application QPalette.
+
+    Stylesheets cover widgets that declare explicit colours, but plain
+    containers (QFrame, QScrollArea viewports, QCalendarWidget internals,
+    table corner buttons, header views and any widget without its own
+    stylesheet) paint from the QPalette.  Without this, those surfaces keep
+    the Fusion light defaults in Night Mode (white flashes) or retain a
+    stale dark Window colour in Day Mode (black rectangles).  Every colour
+    comes from the centralized palette — nothing is hardcoded.
+    """
+    try:
+        from PySide6.QtGui import QPalette, QColor
+        from PySide6.QtWidgets import QApplication
+    except ImportError:  # headless
+        return
+    if app is None:
+        try:
+            app = QApplication.instance()
+        except Exception:
+            return
+    if app is None:
+        return
+    p = palette()
+    try:
+        bg = QColor(p["bg"])
+        surface = QColor(p["surface"])
+        surface_alt = QColor(p.get("surface_alt", p["bg"]))
+        text = QColor(p["text"])
+        text_dim = QColor(p["text_dim"])
+        accent = QColor(p["accent"])
+        selected = QColor(p["selected"])
+        selected_text = QColor(p["selected_text"])
+        border = QColor(p["border"])
+        disabled_bg = QColor(p.get("disabled_bg", p["bg"]))
+        disabled_text = QColor(p.get("disabled_text", p["text_dim"]))
+        grid = QColor(p.get("grid", p["border"]))
+    except Exception:
+        return
+    pal = QPalette()
+    # Base window / text roles — the source of truth for unstyled widgets.
+    pal.setColor(QPalette.Window, bg)
+    pal.setColor(QPalette.WindowText, text)
+    pal.setColor(QPalette.Base, bg)
+    pal.setColor(QPalette.AlternateBase, surface_alt)
+    pal.setColor(QPalette.Text, text)
+    pal.setColor(QPalette.Button, surface)
+    pal.setColor(QPalette.ButtonText, text)
+    pal.setColor(QPalette.Highlight, selected)
+    pal.setColor(QPalette.HighlightedText, selected_text)
+    pal.setColor(QPalette.Light, surface_alt)
+    pal.setColor(QPalette.Midlight, surface)
+    pal.setColor(QPalette.Mid, border)
+    pal.setColor(QPalette.Dark, border)
+    pal.setColor(QPalette.Shadow, border)
+    # Grid / placeholder text follows the dim token, never pure black.
+    try:
+        pal.setColor(QPalette.PlaceholderText, text_dim)
+        pal.setColor(QPalette.BrightText, selected_text)
+        pal.setColor(QPalette.Link, accent)
+        pal.setColor(QPalette.LinkVisited, accent)
+    except Exception:
+        pass
+    # Tooltips follow the mode: a light note in Day Mode, a dark note with
+    # light text in Night Mode.  Both come from the centralized palette so
+    # the QPalette path and the stylesheet path can never disagree.
+    try:
+        pal.setColor(QPalette.ToolTipBase, QColor(p["tooltip_bg"]))
+        pal.setColor(QPalette.ToolTipText, QColor(p["tooltip_text"]))
+    except Exception:
+        pass
+    # Disabled state stays legible (dim text on muted bg, never black).
+    pal.setColor(QPalette.Disabled, QPalette.Window, disabled_bg)
+    pal.setColor(QPalette.Disabled, QPalette.Base, disabled_bg)
+    pal.setColor(QPalette.Disabled, QPalette.Button, disabled_bg)
+    pal.setColor(QPalette.Disabled, QPalette.AlternateBase, disabled_bg)
+    pal.setColor(QPalette.Disabled, QPalette.WindowText, disabled_text)
+    pal.setColor(QPalette.Disabled, QPalette.Text, disabled_text)
+    pal.setColor(QPalette.Disabled, QPalette.ButtonText, disabled_text)
+    pal.setColor(QPalette.Disabled, QPalette.Highlight, disabled_bg)
+    pal.setColor(QPalette.Disabled, QPalette.HighlightedText, disabled_text)
+    try:
+        app.setPalette(pal)
+    except Exception:
+        pass
+
+
+def apply_to_app(app=None) -> None:
+    """Apply the full theme (palette + application stylesheet) to the app.
+
+    Central entry point used at startup and on every Day/Night switch so
+    dialogs, message boxes, menus, tooltips, combo dropdowns, completer
+    popups, calendar popups and any widget without its own stylesheet all
+    follow the centralized colours immediately.
+    """
+    apply_palette(app)
+    try:
+        from PySide6.QtWidgets import QApplication
+        if app is None:
+            app = QApplication.instance()
+        if app is not None:
+            app.setStyleSheet(stylesheet())
+            _install_tooltip_filter(app)
+    except Exception:
+        pass
+
+
+def repolish_all() -> None:
+    """Force every existing widget to re-evaluate style/palette.
+
+    Required after a Day/Night switch: widgets that rely on the application
+    stylesheet or the QPalette (popups, calendar views, scroll-area
+    viewports, menus, tooltips) only repaint with the new colours once they
+    are unpolished/polished and updated.  Widget-level stylesheets with
+    baked hex values are refreshed separately by their owners (see
+    ``ui.components.refresh_tree`` and each screen's ``refresh_theme``);
+    this handles everything that follows the application theme.
+    """
+    try:
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance()
+        if app is None:
+            return
+        widgets = list(app.allWidgets())
+    except Exception:
+        return
+    for widget in widgets:
+        try:
+            style = widget.style()
+            if style is not None:
+                style.unpolish(widget)
+                style.polish(widget)
+        except Exception:
+            continue
+    for widget in widgets:
+        try:
+            widget.update()
+        except Exception:
+            continue
+
+
+def refresh_application() -> None:
+    """Refresh the whole application for the current mode (palette + ss)."""
+    apply_to_app()
+    repolish_all()
+
+
+def tooltip_declarations() -> str:
+    """Bare (selector-less) tooltip declarations for the current mode."""
+    p = palette()
+    return (
+        f"background-color: {p['tooltip_bg']};"
+        f"color: {p['tooltip_text']};"
+        f"border: 1px solid {p['tooltip_border']};"
+        "padding: 2px 4px;"
+    )
+
+
+def tooltip_rule(scope: str = "") -> str:
+    """Return the ``QToolTip`` stylesheet rule for the current mode.
+
+    ``scope`` optionally names an ancestor (e.g. ``"#SalePanel"``) so the
+    rule has the same specificity as the local ``#SalePanel QLabel`` rule it
+    has to outrank; emitting it afterwards makes the tooltip rule win.
+
+    Tooltips need their own rule in *widget-level* stylesheets, not only in
+    the application stylesheet: Qt resolves a tooltip's style from the
+    widget that owns it, so any widget-level rule that matches a bare
+    ``QLabel`` — ``QLabel { color: …; background: transparent; }`` is used
+    all over this codebase — also matches the tooltip, and a widget-level
+    rule outranks the application stylesheet.  That is what turned the
+    tooltip into a transparent black box.
+    """
+    selector = f"{scope} QToolTip".strip() if scope else "QToolTip"
+    return f"{selector} {{ {tooltip_declarations()} }}"
+
+
+def _is_tooltip_widget(widget) -> bool:
+    """True for Qt's tooltip label (``QTipLabel``), in any Qt spelling."""
+    try:
+        name = widget.metaObject().className()
+    except Exception:
+        return False
+    if name in ("QTipLabel", "QToolTip"):
+        return True
+    try:
+        from PySide6.QtCore import Qt
+        from PySide6.QtWidgets import QLabel
+        return (isinstance(widget, QLabel)
+                and bool(widget.windowType() & Qt.WindowType.ToolTip))
+    except Exception:
+        return False
+
+
+if _HAS_QT:
+    from PySide6.QtCore import QEvent
+
+    class _TooltipStyleFilter(QObject):
+        """Force the centralized tooltip colours onto every tooltip.
+
+        A widget-level ``QLabel`` rule beats the application stylesheet, so
+        the only rule that reliably wins is the tooltip's *own* stylesheet.
+        Qt builds the tooltip widget itself on each show, so the style is
+        re-applied here as it appears.  Nothing else about the tooltip —
+        text, position, timing, ownership — is touched.
+        """
+
+        def eventFilter(self, watched, event):
+            try:
+                # ``Show`` only.  Qt destroys or hides the tip label between
+                # shows, so a ``Show`` always precedes the paint; handling
+                # ``Polish`` as well would re-enter this filter from inside
+                # our own ``setStyleSheet``.  A tooltip that is already
+                # visible when the mode changes is restyled directly by
+                # ``_install_tooltip_filter`` instead.
+                if event.type() == QEvent.Show and _is_tooltip_widget(watched):
+                    declarations = tooltip_declarations()
+                    if watched.styleSheet() != declarations:
+                        watched.setStyleSheet(declarations)
+            except Exception:
+                pass
+            return False
+
+    _tooltip_filter: "_TooltipStyleFilter | None" = None
+
+    def _install_tooltip_filter(app) -> None:
+        """Install the tooltip styler once, and restyle any visible tip."""
+        global _tooltip_filter
+        try:
+            if _tooltip_filter is None:
+                _tooltip_filter = _TooltipStyleFilter()
+                app.installEventFilter(_tooltip_filter)
+            for widget in app.topLevelWidgets():
+                if _is_tooltip_widget(widget):
+                    declarations = tooltip_declarations()
+                    if widget.styleSheet() != declarations:
+                        widget.setStyleSheet(declarations)
+        except Exception:
+            pass
+
+else:  # pragma: no cover - headless
+    def _install_tooltip_filter(app) -> None:
+        return
+
+
+# ── In-place colour migration for baked screen stylesheets ────────────
+# Screens build their stylesheets once at import from module-level palette
+# constants (``_SURFACE``, ``_BORDER``, ``_TEXT`` …).  After a Day/Night
+# switch those baked hex values are stale, so the in-place refresh pass
+# rewrites them to the SAME ROLE in the live palette.
+#
+# Grouping the roles — and never matching on the raw hex alone — is what
+# keeps ``#ffffff`` / ``#000000`` unambiguous: a value under
+# ``background-color`` can only be a background role, a value under
+# ``color`` only a text role.
+_ROLE_GROUPS: dict[str, tuple[str, ...]] = {
+    "bg": ("bg", "surface", "surface_alt", "table_header", "disabled_bg",
+           "selected"),
+    "text": ("text", "header_text", "text_dim", "selected_text",
+             "disabled_text"),
+    "border": ("border", "grid"),
+    "accent": ("accent", "accent_hover", "accent_pressed", "focus",
+               "success", "success_hover", "danger", "danger_hover",
+               "warning", "warning_hover"),
+}
+
+
+def _groups_for_property(prop: str) -> tuple[str, ...]:
+    """Ordered role groups a declaration of ``prop`` may reference."""
+    name = prop.strip().lower()
+    if name == "color" or name.startswith("selection-color"):
+        return ("text",)
+    if name.startswith("selection-background") or name.startswith("background"):
+        return ("bg", "accent")
+    if name.startswith("gridline") or name.startswith("outline"):
+        return ("accent", "border")
+    if name.startswith("border"):
+        return ("border", "accent")
+    return ()
+
+
+_HEX_RE = re.compile(r"#[0-9a-fA-F]{6}\b")
+_DECL_RE = re.compile(r"(?P<prop>[A-Za-z][A-Za-z-]*)\s*:\s*(?P<val>[^;{}]*)")
+
+
+def _role_map(groups: tuple[str, ...]) -> dict[str, str]:
+    """old hex (from either mode) -> live hex for the given role groups."""
+    live = palette()
+    mapping: dict[str, str] = {}
+    for group in groups:
+        for role in _ROLE_GROUPS.get(group, ()):
+            new = live.get(role)
+            if not new:
+                continue
+            for mode in ("light", "dark"):
+                old = _PALETTES[mode].get(role)
+                if old:
+                    mapping[str(old).lower()] = new
+    return mapping
+
+
+def remap_baked_colors(stylesheet: str, *, only: tuple[str, ...] | None = None
+                       ) -> str:
+    """Rewrite baked palette hexes in ``stylesheet`` to the live tokens.
+
+    Only hex values that appear as the *same role* in one of the
+    centralized palettes are rewritten, and only under a declaration whose
+    property names that role's group.  Screen-specific colours that are not
+    part of the palette (e.g. the Counter Sale error red) are left exactly
+    as they are, and no layout, font or padding declaration is touched.
+
+    ``only`` restricts the work to a subset of property prefixes — the
+    container pass uses it to rewrite backgrounds and borders without
+    touching deliberately hardcoded foreground text (a white caption on a
+    blue bill header must stay white in both modes).
+    """
+    if not stylesheet or "#" not in stylesheet:
+        return stylesheet
+    cache: dict[tuple[str, ...], dict[str, str]] = {}
+
+    def replace_declaration(match: "re.Match[str]") -> str:
+        prop = match.group("prop")
+        value = match.group("val")
+        unchanged = match.group(0)
+        if only is not None and not any(
+            prop.lower().startswith(prefix) for prefix in only
+        ):
+            return unchanged
+        groups = _groups_for_property(prop)
+        if not groups:
+            return unchanged
+        if groups not in cache:
+            cache[groups] = _role_map(groups)
+        mapping = cache[groups]
+
+        def replace_hex(hex_match: "re.Match[str]") -> str:
+            old = hex_match.group(0).lower()
+            return mapping.get(old, hex_match.group(0))
+
+        new_value = _HEX_RE.sub(replace_hex, value)
+        if new_value == value:
+            # Nothing to migrate: return the declaration byte for byte, so
+            # callers can compare strings to decide whether the widget
+            # actually needs re-styling (a needless setStyleSheet is a
+            # needless repolish of the whole subtree).
+            return unchanged
+        head = match.string[match.start():match.start("val")]
+        tail = match.string[match.end("val"):match.end()]
+        return head + new_value + tail
+
+    return _DECL_RE.sub(replace_declaration, stylesheet)
+
+
+# ── Checkbox / radio indicators ───────────────────────────────────────
+# Qt stops drawing the native check mark the moment any stylesheet rule
+# matches the ``::indicator`` sub-control.  A stylesheet that only sets a
+# size, a border and a background therefore leaves a *checked* box looking
+# exactly like an unchecked one: a plain square.  In Night Mode that square
+# is ``bg`` (``#000000``) with a ``#333333`` border, which is the black box
+# reported beside Item Wise / Bill Wise — and those two widgets were radio
+# buttons whose local stylesheet set only ``width``/``height``, so nothing
+# changed at all when they were checked.
+#
+# The check mark and the radio dot are therefore generated as small PNGs
+# from the live palette and referenced from the stylesheet.  Generating
+# them keeps the glyph visible in both modes and free of any platform
+# style dependency (Fusion draws its own indicator colours, which the
+# application palette cannot reach once a stylesheet owns the sub-control).
+#
+# The tint follows the mode: a dark tick on the light Day Mode box, a
+# bright tick on the dark Night Mode box.
+
+_INDICATOR_SIZE = 13
+_INDICATOR_DIR: Path | None = None
+_INDICATOR_FILES: dict[tuple[str, str], str] = {}
+
+
+def _indicator_dir() -> Path:
+    """Directory holding the generated indicator glyphs."""
+    global _INDICATOR_DIR
+    if _INDICATOR_DIR is None:
+        import tempfile
+        _INDICATOR_DIR = (Path(tempfile.gettempdir())
+                          / "pharmacy_theme_indicators")
+    return _INDICATOR_DIR
+
+
+def _glyph_path(colour: str, kind: str) -> str:
+    """Path to a generated glyph PNG, or "" when it cannot be produced.
+
+    ``kind`` is ``"check"`` (a check mark) or ``"dot"`` (a filled circle for
+    radio buttons).  Results are cached per (colour, kind); a cached file
+    that has since been removed is regenerated.
+
+    Painting needs a running ``QGuiApplication``.  ``stylesheet()`` is also
+    called at import time (screen modules build their styles from it before
+    ``main()`` creates the application), so in that window this returns ""
+    **without caching the failure** — the caller falls back to a plainly
+    different checked fill, and the next call with an application present
+    produces the real glyph.
+    """
+    key = (str(colour).lower(), kind)
+    cached = _INDICATOR_FILES.get(key)
+    if cached and Path(cached).is_file():
+        return cached
+    try:
+        from PySide6.QtGui import QGuiApplication
+        if QGuiApplication.instance() is None:
+            return ""
+    except Exception:
+        return ""
+    path = _paint_glyph(colour, kind)
+    _INDICATOR_FILES[key] = path
+    return path
+
+
+def _paint_glyph(colour: str, kind: str) -> str:
+    """Draw one indicator glyph and save it as a PNG ("" on failure)."""
+    try:
+        from PySide6.QtCore import QPointF, Qt
+        from PySide6.QtGui import QBrush, QColor, QImage, QPainter, QPen
+
+        directory = _indicator_dir()
+        directory.mkdir(parents=True, exist_ok=True)
+        target = directory / f"{kind}_{str(colour).lstrip('#').lower()}.png"
+        size = _INDICATOR_SIZE
+        image = QImage(size, size, QImage.Format.Format_ARGB32)
+        image.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(image)
+        if not painter.isActive():
+            # Without an active painter every draw call is a silent no-op,
+            # which would save a blank glyph and leave the control looking
+            # unchecked.  Report failure so the caller uses the fallback.
+            return ""
+        try:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            glyph = QColor(colour)
+            if kind == "dot":
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(QBrush(glyph))
+                painter.drawEllipse(QPointF(size / 2.0, size / 2.0), 3.2, 3.2)
+            else:
+                pen = QPen(glyph, 2.0)
+                pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+                pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+                painter.setPen(pen)
+                painter.drawPolyline([
+                    QPointF(3.0, 6.8), QPointF(5.6, 9.4), QPointF(10.0, 4.0),
+                ])
+        finally:
+            painter.end()
+        if not _image_has_ink(image):
+            return ""
+        if image.save(str(target), "PNG"):
+            return target.as_posix()
+    except Exception:
+        pass
+    return ""
+
+
+def _image_has_ink(image) -> bool:
+    """True when the glyph image contains at least one painted pixel.
+
+    Guards against a silently blank glyph (an inactive painter, a missing
+    font/graphics backend) which would leave a checked control looking
+    exactly like an unchecked one — the defect this module fixes.
+    """
+    try:
+        for y in range(image.height()):
+            for x in range(image.width()):
+                if image.pixelColor(x, y).alpha() > 0:
+                    return True
+    except Exception:
+        return False
+    return False
+
+
+def indicator_style(*, checkbox: bool = True, radio: bool = True,
+                    size: int = _INDICATOR_SIZE) -> str:
+    """Return the complete ``::indicator`` styling for the current mode.
+
+    Covers the plain, hover, focus, checked and disabled states for both
+    ``QCheckBox`` and ``QRadioButton``.  Every colour comes from the
+    centralized palette, and the check mark / dot comes from a generated
+    glyph so a checked control is unmistakable in either mode.
+    """
+    p = palette()
+    tick = _glyph_path(p["text"], "check")
+    tick_off = _glyph_path(p["disabled_text"], "check")
+    dot = _glyph_path(p["text"], "dot")
+    dot_off = _glyph_path(p["disabled_text"], "dot")
+
+    widgets = []
+    if checkbox:
+        widgets.append("QCheckBox")
+    if radio:
+        widgets.append("QRadioButton")
+    if not widgets:
+        return ""
+    # Every pseudo-state has to be repeated on each class: a selector such
+    # as ``QCheckBox, QRadioButton::indicator`` would style whole check
+    # boxes rather than their indicators.
+    indicators = [f"{name}::indicator" for name in widgets]
+    # NOTE: the focus pseudo-state belongs AFTER the sub-control
+    # (``QRadioButton::indicator:focus``).  The previous spelling
+    # (``QRadioButton:focus::indicator``) is mis-parsed by Qt: the border
+    # lands on the whole button (indicator + label) as a persistent outer
+    # rectangle — green in Night Mode, blue in Day Mode — instead of on the
+    # small indicator.  That outer rectangle is the reported defect.
+    focused = [f"{name}::indicator:focus" for name in widgets]
+
+    def select(selectors, state: str = "") -> str:
+        return ", ".join(f"{selector}{state}" for selector in selectors)
+
+    def checked_image(glyph: str, fallback_bg: str) -> str:
+        """Checked state: keep the mode's box colour and draw the glyph.
+
+        Without a usable glyph the fill still changes, so checked never
+        renders identically to unchecked.
+        """
+        if glyph:
+            return (f"background-color: {p['bg']};"
+                    f" border: 1px solid {p['accent']};"
+                    f' image: url("{glyph}");')
+        return (f"background-color: {fallback_bg};"
+                f" border: 1px solid {p['accent']}; image: none;")
+
+    rules = [
+        # The button itself (indicator + label) is borderless: no outer
+        # rectangle in any state.  Only the small ::indicator box carries a
+        # border, so checked/unchecked stays visible via the glyph + the
+        # indicator's own edge.  Without this, a widget-level focus border
+        # paints as a full-width rectangle around text and indicator.
+        f"{', '.join(widgets)} {{"
+        "  background: transparent; border: none; outline: none;"
+        "}",
+        f"{', '.join(f'{w}:focus' for w in widgets)} {{"
+        "  background: transparent; border: none; outline: none;"
+        "}",
+        f"{', '.join(f'{w}:hover' for w in widgets)} {{"
+        "  background: transparent; border: none;"
+        "}",
+        # A square box for check boxes, a circle for radio buttons: the two
+        # are distinguishable at a glance, as they are natively.
+        f"{select(indicators)} {{"
+        f"  width: {size}px; height: {size}px;"
+        f"  border: 1px solid {p['border']};"
+        f"  background-color: {p['bg']};"
+        f"}}",
+    ]
+    if checkbox:
+        rules.append("QCheckBox::indicator { border-radius: 3px; }")
+    if radio:
+        rules.append(
+            f"QRadioButton::indicator {{ border-radius: {max(1, size // 2)}px; }}"
+        )
+    rules += [
+        f"{select(indicators, ':hover')} {{ border: 1px solid {p['focus']}; }}",
+        f"{select(focused)} {{ border: 1px solid {p['focus']}; }}",
+        f"{select(indicators, ':unchecked')} {{ image: none; }}",
+        f"{select(indicators, ':disabled')} {{"
+        f"  background-color: {p['disabled_bg']};"
+        f"  border: 1px solid {p['border']};"
+        f"}}",
+    ]
+    if checkbox:
+        rules.append(
+            "QCheckBox::indicator:checked {"
+            f"  {checked_image(tick, p['selected'])}"
+            "}"
+        )
+        rules.append(
+            "QCheckBox::indicator:checked:disabled {"
+            f"  {checked_image(tick_off, p['disabled_bg'])}"
+            "}"
+        )
+    if radio:
+        rules.append(
+            "QRadioButton::indicator:checked {"
+            f"  {checked_image(dot, p['selected'])}"
+            "}"
+        )
+        rules.append(
+            "QRadioButton::indicator:checked:disabled {"
+            f"  {checked_image(dot_off, p['disabled_bg'])}"
+            "}"
+        )
+    return "".join(rule for rule in rules if rule)
+
+
 def stylesheet() -> str:
     """Return the application-wide stylesheet for the current mode.
 
@@ -316,6 +946,10 @@ def stylesheet() -> str:
     styled (dialogs, message boxes, plain tables, unstyled screens such
     as User Management) still follow the centralized light theme.
     Widget-level stylesheets always take precedence over this one.
+
+    Every colour comes from the centralized palette — the only hardcoded
+    colours are the light-yellow tooltip note (readable in both modes) and
+    the white pressed-button text (white on a saturated accent fill).
     """
     p = palette()
     return (
@@ -326,6 +960,40 @@ def stylesheet() -> str:
         "QWidget {"
         f"  font-family: {FONT_FAMILY};"
         f"  font-size: {TYPE_TABLE_DATA}px;"
+        "}"
+        # Plain containers must be opaque in the theme bg; otherwise an
+        # unstyled QFrame/QWidget shows the backing store (black) through.
+        "QFrame {"
+        f"  background-color: {p['bg']};"
+        f"  color: {p['text']};"
+        "}"
+        "QStackedWidget {"
+        f"  background-color: {p['bg']};"
+        "}"
+        "QScrollArea {"
+        f"  background-color: {p['bg']};"
+        f"  color: {p['text']};"
+        f"  border: 1px solid {p['border']};"
+        "}"
+        # Viewports of scroll areas / item views follow the workspace bg.
+        "QAbstractScrollArea::viewport {"
+        f"  background-color: {p['bg']};"
+        "}"
+        "QSplitter::handle {"
+        f"  background-color: {p['border']};"
+        "}"
+        "QTabWidget::pane {"
+        f"  background-color: {p['bg']};"
+        f"  border: 1px solid {p['border']};"
+        "}"
+        "QTabBar::tab {"
+        f"  background-color: {p['surface']};"
+        f"  color: {p['text']};"
+        f"  border: 1px solid {p['border']};"
+        "  padding: 4px 12px;"
+        "}"
+        "QTabBar::tab:selected {"
+        f"  background-color: {p['bg']};"
         "}"
         "QLabel {"
         f"  color: {p['text']};"
@@ -345,6 +1013,11 @@ def stylesheet() -> str:
         "QSpinBox:focus, QDoubleSpinBox:focus {"
         f"  border: 1px solid {p['focus']};"
         "}"
+        "QLineEdit:disabled, QPlainTextEdit:disabled, QTextEdit:disabled,"
+        "QSpinBox:disabled, QDoubleSpinBox:disabled {"
+        f"  background-color: {p['disabled_bg']};"
+        f"  color: {p['disabled_text']};"
+        "}"
         "QComboBox, QDateEdit, QTimeEdit, QDateTimeEdit {"
         f"  background-color: {p['bg']};"
         f"  color: {p['text']};"
@@ -356,6 +1029,20 @@ def stylesheet() -> str:
         "QComboBox:focus, QDateEdit:focus, QTimeEdit:focus, QDateTimeEdit:focus {"
         f"  border: 1px solid {p['focus']};"
         "}"
+        "QComboBox:disabled, QDateEdit:disabled {"
+        f"  background-color: {p['disabled_bg']};"
+        f"  color: {p['disabled_text']};"
+        "}"
+        # Editable combo text field must not render as a nested white box.
+        "QComboBox QLineEdit {"
+        "  background: transparent;"
+        "  border: none;"
+        "  padding: 0px;"
+        f"  color: {p['text']};"
+        f"  font-size: {TYPE_INPUT}px;"
+        "  selection-background-color: " + p["selected"] + ";"
+        f"  selection-color: {p['selected_text']};"
+        "}"
         "QComboBox QAbstractItemView {"
         f"  background-color: {p['bg']};"
         f"  color: {p['text']};"
@@ -363,6 +1050,28 @@ def stylesheet() -> str:
         f"  selection-background-color: {p['selected']};"
         f"  selection-color: {p['selected_text']};"
         "  outline: none;"
+        "}"
+        "QComboBox QAbstractItemView::item {"
+        "  min-height: 24px;"
+        "  padding: 2px 6px;"
+        "}"
+        "QComboBox QAbstractItemView::item:selected {"
+        f"  background-color: {p['selected']};"
+        f"  color: {p['selected_text']};"
+        "}"
+        # Standalone completer / item-view popups (QCompleter owns a
+        # top-level QListView): same item-view colours as combo dropdowns.
+        "QAbstractItemView {"
+        f"  background-color: {p['bg']};"
+        f"  color: {p['text']};"
+        f"  border: 1px solid {p['border']};"
+        f"  selection-background-color: {p['selected']};"
+        f"  selection-color: {p['selected_text']};"
+        "  outline: none;"
+        "}"
+        "QAbstractItemView::item:selected {"
+        f"  background-color: {p['selected']};"
+        f"  color: {p['selected_text']};"
         "}"
         "QPushButton {"
         f"  background-color: {p['surface']};"
@@ -389,6 +1098,7 @@ def stylesheet() -> str:
         f"  border: 1px solid {p['focus']};"
         "}"
         "QGroupBox {"
+        f"  background-color: {p['bg']};"
         f"  color: {p['text']};"
         f"  border: 1px solid {p['border']};"
         "  border-radius: 2px;"
@@ -400,13 +1110,29 @@ def stylesheet() -> str:
         "  left: 8px;"
         "  padding: 0 5px;"
         f"  color: {p['text']};"
+        f"  background-color: {p['bg']};"
         "}"
         "QCheckBox, QRadioButton {"
         f"  color: {p['text']};"
         "  background: transparent;"
+        "  border: none; outline: none;"
         "  spacing: 5px;"
         "}"
-        "QTableWidget, QTableView, QTreeWidget, QListWidget {"
+        "QCheckBox:focus, QRadioButton:focus {"
+        "  background: transparent;"
+        "  border: none; outline: none;"
+        "}"
+        "QCheckBox:hover, QRadioButton:hover {"
+        "  background: transparent;"
+        "  border: none;"
+        "}"
+        # The indicator sub-control, including a real check mark / radio dot
+        # drawn in the mode's text colour — see ``indicator_style``.  A
+        # stylesheet that only sets a border and a background makes Qt stop
+        # drawing the native glyph, leaving a checked box indistinguishable
+        # from an unchecked one.
+        + indicator_style()
+        + "QTableWidget, QTableView, QTreeWidget, QListWidget {"
         f"  background-color: {p['bg']};"
         f"  alternate-background-color: {p['surface_alt']};"
         f"  color: {p['text']};"
@@ -424,6 +1150,12 @@ def stylesheet() -> str:
         f"  background-color: {p['selected']};"
         f"  color: {p['selected_text']};"
         "}"
+        "QTableCornerButton::section {"
+        f"  background-color: {p['table_header']};"
+        f"  border: none;"
+        f"  border-right: 1px solid {p['border']};"
+        f"  border-bottom: 1px solid {p['border']};"
+        "}"
         "QHeaderView::section {"
         f"  background-color: {p['table_header']};"
         f"  color: {p['header_text']};"
@@ -433,6 +1165,41 @@ def stylesheet() -> str:
         "  padding: 4px 8px;"
         "  font-weight: bold;"
         f"  font-size: {TYPE_TABLE_HEADER}px;"
+        "}"
+        "QHeaderView::section:vertical {"
+        f"  background-color: {p['surface']};"
+        f"  color: {p['text']};"
+        "}"
+        # Calendar popup (QDateEdit with CalendarPopup): navigation + grid
+        # must follow the theme instead of the platform defaults.
+        "QCalendarWidget {"
+        f"  background-color: {p['bg']};"
+        f"  color: {p['text']};"
+        f"  border: 1px solid {p['border']};"
+        "}"
+        "QCalendarWidget QToolButton {"
+        f"  background-color: {p['surface']};"
+        f"  color: {p['text']};"
+        "  border: none;"
+        "  padding: 4px;"
+        "}"
+        "QCalendarWidget QToolButton:hover {"
+        f"  background-color: {p['selected']};"
+        f"  color: {p['selected_text']};"
+        "}"
+        "QCalendarWidget QSpinBox {"
+        f"  background-color: {p['bg']};"
+        f"  color: {p['text']};"
+        f"  border: 1px solid {p['border']};"
+        "  selection-background-color: " + p["selected"] + ";"
+        f"  selection-color: {p['selected_text']};"
+        "}"
+        "QCalendarWidget QAbstractItemView {"
+        f"  background-color: {p['bg']};"
+        f"  color: {p['text']};"
+        f"  selection-background-color: {p['selected']};"
+        f"  selection-color: {p['selected_text']};"
+        "  outline: none;"
         "}"
         "QMenuBar {"
         f"  background-color: {p['surface']};"
@@ -453,12 +1220,6 @@ def stylesheet() -> str:
         "QMenu::item:selected {"
         f"  background-color: {p['selected']};"
         f"  color: {p['selected_text']};"
-        "}"
-        "QToolTip {"
-        f"  background-color: #ffffe1;"
-        "  color: #14212e;"
-        f"  border: 1px solid {p['border']};"
-        "  padding: 2px 4px;"
         "}"
         "QStatusBar {"
         f"  background-color: {p['surface']};"
@@ -485,6 +1246,10 @@ def stylesheet() -> str:
         "QHeaderView::section:checked {"
         f"  background-color: {p['selected']};"
         "}"
+        # Emitted LAST on purpose.  ``QTipLabel`` — the tooltip's own widget
+        # — is a QLabel, so the earlier ``QLabel`` rule above matches it
+        # too; on an equal-specificity tie Qt lets the last rule win.
+        + tooltip_rule()
     )
 
 

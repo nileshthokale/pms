@@ -14,8 +14,9 @@ def main():
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
     # Light, traditional desktop theme is the application default; the
-    # application-wide stylesheet also covers the login dialog.
-    app.setStyleSheet(theme.stylesheet())
+    # centralized palette + application-wide stylesheet also cover the
+    # login dialog and every unstyled surface (no hardcoded colours).
+    theme.apply_to_app(app)
 
     init_database()
     auth.ensure_auth_schema()
