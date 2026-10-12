@@ -213,6 +213,98 @@ def generate_document(title: str, record: dict, items: list[dict], output_path: 
     return str(path)
 
 
+def generate_sales_report_pdf(
+    rows: list[dict], summary: dict, financial_year: str, filter_summary: str,
+    output_path: str | os.PathLike[str] | None = None,
+) -> str:
+    """Create a read-only, landscape, paginated Sales Report PDF.
+
+    This deliberately receives already-filtered report rows rather than
+    querying the database.  The caller therefore prints exactly the visible
+    financial-year/filter result and printing cannot change data or filters.
+    Column headings are repeated on every page and each page carries its
+    number, making it suitable for the Windows PDF-print workflow.
+    """
+    path = _output_path(output_path, "sales_report", financial_year.replace(" ", "_"))
+    headings = [
+        "Bill No", "Sale Date", "Customer", "Patient", "Doctor", "Item",
+        "Batch", "Expiry", "MRP", "Qty", "Discount", "Amount",
+    ]
+    widths = [12, 11, 15, 14, 13, 19, 10, 8, 9, 7, 10, 11]
+
+    def clip(value: Any, width: int) -> str:
+        value = _text(value).replace("\n", " ")
+        return value[:width - 1] + "…" if len(value) > width else value
+
+    def report_row(row: dict) -> str:
+        values = [
+            row.get("bill_no"), row.get("sale_date"), row.get("customer_name"),
+            row.get("patient_name"), row.get("doctor_name"), row.get("item_name"),
+            row.get("batch_no"), row.get("expiry"), _money(row.get("mrp")),
+            row.get("sale_qty"), _money(row.get("discount_amount")), _money(row.get("amount")),
+        ]
+        return " ".join(clip(value, width).ljust(width) for value, width in zip(values, widths))
+
+    header = " ".join(name.ljust(width) for name, width in zip(headings, widths))
+    # Landscape A4 at 8pt comfortably holds 150 monospaced characters.
+    page_capacity = 40
+    chunks = [rows[index:index + page_capacity] for index in range(0, len(rows), page_capacity)] or [[]]
+    pages: list[list[str]] = []
+    for page_index, chunk in enumerate(chunks):
+        lines = ["Sales Report", f"Financial Year: {financial_year}", f"Filters: {filter_summary}", "", header, "-" * len(header)]
+        lines.extend(report_row(row) for row in chunk)
+        if page_index == len(chunks) - 1:
+            lines.extend([
+                "",
+                "Totals: " + " | ".join([
+                    f"Bills: {summary.get('total_bills', 0)}",
+                    f"Items: {summary.get('total_lines', 0)}",
+                    f"Qty: {summary.get('total_qty', 0):g}",
+                    f"Gross: {summary.get('total_gross', 0):,.2f}",
+                    f"Discount: {summary.get('total_discount', 0):,.2f}",
+                    f"Net: {summary.get('total_net', 0):,.2f}",
+                ]),
+                "Printed from stored application data. No transaction data was changed.",
+            ])
+        pages.append(lines)
+    try:
+        path.write_bytes(_landscape_pdf_bytes(pages, "Sales Report"))
+    except OSError as exc:
+        raise DocumentPrintError(f"Could not create PDF at {path}: {exc}") from exc
+    return str(path)
+
+
+def _landscape_pdf_bytes(pages: list[list[str]], title: str) -> bytes:
+    """Minimal landscape A4 writer used for report tables (842 × 595 points)."""
+    objects: list[bytes] = [b"<< /Type /Catalog /Pages 2 0 R >>", b"", b"<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>"]
+    page_ids = []
+    for page_index, lines in enumerate(pages, 1):
+        page_id = len(objects) + 1
+        content_id = page_id + 1
+        page_ids.append(page_id)
+        commands = ["BT", "/F1 8 Tf", "28 567 Td"]
+        for line in lines:
+            commands.append(f"({_escape(line[:155])}) Tj")
+            commands.append("0 -12 Td")
+        commands.extend(["0 -12 Td", f"(Page {page_index} of {len(pages)}) Tj", "ET"])
+        stream = "\n".join(commands).encode("latin-1", "replace")
+        objects.append(
+            f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] "
+            f"/Resources << /Font << /F1 3 0 R >> >> /Contents {content_id} 0 R >>".encode()
+        )
+        objects.append(b"<< /Length " + str(len(stream)).encode() + b" >>\nstream\n" + stream + b"\nendstream")
+    kids = " ".join(f"{page_id} 0 R" for page_id in page_ids)
+    objects[1] = f"<< /Type /Pages /Kids [{kids}] /Count {len(pages)} >>".encode()
+    output = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
+    offsets = [0]
+    for number, obj in enumerate(objects, 1):
+        offsets.append(len(output)); output.extend(f"{number} 0 obj\n".encode()); output.extend(obj); output.extend(b"\nendobj\n")
+    xref = len(output); output.extend(f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n".encode())
+    for offset in offsets[1:]: output.extend(f"{offset:010d} 00000 n \n".encode())
+    output.extend(f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode())
+    return bytes(output)
+
+
 def generate_pharmacy_a6_bill(invoice_id: int, output_path: str | os.PathLike[str] | None = None, title: str = "Sales Bill") -> str:
     """Write a sales/counter-sale receipt on true A6 paper (105 x 148 mm).
 
@@ -313,7 +405,7 @@ def print_pdf(path: str | os.PathLike[str], parent=None) -> bool:
 
 
 __all__ = [
-    "DocumentPrintError", "generate_document", "generate_sales_bill", "generate_counter_sale_bill",
+    "DocumentPrintError", "generate_document", "generate_sales_report_pdf", "generate_sales_bill", "generate_counter_sale_bill",
     "generate_purchase_invoice", "generate_credit_note", "generate_debit_note",
     "generate_customer_receipt", "generate_supplier_payment", "preview_document", "print_pdf",
     "generate_pharmacy_a6_bill", "print_pharmacy_a6_bill", "preview_pharmacy_a6_bill", "a6_profile",
