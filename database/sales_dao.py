@@ -39,6 +39,26 @@ class SalesDAO:
         finally:
             conn.close()
 
+    @staticmethod
+    def bill_no_exists(bill_no: str) -> bool:
+        """True when *bill_no* is already used by a saved invoice.
+
+        Read-only helper for the Counter Sale multi-bill flow: an in-memory
+        provisional preview is validated against this before commit, so a
+        stale preview can never collide with a permanent number.
+        """
+        if not (bill_no or "").strip():
+            return False
+        conn = get_connection()
+        try:
+            cur = conn.execute(
+                "SELECT 1 FROM sales_invoices WHERE bill_no = ? LIMIT 1",
+                ((bill_no or "").strip(),),
+            )
+            return cur.fetchone() is not None
+        finally:
+            conn.close()
+
     # ------------------------------------------------------------------
     # Invoice CRUD
     # ------------------------------------------------------------------

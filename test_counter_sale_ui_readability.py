@@ -418,10 +418,13 @@ class CounterSaleUITests(unittest.TestCase):
 
     # -- 9. Right bill panel ------------------------------------------
     def test_20_right_panel_labels_readable(self):
-        """Right bill panel captions/values must be 12-13 px black/bold.
+        """Right bill panel text must be 12-13 px black/bold.
 
-        The dim "Paper: A6 (105 x 148 mm)" note is a deliberate exception —
-        it is secondary information, not data.
+        The Current Bill box was removed, so per-bill CNo/name/total now
+        live on the Open Bills cards (buttons, checked in test_21); any
+        remaining labels are held to the same readability bar.  The dim
+        "Paper: A6 (105 x 148 mm)" note is a deliberate exception — it
+        is secondary information, not data.
         """
         from PySide6.QtWidgets import QLabel
         panel = self.page.findChild(type(self.totals), "BillPanel")
@@ -441,7 +444,18 @@ class CounterSaleUITests(unittest.TestCase):
                                  f"right panel label '{lbl.text()}' too large: {size}px")
             self.assertIn("font-weight: bold", ss,
                           f"right panel label '{lbl.text()}' must be bold")
-        self.assertGreaterEqual(checked, 6, "right panel captions not found")
+        # Bill data now lives on the Open Bills cards: at least one card
+        # with a readable CNo line must be present.
+        cards = [b for b in panel.findChildren(QPushButton)
+                 if b.objectName() == "OpenBillCard"]
+        self.assertGreaterEqual(len(cards), 1, "open-bill cards not found")
+        for card in cards:
+            size = _font_size(card.styleSheet())
+            self.assertIsNotNone(size, "open-bill card lost its font size")
+            self.assertGreaterEqual(size, 12,
+                                    "open-bill card text too small")
+            self.assertLessEqual(size, 13,
+                                 "open-bill card text too large")
 
     def test_21_right_panel_buttons_readable(self):
         """Right bill panel buttons must be 12 px and bold."""
