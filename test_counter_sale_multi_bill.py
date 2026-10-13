@@ -809,5 +809,52 @@ class TestCombinedSummary(MultiBillBase):
 
 
 
+@unittest.skipUnless(HAS_PYSIDE6, _PYSIDE_SKIP_REASON)
+class TestOpenBillsLayout(MultiBillBase):
+    """Right-side Open Bills geometry: tight top, anchored Close, scrolling list."""
+
+    def _cards(self, page):
+        widgets = []
+        layout = page._open_bills_layout
+        for i in range(layout.count()):
+            w = layout.itemAt(i).widget()
+            if w is not None:
+                widgets.append(w)
+        return widgets
+
+    def test_24_first_card_sits_directly_below_heading(self):
+        page = self._make_page()
+        page._on_add_bill()
+        self._pump()
+        grp = page._open_bills_group
+        gy = grp.mapTo(page, grp.rect().topLeft()).y()
+        cards = self._cards(page)
+        self.assertGreaterEqual(len(cards), 2)
+        top = min(c.mapTo(page, c.rect().topLeft()).y() for c in cards)
+        self.assertLessEqual(top - gy, 34,
+                             f"first card starts {top - gy}px below the heading")
+
+    def test_25_close_bill_anchored_in_section_bottom(self):
+        page = self._make_page()
+        page._on_add_bill()
+        self._pump()
+        btn = page._close_bill_btn
+        grp = page._open_bills_group
+        self.assertIs(btn.parent(), grp,
+                      "Close Bill must live in the Open Bills section")
+        self.assertLessEqual(btn.y() + btn.height(), grp.height() + 1,
+                             "Close Bill must not overflow the section")
+
+    def test_26_list_scrolls_with_many_bills(self):
+        page = self._make_page()
+        for _ in range(6):
+            page._on_add_bill()
+        self._pump()
+        sb = page._open_bills_scroll.verticalScrollBar()
+        self.assertGreater(sb.maximum(), 0,
+                           "bill list must scroll when many bills are open")
+        self.assertEqual(len(self._cards(page)), 7)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

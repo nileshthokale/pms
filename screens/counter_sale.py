@@ -5363,8 +5363,9 @@ class CounterSalePage(QWidget):
         )
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(10)
+        layout.setSpacing(8)
 
+        # Bill actions group
         actions = QGroupBox("Bill")
         self._bill_actions_group = actions
         actions.setStyleSheet(_GROUP_BOX)
@@ -5392,6 +5393,7 @@ class CounterSalePage(QWidget):
         al.addWidget(paper_label)
         layout.addWidget(actions)
 
+        # + Add Bill button near the top, immediately above Open Bills section
         self._add_bill_btn = QPushButton("+ Add Bill")
         self._add_bill_btn.setStyleSheet(_BTN_SAVE)
         self._add_bill_btn.setFixedHeight(_ACTION_BUTTON_HEIGHT)
@@ -5399,19 +5401,22 @@ class CounterSalePage(QWidget):
         self._add_bill_btn.clicked.connect(self._on_add_bill)
         layout.addWidget(self._add_bill_btn)
 
+        # Open Bills section - expands to use available space
         self._open_bills_group = QGroupBox("Open Bills")
         self._open_bills_group.setStyleSheet(_GROUP_BOX)
         open_bills = self._open_bills_group
         open_layout = QVBoxLayout(open_bills)
-        open_layout.setContentsMargins(6, 18, 6, 6)
+        # Tight top margin so the first card sits directly below the
+        # heading (the group-box frame already reserves title space).
+        open_layout.setContentsMargins(6, 6, 6, 6)
+        open_layout.setSpacing(4)
+
         self._open_bills_scroll = QScrollArea()
         self._open_bills_scroll.setWidgetResizable(True)
         self._open_bills_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self._open_bills_scroll.setMaximumHeight(215)
-        # Theme-safe viewport: without an explicit background the scroll
-        # area shows the backing store (black rectangle) after a Day/Night
-        # switch.  The host widget is transparent so cards define their own
-        # surfaces.
+        # REMOVED: setMaximumHeight(215) - was preventing cards from using available space
+        self._open_bills_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        # Theme-safe viewport
         try:
             _p_live = palette()
             self._open_bills_scroll.setStyleSheet(
@@ -5429,19 +5434,20 @@ class CounterSalePage(QWidget):
         self._open_bills_layout.setContentsMargins(0, 0, 0, 0)
         self._open_bills_layout.setSpacing(4)
         self._open_bills_scroll.setWidget(self._open_bills_host)
-        open_layout.addWidget(self._open_bills_scroll)
-        # Safe per-draft close: confirmed when the active draft holds items.
+        # Scroll area expands to fill the group box
+        open_layout.addWidget(self._open_bills_scroll, 1)
+
+        # Close Bill anchored at the bottom of the Open Bills section,
+        # inside the group so it stays visually attached to the bill list
+        # with the same group margins and spacing.
         self._close_bill_btn = QPushButton("Close Bill")
         self._close_bill_btn.setStyleSheet(_BTN_SECONDARY)
         self._close_bill_btn.setFixedHeight(_ACTION_BUTTON_HEIGHT)
         self._close_bill_btn.setToolTip("Discard the selected open bill (confirmed when it has items)")
         self._close_bill_btn.clicked.connect(self._cancel_active_open_bill)
         open_layout.addWidget(self._close_bill_btn)
-        layout.addWidget(open_bills)
 
-        # The list owns the freed right-panel height: no trailing stretch
-        # and no blank panels below it.
-        layout.addWidget(open_bills, 1)
+        layout.addWidget(open_bills, 1)  # Open Bills group expands to fill panel
 
         # Live display only -- no logic attached.  The Open Bills cards and
         # the footer All-Bills summary refresh on every totals change.
