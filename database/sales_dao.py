@@ -14,33 +14,64 @@ class SalesDAO:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def generate_next_bill_no() -> str:
-        conn = get_connection()
+    def generate_next_bill_no(cur: sqlite3.Cursor | None = None) -> str:
+        should_close = False
+        if cur is None:
+            conn = get_connection()
+            cur = conn.cursor()
+            should_close = True
         try:
-            cur = conn.execute(
-                "SELECT bill_no FROM sales_invoices ORDER BY id DESC LIMIT 1"
+            cur.execute(
+                "SELECT bill_no FROM sales_invoices ORDER BY id DESC LIMIT 50"
             )
-            row = cur.fetchone()
-            if row is None:
+            rows = cur.fetchall()
+            if not rows:
                 return "CS-0001"
-            last = row["bill_no"]
-            idx = last.rfind("-")
-            if idx >= 0:
-                prefix = last[: idx + 1]
-                num_part = last[idx + 1:]
-            else:
-                prefix = "CS-"
-                num_part = last
-            try:
-                num = int(num_part) + 1
-            except ValueError:
-                num = 1
-            return f"{prefix}{num:04d}"
+            prefix = "CS-"
+            num = None
+            width = 4
+            for r in rows:
+                last = r["bill_no"] or ""
+                idx = last.rfind("-")
+                if idx >= 0:
+                    cand_prefix = last[: idx + 1]
+                    num_part = last[idx + 1 :]
+                    if num_part.isdigit():
+                        prefix = cand_prefix
+                        num = int(num_part)
+                        width = max(4, len(num_part))
+                        break
+            if num is None:
+                last = rows[0]["bill_no"] or ""
+                idx = last.rfind("-")
+                if idx >= 0:
+                    prefix = last[: idx + 1]
+                    num_part = last[idx + 1 :]
+                else:
+                    prefix = "CS-"
+                    num_part = last
+                try:
+                    num = int(num_part)
+                    width = max(4, len(num_part))
+                except ValueError:
+                    num = 0
+                    width = 4
+            next_num = num + 1
+            candidate = f"{prefix}{next_num:0{width}d}"
+            cur.execute("SELECT 1 FROM sales_invoices WHERE bill_no = ? LIMIT 1", (candidate,))
+            guard = 0
+            while cur.fetchone() is not None and guard < 10000:
+                next_num += 1
+                candidate = f"{prefix}{next_num:0{width}d}"
+                cur.execute("SELECT 1 FROM sales_invoices WHERE bill_no = ? LIMIT 1", (candidate,))
+                guard += 1
+            return candidate
         finally:
-            conn.close()
+            if should_close:
+                cur.connection.close()
 
     @staticmethod
-    def bill_no_exists(bill_no: str) -> bool:
+    def bill_no_exists(bill_no: str, cur: sqlite3.Cursor | None = None) -> bool:
         """True when *bill_no* is already used by a saved invoice.
 
         Read-only helper for the Counter Sale multi-bill flow: an in-memory
@@ -49,15 +80,20 @@ class SalesDAO:
         """
         if not (bill_no or "").strip():
             return False
-        conn = get_connection()
+        should_close = False
+        if cur is None:
+            conn = get_connection()
+            cur = conn.cursor()
+            should_close = True
         try:
-            cur = conn.execute(
+            cur.execute(
                 "SELECT 1 FROM sales_invoices WHERE bill_no = ? LIMIT 1",
                 ((bill_no or "").strip(),),
             )
             return cur.fetchone() is not None
         finally:
-            conn.close()
+            if should_close:
+                cur.connection.close()
 
     # ------------------------------------------------------------------
     # Invoice CRUD
@@ -284,7 +320,17 @@ class SalesDAO:
         conn = get_connection()
         try:
             cur = conn.cursor()
-            cur.execute("BEGIN")
+            cur.execute("BEGIN IMMEDIATE")
+
+            # Transactional uniqueness check: if bill_no already exists,
+            # advance to the next sequential free bill_no within this transaction.
+            guard = 0
+            while guard < 10000:
+                cur.execute("SELECT 1 FROM sales_invoices WHERE bill_no = ? LIMIT 1", (bill_no,))
+                if cur.fetchone() is None:
+                    break
+                bill_no = SalesDAO.generate_next_bill_no(cur=cur)
+                guard += 1
 
             # Insert invoice header
             cur.execute(
@@ -635,5 +681,110 @@ class SalesDAO:
             )
             row = cur.fetchone()
             return dict(row) if row else None
+        finally:
+            conn.close()
+
+    @staticmethod
+    def search_sales_history(
+        *,
+        patient_name: str = "",
+        customer_name: str = "",
+        customer_id: int | None = None,
+        bill_no: str = "",
+        start_date: str = "",
+        end_date: str = "",
+        doctor_id: int | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[dict], int]:
+        """Search sales history across financial years with pagination.
+
+        Returns (rows, total_count).
+        """
+        conn = get_connection()
+        try:
+            clauses: list[str] = []
+            params: list = []
+            if patient_name and patient_name.strip():
+                clauses.append("si.patient_name LIKE ?")
+                params.append(f"%{patient_name.strip()}%")
+            if customer_id is not None:
+                clauses.append("si.customer_id = ?")
+                params.append(customer_id)
+            elif customer_name and customer_name.strip():
+                clauses.append("c.customer_name LIKE ?")
+                params.append(f"%{customer_name.strip()}%")
+            if bill_no and bill_no.strip():
+                clauses.append("si.bill_no LIKE ?")
+                params.append(f"%{bill_no.strip()}%")
+            if start_date and start_date.strip():
+                clauses.append("si.sale_date >= ?")
+                params.append(start_date.strip())
+            if end_date and end_date.strip():
+                clauses.append("si.sale_date <= ?")
+                params.append(end_date.strip())
+            if doctor_id is not None:
+                clauses.append("si.doctor_id = ?")
+                params.append(doctor_id)
+
+            where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+
+            count_cur = conn.execute(
+                f"""
+                SELECT COUNT(*)
+                FROM sales_invoices si
+                LEFT JOIN customers c ON c.id = si.customer_id
+                {where}
+                """,
+                params,
+            )
+            total_count = count_cur.fetchone()[0]
+
+            cur = conn.execute(
+                f"""
+                SELECT si.id, si.bill_no, si.sale_date, si.sale_time, si.sale_type,
+                       si.customer_id, c.customer_name, si.patient_name,
+                       si.doctor_id, d.doctor_name,
+                       si.total_amount, si.discount, si.paid_amount,
+                       si.round_off, si.net_amount, si.remarks
+                FROM sales_invoices si
+                LEFT JOIN customers c ON c.id = si.customer_id
+                LEFT JOIN doctors d ON d.id = si.doctor_id
+                {where}
+                ORDER BY si.sale_date DESC, si.id DESC
+                LIMIT ? OFFSET ?
+                """,
+                (*params, limit, offset),
+            )
+            rows = [dict(r) for r in cur.fetchall()]
+            return rows, total_count
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_distinct_patient_names(search: str = "", limit: int = 50) -> list[str]:
+        """Return distinct non-empty patient names for compact autocomplete."""
+        conn = get_connection()
+        try:
+            if search and search.strip():
+                cur = conn.execute(
+                    """
+                    SELECT DISTINCT patient_name FROM sales_invoices
+                    WHERE patient_name IS NOT NULL AND patient_name != ''
+                      AND patient_name LIKE ?
+                    ORDER BY patient_name LIMIT ?
+                    """,
+                    (f"%{search.strip()}%", limit),
+                )
+            else:
+                cur = conn.execute(
+                    """
+                    SELECT DISTINCT patient_name FROM sales_invoices
+                    WHERE patient_name IS NOT NULL AND patient_name != ''
+                    ORDER BY patient_name LIMIT ?
+                    """,
+                    (limit,),
+                )
+            return [r[0] for r in cur.fetchall() if r[0]]
         finally:
             conn.close()
