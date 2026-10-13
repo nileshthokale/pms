@@ -14,6 +14,36 @@ class SalesDAO:
     # ------------------------------------------------------------------
 
     @staticmethod
+    def display_bill_no(bill_no: str, active_fy_name: str | None = None) -> str:
+        """Short display form for a stored bill number.
+
+        Bills belonging to the active financial year that use the
+        ``<FY>-<digits>`` convention (e.g. ``2026-2027-1910``) display as
+        the simple sequential number (``1910``).  Every other stored value
+        — older FY-prefixed bills, legacy ``Cash-`` imports, ``CS-`` bills
+        and plain numbers — is returned unchanged so different financial
+        years stay distinguishable.  Stored database values are never
+        altered here; this is display only.
+        """
+        text = (bill_no or "").strip()
+        if not text:
+            return text
+        if active_fy_name is None:
+            try:
+                from database import financial_year as _fy
+
+                _active = _fy.get_active_financial_year()
+                active_fy_name = (_active.get("name") if _active else "") or ""
+            except Exception:
+                active_fy_name = ""
+        active_fy_name = (active_fy_name or "").strip()
+        if active_fy_name and text.startswith(active_fy_name + "-"):
+            suffix = text[len(active_fy_name) + 1 :]
+            if suffix.isdigit():
+                return suffix
+        return text
+
+    @staticmethod
     def generate_next_bill_no(cur: sqlite3.Cursor | None = None) -> str:
         should_close = False
         if cur is None:
@@ -21,6 +51,69 @@ class SalesDAO:
             cur = conn.cursor()
             should_close = True
         try:
+            # New bills use the simple sequential number without the
+            # financial-year prefix (e.g. "1911" instead of
+            # "2026-2027-1911").  The sequence continues from the highest
+            # numeric suffix already used in the ACTIVE financial year plus
+            # any plain numbers already saved, so 2026-2027-1910 -> 1911.
+            # Historical rows are never rewritten; uniqueness is enforced by
+            # the UNIQUE(bill_no) constraint plus the guard loop below.
+            try:
+                from database import financial_year as _fy
+
+                _active = _fy.get_active_financial_year()
+                active_name = (_active.get("name") if _active else "") or ""
+            except Exception:
+                active_name = ""
+            active_name = (active_name or "").strip()
+            max_num: int | None = None
+            if active_name:
+                try:
+                    cur.execute(
+                        "SELECT bill_no FROM sales_invoices WHERE bill_no LIKE ?",
+                        (f"{active_name}-%",),
+                    )
+                    for r in cur.fetchall():
+                        last = r["bill_no"] or ""
+                        prefix = active_name + "-"
+                        if last.startswith(prefix):
+                            suffix = last[len(prefix) :]
+                            if suffix.isdigit():
+                                val = int(suffix)
+                                max_num = val if max_num is None else max(max_num, val)
+                except Exception:
+                    pass
+                try:
+                    cur.execute(
+                        "SELECT bill_no FROM sales_invoices "
+                        "WHERE bill_no NOT GLOB '*[^0-9]*' AND bill_no != ''"
+                    )
+                    for r in cur.fetchall():
+                        last = (r["bill_no"] or "").strip()
+                        if last.isdigit():
+                            val = int(last)
+                            max_num = val if max_num is None else max(max_num, val)
+                except Exception:
+                    pass
+                if max_num is not None:
+                    next_num = max_num + 1
+                    candidate = str(next_num)
+                    cur.execute(
+                        "SELECT 1 FROM sales_invoices WHERE bill_no = ? LIMIT 1",
+                        (candidate,),
+                    )
+                    guard = 0
+                    while cur.fetchone() is not None and guard < 10000:
+                        next_num += 1
+                        candidate = str(next_num)
+                        cur.execute(
+                            "SELECT 1 FROM sales_invoices WHERE bill_no = ? LIMIT 1",
+                            (candidate,),
+                        )
+                        guard += 1
+                    return candidate
+            # Fallback: legacy convention (CS-0001 style) for databases with
+            # no active-FY numeric history (fresh installs, isolated tests).
             cur.execute(
                 "SELECT bill_no FROM sales_invoices ORDER BY id DESC LIMIT 50"
             )
