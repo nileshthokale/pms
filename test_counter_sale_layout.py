@@ -170,7 +170,9 @@ class CounterSaleLayoutTests(unittest.TestCase):
         self.assertLessEqual(panel.width(), 300)
         titles = [g.title() for g in self.page.findChildren(QGroupBox)]
         self.assertIn("Bill", titles)
-        self.assertIn("Current Bill", titles)
+        self.assertIn("Open Bills", titles)
+        self.assertNotIn("Current Bill", titles,
+                         "Current Bill box was removed; its info lives on the bill cards")
         self.assertGreater(panel.x(), self.bill_table.x())
         self.assertIn("Edit", [b.text() for b in panel.findChildren(QPushButton)])
         self.assertIn("Delete", [b.text() for b in panel.findChildren(QPushButton)])
@@ -213,7 +215,11 @@ class CounterSaleLayoutTests(unittest.TestCase):
     def test_10_new_sale_resets_and_focuses_active_area(self):
         self.panel._item_rows.append(_make_row(1))
         self.panel._refresh_table()
-        self.page._on_new()
+        # Multi-bill safety: New Sale confirms before clearing a non-empty
+        # active draft (other open bills unchanged), so confirm here.
+        with mock.patch.object(QMessageBox, "question",
+                               return_value=QMessageBox.Yes):
+            self.page._on_new()
         QApplication.processEvents()
         self.assertEqual(self.bill_table.rowCount(), 0,
                          "New Sale must clear the current bill")

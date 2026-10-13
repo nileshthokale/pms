@@ -261,8 +261,8 @@ class CounterSaleChromeRenderingTests(_ThemeTestCase):
                 self.page._history_filter_bar, (0.30, 0.15, 0.55, 0.85)
             ),
             "bill_panel": (bill_panel, (0.005, 0.10, 0.035, 0.90)),
-            "current_bill_panel": (
-                self.page._current_bill_group, (0.10, 0.35, 0.90, 0.95)
+            "open_bills_panel": (
+                self.page._open_bills_group, (0.10, 0.35, 0.90, 0.95)
             ),
         }
 

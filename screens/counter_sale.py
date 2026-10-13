@@ -1578,7 +1578,7 @@ class _ItemEntryBar(QWidget):
         # CNo (counter / current bill number â€” display only)
         layout.addWidget(self._lbl("CNo"))
         self.cno_label = QLabel("--")
-        self.cno_label.setFixedWidth(109)
+        self.cno_label.setFixedWidth(110)
         self.cno_label.setAlignment(Qt.AlignCenter)
         self.cno_label.setStyleSheet(_LABEL_STYLE)
         self.cno_label.setFixedHeight(_ENTRY_BAR_HEIGHT - 8)
@@ -2156,14 +2156,18 @@ class _ItemEntryBar(QWidget):
     def set_cno(self, text: str):
         """Display the current counter/bill number (no logic attached).
 
-        The compact CNo box elides long values so the row stays within the
-        available width; the full value is always available in the tooltip.
+        Shows the provisional CNo preview (regular bill-number format)
+        or the saved CNo.  Long values elide with the full number in
+        the tooltip, so the row never overflows its slot.
         """
-        value = text or "--"
-        fm = QFontMetrics(self.cno_label.font())
-        elided = fm.elidedText(value, Qt.ElideRight, self.cno_label.width())
+        full = text or "--"
+        try:
+            fm = QFontMetrics(self.cno_label.font())
+            elided = fm.elidedText(full, Qt.ElideRight, max(40, self.cno_label.width()))
+        except Exception:
+            elided = full
         self.cno_label.setText(elided)
-        self.cno_label.setToolTip(value)
+        self.cno_label.setToolTip(full)
 
     def get_current_data(self) -> dict | None:
         item_index = self.item_combo.currentIndex()
@@ -2240,6 +2244,62 @@ class _ItemEntryBar(QWidget):
 
 
 # ======================================================================
+# Multiple-bill provisional numbering
+# ======================================================================
+# Each open bill shows a unique provisional CNo in the regular financial-
+# year bill-number format (e.g. CS-0007).  Provisionals live in memory
+# only: they never create invoice records and never consume permanent
+# numbers.  The stable internal draft id (an int) is kept separately and
+# is never shown in the billing UI.  At Save the provisional is validated
+# against the database; a conflicting preview is replaced by the next
+# free number, so sequential saves can never share one permanent CNo.
+
+
+def _increment_bill_no(bill_no: str) -> str:
+    """Next bill number after *bill_no*, same prefix/width convention."""
+    text = (bill_no or '').strip() or 'CS-0000'
+    idx = text.rfind('-')
+    if idx >= 0:
+        prefix, num_part = text[:idx + 1], text[idx + 1:]
+    else:
+        prefix, num_part = 'CS-', text
+    try:
+        num = int(num_part) + 1
+    except ValueError:
+        num = 1
+    width = max(4, len(num_part) if num_part.isdigit() else 4)
+    return f"{prefix}{num:0{width}d}"
+
+
+def _resolve_bill_no_for_save(provisional: str) -> str:
+    """Permanent CNo to commit for a draft showing *provisional*.
+
+    The displayed preview is kept when it is still free; otherwise the
+    next free number from the existing sequence is used.  Read-only
+    checks only -- the invoice write itself stays atomic in SalesDAO.
+    """
+    candidate = (provisional or '').strip() or SalesDAO.generate_next_bill_no()
+    try:
+        guard = 0
+        while SalesDAO.bill_no_exists(candidate) and guard < 10000:
+            candidate = _increment_bill_no(candidate)
+            guard += 1
+    except Exception:
+        candidate = SalesDAO.generate_next_bill_no()
+    return candidate
+
+
+def _is_provisional_state(state: dict | None) -> bool:
+    """True when a stored draft snapshot still carries a provisional CNo."""
+    if not state:
+        return True
+    try:
+        return bool(state.get('provisional_bill_no', False))
+    except Exception:
+        return False
+
+
+# ======================================================================
 # Sale Dialog
 # ======================================================================
 
@@ -2293,6 +2353,10 @@ class _SalePanel(QWidget):
         # DAO's existing edit transaction restores old stock then applies the
         # replacement lines atomically on Save.
         self._original_batch_qty: dict[int, float] = {}
+        # Other open Counter Sale drafts reserve stock in memory as well.
+        # The page supplies this callback; it never writes stock.
+        self._other_draft_reserved_qty = lambda _batch_id: 0.0
+        self._provisional_bill_no = False
         # Contact number / address of each loaded customer, used by the
         # popup's read-only Cnt No and Address fields.
         self._customer_contacts: dict[int, str] = {}
@@ -2438,11 +2502,37 @@ class _SalePanel(QWidget):
         return reserved_quantity(
             self._draft_qty_for_batch(batch_id),
             self._original_batch_qty.get(batch_id, 0.0),
-        )
+        ) + max(0.0, float(self._other_draft_reserved_qty(batch_id) or 0.0))
 
     def _available_for_batch(self, batch_id: int, stored_stock: float) -> float:
-        return available_quantity(stored_stock, self._draft_qty_for_batch(batch_id),
-                                  self._original_batch_qty.get(batch_id, 0.0))
+        own_reserved = reserved_quantity(
+            self._draft_qty_for_batch(batch_id),
+            self._original_batch_qty.get(batch_id, 0.0),
+        )
+        return max(0.0, float(stored_stock or 0.0) - own_reserved - max(
+            0.0, float(self._other_draft_reserved_qty(batch_id) or 0.0)
+        ))
+
+    def set_other_draft_reservation_provider(self, provider) -> None:
+        """Set ``provider(batch_id)`` for quantities in *other* open drafts."""
+        self._other_draft_reserved_qty = provider or (lambda _batch_id: 0.0)
+        self._refresh_draft_availability()
+
+    def set_provisional_bill_no(self, preview: str) -> None:
+        """Display an in-memory provisional CNo preview.
+
+        The preview uses the regular bill-number format but reserves
+        nothing: no invoice record is written and the permanent
+        sequence is untouched until Save (see
+        :func:`_resolve_bill_no_for_save`).
+        """
+        self._provisional_bill_no = True
+        self.bill_no_edit.setText(preview)
+        try:
+            self.bill_no_edit.setToolTip(preview)
+        except Exception:
+            pass
+        self._entry_bar.set_cno(preview)
 
     def _refresh_draft_availability(self):
         self._entry_bar.refresh_draft_availability()
@@ -2571,7 +2661,13 @@ class _SalePanel(QWidget):
             f"color: {_TEXT}; font-size: {TYPE_VALUE}px; font-weight: bold;"
             f"background: transparent; font-family: {FONT_FAMILY};"
         )
-        self.voucher_no_label.setMinimumWidth(120)
+        # Draft previews ("Draft 12 -- Assigned on Save") need room: 230 px
+        # keeps the full identifier readable; tooltip carries it as well.
+        self.voucher_no_label.setMinimumWidth(230)
+        try:
+            self.voucher_no_label.setToolTip(self.bill_no_edit.text() or "--")
+        except Exception:
+            pass
         voucher_layout.addWidget(self.voucher_no_label)
         header_row.addLayout(voucher_layout)
 
@@ -2699,6 +2795,10 @@ class _SalePanel(QWidget):
         """Keep the header row labels in sync with the editable fields."""
         if hasattr(self, 'voucher_no_label'):
             self.voucher_no_label.setText(self.bill_no_edit.text() or "--")
+            try:
+                self.voucher_no_label.setToolTip(self.bill_no_edit.text() or "--")
+            except Exception:
+                pass
         if hasattr(self, 'header_date_label'):
             self.header_date_label.setText(self.sale_date.date().toString("dd-MM-yyyy"))
         if hasattr(self, 'header_time_label'):
@@ -2941,10 +3041,18 @@ class _SalePanel(QWidget):
         row1.addWidget(self._compact_lbl("Bill No"))
         self.bill_no_edit = _make_compact_edit(height=_METADATA_CONTROL_HEIGHT)
         self.bill_no_edit.setReadOnly(True)
-        # Full FY bill numbers (e.g. "2026-2027-Cash-0015") must read in full.
-        self.bill_no_edit.setFixedWidth(220)
+        # Full FY bill numbers (e.g. "2026-2027-Cash-0015") and draft labels
+        # ("Draft 12 — Assigned on Save") must read in full: a minimum width
+        # (not fixed) lets the field grow with the row, and the tooltip always
+        # carries the complete identifier.
+        self.bill_no_edit.setMinimumWidth(250)
         self.bill_no_edit.setAlignment(Qt.AlignCenter)
-        row1.addWidget(self.bill_no_edit)
+        self.bill_no_edit.setToolTip(self.bill_no_edit.text())
+        try:
+            self.bill_no_edit.textChanged.connect(self.bill_no_edit.setToolTip)
+        except Exception:
+            pass
+        row1.addWidget(self.bill_no_edit, 1)
 
         row1.addWidget(self._compact_lbl("Date"))
         self.sale_date = _make_compact_date()
@@ -3014,6 +3122,7 @@ class _SalePanel(QWidget):
 
     def _set_bill_no(self):
         if not self._invoice:
+            self._provisional_bill_no = False
             self.bill_no_edit.setText(SalesDAO.generate_next_bill_no())
 
     def _set_current_datetime(self):
@@ -3281,7 +3390,7 @@ class _SalePanel(QWidget):
         )
         layout = QHBoxLayout(self._totals_widget)
         layout.setContentsMargins(12, 2, 12, 2)
-        layout.setSpacing(14)
+        layout.setSpacing(10)
 
         if self._popup_mode:
             # Discount / Paid Amount live in the popup's top strip, so the
@@ -3315,21 +3424,52 @@ class _SalePanel(QWidget):
         # -- Actions (one set only: the sale area owns Save/Hold/Cancel) --
         layout.addStretch()
 
+        # -- All Open Bills summary (UI-only combined totals) --
+        # Compact two-line block in the stretch zone: bill count + total
+        # quantity on top, combined amount + net below.  Read-only labels;
+        # never written to any invoice or accounting table.
+        self._combined_box = QWidget()
+        self._combined_box.setObjectName("CombinedSummary")
+        self._combined_box.setStyleSheet(
+            f"#CombinedSummary {{ background: transparent;"
+            f"  border-left: 1px solid {_BORDER}; }}"
+        )
+        combined_layout = QVBoxLayout(self._combined_box)
+        combined_layout.setContentsMargins(8, 0, 0, 0)
+        combined_layout.setSpacing(0)
+        self._combined_line1 = QLabel("All Bills (1)")
+        self._combined_line1.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        self._combined_line1.setFixedWidth(172)
+        self._combined_line1.setStyleSheet(
+            f"color: {_TEXT}; font-size: {TYPE_HINT}px; font-weight: bold;"
+            f"font-family: {FONT_FAMILY}; background: transparent;"
+        )
+        self._combined_line2 = QLabel("Qty 0   Amt 0.00   Net 0.00")
+        self._combined_line2.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        self._combined_line2.setFixedWidth(172)
+        self._combined_line2.setStyleSheet(
+            f"color: {_TEXT}; font-size: {TYPE_FORM_LABEL}px; font-weight: bold;"
+            f"font-family: {FONT_FAMILY}; background: transparent;"
+        )
+        combined_layout.addWidget(self._combined_line1)
+        combined_layout.addWidget(self._combined_line2)
+        layout.addWidget(self._combined_box)
+
         hold_btn = QPushButton("Hold Bill")
         hold_btn.setStyleSheet(_BTN_ORANGE)
-        hold_btn.setFixedSize(96, _ACTION_BUTTON_HEIGHT)
+        hold_btn.setFixedSize(88, _ACTION_BUTTON_HEIGHT)
         hold_btn.clicked.connect(self._on_hold)
         layout.addWidget(hold_btn)
 
         save_btn = QPushButton("Save Sale")
         save_btn.setStyleSheet(_BTN_SAVE)
-        save_btn.setFixedSize(104, _ACTION_BUTTON_HEIGHT)
+        save_btn.setFixedSize(96, _ACTION_BUTTON_HEIGHT)
         save_btn.clicked.connect(self._on_save)
         layout.addWidget(save_btn)
 
         cancel_btn = QPushButton("Cancel")
         cancel_btn.setStyleSheet(_BTN_SECONDARY)
-        cancel_btn.setFixedSize(86, _ACTION_BUTTON_HEIGHT)
+        cancel_btn.setFixedSize(78, _ACTION_BUTTON_HEIGHT)
         cancel_btn.clicked.connect(self.cancelled.emit)
         layout.addWidget(cancel_btn)
 
@@ -3370,6 +3510,30 @@ class _SalePanel(QWidget):
                 edit.setReadOnly(True)
 
         layout.addLayout(container)
+
+    def set_combined_totals(self, count: int, qty: float,
+                              amount: float, net: float) -> None:
+        """Show the UI-only All-Open-Bills summary (popup has none)."""
+        if getattr(self, "_popup_mode", False):
+            return
+        line1 = getattr(self, "_combined_line1", None)
+        line2 = getattr(self, "_combined_line2", None)
+        if line1 is None or line2 is None:
+            return
+        try:
+            qty_text = f"{qty:.0f}" if float(qty).is_integer() else f"{qty}"
+        except Exception:
+            qty_text = str(qty)
+        bill_word = "bill" if int(count) == 1 else "bills"
+        line1.setText(f"All Bills ({int(count)} {bill_word}) • Qty {qty_text}")
+        line2.setText(f"Amt ₹{float(amount):.2f} • Net ₹{float(net):.2f}")
+        try:
+            tip = (f"{int(count)} open {bill_word} — total qty {qty_text}, "
+                   f"combined amount {float(amount):.2f}, net {float(net):.2f}")
+            line1.setToolTip(tip)
+            line2.setToolTip(tip)
+        except Exception:
+            pass
 
     def _recalc_totals(self):
         total = sum(r.amount for r in self._item_rows)
@@ -3455,6 +3619,28 @@ class _SalePanel(QWidget):
             if hasattr(self, "_totals_widget"):
                 self._totals_widget.setStyleSheet(
                     f"background-color: {p['surface']}; border-top: 1px solid {p['border']};"
+                )
+        except Exception:
+            pass
+        # All-Open-Bills summary block (border + two label lines).
+        try:
+            box = getattr(self, "_combined_box", None)
+            if box is not None:
+                box.setStyleSheet(
+                    f"#CombinedSummary {{ background: transparent;"
+                    f"  border-left: 1px solid {p['border']}; }}"
+                )
+            line1 = getattr(self, "_combined_line1", None)
+            if line1 is not None:
+                line1.setStyleSheet(
+                    f"color: {p['text']}; font-size: {TYPE_HINT}px; font-weight: bold;"
+                    f"font-family: {FONT_FAMILY}; background: transparent;"
+                )
+            line2 = getattr(self, "_combined_line2", None)
+            if line2 is not None:
+                line2.setStyleSheet(
+                    f"color: {p['text']}; font-size: {TYPE_FORM_LABEL}px; font-weight: bold;"
+                    f"font-family: {FONT_FAMILY}; background: transparent;"
                 )
         except Exception:
             pass
@@ -3616,13 +3802,23 @@ class _SalePanel(QWidget):
             draft_quantity = self._draft_qty_for_batch(batch_id)
             original_quantity = self._original_batch_qty.get(batch_id, 0.0)
             stored_quantity = float(batch.get("stock_qty", 0.0) or 0.0)
-            if draft_quantity > stored_quantity + original_quantity:
+            # Multi-bill safety: unsaved quantities in *other* open drafts
+            # reserve the same stored stock, so the commit-time check must
+            # include them.  `own_reserved` already nets the edit allowance;
+            # `other_reserved` is the in-memory reservation from sibling
+            # drafts (never persisted, never double-deducted).
+            other_reserved = max(
+                0.0, float(self._other_draft_reserved_qty(batch_id) or 0.0)
+            )
+            own_reserved = reserved_quantity(draft_quantity, original_quantity)
+            if own_reserved + other_reserved > stored_quantity + 1e-9:
                 available = self._available_for_batch(batch_id, stored_quantity)
                 row = next(r for r in self._item_rows if r.stock_batch_id == batch_id)
                 self._focus_batch_for_row(row)
                 QMessageBox.warning(
                     self, "Insufficient Stock",
-                    f"Only {available:.0f} units are available for this batch."
+                    f"Only {available:.0f} units are available for this batch "
+                    f"(other open bills reserve {other_reserved:.0f})."
                 )
                 return False
         return True
@@ -3760,7 +3956,14 @@ class _SalePanel(QWidget):
             patient_name = self.patient_name_edit.text().strip()
             cid = self.customer_combo.currentData()
             did = self.doctor_combo.currentData()
-            bill_no = self.bill_no_edit.text().strip()
+            # Provisional previews never reserve a database number.  Keep the
+            # displayed preview when it is still free; otherwise take the next
+            # free number, so sequential open drafts can never share one
+            # permanent CNo even if a preview went stale.
+            displayed = self.bill_no_edit.text().strip()
+            bill_no = (_resolve_bill_no_for_save(displayed)
+                       if self._provisional_bill_no and not self._invoice
+                       else displayed)
             remarks = self._remarks_text()
             items_data = [r.to_dict() for r in self._item_rows]
 
@@ -3788,6 +3991,7 @@ class _SalePanel(QWidget):
                     items=items_data,
                 )
             self._saved = True
+            self._provisional_bill_no = False
             self.saved.emit()
         except Exception as e:
             self._commit_locked = False
@@ -3805,6 +4009,7 @@ class _SalePanel(QWidget):
         """
         return {
             "bill_no": self.bill_no_edit.text(),
+            "provisional_bill_no": self._provisional_bill_no,
             "sale_date": self.sale_date.date(),
             "sale_time": self.sale_time_edit.text(),
             "sale_type": self.sale_type_combo.currentText(),
@@ -3838,6 +4043,13 @@ class _SalePanel(QWidget):
         """Adopt a draft snapshot (used by the review popup to load the bill)."""
         self._invoice = state.get("invoice")
         self._hold_bill_id = state.get("hold_bill_id")
+        # A newly loaded workspace is committable: clear the previous
+        # double-submit lock and saved/held flags so sequential multi-bill
+        # saves cannot be swallowed by the prior bill's lock.
+        self._commit_locked = False
+        self._saved = False
+        self._held = False
+        self._provisional_bill_no = bool(state.get("provisional_bill_no", False))
         self.bill_no_edit.setText(state.get("bill_no", ""))
 
         date_value = state.get("sale_date")
@@ -4159,6 +4371,11 @@ class SalesBillReviewDialog(QDialog):
         self._panel = _SalePanel(body, popup_mode=True)
         self._panel._in_review_popup = True
         self._panel.load_draft_state(panel.draft_state())
+        # A review copy must honour reservations made by the other open
+        # Counter Sale drafts just like the inline panel does.
+        self._panel.set_other_draft_reservation_provider(
+            panel._other_draft_reserved_qty
+        )
 
         body_layout.addWidget(self._panel, 1)
         root.addWidget(body, 1)
@@ -4671,6 +4888,71 @@ _HISTORY_STRETCH_COLUMN = {
 _HISTORY_FILTER_BAR_HEIGHT = 30
 
 
+class _OpenBillCard(QPushButton):
+    """Four-line open-bill selector with a guaranteed readable height.
+
+    A plain ``QPushButton`` reports a multi-line ``sizeHint`` that is too
+    short for its own text (about 74 px for four 11 px lines), so a layout
+    shrinks the card to that hint and the last two lines clip or paint
+    over the next card.  Pinning the hints to the measured four-line
+    height keeps every line inside its own card even if an explicit
+    fixed height is later cleared by style changes.
+    """
+
+    CARD_HEIGHT = 80
+
+    def sizeHint(self):  # noqa: N802 (Qt override)
+        hint = super().sizeHint()
+        return QSize(max(hint.width(), 180), self.CARD_HEIGHT)
+
+    def minimumSizeHint(self):  # noqa: N802 (Qt override)
+        hint = super().minimumSizeHint()
+        return QSize(max(hint.width(), 180), self.CARD_HEIGHT)
+
+    def pin_height(self) -> None:
+        """Lock this card to the readable compact height.
+
+        ``setText``/stylesheet/font updates reset the explicit minimum
+        height back to the style hint (~34 px), letting the scroll layout
+        compress the card and clip its last lines.  Clearing the explicit
+        minimum (max stays pinned) hands sizing back to the pinned size
+        hints above, which the layout cannot compress.
+        """
+        try:
+            self.setMaximumHeight(self.CARD_HEIGHT)
+        except Exception:
+            pass
+        try:
+            self.setMinimumSize(QSize(0, 0))
+        except Exception:
+            pass
+        try:
+            self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        except Exception:
+            pass
+
+    def changeEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        """Re-pin after deferred font/style changes.
+
+        Making the active card bold posts an async FontChange whose style
+        re-polish resets the explicit minimum height again (the inactive
+        cards keep their pin because their font never changes).  Re-pinning
+        here keeps every card at full height in both modes.
+        """
+        try:
+            super().changeEvent(event)
+        except Exception:
+            pass
+        try:
+            if event is not None and event.type() in (
+                QEvent.FontChange,
+                QEvent.StyleChange,
+            ):
+                self.pin_height()
+        except Exception:
+            pass
+
+
 class CounterSalePage(QWidget):
     """Counter Sale screen.
 
@@ -4735,6 +5017,14 @@ class CounterSalePage(QWidget):
         # Regions B + C: inline active sale area.  Only the bill table
         # inside the panel expands, so the entry region stays pinned.
         self._sale_panel = _SalePanel()
+        # Open bills are in-memory workspaces only.  Their snapshots never
+        # create invoices, reserve rows in the database, or alter stock.
+        self._open_bills: dict[int, dict] = {}
+        self._active_open_bill_id = 1
+        self._next_open_bill_id = 2
+        self._sale_panel.set_other_draft_reservation_provider(
+            self._reserved_by_other_open_bills
+        )
         self._sale_panel.saved.connect(self._on_sale_saved)
         self._sale_panel.held.connect(self._on_sale_held)
         self._sale_panel.cancelled.connect(self._on_sale_cancelled)
@@ -4743,6 +5033,12 @@ class CounterSalePage(QWidget):
         body.addLayout(left, 1)
         self._bill_panel = self._build_bill_panel()
         body.addWidget(self._bill_panel)
+
+        # The first workspace is an unassigned draft: it shows its stable
+        # draft label, never a proposed permanent number.
+        self._assign_new_provisional_bill_no()
+        self._open_bills[self._active_open_bill_id] = self._sale_panel.draft_state()
+        self._refresh_open_bill_cards()
 
         root.addLayout(body, 1)
 
@@ -5070,6 +5366,7 @@ class CounterSalePage(QWidget):
         layout.setSpacing(10)
 
         actions = QGroupBox("Bill")
+        self._bill_actions_group = actions
         actions.setStyleSheet(_GROUP_BOX)
         al = QVBoxLayout(actions)
         al.setContentsMargins(10, 18, 10, 10)
@@ -5095,43 +5392,391 @@ class CounterSalePage(QWidget):
         al.addWidget(paper_label)
         layout.addWidget(actions)
 
-        info = QGroupBox("Current Bill")
-        self._current_bill_group = info
-        info.setStyleSheet(_GROUP_BOX)
-        form = QFormLayout(info)
-        form.setContentsMargins(10, 18, 10, 10)
-        form.setSpacing(6)
-        self._bill_total_value = QLabel("0.00")
-        self._cno_value = QLabel(self._sale_panel.bill_no_edit.text() or "--")
-        self._amount_value = QLabel("0.00")
-        for value_label in (self._bill_total_value, self._cno_value,
-                            self._amount_value):
-            value_label.setStyleSheet(
-                f"color: {_TEXT}; font-size: {TYPE_VALUE}px;"
-                f"font-weight: bold;"
-                f"font-family: {FONT_FAMILY}; background: transparent;"
-            )
-            value_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        form.addRow(self._flbl("Bill Total"), self._bill_total_value)
-        form.addRow(self._flbl("CNo"), self._cno_value)
-        form.addRow(self._flbl("Amount"), self._amount_value)
-        layout.addWidget(info)
-        layout.addStretch()
+        self._add_bill_btn = QPushButton("+ Add Bill")
+        self._add_bill_btn.setStyleSheet(_BTN_SAVE)
+        self._add_bill_btn.setFixedHeight(_ACTION_BUTTON_HEIGHT)
+        self._add_bill_btn.setToolTip("Keep this draft open and start another independent bill")
+        self._add_bill_btn.clicked.connect(self._on_add_bill)
+        layout.addWidget(self._add_bill_btn)
 
-        # Live display only â€” no logic attached.
-        self._sale_panel.totals_changed.connect(self._on_bill_totals)
-        self._on_bill_totals(
-            self._sale_panel.bill_no_edit.text(),
-            self._sale_panel.total_amount_label.text(),
-            self._sale_panel.net_amt_label.text(),
-        )
+        self._open_bills_group = QGroupBox("Open Bills")
+        self._open_bills_group.setStyleSheet(_GROUP_BOX)
+        open_bills = self._open_bills_group
+        open_layout = QVBoxLayout(open_bills)
+        open_layout.setContentsMargins(6, 18, 6, 6)
+        self._open_bills_scroll = QScrollArea()
+        self._open_bills_scroll.setWidgetResizable(True)
+        self._open_bills_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._open_bills_scroll.setMaximumHeight(215)
+        # Theme-safe viewport: without an explicit background the scroll
+        # area shows the backing store (black rectangle) after a Day/Night
+        # switch.  The host widget is transparent so cards define their own
+        # surfaces.
+        try:
+            _p_live = palette()
+            self._open_bills_scroll.setStyleSheet(
+                f"QScrollArea {{ background-color: {_p_live['bg']}; border: none; }}"
+                f"QScrollArea > QWidget > QWidget {{ background-color: {_p_live['bg']}; }}"
+            )
+        except Exception:
+            pass
+        self._open_bills_host = QWidget()
+        try:
+            self._open_bills_host.setStyleSheet("background: transparent;")
+        except Exception:
+            pass
+        self._open_bills_layout = QVBoxLayout(self._open_bills_host)
+        self._open_bills_layout.setContentsMargins(0, 0, 0, 0)
+        self._open_bills_layout.setSpacing(4)
+        self._open_bills_scroll.setWidget(self._open_bills_host)
+        open_layout.addWidget(self._open_bills_scroll)
+        # Safe per-draft close: confirmed when the active draft holds items.
+        self._close_bill_btn = QPushButton("Close Bill")
+        self._close_bill_btn.setStyleSheet(_BTN_SECONDARY)
+        self._close_bill_btn.setFixedHeight(_ACTION_BUTTON_HEIGHT)
+        self._close_bill_btn.setToolTip("Discard the selected open bill (confirmed when it has items)")
+        self._close_bill_btn.clicked.connect(self._cancel_active_open_bill)
+        open_layout.addWidget(self._close_bill_btn)
+        layout.addWidget(open_bills)
+
+        # The list owns the freed right-panel height: no trailing stretch
+        # and no blank panels below it.
+        layout.addWidget(open_bills, 1)
+
+        # Live display only -- no logic attached.  The Open Bills cards and
+        # the footer All-Bills summary refresh on every totals change.
+        self._sale_panel.totals_changed.connect(lambda *_args: self._refresh_open_bill_cards())
+        self._sale_panel.totals_changed.connect(lambda *_args: self._refresh_combined_summary())
+        self._refresh_open_bill_cards()
+        self._refresh_combined_summary()
         return panel
 
-    def _on_bill_totals(self, bill_no: str, amount: str, bill_total: str):
-        """Mirror the active bill figures into the right-side panel."""
-        self._cno_value.setText(bill_no or "--")
-        self._amount_value.setText(amount)
-        self._bill_total_value.setText(bill_total)
+    # ------------------------------------------------------------------
+    # Multiple in-memory Counter Sale drafts
+    # ------------------------------------------------------------------
+
+    def _store_active_open_bill(self) -> None:
+        """Snapshot the active workspace without touching the database."""
+        if getattr(self, "_active_open_bill_id", None) is not None:
+            self._open_bills[self._active_open_bill_id] = self._sale_panel.draft_state()
+
+    def _next_provisional_bill_no(self) -> str:
+        """Unique in-memory CNo preview in bill-number format (no DB write).
+
+        Starts from the database next number and advances past every
+        preview already held by open bills.  Closing an unsaved bill
+        simply drops its preview, so the permanent sequence never moves
+        until a real Save.
+        """
+        try:
+            candidate = SalesDAO.generate_next_bill_no()
+        except Exception:
+            candidate = 'CS-0001'
+        try:
+            used = {str((s.get('bill_no') or '').strip()) for s in self._open_bills.values()}
+            used.discard('')
+            guard = 0
+            while (candidate in used or SalesDAO.bill_no_exists(candidate)) and guard < 10000:
+                candidate = _increment_bill_no(candidate)
+                guard += 1
+        except Exception:
+            pass
+        return candidate
+
+    def _assign_new_provisional_bill_no(self) -> None:
+        """Show a fresh unique provisional CNo on the active workspace."""
+        self._sale_panel.set_provisional_bill_no(self._next_provisional_bill_no())
+
+    def _combined_open_bill_totals(self) -> tuple:
+        """(bill count, total qty, combined amount, combined net) over open bills.
+
+        The active bill contributes its live panel figures; every other
+        bill contributes its stored snapshot, each exactly once.  Paid
+        amounts are never part of the combined figures.  UI-only: nothing
+        here is written to any invoice or accounting table.
+        """
+        count = len(self._open_bills)
+        qty = 0.0
+        amount = 0.0
+        net = 0.0
+        for did, state in self._open_bills.items():
+            try:
+                if did == self._active_open_bill_id:
+                    panel = self._sale_panel
+                    rows = list(getattr(panel, '_item_rows', []) or [])
+                    qty += sum(float(getattr(r, 'sale_qty', 0.0) or 0.0) for r in rows)
+                    total = sum(float(getattr(r, 'amount', 0.0) or 0.0) for r in rows)
+                    try:
+                        disc = float(str(panel.bill_disc_edit.text()).strip() or 0.0)
+                    except Exception:
+                        disc = 0.0
+                    amount += total
+                    net += _round2(total - disc)
+                else:
+                    rows = state.get('rows') or []
+                    qty += sum(float(r.get('sale_qty', 0.0) or 0.0) for r in rows)
+                    total = sum(float(r.get('amount', 0.0) or 0.0) for r in rows)
+                    try:
+                        disc = float(str(state.get('bill_discount') or '0.00').strip() or 0.0)
+                    except Exception:
+                        disc = 0.0
+                    amount += total
+                    net += _round2(total - disc)
+            except Exception:
+                continue
+        return count, qty, amount, net
+
+    def _refresh_combined_summary(self, *_args) -> None:
+        """Push the All-Open-Bills summary into the footer (UI-only)."""
+        try:
+            count, qty, amount, net = self._combined_open_bill_totals()
+        except Exception:
+            return
+        try:
+            self._sale_panel.set_combined_totals(count, qty, amount, net)
+        except Exception:
+            pass
+
+    def _reserved_by_other_open_bills(self, batch_id: int) -> float:
+        """Total unsaved reservation for *batch_id* outside the active bill."""
+        total = 0.0
+        for draft_id, state in self._open_bills.items():
+            if draft_id == self._active_open_bill_id:
+                continue
+            original = state.get("original_batch_qty") or {}
+            qty = sum(
+                float(row.get("sale_qty", 0.0) or 0.0)
+                for row in state.get("rows") or []
+                if row.get("stock_batch_id") == batch_id
+            )
+            total += reserved_quantity(qty, original.get(batch_id, 0.0))
+        return total
+
+    def _open_bill_net_total(self, state: dict) -> str:
+        """Net (Bill Total) for a stored draft snapshot, matching _recalc."""
+        try:
+            total = sum(float(row.get("amount", 0.0) or 0.0) for row in state.get("rows") or [])
+        except Exception:
+            total = 0.0
+        try:
+            discount = float(str(state.get("bill_discount") or "0.00").strip() or 0.0)
+        except Exception:
+            discount = 0.0
+        try:
+            net = _round2(total - discount + (_round2(total - discount) - (total - discount)))
+        except Exception:
+            net = total - discount
+        return f"{net:.2f}"
+
+    def _open_bill_card_text(self, draft_id: int, state: dict) -> str:
+        """Compact three-line card for one open bill.
+
+        Line 1: provisional CNo preview (bill-number format) + Active mark.
+        Line 2: customer / patient name when entered.
+        Line 3: current bill total.
+        Internal draft ids are never shown.  Every line is kept short so
+        nothing clips inside the fixed-width panel.
+        """
+        if draft_id == self._active_open_bill_id:
+            live = self._sale_panel.draft_state()
+            customer = self._sale_panel.customer_combo.currentText()
+            patient = self._sale_panel.patient_name_edit.text().strip()
+            bill_total = self._sale_panel.net_amt_label.text()
+            cno = (live.get("bill_no") or "").strip() or "--"
+        else:
+            customer_index = self._sale_panel.customer_combo.findData(state.get("customer_id"))
+            customer = (self._sale_panel.customer_combo.itemText(customer_index)
+                        if customer_index >= 0 else "")
+            patient = str(state.get("patient_name") or "").strip()
+            bill_total = self._open_bill_net_total(state)
+            cno = str(state.get("bill_no") or "").strip() or "--"
+        cust_clean = (customer or "").strip()
+        if cust_clean.upper().startswith("-- SELECT"):
+            cust_clean = ""
+        if patient:
+            name_line = f"Patient: {patient}"
+        elif cust_clean:
+            name_line = f"Customer: {cust_clean}"
+        else:
+            name_line = "New customer"
+        if len(name_line) > 26:
+            name_line = name_line[:23] + "..."
+        head = f"{cno} \u2022 Active" if draft_id == self._active_open_bill_id else cno
+        if len(head) > 28:
+            head = head[:25] + "..."
+        return (f"{head}\n"
+                f"{name_line}\n"
+                f"Bill Total: \u20b9{bill_total}")
+
+    def _refresh_open_bill_cards(self) -> None:
+        """Rebuild the Open Bills card list, reusing card widgets.
+
+        Cards are updated in place (text, highlight, tooltip) and only
+        created or destroyed when the draft set itself changes.  Recreating
+        every button on each keystroke left ``deleteLater``-pending cards
+        painting over the new ones, which read as clipped/overlapping
+        draft labels.  The draft snapshot stays the source of truth.
+        """
+        if not hasattr(self, "_open_bills_layout"):
+            return
+        # Detach live cards for reuse, keyed by their stable draft id.
+        reusable: dict[int, object] = {}
+        while self._open_bills_layout.count():
+            item = self._open_bills_layout.takeAt(0)
+            widget = item.widget()
+            if widget is None:
+                continue
+            try:
+                did = widget.property("draft_id")
+            except Exception:
+                did = None
+            try:
+                is_card = isinstance(widget, _OpenBillCard)
+            except Exception:
+                is_card = False
+            if is_card and isinstance(did, int) and did in self._open_bills:
+                reusable[did] = widget
+            else:
+                try:
+                    widget.deleteLater()
+                except Exception:
+                    pass
+        p = palette()
+        for draft_id in sorted(self._open_bills.keys()):
+            state = self._open_bills[draft_id]
+            selected = draft_id == self._active_open_bill_id
+            button = reusable.pop(draft_id, None)
+            if button is None:
+                button = _OpenBillCard(self._open_bill_card_text(draft_id, state))
+                button.setObjectName("OpenBillCard")
+                button.setCursor(Qt.PointingHandCursor)
+                # Three compact lines (CNo / name / total): CARD_HEIGHT keeps
+                # every line inside its own card; shorter clipped the last
+                # lines so they painted over the next card.
+                button.pin_height()
+                try:
+                    button.setProperty("draft_id", draft_id)
+                except Exception:
+                    pass
+                button.clicked.connect(lambda _checked=False, did=draft_id: self._select_open_bill(did))
+            else:
+                button.setText(self._open_bill_card_text(draft_id, state))
+            button.setStyleSheet(
+                "QPushButton { text-align: left; padding: 5px 7px;"
+                f" background-color: {p['selected'] if selected else p['surface_alt']};"
+                f" color: {p['text']};"
+                f" border: {'2px' if selected else '1px'} solid {p['accent'] if selected else p['border']};"
+                " border-radius: 3px; font-size: 12px; font-family: 'Segoe UI'; }"
+                f"QPushButton:hover {{ border: 2px solid {p['accent']}; }}"
+            )
+            # Bold the active card without rebuilding on every keystroke.
+            try:
+                font = button.font()
+                font.setBold(selected)
+                button.setFont(font)
+            except Exception:
+                pass
+            try:
+                _tip_head = self._open_bill_card_text(draft_id, state).split("\n")[0]
+            except Exception:
+                _tip_head = str(state.get("bill_no") or "")
+            button.setToolTip(
+                f"Open bill {_tip_head} -- items, customer and totals restored exactly"
+            )
+                        # Re-pin LAST (see pin_height): the updates above reset the
+            # explicit minimum, which would let the scroll layout compress
+            # the card and clip its last two lines.
+            button.pin_height()
+            self._open_bills_layout.addWidget(button)
+        for stale in reusable.values():
+            try:
+                stale.deleteLater()
+            except Exception:
+                pass
+        # One stretch only: leftovers from a previous build were detached
+        # above (the stretch is a spacer, not a widget, so it is gone).
+        self._open_bills_layout.addStretch()
+        # Guarantee vertical room for every full-height card: the scroll
+        # host keeps at least N * CARD_HEIGHT so the layout never has to
+        # compress cards into its viewport (compression clipped the last
+        # two lines).  Taller viewports simply leave the extra room to the
+        # stretch above; shorter ones scroll.
+        try:
+            n = len(self._open_bills)
+            spacing = self._open_bills_layout.spacing()
+            self._open_bills_host.setMinimumHeight(
+                n * _OpenBillCard.CARD_HEIGHT + max(0, n - 1) * spacing
+            )
+        except Exception:
+            pass
+        # Final sweep: re-pin every live card and re-run the layout so no
+        # card keeps a style-reset minimum (~34 px) that would compress it
+        # to ~49 px and clip its last two lines.
+        try:
+            for idx in range(self._open_bills_layout.count()):
+                w = self._open_bills_layout.itemAt(idx).widget()
+                if w is not None and isinstance(w, _OpenBillCard):
+                    w.pin_height()
+        except Exception:
+            pass
+        try:
+            self._open_bills_layout.invalidate()
+            self._open_bills_layout.activate()
+        except Exception:
+            pass
+    def _select_open_bill(self, draft_id: int) -> None:
+        if draft_id not in self._open_bills or draft_id == self._active_open_bill_id:
+            return
+        self._store_active_open_bill()
+        self._active_open_bill_id = draft_id
+        self._sale_panel.load_draft_state(self._open_bills[draft_id])
+        self._sale_panel.set_other_draft_reservation_provider(self._reserved_by_other_open_bills)
+        self._refresh_open_bill_cards()
+        self._refresh_combined_summary()
+        self._sale_panel.focus_item_name()
+
+    def _on_add_bill(self) -> None:
+        if not self._confirm_new_sale_under_historical_fy():
+            return
+        self._store_active_open_bill()
+        draft_id = self._next_open_bill_id
+        self._next_open_bill_id += 1
+        self._active_open_bill_id = draft_id
+        self._sale_panel.reset_for_new()
+        # Unique in-memory CNo preview: no invoice record is written and the
+        # permanent sequence is untouched until Save.
+        self._assign_new_provisional_bill_no()
+        self._open_bills[draft_id] = self._sale_panel.draft_state()
+        self._refresh_open_bill_cards()
+        self._refresh_combined_summary()
+        self._sale_panel.focus_item_name()
+
+    def _remove_active_open_bill(self) -> None:
+        self._open_bills.pop(self._active_open_bill_id, None)
+        if self._open_bills:
+            self._active_open_bill_id = next(iter(self._open_bills))
+            self._sale_panel.load_draft_state(self._open_bills[self._active_open_bill_id])
+        else:
+            self._active_open_bill_id = self._next_open_bill_id
+            self._next_open_bill_id += 1
+            self._sale_panel.reset_for_new()
+            self._assign_new_provisional_bill_no()
+            self._open_bills[self._active_open_bill_id] = self._sale_panel.draft_state()
+        self._sale_panel.set_other_draft_reservation_provider(self._reserved_by_other_open_bills)
+        self._refresh_open_bill_cards()
+        self._refresh_combined_summary()
+        self._sale_panel.focus_item_name()
+
+    def _cancel_active_open_bill(self) -> None:
+        state = self._sale_panel.draft_state()
+        if state.get("rows"):
+            answer = QMessageBox.question(
+                self, "Close Bill", "Discard this open bill and its items? Other open bills are unchanged.",
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+            )
+            if answer != QMessageBox.Yes:
+                return
+        self._remove_active_open_bill()
 
     def _apply_history_height(self):
         """Keep the history region at a controlled ~25-30% of page height.
@@ -5210,6 +5855,36 @@ class CounterSalePage(QWidget):
                 btn = getattr(self, attr, None)
                 if btn is not None:
                     btn.setStyleSheet(_fresh_btn_style(p["text_dim"], p))
+        except Exception:
+            pass
+        # Right-side Bill panel: + Add Bill, Open Bills group, scroll
+        # viewport/host and Close Bill — all live palette so no stale
+        # Day/Night surface or black rectangle survives a switch.
+        try:
+            if hasattr(self, "_bill_panel"):
+                self._bill_panel.setStyleSheet(
+                    f"#BillPanel {{ background-color: {p['surface']};"
+                    f"  border-left: 1px solid {p['border']}; }}"
+                )
+            for grp_attr in ("_bill_actions_group", "_open_bills_group"):
+                grp = getattr(self, grp_attr, None)
+                if grp is not None:
+                    grp.setStyleSheet(_group_box_style(p))
+            if hasattr(self, "_add_bill_btn"):
+                self._add_bill_btn.setStyleSheet(_fresh_btn_style(p["accent"], p))
+            if hasattr(self, "_close_bill_btn"):
+                self._close_bill_btn.setStyleSheet(_fresh_btn_style(p["text_dim"], p))
+            if hasattr(self, "_open_bills_scroll"):
+                self._open_bills_scroll.setStyleSheet(
+                    f"QScrollArea {{ background-color: {p['bg']}; border: none; }}"
+                    f"QScrollArea > QWidget > QWidget {{ background-color: {p['bg']}; }}"
+                )
+            if hasattr(self, "_open_bills_host"):
+                self._open_bills_host.setStyleSheet("background: transparent;")
+        except Exception:
+            pass
+        try:
+            self._refresh_open_bill_cards()
         except Exception:
             pass
         # Header strip + filter bar backgrounds.
@@ -5333,12 +6008,32 @@ class CounterSalePage(QWidget):
 
     def _start_new_sale(self):
         """The single New Sale path, shared by the button and the guard."""
+        # Multi-bill safety: New Sale clears the *active* draft only.  Other
+        # open bills are untouched, but silently discarding the active bill's
+        # items would lose data, so confirm first when it is non-empty.
+        try:
+            if self._sale_panel.draft_state().get("rows"):
+                answer = QMessageBox.question(
+                    self, "New Sale",
+                    "Clear the active bill and start a new one? "
+                    "Other open bills are unchanged.",
+                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+                )
+                if answer != QMessageBox.Yes:
+                    return
+        except Exception:
+            pass
         self._editing_invoice_id = None
         self._sale_panel.reset_for_new()
         # The new bill always carries the live date.  The history date and
         # the viewed financial year are display state only and must never
         # reach the new bill, so the live date is re-stamped here.
         self._sale_panel._set_current_datetime()
+        self._assign_new_provisional_bill_no()
+        self._open_bills[self._active_open_bill_id] = self._sale_panel.draft_state()
+        self._sale_panel.set_other_draft_reservation_provider(self._reserved_by_other_open_bills)
+        self._refresh_open_bill_cards()
+        self._refresh_combined_summary()
         self._sale_panel.focus_item_name()
 
     def _on_edit(self):
@@ -5354,8 +6049,32 @@ class CounterSalePage(QWidget):
         if not inv:
             QMessageBox.warning(self, "Edit Sale", "Could not load bill data.")
             return
+        # Do not silently discard an unsaved multi-bill draft.
+        try:
+            if self._sale_panel.draft_state().get("rows"):
+                answer = QMessageBox.question(
+                    self, "Edit Sale",
+                    "Load the selected history bill into the active draft? "
+                    "Unsaved items in the active bill will be replaced. "
+                    "Other open bills are unchanged.",
+                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+                )
+                if answer != QMessageBox.Yes:
+                    return
+        except Exception:
+            pass
         self._editing_invoice_id = inv_id
         self._sale_panel.load_invoice(inv)
+        # Keep the multi-bill workspace consistent: the edited invoice now
+        # owns the active slot (non-provisional), reservations recalculated.
+        try:
+            self._open_bills[self._active_open_bill_id] = self._sale_panel.draft_state()
+            self._sale_panel.set_other_draft_reservation_provider(
+                self._reserved_by_other_open_bills
+            )
+            self._refresh_open_bill_cards()
+        except Exception:
+            pass
         self._sale_panel.focus_item_name()
 
     def _on_delete(self):
@@ -5411,12 +6130,35 @@ class CounterSalePage(QWidget):
         Kept so existing callers keep working; no dialog is opened and no
         transaction logic is duplicated.
         """
+        # Resuming a held bill must never silently discard the active
+        # multi-bill draft.  If the active workspace holds unsaved items,
+        # keep it and open the held bill in a fresh draft slot instead.
+        try:
+            active_has_rows = bool(self._sale_panel.draft_state().get("rows"))
+        except Exception:
+            active_has_rows = False
+        if (invoice is not None or hold_bill_data is not None) and active_has_rows:
+            try:
+                self._store_active_open_bill()
+            except Exception:
+                pass
+            try:
+                draft_id = self._next_open_bill_id
+                self._next_open_bill_id += 1
+                self._active_open_bill_id = draft_id
+            except Exception:
+                pass
         if invoice is not None:
             self._sale_panel.load_invoice(invoice)
         elif hold_bill_data is not None:
             self._sale_panel.load_hold(hold_bill_data)
         else:
             self._sale_panel.reset_for_new()
+            self._assign_new_provisional_bill_no()
+        self._open_bills[self._active_open_bill_id] = self._sale_panel.draft_state()
+        self._sale_panel.set_other_draft_reservation_provider(self._reserved_by_other_open_bills)
+        self._refresh_open_bill_cards()
+        self._refresh_combined_summary()
         self._sale_panel.focus_item_name()
 
     def open_sale_dialog_with_hold(self, hold_bill_data: dict):
@@ -5434,19 +6176,18 @@ class CounterSalePage(QWidget):
     # ------------------------------------------------------------------
 
     def _on_sale_saved(self):
-        # The save completed: refresh the history and reset the inline form
-        # for the next sale (the modal dialog used to close here, which is
-        # what prevented a second save of the same bill).
+        # Commit applies to this workspace only.  Drop it after the existing
+        # atomic DAO save, then restore another unsaved bill if one exists.
         self._editing_invoice_id = None
         self._refresh_history()
-        self._sale_panel.reset_for_new()
+        self._remove_active_open_bill()
 
     def _on_sale_held(self):
-        # Hold completed: same lifecycle as before (dialog closed), now the
-        # inline form is reset instead.
+        # Holding persists only the selected draft through the established
+        # hold DAO; other open workspaces remain in memory unchanged.
         self._editing_invoice_id = None
         self._refresh_history()
-        self._sale_panel.reset_for_new()
+        self._remove_active_open_bill()
 
     def _on_sale_cancelled(self):
-        self._sale_panel.reset_for_new()
+        self._cancel_active_open_bill()
