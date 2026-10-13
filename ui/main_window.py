@@ -122,7 +122,7 @@ class PharmacyMainWindow(QMainWindow):
                 elif menu_name == "Sales" and item_name == "Day End":
                     page = screens.DayEndPage()
                 elif menu_name == "Sales" and item_name == "Sales History":
-                    page = screens.CounterSalePage()
+                    page = screens.SalesHistoryPage()
                 elif menu_name == "Sales" and item_name == "Return Bill":
                     page = screens.CreditNotePage()
                 elif menu_name == "Purchase" and item_name == "Purchase Return":
@@ -184,6 +184,7 @@ class PharmacyMainWindow(QMainWindow):
             apply_view = getattr(page, "set_history_financial_year", None)
             if callable(apply_view):
                 apply_view(year)
+        self._nav.set_viewing_financial_year(year)
 
     # ── logout ───────────────────────────────────────────────────────
     def _on_logout(self):

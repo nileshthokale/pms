@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import math
 from datetime import datetime
@@ -2274,11 +2274,17 @@ def _increment_bill_no(bill_no: str) -> str:
 def _resolve_bill_no_for_save(provisional: str) -> str:
     """Permanent CNo to commit for a draft showing *provisional*.
 
-    The displayed preview is kept when it is still free; otherwise the
-    next free number from the existing sequence is used.  Read-only
-    checks only -- the invoice write itself stays atomic in SalesDAO.
+    If the provisional preview is still free in the database, keep it so that
+    other open drafts' previews are not displaced.  If it is already taken
+    (e.g. another session committed the same number), fall back to the next
+    sequential number from committed invoices.
     """
-    candidate = (provisional or '').strip() or SalesDAO.generate_next_bill_no()
+    candidate = (provisional or '').strip()
+    # Use the provisional when it is valid and not yet committed.
+    if candidate and not SalesDAO.bill_no_exists(candidate):
+        return candidate
+    # Provisional is empty or already taken — allocate the next free number.
+    candidate = SalesDAO.generate_next_bill_no()
     try:
         guard = 0
         while SalesDAO.bill_no_exists(candidate) and guard < 10000:
@@ -4994,13 +5000,8 @@ class CounterSalePage(QWidget):
         left.setContentsMargins(0, 0, 0, 0)
         left.setSpacing(0)
 
-        # Region A: filter bar + controlled-height history table (directly
-        # below the header).  The filter bar is display-only state.
         self._history_mode = HISTORY_MODE_ITEM
-        # The grid opens unfiltered, exactly as before, so existing history
-        # stays visible on entry.  Picking a Date or a Financial Year
-        # narrows it from there.
-        self._history_filter = HISTORY_FILTER_ALL
+        self._history_filter = HISTORY_FILTER_DATE
         self._history_financial_year: dict | None = None
         self._history_filter_bar = self._build_history_filter_bar()
         left.addWidget(self._history_filter_bar)
@@ -5138,6 +5139,11 @@ class CounterSalePage(QWidget):
             "One row per bill using bill-level totals only"
         )
 
+        self._hist_today_btn = QPushButton("Today")
+        self._hist_today_btn.setFixedWidth(56)
+        self._hist_today_btn.setStyleSheet(_BTN_SECONDARY)
+        self._hist_today_btn.setToolTip("Show today's sales")
+
         self._hist_all_btn = QPushButton("All Dates")
         self._hist_all_btn.setFixedWidth(80)
         self._hist_all_btn.setStyleSheet(_BTN_SECONDARY)
@@ -5148,8 +5154,10 @@ class CounterSalePage(QWidget):
         self._hist_refresh_btn.setFixedWidth(76)
         self._hist_refresh_btn.setStyleSheet(_BTN_SECONDARY)
 
+        layout.addWidget(self._flbl("Daily Sales:"))
         layout.addWidget(self._flbl("Date"))
         layout.addWidget(self._hist_date)
+        layout.addWidget(self._hist_today_btn)
         layout.addWidget(self._hist_all_btn)
         layout.addStretch()
         layout.addWidget(self._flbl("View"))
@@ -5160,11 +5168,21 @@ class CounterSalePage(QWidget):
         # A committed date change or a mode switch refreshes the grid
         # immediately.  Neither path touches the active sale area.
         self._hist_date.dateChanged.connect(self._on_history_date_changed)
+        self._hist_today_btn.clicked.connect(self._on_show_today_history)
         self._hist_item_mode.toggled.connect(self._on_history_mode_toggled)
         self._hist_bill_mode.toggled.connect(self._on_history_mode_toggled)
         self._hist_all_btn.clicked.connect(self._on_show_all_history)
         self._hist_refresh_btn.clicked.connect(self._refresh_history)
         return bar
+
+    def _on_show_today_history(self):
+        """Show today's sales."""
+        self._hist_date.blockSignals(True)
+        self._hist_date.setDate(QDate.currentDate())
+        self._hist_date.blockSignals(False)
+        self._history_filter = HISTORY_FILTER_DATE
+        self._history_financial_year = None
+        self._refresh_history()
 
     # ------------------------------------------------------------------
     # History view filtering (date / financial year / all)
@@ -5470,16 +5488,18 @@ class CounterSalePage(QWidget):
         """Unique in-memory CNo preview in bill-number format (no DB write).
 
         Starts from the database next number and advances past every
-        preview already held by open bills.  Closing an unsaved bill
-        simply drops its preview, so the permanent sequence never moves
-        until a real Save.
+        preview already held by other open bills.
         """
         try:
             candidate = SalesDAO.generate_next_bill_no()
         except Exception:
             candidate = 'CS-0001'
         try:
-            used = {str((s.get('bill_no') or '').strip()) for s in self._open_bills.values()}
+            used = {
+                str((s.get('bill_no') or '').strip())
+                for did, s in self._open_bills.items()
+                if did != self._active_open_bill_id and str((s.get('bill_no') or '').strip())
+            }
             used.discard('')
             guard = 0
             while (candidate in used or SalesDAO.bill_no_exists(candidate)) and guard < 10000:
@@ -5489,9 +5509,77 @@ class CounterSalePage(QWidget):
             pass
         return candidate
 
+    def _sync_provisional_bill_numbers(self) -> None:
+        """Re-sequence provisional CNo previews for all in-memory open drafts.
+
+        Committed invoices in the database determine the base sequence.
+        Open drafts receive sequential provisional previews in order of draft_id,
+        skipping any draft that is currently editing a saved invoice.
+        Closing or cancelling an unsaved draft drops its preview and re-syncs,
+        so the next draft or new bill is immediately eligible for the earliest
+        free permanent number without gaps.
+        """
+        try:
+            current_preview = SalesDAO.generate_next_bill_no()
+        except Exception:
+            current_preview = "CS-0001"
+        for did in sorted(self._open_bills.keys()):
+            draft = self._open_bills[did]
+            if draft.get("invoice") is not None:
+                continue
+            draft["bill_no"] = current_preview
+            draft["provisional_bill_no"] = True
+            if did == self._active_open_bill_id:
+                self._sale_panel.set_provisional_bill_no(current_preview)
+            current_preview = _increment_bill_no(current_preview)
+
     def _assign_new_provisional_bill_no(self) -> None:
         """Show a fresh unique provisional CNo on the active workspace."""
         self._sale_panel.set_provisional_bill_no(self._next_provisional_bill_no())
+
+    def _fix_conflicting_provisional_numbers(self) -> None:
+        """Reassign only those provisional previews that collide with a committed invoice.
+
+        After a save, one provisional number may now match a permanent invoice
+        number in the database.  This method checks each remaining draft and
+        replaces its preview only when a collision is found, leaving all
+        non-conflicting previews untouched.  This keeps the cashier's view
+        stable: the other open bills don't jump to new numbers just because
+        one bill was saved.
+        """
+        # Collect all provisional bill_nos across open drafts to avoid
+        # assigning a number that another draft already holds.
+        used_previews = set()
+        for did in sorted(self._open_bills.keys()):
+            draft = self._open_bills[did]
+            if draft.get("invoice") is not None:
+                continue
+            bno = (draft.get("bill_no") or "").strip()
+            if bno:
+                used_previews.add(bno)
+
+        for did in sorted(self._open_bills.keys()):
+            draft = self._open_bills[did]
+            if draft.get("invoice") is not None:
+                continue
+            bno = (draft.get("bill_no") or "").strip()
+            if not bno or not SalesDAO.bill_no_exists(bno):
+                continue
+            # This preview collides with a committed invoice — find a new one.
+            used_previews.discard(bno)
+            try:
+                candidate = SalesDAO.generate_next_bill_no()
+            except Exception:
+                candidate = "CS-0001"
+            guard = 0
+            while (candidate in used_previews or SalesDAO.bill_no_exists(candidate)) and guard < 10000:
+                candidate = _increment_bill_no(candidate)
+                guard += 1
+            draft["bill_no"] = candidate
+            draft["provisional_bill_no"] = True
+            used_previews.add(candidate)
+            if did == self._active_open_bill_id:
+                self._sale_panel.set_provisional_bill_no(candidate)
 
     def _combined_open_bill_totals(self) -> tuple:
         """(bill count, total qty, combined amount, combined net) over open bills.
@@ -5753,6 +5841,7 @@ class CounterSalePage(QWidget):
         # permanent sequence is untouched until Save.
         self._assign_new_provisional_bill_no()
         self._open_bills[draft_id] = self._sale_panel.draft_state()
+        self._sync_provisional_bill_numbers()
         self._refresh_open_bill_cards()
         self._refresh_combined_summary()
         self._sale_panel.focus_item_name()
@@ -5768,6 +5857,7 @@ class CounterSalePage(QWidget):
             self._sale_panel.reset_for_new()
             self._assign_new_provisional_bill_no()
             self._open_bills[self._active_open_bill_id] = self._sale_panel.draft_state()
+        self._sync_provisional_bill_numbers()
         self._sale_panel.set_other_draft_reservation_provider(self._reserved_by_other_open_bills)
         self._refresh_open_bill_cards()
         self._refresh_combined_summary()
@@ -5785,22 +5875,16 @@ class CounterSalePage(QWidget):
         self._remove_active_open_bill()
 
     def _apply_history_height(self):
-        """Keep the history region at a controlled ~25-30% of page height.
-
-        The table is given a fixed height, so an empty history table can
-        never expand into a giant blank area and adding rows can never
-        grow the region.  The date/mode filter bar is measured out of the
-        same budget, so adding it did not make the region any taller.
-        """
+        """Keep the daily sales region compact to maximize billing area."""
         page_height = self.height()
         if page_height < 200:          # before the first real resize
             page_height = 720
-        target = int(page_height * 0.28)
-        target = max(130, min(target, 280))
+        target = int(page_height * 0.22)
+        target = max(110, min(target, 200))
         bar_height = self._history_filter_bar.sizeHint().height()
         if bar_height <= 0:
             bar_height = _HISTORY_FILTER_BAR_HEIGHT
-        self._hist_table.setFixedHeight(max(90, target - bar_height))
+        self._hist_table.setFixedHeight(max(70, target - bar_height))
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -6037,6 +6121,7 @@ class CounterSalePage(QWidget):
         self._sale_panel._set_current_datetime()
         self._assign_new_provisional_bill_no()
         self._open_bills[self._active_open_bill_id] = self._sale_panel.draft_state()
+        self._sync_provisional_bill_numbers()
         self._sale_panel.set_other_draft_reservation_provider(self._reserved_by_other_open_bills)
         self._refresh_open_bill_cards()
         self._refresh_combined_summary()
@@ -6184,9 +6269,29 @@ class CounterSalePage(QWidget):
     def _on_sale_saved(self):
         # Commit applies to this workspace only.  Drop it after the existing
         # atomic DAO save, then restore another unsaved bill if one exists.
+        # Unlike cancel/close, a save must NOT re-sequence every remaining
+        # draft's provisional number: the cashier sees stable previews while
+        # working with multiple open bills.  Only fix a preview that now
+        # collides with a committed invoice in the database.
         self._editing_invoice_id = None
         self._refresh_history()
-        self._remove_active_open_bill()
+        self._open_bills.pop(self._active_open_bill_id, None)
+        if self._open_bills:
+            self._active_open_bill_id = next(iter(self._open_bills))
+            self._sale_panel.load_draft_state(self._open_bills[self._active_open_bill_id])
+        else:
+            self._active_open_bill_id = self._next_open_bill_id
+            self._next_open_bill_id += 1
+            self._sale_panel.reset_for_new()
+            self._assign_new_provisional_bill_no()
+            self._open_bills[self._active_open_bill_id] = self._sale_panel.draft_state()
+        # Fix only conflicting provisionals (preview now taken by a saved bill)
+        # without reassigning every draft's number from scratch.
+        self._fix_conflicting_provisional_numbers()
+        self._sale_panel.set_other_draft_reservation_provider(self._reserved_by_other_open_bills)
+        self._refresh_open_bill_cards()
+        self._refresh_combined_summary()
+        self._sale_panel.focus_item_name()
 
     def _on_sale_held(self):
         # Holding persists only the selected draft through the established
