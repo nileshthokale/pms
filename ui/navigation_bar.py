@@ -134,16 +134,14 @@ class NavigationBar(QWidget):
         tl.addWidget(self._menu_hint)
         tl.addStretch()
 
-        # Active financial year, shown as a button so a different year can
-        # be picked for viewing.  It keeps its place and appearance in the
-        # title strip; only the click behaviour is new.
+        # The navigation button is intentionally stateful: it shows the
+        # year currently being viewed for reports, while the underlying
+        # database active FY stays separate and is never mutated here.
+        self._viewing_year: dict | None = None
         self.fy_button = QPushButton()
         self.fy_button.setObjectName("FinancialYearButton")
         self.fy_button.setFlat(True)
         self.fy_button.setCursor(Qt.PointingHandCursor)
-        self.fy_button.setToolTip(
-            "Active financial year — click to view history for another year"
-        )
         self.fy_button.clicked.connect(self._on_financial_year_clicked)
         tl.addWidget(self.fy_button)
 
@@ -204,9 +202,40 @@ class NavigationBar(QWidget):
         self._apply_theme()
 
     # ── data ─────────────────────────────────────────────────────────
+    def set_viewing_financial_year(self, year: dict | None):
+        """Display the year currently being viewed for reports.
+
+        This is separate from the active financial year stored in the
+        database.  The label reads "Viewing FY ..." while the tooltip keeps
+        the active FY visible as a secondary fact.
+        """
+        self._viewing_year = dict(year) if year else None
+        active = financial_year.get_active_financial_year() or financial_year.ensure_default_financial_year()
+        viewed = self._viewing_year or active
+        if not viewed:
+            self.fy_button.setText("Viewing FY")
+            self.fy_button.setToolTip("No financial year selected")
+            return
+
+        viewing_name = str(viewed.get("name") or "")
+        active_name = str(active.get("name") or "") if active else "unknown"
+        self.fy_button.setText(f"Viewing FY {viewing_name}")
+        if viewing_name == active_name:
+            self.fy_button.setToolTip(
+                f"Viewing FY {viewing_name}. Active financial year is FY {active_name}."
+            )
+        else:
+            self.fy_button.setToolTip(
+                f"Viewing FY {viewing_name}. Active financial year is FY {active_name}. "
+                "Click to choose a different year for report view."
+            )
+
     def refresh_financial_year(self):
         active = financial_year.ensure_default_financial_year()
-        self.fy_button.setText(f"FY {active['name']}")
+        if self._viewing_year is not None:
+            self.set_viewing_financial_year(self._viewing_year)
+        else:
+            self.set_viewing_financial_year(active)
 
     def _on_financial_year_clicked(self):
         """Open the small financial-year picker and report the choice.

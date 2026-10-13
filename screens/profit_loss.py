@@ -95,6 +95,7 @@ class ProfitLossPage(QWidget):
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
+        self._history_financial_year: dict | None = None
         self.setStyleSheet(f"background-color: {_DARK_BG};")
 
         root = QVBoxLayout(self)
@@ -247,6 +248,18 @@ class ProfitLossPage(QWidget):
         from_date = self.from_edit.date().toString("yyyy-MM-dd")
         to_date = self.to_edit.date().toString("yyyy-MM-dd")
         return ProfitLossDAO.get_profit_loss(from_date, to_date)
+
+    def set_history_financial_year(self, year: dict | None):
+        """Apply the navbar's view-only financial-year selection."""
+        self._history_financial_year = dict(year) if year else None
+        if year and year.get("start_date") and year.get("end_date"):
+            start = year["start_date"]
+            end = year["end_date"]
+        else:
+            start, end = active_date_range()
+        self.from_edit.setDate(QDate.fromString(start, "yyyy-MM-dd"))
+        self.to_edit.setDate(QDate.fromString(end, "yyyy-MM-dd"))
+        self._on_generate()
 
     def _render(self, report: dict):
         income = report["income"]
