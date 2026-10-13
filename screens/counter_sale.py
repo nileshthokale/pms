@@ -36,6 +36,7 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSizePolicy,
     QStackedWidget,
+    QSplitter,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -364,11 +365,11 @@ _ENTRY_LABEL_MAX_WIDTH = 52     # longest caption + gap, on any platform font
 # than by a wider caption box, so the gap is ordinary layout spacing and
 # nothing is positioned by hand.  12 px of air plus the row's own 1 px
 # spacing reads as the 10-14 px separation the row is specified to keep.
-_ENTRY_GROUP_GAP = 12
+_ENTRY_GROUP_GAP = 8
 
 # The Item -> Batch boundary is the busiest one on the row (a wide search box
 # running into the next group), so it opens a little wider than the others.
-_ENTRY_ITEM_BATCH_GAP = 16
+_ENTRY_ITEM_BATCH_GAP = 10
 
 # Field sizing.  Twelve controls and eleven captions do not fit a 1366-wide
 # window at their comfortable widths, so the row is *responsive*: every field
@@ -1575,10 +1576,13 @@ class _ItemEntryBar(QWidget):
         layout.setContentsMargins(6, 3, 6, 3)
         layout.setSpacing(1)
 
-        # CNo (counter / current bill number â€” display only)
+        # CNo (counter / current bill number — display only)
         layout.addWidget(self._lbl("CNo"))
         self.cno_label = QLabel("--")
-        self.cno_label.setFixedWidth(110)
+        # Simple sequential numbers (1911) need less room than the old
+        # FY-prefixed form (2026-2027-1911); 60 px shows the simple number
+        # in full with the complete stored value in the tooltip.
+        self.cno_label.setFixedWidth(60)
         self.cno_label.setAlignment(Qt.AlignCenter)
         self.cno_label.setStyleSheet(_LABEL_STYLE)
         self.cno_label.setFixedHeight(_ENTRY_BAR_HEIGHT - 8)
@@ -1596,6 +1600,7 @@ class _ItemEntryBar(QWidget):
                   _ENTRY_PREFERRED_WIDTHS["item_combo"])
         self.item_combo.setSizePolicy(QSizePolicy.Expanding,
                                       QSizePolicy.Fixed)
+        self.item_combo.setToolTip("Search and select an item")
         self.item_combo.show_all_completions_on_click()
         self._item_completion_model = QStandardItemModel(self)
         self.item_combo.set_completion_model(
@@ -1623,6 +1628,7 @@ class _ItemEntryBar(QWidget):
         _mark_cs(self.batch_combo, "entry_combo")
         self._fit(self.batch_combo, _ENTRY_BATCH_MIN_WIDTH, _ENTRY_BATCH_MAX_WIDTH)
         self.batch_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.batch_combo.setToolTip("Select a batch for the chosen item")
         self.batch_combo.show_all_completions_on_click()
         layout.addWidget(self.batch_combo, 2)
 
@@ -1630,6 +1636,7 @@ class _ItemEntryBar(QWidget):
         layout.addSpacing(_ENTRY_GROUP_GAP)
         layout.addWidget(self._lbl("Pack"))
         self.pack_edit = _make_edit("")
+        self.pack_edit.setToolTip("Pack size")
         self._fit(self.pack_edit, _ENTRY_FLOOR_WIDTHS["pack_edit"],
                   _ENTRY_PREFERRED_WIDTHS["pack_edit"])
         self.pack_edit.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
@@ -1640,6 +1647,7 @@ class _ItemEntryBar(QWidget):
         layout.addSpacing(_ENTRY_GROUP_GAP)
         layout.addWidget(self._lbl("Loc"))
         self.location_edit = _make_edit("")
+        self.location_edit.setToolTip("Item location")
         self._fit(self.location_edit, _ENTRY_FLOOR_WIDTHS["location_edit"],
                   _ENTRY_PREFERRED_WIDTHS["location_edit"])
         self.location_edit.setReadOnly(True)
@@ -1649,6 +1657,7 @@ class _ItemEntryBar(QWidget):
         layout.addSpacing(_ENTRY_GROUP_GAP)
         layout.addWidget(self._lbl("Exp"))
         self.expiry_edit = _make_edit("")
+        self.expiry_edit.setToolTip("Batch expiry")
         self._fit(self.expiry_edit, _ENTRY_FLOOR_WIDTHS["expiry_edit"],
                   _ENTRY_PREFERRED_WIDTHS["expiry_edit"])
         self.expiry_edit.setAlignment(Qt.AlignCenter)
@@ -1659,6 +1668,7 @@ class _ItemEntryBar(QWidget):
         layout.addSpacing(_ENTRY_GROUP_GAP)
         layout.addWidget(self._lbl("MRP"))
         self.mrp_edit = _make_edit("")
+        self.mrp_edit.setToolTip("Batch maximum retail price")
         self._fit(self.mrp_edit, _ENTRY_FLOOR_WIDTHS["mrp_edit"],
                   _ENTRY_PREFERRED_WIDTHS["mrp_edit"])
         self.mrp_edit.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
@@ -1669,6 +1679,7 @@ class _ItemEntryBar(QWidget):
         layout.addSpacing(_ENTRY_GROUP_GAP)
         layout.addWidget(self._lbl("Avail"))
         self.stock_edit = _make_edit("")
+        self.stock_edit.setToolTip("Available batch quantity")
         self._fit(self.stock_edit, _ENTRY_FLOOR_WIDTHS["stock_edit"],
                   _ENTRY_PREFERRED_WIDTHS["stock_edit"])
         self.stock_edit.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
@@ -1679,6 +1690,7 @@ class _ItemEntryBar(QWidget):
         layout.addSpacing(_ENTRY_GROUP_GAP)
         layout.addWidget(self._lbl("Qty"))
         self.qty_edit = _make_edit("1")
+        self.qty_edit.setToolTip("Sale quantity")
         self._focus_quantity_timer.timeout.connect(self.qty_edit.setFocus)
         self._fit(self.qty_edit, _ENTRY_FLOOR_WIDTHS["qty_edit"],
                   _ENTRY_PREFERRED_WIDTHS["qty_edit"])
@@ -1689,6 +1701,7 @@ class _ItemEntryBar(QWidget):
         layout.addSpacing(_ENTRY_GROUP_GAP)
         layout.addWidget(self._lbl("Disc"))
         self.discount_edit = _make_edit("0.00")
+        self.discount_edit.setToolTip("Line discount amount")
         self._fit(self.discount_edit, _ENTRY_FLOOR_WIDTHS["discount_edit"],
                   _ENTRY_PREFERRED_WIDTHS["discount_edit"])
         self.discount_edit.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
@@ -1698,6 +1711,7 @@ class _ItemEntryBar(QWidget):
         layout.addSpacing(_ENTRY_GROUP_GAP)
         layout.addWidget(self._lbl("Amt"))
         self.amount_edit = _make_edit("")
+        self.amount_edit.setToolTip("Calculated line amount")
         self._fit(self.amount_edit, _ENTRY_FLOOR_WIDTHS["amount_edit"],
                   _ENTRY_PREFERRED_WIDTHS["amount_edit"])
         self.amount_edit.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
@@ -1773,6 +1787,7 @@ class _ItemEntryBar(QWidget):
         super().resizeEvent(event)
         if getattr(self, "_auto_fit", False):
             self._refit_to_bar()
+
 
     def minimumSizeHint(self) -> QSize:
         """The bar may be squeezed: the row re-fits itself on every resize.
@@ -2156,16 +2171,20 @@ class _ItemEntryBar(QWidget):
     def set_cno(self, text: str):
         """Display the current counter/bill number (no logic attached).
 
-        Shows the provisional CNo preview (regular bill-number format)
-        or the saved CNo.  Long values elide with the full number in
-        the tooltip, so the row never overflows its slot.
+        Shows the simple sequential number for active-FY bills (1911
+        instead of 2026-2027-1911) or the saved CNo.  The full stored
+        number stays in the tooltip, so the row never overflows its slot.
         """
-        full = text or "--"
+        try:
+            short = _display_bill_no(text) if (text or "").strip() else "--"
+        except Exception:
+            short = text or "--"
+        full = (text or "--").strip() or "--"
         try:
             fm = QFontMetrics(self.cno_label.font())
-            elided = fm.elidedText(full, Qt.ElideRight, max(40, self.cno_label.width()))
+            elided = fm.elidedText(short, Qt.ElideRight, max(40, self.cno_label.width()))
         except Exception:
-            elided = full
+            elided = short
         self.cno_label.setText(elided)
         self.cno_label.setToolTip(full)
 
@@ -2246,18 +2265,38 @@ class _ItemEntryBar(QWidget):
 # ======================================================================
 # Multiple-bill provisional numbering
 # ======================================================================
-# Each open bill shows a unique provisional CNo in the regular financial-
-# year bill-number format (e.g. CS-0007).  Provisionals live in memory
-# only: they never create invoice records and never consume permanent
-# numbers.  The stable internal draft id (an int) is kept separately and
-# is never shown in the billing UI.  At Save the provisional is validated
-# against the database; a conflicting preview is replaced by the next
-# free number, so sequential saves can never share one permanent CNo.
+# Each open bill shows a unique provisional CNo preview in memory only:
+# for the active financial year the simple sequential number (e.g. 1911),
+# otherwise the legacy convention (e.g. CS-0007).  Provisionals never create
+# invoice records and never consume permanent numbers.  The stable internal
+# draft id (an int) is kept separately and is never shown in the billing UI.
+# At Save the provisional is validated against the database; a conflicting
+# preview is replaced by the next free number, so sequential saves can never
+# share one permanent CNo.
+
+
+def _display_bill_no(bill_no: str) -> str:
+    """Short CNo for the billing UI (display only, never saved).
+
+    Active-FY bills stored as ``2026-2027-1910`` show as ``1910``; every
+    other stored value (historical FY bills, legacy imports, plain numbers)
+    shows unchanged so bills from different years stay distinguishable.
+    """
+    try:
+        return SalesDAO.display_bill_no(bill_no)
+    except Exception:
+        return (bill_no or "").strip() or "--"
 
 
 def _increment_bill_no(bill_no: str) -> str:
     """Next bill number after *bill_no*, same prefix/width convention."""
     text = (bill_no or '').strip() or 'CS-0000'
+    # Plain sequential numbers (new convention) increment numerically.
+    if text.isdigit():
+        try:
+            return str(int(text) + 1)
+        except ValueError:
+            return "1"
     idx = text.rfind('-')
     if idx >= 0:
         prefix, num_part = text[:idx + 1], text[idx + 1:]
@@ -2800,7 +2839,11 @@ class _SalePanel(QWidget):
     def _update_header_labels(self):
         """Keep the header row labels in sync with the editable fields."""
         if hasattr(self, 'voucher_no_label'):
-            self.voucher_no_label.setText(self.bill_no_edit.text() or "--")
+            try:
+                short = _display_bill_no(self.bill_no_edit.text()) if self.bill_no_edit.text().strip() else "--"
+            except Exception:
+                short = self.bill_no_edit.text() or "--"
+            self.voucher_no_label.setText(short)
             try:
                 self.voucher_no_label.setToolTip(self.bill_no_edit.text() or "--")
             except Exception:
@@ -3410,6 +3453,9 @@ class _SalePanel(QWidget):
                                   width=112, emphasised=True)
             layout.addStretch()
             return
+
+        layout.setContentsMargins(6, 2, 6, 2)
+        layout.setSpacing(4)
 
         self._add_total_field(layout, "Total Items", "total_items_label",
                               width=64, emphasised=False)
@@ -4892,6 +4938,8 @@ _HISTORY_STRETCH_COLUMN = {
 # indicator style carries a generated check/dot glyph, which can only be
 # produced once a QGuiApplication exists.
 _HISTORY_FILTER_BAR_HEIGHT = 30
+_HISTORY_VISIBLE_ROWS = 10
+_HISTORY_HEADER_HEIGHT = 36
 
 
 class _OpenBillCard(QPushButton):
@@ -4996,15 +5044,15 @@ class CounterSalePage(QWidget):
         body.setContentsMargins(0, 0, 0, 0)
         body.setSpacing(0)
 
-        left = QVBoxLayout()
-        left.setContentsMargins(0, 0, 0, 0)
-        left.setSpacing(0)
-
+        history_region = QWidget()
+        history_layout = QVBoxLayout(history_region)
+        history_layout.setContentsMargins(0, 0, 0, 0)
+        history_layout.setSpacing(4)
         self._history_mode = HISTORY_MODE_ITEM
         self._history_filter = HISTORY_FILTER_DATE
         self._history_financial_year: dict | None = None
         self._history_filter_bar = self._build_history_filter_bar()
-        left.addWidget(self._history_filter_bar)
+        history_layout.addWidget(self._history_filter_bar)
 
         self._hist_table = self._build_history_table()
         self._history_offset = 0
@@ -5013,11 +5061,15 @@ class CounterSalePage(QWidget):
         self._hist_table.verticalScrollBar().valueChanged.connect(
             self._on_history_scroll
         )
-        left.addWidget(self._hist_table)
+        history_layout.addWidget(self._hist_table, 1)
 
         # Regions B + C: inline active sale area.  Only the bill table
         # inside the panel expands, so the entry region stays pinned.
         self._sale_panel = _SalePanel()
+        self._sale_panel.bill_no_edit.textChanged.connect(
+            self._set_current_bill_label
+        )
+        self._set_current_bill_label(self._sale_panel.bill_no_edit.text())
         # Open bills are in-memory workspaces only.  Their snapshots never
         # create invoices, reserve rows in the database, or alter stock.
         self._open_bills: dict[int, dict] = {}
@@ -5029,9 +5081,17 @@ class CounterSalePage(QWidget):
         self._sale_panel.saved.connect(self._on_sale_saved)
         self._sale_panel.held.connect(self._on_sale_held)
         self._sale_panel.cancelled.connect(self._on_sale_cancelled)
-        left.addWidget(self._sale_panel, 1)
+        self._history_splitter = QSplitter(Qt.Vertical)
+        self._history_splitter.setHandleWidth(6)
+        self._history_splitter.setChildrenCollapsible(False)
+        self._history_splitter.addWidget(history_region)
+        self._history_splitter.addWidget(self._sale_panel)
+        self._history_splitter.setStretchFactor(0, 0)
+        self._history_splitter.setStretchFactor(1, 1)
+        self._history_region = history_region
+        self._history_splitter_initialized = False
 
-        body.addLayout(left, 1)
+        body.addWidget(self._history_splitter, 1)
         self._bill_panel = self._build_bill_panel()
         body.addWidget(self._bill_panel)
 
@@ -5045,7 +5105,6 @@ class CounterSalePage(QWidget):
 
         self._editing_invoice_id: int | None = None
         self._refresh_history()
-        self._apply_history_height()
 
     # ------------------------------------------------------------------
     # Layout construction
@@ -5080,6 +5139,16 @@ class CounterSalePage(QWidget):
         hl.addWidget(subtitle)
         hl.addStretch()
 
+        self._current_bill_no_label = QLabel("Bill: --")
+        self._current_bill_no_label.setMinimumWidth(180)
+        self._current_bill_no_label.setMaximumWidth(280)
+        self._current_bill_no_label.setStyleSheet(
+            f"color: {_TEXT}; font-size: {TYPE_FORM_LABEL}px;"
+            f"font-weight: bold; background: transparent;"
+            f"font-family: {FONT_FAMILY};"
+        )
+        hl.addWidget(self._current_bill_no_label)
+
         self._new_btn = QPushButton("New Sale")
         self._new_btn.setFixedWidth(110)
         self._new_btn.setStyleSheet(_BTN_SAVE)
@@ -5090,6 +5159,13 @@ class CounterSalePage(QWidget):
         hl.addWidget(self._new_btn)
 
         return header
+
+    def _set_current_bill_label(self, bill_no: str) -> None:
+        label = getattr(self, "_current_bill_no_label", None)
+        if label is not None:
+            short = _display_bill_no(bill_no) if (bill_no or "").strip() else "--"
+            label.setText(f"Bill: {short}")
+            label.setToolTip((bill_no or "").strip() or "--")
 
     # ------------------------------------------------------------------
     # Bill-history filter bar (single Date + Item Wise / Bill Wise)
@@ -5335,13 +5411,13 @@ class CounterSalePage(QWidget):
         table.setShowGrid(True)
         table.setAlternatingRowColors(False)
         table.setSortingEnabled(True)
-        table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         table.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
 
         hv = table.horizontalHeader()
         hv.setStretchLastSection(True)
-        hv.setMinimumHeight(30)
+        hv.setFixedHeight(_HISTORY_HEADER_HEIGHT)
         for col in range(13):
             if col == 2:
                 hv.setSectionResizeMode(col, QHeaderView.Stretch)
@@ -5368,6 +5444,14 @@ class CounterSalePage(QWidget):
             f"QTableWidget::item {{ padding: 3px 5px; }}"
         )
         table.setFont(readable_font(TYPE_TABLE_DATA))
+        minimum_height = (
+            max(hv.minimumHeight(), hv.sizeHint().height())
+            + _HISTORY_VISIBLE_ROWS * table.verticalHeader().defaultSectionSize()
+            + 2 * table.frameWidth()
+            + table.horizontalScrollBar().sizeHint().height()
+            + 2
+        )
+        table.setMinimumHeight(minimum_height)
         return table
 
     def _build_bill_panel(self) -> QWidget:
@@ -5665,7 +5749,7 @@ class CounterSalePage(QWidget):
     def _open_bill_card_text(self, draft_id: int, state: dict) -> str:
         """Compact three-line card for one open bill.
 
-        Line 1: provisional CNo preview (bill-number format) + Active mark.
+        Line 1: simple CNo (1911 for active-FY bills) + Active mark.
         Line 2: customer / patient name when entered.
         Line 3: current bill total.
         Internal draft ids are never shown.  Every line is kept short so
@@ -5676,14 +5760,14 @@ class CounterSalePage(QWidget):
             customer = self._sale_panel.customer_combo.currentText()
             patient = self._sale_panel.patient_name_edit.text().strip()
             bill_total = self._sale_panel.net_amt_label.text()
-            cno = (live.get("bill_no") or "").strip() or "--"
+            cno = _display_bill_no((live.get("bill_no") or "").strip() or "--")
         else:
             customer_index = self._sale_panel.customer_combo.findData(state.get("customer_id"))
             customer = (self._sale_panel.customer_combo.itemText(customer_index)
                         if customer_index >= 0 else "")
             patient = str(state.get("patient_name") or "").strip()
             bill_total = self._open_bill_net_total(state)
-            cno = str(state.get("bill_no") or "").strip() or "--"
+            cno = _display_bill_no(str(state.get("bill_no") or "").strip() or "--")
         cust_clean = (customer or "").strip()
         if cust_clean.upper().startswith("-- SELECT"):
             cust_clean = ""
@@ -5875,20 +5959,12 @@ class CounterSalePage(QWidget):
         self._remove_active_open_bill()
 
     def _apply_history_height(self):
-        """Keep the daily sales region compact to maximize billing area."""
-        page_height = self.height()
-        if page_height < 200:          # before the first real resize
-            page_height = 720
-        target = int(page_height * 0.22)
-        target = max(110, min(target, 200))
-        bar_height = self._history_filter_bar.sizeHint().height()
-        if bar_height <= 0:
-            bar_height = _HISTORY_FILTER_BAR_HEIGHT
-        self._hist_table.setFixedHeight(max(70, target - bar_height))
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self._apply_history_height()
+        """Set the initial ten-row split once; later resizes preserve it."""
+        if not self._history_splitter_initialized:
+            history_height = self._history_region.minimumSizeHint().height()
+            self._history_splitter.setSizes([history_height, 1])
+            self._history_splitter_initialized = True
+        self._sale_panel._entry_bar._refit_to_bar()
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -6046,8 +6122,16 @@ class CounterSalePage(QWidget):
 
     def _fill_item_history_row(self, table: QTableWidget, row_index: int,
                                row: dict):
-        """One row per sale item; the bill number repeats on each item row."""
-        table.setItem(row_index, 0, QTableWidgetItem(row.get("bill_no") or ""))
+        """One row per sale item; the bill number repeats on each item row.
+
+        Active-FY bills show the simple number (1911); older FY bills keep
+        the full stored number so years stay distinguishable.  The full
+        stored number is kept in the tooltip.
+        """
+        stored = row.get("bill_no") or ""
+        cell = QTableWidgetItem(_display_bill_no(stored) or "")
+        cell.setToolTip(stored)
+        table.setItem(row_index, 0, cell)
         table.setItem(row_index, 1, QTableWidgetItem(row.get("sale_type") or ""))
         table.setItem(row_index, 2, QTableWidgetItem(row.get("item_name") or ""))
         table.setItem(row_index, 3, self._money_cell(row.get("mrp")))
@@ -6069,8 +6153,15 @@ class CounterSalePage(QWidget):
 
     def _fill_bill_history_row(self, table: QTableWidget, row_index: int,
                                row: dict):
-        """Exactly one row per bill, from bill-level columns only."""
-        table.setItem(row_index, 0, QTableWidgetItem(row.get("bill_no") or ""))
+        """Exactly one row per bill, from bill-level columns only.
+
+        Active-FY bills show the simple number; older FY bills keep the full
+        stored number.  The full stored number is kept in the tooltip.
+        """
+        stored = row.get("bill_no") or ""
+        cell = QTableWidgetItem(_display_bill_no(stored) or "")
+        cell.setToolTip(stored)
+        table.setItem(row_index, 0, cell)
         table.setItem(row_index, 1, QTableWidgetItem(row.get("sale_type") or ""))
         table.setItem(row_index, 2, QTableWidgetItem(row.get("patient_name") or ""))
         table.setItem(row_index, 3, QTableWidgetItem(row.get("sale_date") or ""))
