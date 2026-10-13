@@ -75,6 +75,7 @@ class BalanceSheetPage(QWidget):
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
+        self._history_financial_year: dict | None = None
         self.setStyleSheet(f"background-color: {_DARK_BG};")
 
         root = QVBoxLayout(self)
@@ -199,6 +200,16 @@ class BalanceSheetPage(QWidget):
 
         as_of = self.as_of_edit.date().toString("yyyy-MM-dd")
         return BalanceSheetDAO.get_balance_sheet(as_of_date=as_of)
+
+    def set_history_financial_year(self, year: dict | None):
+        """Apply the navbar's view-only financial-year selection."""
+        self._history_financial_year = dict(year) if year else None
+        if year and year.get("end_date"):
+            end = year["end_date"]
+        else:
+            _, end = active_date_range()
+        self.as_of_edit.setDate(QDate.fromString(end, "yyyy-MM-dd"))
+        self._on_generate()
 
     def _clear_content(self):
         while self._content_layout.count():

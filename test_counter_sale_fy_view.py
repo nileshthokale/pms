@@ -316,9 +316,9 @@ class HistoryDateControlTests(_HistorySeedMixin, unittest.TestCase):
         self.assertNotEqual(self.page._hist_date.date(), QDate(2000, 1, 1))
         self.assertEqual(self.page._hist_date.date(), QDate.currentDate(),
                          "the history Date must open on today's system date")
-        # The default is a display value only: the grid still opens
-        # unfiltered, exactly as it did before.
-        self.assertEqual(self.page._history_filter, HISTORY_FILTER_ALL)
+        # The default is focused on daily sales: the grid opens filtered to today
+        # instead of loading the entire multiyear history.
+        self.assertEqual(self.page._history_filter, HISTORY_FILTER_DATE)
 
     def test_05b_manual_date_survives_a_refresh(self):
         self._pick("2026-03-01")
@@ -438,7 +438,12 @@ class FinancialYearViewTests(_HistorySeedMixin, unittest.TestCase):
         button = self.nav.fy_button
         self.assertIsInstance(button, QPushButton)
         self.assertEqual(button.objectName(), "FinancialYearButton")
-        self.assertEqual(button.text(), f"FY {_ACTIVE_FY}")
+        self.assertEqual(button.text(), f"Viewing FY {_ACTIVE_FY}")
+
+    def test_15b_fy_button_marks_historical_view(self):
+        self.nav.set_viewing_financial_year(self.old_fy)
+        self.assertEqual(self.nav.fy_button.text(), f"Viewing FY {_OLD_FY}")
+        self.assertIn(_ACTIVE_FY, self.nav.fy_button.toolTip())
 
     def test_16_fy_button_stays_in_the_title_strip(self):
         button = self.nav.fy_button

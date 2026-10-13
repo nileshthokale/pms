@@ -108,6 +108,7 @@ class GSTReportPage(QWidget):
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
+        self._history_financial_year: dict | None = None
         self.setStyleSheet(f"background-color: {_DARK_BG};")
 
         root = QVBoxLayout(self)
@@ -441,6 +442,18 @@ class GSTReportPage(QWidget):
             "invoice_no": self.invoice_edit.text().strip() or None,
             "voucher_no": self.voucher_edit.text().strip() or None,
         }
+
+    def set_history_financial_year(self, year: dict | None):
+        """Apply the navbar's view-only financial-year selection."""
+        self._history_financial_year = dict(year) if year else None
+        start, end = (year or {}).get("start_date"), (year or {}).get("end_date")
+        if not start or not end:
+            start, end = active_date_range()
+        self.from_check.setChecked(True)
+        self.to_check.setChecked(True)
+        self.from_edit.setDate(QDate.fromString(start, "yyyy-MM-dd"))
+        self.to_edit.setDate(QDate.fromString(end, "yyyy-MM-dd"))
+        self._on_generate()
 
     # ------------------------------------------------------------------
     def _render(self, report: dict):

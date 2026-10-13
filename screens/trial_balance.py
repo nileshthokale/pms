@@ -65,6 +65,7 @@ class TrialBalancePage(QWidget):
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
+        self._history_financial_year: dict | None = None
         self.setStyleSheet(f"background-color: {_DARK_BG};")
 
         root = QVBoxLayout(self)
@@ -221,6 +222,16 @@ class TrialBalancePage(QWidget):
         return TrialBalanceDAO.get_trial_balance_filtered(
             as_of_date=as_of, include_zero=self.zero_check.isChecked()
         )
+
+    def set_history_financial_year(self, year: dict | None):
+        """Apply the navbar's view-only financial-year selection."""
+        self._history_financial_year = dict(year) if year else None
+        if year and year.get("end_date"):
+            end = year["end_date"]
+        else:
+            _, end = active_date_range()
+        self.as_of_edit.setDate(QDate.fromString(end, "yyyy-MM-dd"))
+        self._on_generate()
 
     def _render(self, report: dict):
         rows = report["rows"]

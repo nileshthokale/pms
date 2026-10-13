@@ -92,6 +92,7 @@ class PartyWiseReportPage(QWidget):
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
+        self._history_financial_year: dict | None = None
         self.setStyleSheet(f"background-color: {_DARK_BG};")
 
         root = QVBoxLayout(self)
@@ -271,6 +272,18 @@ class PartyWiseReportPage(QWidget):
             "to_date": self.to_edit.date().toString("yyyy-MM-dd"),
             "party_name": self.party_name_edit.text().strip() or None,
         }
+
+    def set_history_financial_year(self, year: dict | None):
+        """Apply the navbar's view-only financial-year selection."""
+        self._history_financial_year = dict(year) if year else None
+        if year and year.get("start_date") and year.get("end_date"):
+            start = year["start_date"]
+            end = year["end_date"]
+        else:
+            start, end = active_date_range()
+        self.from_edit.setDate(QDate.fromString(start, "yyyy-MM-dd"))
+        self.to_edit.setDate(QDate.fromString(end, "yyyy-MM-dd"))
+        self._on_generate()
 
     def _render_customer(self, rows: list[dict]):
         headers = [

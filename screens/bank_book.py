@@ -13,6 +13,7 @@ class BankBookPage(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._history_financial_year: dict | None = None
         colors = ui.palette()
         self.setStyleSheet(f"background-color: {colors['bg']};")
 
@@ -65,6 +66,20 @@ class BankBookPage(QWidget):
 
     def _set_default_dates(self):
         options = BankBookDAO.get_filter_options(); self._from.setDate(QDate.fromString(options["from_date"], "yyyy-MM-dd")); self._to.setDate(QDate.fromString(options["to_date"], "yyyy-MM-dd"))
+
+    def set_history_financial_year(self, year: dict | None):
+        """Apply the navbar's view-only financial-year selection."""
+        self._history_financial_year = dict(year) if year else None
+        if year and year.get("start_date") and year.get("end_date"):
+            start = year["start_date"]
+            end = year["end_date"]
+        else:
+            options = BankBookDAO.get_filter_options()
+            start = options["from_date"]
+            end = options["to_date"]
+        self._from.setDate(QDate.fromString(start, "yyyy-MM-dd"))
+        self._to.setDate(QDate.fromString(end, "yyyy-MM-dd"))
+        self._refresh()
 
     def _dates(self): return self._from.date().toString("yyyy-MM-dd"), self._to.date().toString("yyyy-MM-dd")
 
