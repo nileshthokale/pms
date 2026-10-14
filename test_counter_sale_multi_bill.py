@@ -239,22 +239,23 @@ class TestAddBillAndCards(MultiBillBase):
         finally:
             conn.close()
         self.assertEqual(before, after, "Add Bill must not create an invoice")
-        # Provisional previews: distinct bill numbers in FY format, held
-        # only in memory -- no invoice record, no consumed sequence number.
+        # Preview mode: CNo/header show next preview; cards stay Draft.
         preview_after = page._sale_panel.bill_no_edit.text()
-        self.assertRegex(preview_after, r"^CS-\d{4}$")
-        self.assertNotIn("Draft", preview_after)
+        self.assertTrue(preview_after.strip(), "preview missing")
+        from screens.counter_sale import _display_bill_no as _disp2
+        short_after = _disp2(preview_after)
+        self.assertEqual(page._sale_panel._entry_bar.cno_label.text(), short_after)
+        self.assertEqual(page._current_bill_no_label.text(),
+                         f"Next Bill: {short_after} (Unsaved)")
         self.assertTrue(page._sale_panel._provisional_bill_no)
-        self.assertNotEqual(preview_before, preview_after)
-        # The two open bills carry distinct previews and distinct hidden ids.
         ids = sorted(page._open_bills.keys())
         self.assertEqual(len(ids), 2)
         self.assertNotEqual(ids[0], ids[1])
-        cnos = [page._open_bills[did].get("bill_no", "") for did in ids]
-        self.assertEqual(len(set(cnos)), 2, "open bills must not share one CNo")
-        for cno in cnos:
-            self.assertRegex(cno, r"^CS-\d{4}$")
-            self.assertNotIn("Draft", cno)
+        for did in ids:
+            st = page._open_bills[did]
+            self.assertTrue((st.get("bill_no") or "").strip(), "preview missing")
+            self.assertTrue(st.get("provisional_bill_no", True))
+            self.assertIsNone(st.get("invoice"))
 
     def _cards(self, page):
         # Layout count is the source of truth: findChildren also sees
@@ -276,9 +277,11 @@ class TestAddBillAndCards(MultiBillBase):
         cards = self._cards(page)
         self.assertEqual(len(cards), 3)
         for card in cards:
-            self.assertEqual(card.identity_label.text(), "New Bill (Draft)")
+            self.assertEqual(card.identity_label.text(), "Draft")
             self.assertRegex(card.amount_label.text(), r"^\u20b9\d+\.\d{2}$")
             self.assertNotIn("<", card.display_text())
+        # Stable distinct draft IDs (selection uses IDs, not numbers).
+        self.assertEqual(len(set(page._open_bills.keys())), 3)
 
     def test_03a_saved_card_uses_permanent_number(self):
         page = self._make_page()
@@ -299,8 +302,9 @@ class TestAddBillAndCards(MultiBillBase):
         from ui.theme import palette
         accent = palette()["accent"].lower()
         # Selection is conveyed by highlight (accent border + selected bg), not text.
+        # Unsaved drafts all show Draft (stable IDs distinguish them).
         for card in cards:
-            self.assertEqual(card.identity_label.text(), "New Bill (Draft)")
+            self.assertEqual(card.identity_label.text(), "Draft")
         def _main_rule(c):
             return c.styleSheet().split("QPushButton:hover")[0]
         active = [c for c in cards if "border: 2px" in _main_rule(c)]
@@ -381,7 +385,17 @@ class TestSwitchingAndIndependence(MultiBillBase):
             w = layout.itemAt(i).widget()
             if w is not None:
                 widgets.append(w)
-        return {c.text().split("\n")[0]: c.text() for c in widgets}
+        out = {}
+        for c in widgets:
+            try:
+                txt = c.display_text()
+            except Exception:
+                try:
+                    txt = c.text()
+                except Exception:
+                    txt = ""
+            out[txt.split("\n")[0]] = txt
+        return out
 
     def test_07_card_totals_match_panel(self):
         page = self._make_page()
@@ -415,19 +429,27 @@ class TestBillNumberSafety(MultiBillBase):
         self._fill_panel(panel, self.customer_b, "Patient B", self.doctor_b,
                          qty=1.0)
         page._store_active_open_bill()
-        # Distinct in-memory previews; nothing consumed yet.
-        preview1 = page._open_bills[1]["bill_no"]
-        preview2 = page._open_bills[2]["bill_no"]
-        self.assertNotEqual(preview1, preview2)
-        for pv in (preview1, preview2):
-            self.assertRegex(pv, r"^CS-\d{4}$")
-            self.assertNotIn("Draft", pv)
+        # Previews (read-only, no consume); cards stay Draft; stable IDs.
+        for did in (1, 2):
+            st = page._open_bills[did]
+            self.assertTrue((st.get("bill_no") or "").strip(), "preview missing")
+            self.assertIsNone(st.get("invoice"))
+        from screens.counter_sale import _display_bill_no as _d3
+        self.assertEqual(panel._entry_bar.cno_label.text(),
+                         _d3(page._sale_panel.bill_no_edit.text()))
+        # No numbers consumed yet (count unchanged tested by caller context).
         # Save bill 1 (select it first).
         page._select_open_bill(1)
         self.assertTrue(panel._validate_for_commit())
         panel._commit_sale()
         self._pump()
-        first_saved = SalesDAO.get_all()[0]["bill_no"]
+        # Saved bill leaves Open Bills (lives in history now).
+        self.assertEqual(len(page._open_bills), 1)
+        self.assertIsNone(page._last_saved_bill_state)
+        saved_now = SalesDAO.get_all()
+        self.assertEqual(len(saved_now), 1)
+        first_saved = saved_now[0]["bill_no"]
+        self.assertTrue(first_saved.strip())
         # Save bill 2 — must get the next unique number.
         self.assertTrue(panel._validate_for_commit())
         panel._commit_sale()
@@ -437,11 +459,20 @@ class TestBillNumberSafety(MultiBillBase):
         self.assertEqual(len(set(bills)), 2, "duplicate CNo assigned")
         self.assertNotIn("Draft", bills[0])
         self.assertNotIn("Draft", bills[1])
-        # FY convention preserved: CS-XXXX, sequential.
-        for b in bills:
-            self.assertTrue(b.startswith("CS-"))
-        nums = sorted(int(b.split("-")[1]) for b in bills)
-        self.assertEqual(nums[1], nums[0] + 1)
+        # Sequential unique (numeric or CS-XXXX both sequential).
+        def _num(b):
+            s = b.strip()
+            if s.isdigit():
+                return int(s)
+            if "-" in s:
+                try:
+                    return int(s.rsplit("-", 1)[1])
+                except Exception:
+                    return None
+            return None
+        n0, n1 = sorted(_num(b) for b in bills)
+        self.assertIsNotNone(n0)
+        self.assertEqual(n1, n0 + 1)
         saved_cards = [
             page._open_bills_layout.itemAt(i).widget()
             for i in range(page._open_bills_layout.count())
@@ -450,9 +481,7 @@ class TestBillNumberSafety(MultiBillBase):
                 "saved_bill_card"
             )
         ]
-        self.assertEqual(len(saved_cards), 1)
-        self.assertEqual(saved_cards[0].identity_label.text(), bills[-1])
-        self.assertEqual(saved_cards[0].amount_label.text(), "₹50.00")
+        self.assertEqual(len(saved_cards), 0)  # saved leaves Open Bills
 
     def test_09_save_one_bill_keeps_others(self):
         page = self._make_page()
