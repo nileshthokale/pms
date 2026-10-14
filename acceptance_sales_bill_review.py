@@ -203,8 +203,9 @@ print("\n--- Popup size at the supported resolutions ---")
 from screens.counter_sale import SalesBillReviewDialog  # noqa: E402
 for label, (rw, rh) in (("1366x768", (1366, 768)), ("1600x900", (1600, 900))):
     w, h = SalesBillReviewDialog.target_size(rw, rh)
-    check(f"size at {label} is compact and in range",
-          900 <= w <= 1300 and 520 <= h <= 600, f"{w}x{h}")
+    check(f"size at {label} is spacious (85-90% W, 80-85% H)",
+          0.85 * rw <= w <= 0.90 * rw and 0.80 * rh <= h <= 0.85 * rh,
+          f"{w}x{h}")
     print(f"        {label} -> {w} x {h}")
 
 print("\n--- Popup is centred over the Counter Sale screen ---")

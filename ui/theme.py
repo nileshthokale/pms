@@ -145,17 +145,20 @@ FONT_NAME = "Segoe UI"
 #
 # Minimum sizes are guarded by tests (see test_ui_typography.py): table data
 # never drops below ``TABLE_DATA``, table headers never below ``TABLE_HEADER``.
-TYPE_PAGE_TITLE = 18        # "Sales / Counter Sale", "Item Master", APP_TITLE
-TYPE_SECTION_HEADER = 13    # "Bill History", "Bill Items", report sections
-TYPE_TABLE_HEADER = 12      # column captions (bold, black)
-TYPE_TABLE_DATA = 13        # cell values — the most important size
-TYPE_FORM_LABEL = 12        # "Bill No", "Item", "MRP", "Qty" captions
-TYPE_INPUT = 13             # roomy inputs (entry bar, forms, dialogs)
-TYPE_INPUT_COMPACT = 12     # inputs inside a fixed 24 px control box
-TYPE_VALUE = 13             # totals / important values (bold)
-TYPE_VALUE_EMPHASIS = 14    # NET AMT and other headline figures (bold)
-TYPE_BUTTON = 12            # button captions
-TYPE_HINT = 11              # genuinely secondary hints (dimmed)
+# Baseline is ~10-11 pt for ordinary UI text (≈14 px at 96 dpi), with larger
+# section headings and totals.  Hierarchy is preserved: titles outweigh
+# section headers, which outweigh table text; values outweigh plain data.
+TYPE_PAGE_TITLE = 20        # "Sales / Counter Sale", "Item Master", APP_TITLE
+TYPE_SECTION_HEADER = 15    # "Bill History", "Bill Items", report sections
+TYPE_TABLE_HEADER = 14      # column captions (bold, black)
+TYPE_TABLE_DATA = 14        # cell values — the most important size
+TYPE_FORM_LABEL = 14        # "Bill No", "Item", "MRP", "Qty" captions
+TYPE_INPUT = 14             # roomy inputs (entry bar, forms, dialogs)
+TYPE_INPUT_COMPACT = 13     # inputs inside a fixed 30 px control box
+TYPE_VALUE = 15             # totals / important values (bold)
+TYPE_VALUE_EMPHASIS = 17    # NET AMT and other headline figures (bold)
+TYPE_BUTTON = 14            # button captions
+TYPE_HINT = 12              # genuinely secondary hints (dimmed)
 
 # Ordering the hierarchy depends on: a page title must always outweigh
 # table text, and table text must never collapse below the readable floor.

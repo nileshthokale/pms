@@ -53,13 +53,13 @@ from ui.theme import (
 )
 
 # Readable desktop control metrics (px) shared across screens.
-# Rows are sized so the shared TYPE_TABLE_DATA text (13 px) plus the
+# Rows are sized so the shared TYPE_TABLE_DATA text (14 px ≈ 10.5 pt) plus the
 # ``QTableWidget::item`` padding of 3 px never clips, while staying compact
-# enough for 1366x768 pharmacy desktops.  Changing these would change the
-# layout, so they are left exactly as they were.
-CONTROL_HEIGHT = 28
-ROW_HEIGHT = 26
-HEADER_HEIGHT = 28
+# enough for 1366x768 pharmacy desktops.  Heights grew with the 10-11 pt
+# baseline so larger fonts never clip or overlap.
+CONTROL_HEIGHT = 32
+ROW_HEIGHT = 30
+HEADER_HEIGHT = 32
 
 
 def readable_font(size: int, *, bold: bool = False) -> QFont:

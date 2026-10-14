@@ -36,9 +36,9 @@ from database import auth
 from database import financial_year
 
 # The brand strip shows the application title, so it uses the page-title
-# weight of the shared type scale (a touch below the 18 px in-page title so
-# it fits the 30 px chrome strip without crowding the right-hand buttons).
-NAV_BRAND_PX = 16
+# weight of the shared type scale (a touch below the 20 px in-page title so
+# it fits the 32 px chrome strip without crowding the right-hand buttons).
+NAV_BRAND_PX = 18
 
 
 class FinancialYearPickerDialog(QDialog):
@@ -120,7 +120,7 @@ class NavigationBar(QWidget):
         # ── Row 1: title strip ───────────────────────────────────────
         title_bar = QFrame()
         title_bar.setObjectName("TitleBar")
-        title_bar.setFixedHeight(30)
+        title_bar.setFixedHeight(34)
         tl = QHBoxLayout(title_bar)
         tl.setContentsMargins(10, 0, 8, 0)
         tl.setSpacing(8)
@@ -169,7 +169,7 @@ class NavigationBar(QWidget):
         # ── Row 2: menu strip ────────────────────────────────────────
         menu_bar = QFrame()
         menu_bar.setObjectName("MenuBar")
-        menu_bar.setFixedHeight(30)
+        menu_bar.setFixedHeight(34)
         ml = QHBoxLayout(menu_bar)
         ml.setContentsMargins(4, 0, 8, 0)
         ml.setSpacing(0)

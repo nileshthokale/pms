@@ -288,14 +288,14 @@ _BTN_ORANGE = _btn_style(_BTN_WARNING_EDGE)
 # Table row action (per-row Delete inside the Bill Items "Del" column).
 # A quiet red edge on the light surface: it reads as a control inside a
 # table cell rather than as a standalone button competing with the row.
-# Kept at 11 px (below TYPE_BUTTON) because the button is pinned to the 22 px
+# Sized at TYPE_BUTTON (14 px) because the button is pinned to the 26 px
 # table row action box; the caption still reads as bold red-on-light and is
 # not part of the main action hierarchy.
 _BTN_ROW_ACTION = (
     "QPushButton {"
     f"  background-color: {_p['surface_alt']}; color: {_BTN_DANGER_EDGE};"
     f"  border: 1px solid {_BTN_DANGER_EDGE}; border-radius: 3px;"
-    "  padding: 2px 6px; font-size: 11px; font-weight: bold;"
+    f"  padding: 3px 8px; font-size: {TYPE_BUTTON}px; font-weight: bold;"
     f"  font-family: {FONT_FAMILY};"
     "}"
     "QPushButton:hover {"
@@ -346,8 +346,9 @@ _HEADER_LABEL = (
 # same box height so the bar reads as a single instrument strip instead of
 # a row of mismatched boxes, and the label width is measured from the real
 # font (capped) so labels never reserve a wide, mostly empty box.
-_ENTRY_BAR_HEIGHT = 40          # label + control box, one straight row
-_ENTRY_ADD_WIDTH = 78           # compact "+ Add": inside the 70-90 px target
+_ENTRY_BAR_HEIGHT = 50          # single row used by the Sales Bill popup
+_ENTRY_TWO_ROW_HEIGHT = 86      # two readable lanes in the inline Counter Sale
+_ENTRY_ADD_WIDTH = 84           # compact "+ Add": inside the 70-90 px target
 
 # Caption metrics.  A caption box is its own text plus one fixed gap, so the
 # text can never be clipped by the box that holds it, and the gap between a
@@ -357,7 +358,7 @@ _ENTRY_ADD_WIDTH = 78           # compact "+ Add": inside the 70-90 px target
 # stuck to their fields.  The cap only stops a future long caption from
 # stealing width from the fields.
 _ENTRY_LABEL_GAP = 10           # caption -> the field it names (10-14 px)
-_ENTRY_LABEL_MAX_WIDTH = 52     # longest caption + gap, on any platform font
+_ENTRY_LABEL_MAX_WIDTH = 62     # longest caption + gap at 14 px, on any platform font
 
 # Seam between one field and the caption that follows it.  A caption names
 # the field on its RIGHT, so it must hug that field and stand clear of the
@@ -378,28 +379,28 @@ _ENTRY_ITEM_BATCH_GAP = 10
 # and Batch lead -- they hold the text a cashier actually reads -- while Pack
 # and Qty stay compact by design.
 _ENTRY_PREFERRED_WIDTHS = {
-    "item_combo": 250,          # the primary search box
-    "batch_combo": 157,         # long batch numbers stay readable
-    "pack_edit": 50,
-    "location_edit": 80,
-    "expiry_edit": 80,
-    "mrp_edit": 80,
-    "stock_edit": 80,
-    "qty_edit": 48,
-    "discount_edit": 75,
-    "amount_edit": 80,
+    "item_combo": 260,          # useful product-name search width
+    "batch_combo": 190,         # long batch numbers stay readable at 14 px
+    "pack_edit": 70,
+    "location_edit": 110,
+    "expiry_edit": 95,
+    "mrp_edit": 110,
+    "stock_edit": 110,
+    "qty_edit": 90,
+    "discount_edit": 110,
+    "amount_edit": 110,
 }
 _ENTRY_FLOOR_WIDTHS = {
-    "item_combo": 150,
-    "batch_combo": 110,
-    "pack_edit": 44,
-    "location_edit": 44,
-    "expiry_edit": 44,
-    "mrp_edit": 44,
-    "stock_edit": 44,
-    "qty_edit": 44,
-    "discount_edit": 44,
-    "amount_edit": 44,
+    "item_combo": 180,
+    "batch_combo": 136,
+    "pack_edit": 60,
+    "location_edit": 65,
+    "expiry_edit": 88,
+    "mrp_edit": 75,
+    "stock_edit": 80,
+    "qty_edit": 60,
+    "discount_edit": 80,
+    "amount_edit": 90,
 }
 # Absolute floor.  Below this a field can show nothing useful, so the row
 # stops shrinking rather than pretend the partition still fits.
@@ -417,27 +418,27 @@ _ENTRY_MIN_BAR_WIDTH = 420
 # this chrome, never guessed: 6 px padding each side, the 22 px drop-down
 # arrow reserved by QComboBox::drop-down, and a 1 px border each side.
 _ENTRY_BATCH_CHROME = 6 + 6 + 22 + 2
-_ENTRY_BATCH_MIN_WIDTH = 110   # matches _ENTRY_FLOOR_WIDTHS["batch_combo"]
-_ENTRY_BATCH_MAX_WIDTH = 157   # matches _ENTRY_PREFERRED_WIDTHS["batch_combo"]
+_ENTRY_BATCH_MIN_WIDTH = 136   # matches _ENTRY_FLOOR_WIDTHS["batch_combo"]
+_ENTRY_BATCH_MAX_WIDTH = 190   # matches _ENTRY_PREFERRED_WIDTHS["batch_combo"]
 
 # â”€â”€ Bottom billing block metrics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # The Sale Header strip and the totals/action footer together form the
 # fixed bottom billing section (~98 px), and both rows inside the strip use
 # one shared box height so nothing is squeezed or clipped.
-_METADATA_STRIP_HEIGHT = 56    # Bill No / Date / Time / Type + Customer row
-_METADATA_CONTROL_HEIGHT = 24  # shared box height for every metadata control
-_TOTALS_FOOTER_HEIGHT = 44     # totals + Hold / Save / Cancel
-_TOTALS_CONTROL_HEIGHT = 24    # shared box height for footer totals
-_ACTION_BUTTON_HEIGHT = 30     # Hold Bill / Save Sale / Cancel
-_BILL_ROW_HEIGHT = 30          # Bill Items body row height
-_BILL_HEADER_HEIGHT = 34       # header band is slightly taller than a row
-_BILL_DELETE_WIDTH = 56        # compact Del action inside the table cell
-_BILL_DELETE_HEIGHT = 22
+_METADATA_STRIP_HEIGHT = 62    # Bill No / Date / Time / Type + Customer row
+_METADATA_CONTROL_HEIGHT = 30  # shared box height for every metadata control
+_TOTALS_FOOTER_HEIGHT = 70     # totals + Hold / Save / Cancel (taller footer)
+_TOTALS_CONTROL_HEIGHT = 30    # shared box height for footer totals
+_ACTION_BUTTON_HEIGHT = 38     # Hold Bill / Save Sale / Cancel
+_BILL_ROW_HEIGHT = 34          # Bill Items body row height (14 px text)
+_BILL_HEADER_HEIGHT = 38       # header band is slightly taller than a row
+_BILL_DELETE_WIDTH = 64        # compact Del action inside the table cell
+_BILL_DELETE_HEIGHT = 26
 
 # Bill Items columns.  Index 1 (Item Name) stretches; the rest are sized to
 # their content so long item names and batch numbers cannot push the
 # numeric columns off screen.
-_BILL_COLUMN_WIDTHS = (34, 0, 82, 106, 150, 76, 76, 54, 84, 96, 72)
+_BILL_COLUMN_WIDTHS = (36, 0, 82, 106, 150, 76, 76, 54, 84, 96, 72)
 _BILL_CENTERED_COLUMNS = (0, 10)
 _BILL_RIGHT_COLUMNS = (6, 7, 8, 9)
 
@@ -638,7 +639,7 @@ def _fresh_row_action_style(p: dict | None = None) -> str:
         "QPushButton {"
         f"  background-color: {p['surface_alt']}; color: {danger};"
         f"  border: 1px solid {danger}; border-radius: 3px;"
-        "  padding: 2px 6px; font-size: 11px; font-weight: bold;"
+        f"  padding: 3px 8px; font-size: {TYPE_BUTTON}px; font-weight: bold;"
         f"  font-family: {FONT_FAMILY};"
         "}"
         "QPushButton:hover {"
@@ -661,7 +662,7 @@ def _fresh_completer_popup_style(p: dict | None = None) -> str:
     return (
         f"QAbstractItemView {{ background-color: {pp['bg']}; color: {pp['text']}; "
         f"border: 1px solid {pp['border']}; selection-background-color: {pp['selected']}; "
-        f"selection-color: {pp['text']}; font: 11px 'Segoe UI'; outline: 0; }}"
+        f"selection-color: {pp['text']}; font: {TYPE_INPUT}px 'Segoe UI'; outline: 0; }}"
         f"QAbstractItemView::item {{ min-height: 24px; padding: 2px 6px; }}"
         f"QAbstractItemView::item:selected {{ background-color: {pp['selected']}; color: {pp['text']}; }}"
     )
@@ -675,8 +676,8 @@ def _fresh_bill_header_style(p: dict | None = None) -> str:
         f"QHeaderView::section {{"
         f"  background-color: {p['surface']}; color: {p['text']};"
         f"  border: none; border-bottom: 2px solid {p['accent']};"
-        f"  padding: 4px 5px; font-weight: bold;"
-        f"  font-size: 12px;"
+        f"  padding: 5px 6px; font-weight: bold;"
+        f"  font-size: {TYPE_TABLE_HEADER}px;"
         f"  font-family: {FONT_FAMILY};"
         f"}}"
     )
@@ -703,8 +704,8 @@ def _fresh_history_header_style(p: dict | None = None) -> str:
         f"QHeaderView::section {{"
         f"  background-color: {p['surface']}; color: {p['text']};"
         f"  border: none; border-bottom: 2px solid {p['accent']};"
-        f"  padding: 4px 6px; font-weight: bold;"
-        f"  font-size: 12px;"
+        f"  padding: 5px 6px; font-weight: bold;"
+        f"  font-size: {TYPE_TABLE_HEADER}px;"
         f"  font-family: {FONT_FAMILY};"
         f"}}"
     )
@@ -938,7 +939,7 @@ def refresh_cs_tree(root) -> int:
                         # in this screen are always text or dim.  Dim labels
                         # declare 11 px without bold in _LABEL_DIM; bold 11 px
                         # captions are text.  Fall back to text.
-                        if "font-size: 11px" in ss and "font-weight: bold" not in ss:
+                        if "font-size: 12px" in ss and "font-weight: bold" not in ss:
                             new_col = p["text_dim"]
                         else:
                             new_col = p["text"]
@@ -1544,7 +1545,7 @@ class _ItemEntryBar(QWidget):
     drift or grow when items/history rows are added.
     """
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, *, two_row=False):
         super().__init__(parent)
         _keep_alive(self)
         # Own deferred focus callbacks with this widget. Static
@@ -1556,33 +1557,43 @@ class _ItemEntryBar(QWidget):
         self._focus_quantity_timer = QTimer(self)
         self._focus_quantity_timer.setSingleShot(True)
         self.setObjectName("ItemEntryBar")
+        self._two_row = two_row
         self._draft_reserved_qty = lambda _batch_id: 0.0
         # The row sizes itself (see _refit_to_bar).  Off until the row has
         # been built and measured, then on for good; the Sales Bill popup
         # turns it off because it measures and pins its own widths.
-        self._auto_fit = False
+        self._auto_fit = not self._two_row
         self._in_refit = False
         # Batch's real floor: _ENTRY_FLOOR_WIDTHS, raised by
         # _reserve_batch_number_width when a batch number needs more room.
         self._batch_floor = _ENTRY_FLOOR_WIDTHS["batch_combo"]
-        # One single horizontal row â€” the target billing-bar order:
-        #   CNo | Item | Batch | Pack | Loc | Exp | MRP | Avail | Qty |
-        #   Disc | Amount | + Add
-        #
-        # There is deliberately NO second row: the auto-filled details used
-        # to sit underneath and wasted a whole line of vertical space.
-        self.setFixedHeight(_ENTRY_BAR_HEIGHT)
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(6, 3, 6, 3)
-        layout.setSpacing(1)
+        # The inline form uses two lanes so fields remain readable at the
+        # sale panel's real width. The Sales Bill popup keeps its one-row path.
+        self.setFixedHeight(
+            _ENTRY_TWO_ROW_HEIGHT if self._two_row else _ENTRY_BAR_HEIGHT
+        )
+        if self._two_row:
+            root_layout = QVBoxLayout(self)
+            root_layout.setContentsMargins(6, 1, 6, 1)
+            root_layout.setSpacing(0)
+            layout = QHBoxLayout()
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.setSpacing(1)
+            root_layout.addLayout(layout)
+        else:
+            layout = QHBoxLayout(self)
+            layout.setContentsMargins(6, 3, 6, 3)
+            layout.setSpacing(1)
 
         # CNo (counter / current bill number — display only)
         layout.addWidget(self._lbl("CNo"))
         self.cno_label = QLabel("--")
-        # Simple sequential numbers (1911) need less room than the old
-        # FY-prefixed form (2026-2027-1911); 60 px shows the simple number
-        # in full with the complete stored value in the tooltip.
-        self.cno_label.setFixedWidth(60)
+        # Keep the read-out compact so Item and Batch retain the visual space
+        # they need for real entry.  Unsaved drafts intentionally show a compact
+        # "Draft"/"--" label instead of a provisional invoice number.
+        self.cno_label.setFixedWidth(82)
+        self.cno_label.setMinimumWidth(52)
+        self.cno_label.setMaximumWidth(82)
         self.cno_label.setAlignment(Qt.AlignCenter)
         self.cno_label.setStyleSheet(_LABEL_STYLE)
         self.cno_label.setFixedHeight(_ENTRY_BAR_HEIGHT - 8)
@@ -1663,6 +1674,12 @@ class _ItemEntryBar(QWidget):
         self.expiry_edit.setAlignment(Qt.AlignCenter)
         self.expiry_edit.setReadOnly(True)
         layout.addWidget(self.expiry_edit, 1)
+
+        if self._two_row:
+            layout = QHBoxLayout()
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.setSpacing(1)
+            self.layout().addLayout(layout)
 
         # MRP (auto-filled)
         layout.addSpacing(_ENTRY_GROUP_GAP)
@@ -1767,8 +1784,9 @@ class _ItemEntryBar(QWidget):
 
         # The row is built and measured: from here on it keeps itself fitting
         # the bar.  Enabled last so the first fit sees the finished row.
-        self._auto_fit = True
-        self._refit_to_bar()
+        self._auto_fit = not self._two_row
+        if self._auto_fit:
+            self._refit_to_bar()
 
     # ------------------------------------------------------------------
     # Responsive width fitting
@@ -1799,6 +1817,10 @@ class _ItemEntryBar(QWidget):
         resizable, and ``_refit_to_bar`` recomputes the partition for
         whatever width the bar is actually given.
         """
+        if self._two_row:
+            hint = super().minimumSizeHint()
+            return QSize(max(_ENTRY_MIN_BAR_WIDTH, hint.width()),
+                         _ENTRY_TWO_ROW_HEIGHT)
         width = max(_ENTRY_MIN_BAR_WIDTH, self._fixed_chrome_width())
         return QSize(width, _ENTRY_BAR_HEIGHT)
 
@@ -1915,7 +1937,8 @@ class _ItemEntryBar(QWidget):
 
     def _refit_to_bar(self) -> None:
         """Share the bar's real width across the row whenever it changes."""
-        if self._in_refit or self.layout() is None or self.width() <= 0:
+        if (self._two_row or self._in_refit or self.layout() is None
+            or self.width() <= 0):
             return
         self._in_refit = True
         try:
@@ -2143,6 +2166,7 @@ class _ItemEntryBar(QWidget):
                 f"Stored: {batch.get('stock_qty', 0.0):.0f} | "
                 f"In bill: {reserved:.0f} | Available: {available:.0f}"
             )
+            self.batch_combo.lineEdit().setCursorPosition(0)
 
     def refresh_draft_availability(self):
         """Refresh selected batch details and batch-popup labels after a draft change."""
@@ -2171,18 +2195,25 @@ class _ItemEntryBar(QWidget):
     def set_cno(self, text: str):
         """Display the current counter/bill number (no logic attached).
 
-        Shows the simple sequential number for active-FY bills (1911
-        instead of 2026-2027-1911) or the saved CNo.  The full stored
-        number stays in the tooltip, so the row never overflows its slot.
+        Unsaved drafts intentionally show a compact non-permanent label so the
+        item-entry row stays aligned and the user is not misled by a provisional
+        invoice number that will be assigned only on Save.
         """
-        try:
-            short = _display_bill_no(text) if (text or "").strip() else "--"
-        except Exception:
-            short = text or "--"
-        full = (text or "--").strip() or "--"
+        parent = getattr(self, "parentWidget", lambda: None)()
+        provisional = bool(getattr(parent, "_provisional_bill_no", False))
+        saved = bool(getattr(parent, "_saved", False))
+        if provisional and not saved:
+            short = "Draft"
+            full = "New Bill (Draft)"
+        else:
+            try:
+                short = (text or "").strip() or "--"
+            except Exception:
+                short = text or "--"
+            full = short
         try:
             fm = QFontMetrics(self.cno_label.font())
-            elided = fm.elidedText(short, Qt.ElideRight, max(40, self.cno_label.width()))
+            elided = fm.elidedText(short, Qt.ElideRight, max(32, self.cno_label.width()))
         except Exception:
             elided = short
         self.cno_label.setText(elided)
@@ -2427,7 +2458,7 @@ class _SalePanel(QWidget):
             top_strip = self._build_popup_top_strip()
 
         # -- Region B: active sale entry (directly below the history) --
-        self._entry_bar = _ItemEntryBar()
+        self._entry_bar = _ItemEntryBar(two_row=not self._popup_mode)
         self._entry_bar.set_draft_reservation_provider(self._reserved_for_entry)
         self._entry_bar.load_items()
         root.addWidget(self._entry_bar)
@@ -2686,16 +2717,17 @@ class _SalePanel(QWidget):
         self.bill_disc_edit = _make_edit("0.00")
         self.paid_edit = _make_edit("0.00")
 
-        # Main vertical layout for the strip
+        # Main vertical layout for the strip (compact: single voucher row +
+        # compact customer form; freed blue-header space goes to the table).
         main_layout = QVBoxLayout(strip)
-        main_layout.setContentsMargins(8, 4, 8, 4)
-        main_layout.setSpacing(6)
+        main_layout.setContentsMargins(8, 3, 8, 3)
+        main_layout.setSpacing(4)
 
         # ============================================================
-        # ROW 1: Voucher No | Date | Time (horizontal alignment)
+        # ROW 1: Voucher No | Date | Time (compact single metadata row)
         # ============================================================
         header_row = QHBoxLayout()
-        header_row.setSpacing(12)
+        header_row.setSpacing(8)
 
         # Voucher No
         voucher_layout = QHBoxLayout()
@@ -2796,23 +2828,25 @@ class _SalePanel(QWidget):
         form_row.addWidget(centre_container, 1)
 
         # ---- RIGHT COLUMN: Doctor / Discount / Paid Amount ----
+        # All three captions share one fixed width (fits "Paid Amount" at
+        # 14 px) so every gap to its box is the grid spacing only.
         right = QGridLayout()
         right.setHorizontalSpacing(10)
         right.setVerticalSpacing(2)
         doctor_label = self._lbl("Doctor")
-        doctor_label.setMinimumWidth(121)
+        doctor_label.setFixedWidth(160)
         right.addWidget(doctor_label, 0, 0, Qt.AlignLeft | Qt.AlignVCenter)
         self._make_doctor_lookup()
         self.doctor_combo.setMinimumWidth(190)
         right.addWidget(self.doctor_combo, 0, 1)
         discount_label = self._lbl("Discount")
-        discount_label.setMinimumWidth(121)
+        discount_label.setFixedWidth(160)
         right.addWidget(discount_label, 1, 0, Qt.AlignLeft | Qt.AlignVCenter)
         self.bill_disc_edit.setMinimumWidth(100)
         self.bill_disc_edit.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         right.addWidget(self.bill_disc_edit, 1, 1)
         paid_label = self._lbl("Paid Amount")
-        paid_label.setMinimumWidth(121)
+        paid_label.setFixedWidth(160)
         right.addWidget(paid_label, 2, 0, Qt.AlignLeft | Qt.AlignVCenter)
         self.paid_edit.setMinimumWidth(100)
         self.paid_edit.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
@@ -2852,6 +2886,34 @@ class _SalePanel(QWidget):
             self.header_date_label.setText(self.sale_date.date().toString("dd-MM-yyyy"))
         if hasattr(self, 'header_time_label'):
             self.header_time_label.setText(self.sale_time_edit.text() or "--")
+
+    def _popup_cno_slot_width(self) -> int:
+        """Compact CNo slot measured from the actual bill number text.
+
+        Simple numbers (1911) need only ~60 px; long FY numbers need more.
+        Measuring keeps the complete number visible without clipping while
+        leaving the maximum remainder for Item/Batch.  Clamped so one very
+        long number can never starve the search fields.
+        """
+        try:
+            # Mirror set_cno(): unsaved provisional drafts show "Draft", not
+            # the raw bill number.  Measuring the displayed text keeps the
+            # slot compact ("Draft" ~50px) while saved/long numbers still get
+            # the width they need (clamped so Item/Batch keep their share).
+            short = "Draft"
+            try:
+                provisional = bool(getattr(self, "_provisional_bill_no", False))
+                saved = bool(getattr(self, "_saved", False))
+                if not (provisional and not saved):
+                    raw = (self.bill_no_edit.text() or "").strip()
+                    short = _display_bill_no(raw) if raw else "--"
+            except Exception:
+                pass
+            font = readable_font(TYPE_VALUE, bold=True)
+            needed = QFontMetrics(font).horizontalAdvance(short) + 16
+            return max(_POPUP_CNO_MIN_WIDTH, min(int(needed), _POPUP_CNO_MAX_WIDTH))
+        except Exception:
+            return _POPUP_CNO_WIDTH
 
     def apply_popup_entry_widths(self, available_width: int | None = None):
         """Size the popup's single Item Entry row so nothing overlaps.
@@ -2897,19 +2959,22 @@ class _SalePanel(QWidget):
                 continue
             widget = item.widget()
             if widget is bar.cno_label:
-                # This label mirrors the whole bill number, so its sizeHint is
-                # far wider than the slot it is given below.  Charge the slot,
-                # not the text.
-                spent += _POPUP_CNO_WIDTH
+                # Compact measured slot (not the label's wide sizeHint).
+                try:
+                    spent += self._popup_cno_slot_width()
+                except Exception:
+                    spent += _POPUP_CNO_WIDTH
             elif isinstance(widget, QLabel):
                 spent += widget.sizeHint().width()
                 captions += 1
 
         # Comfortable size per field: (attribute, preferred width).
+        # Item/Batch lead with wider targets now that CNo is compact and
+        # the dialog itself is larger.
         preferred = (
             # (attribute, comfortable width, smallest usable width)
-            ("item_combo", 280, 120),
-            ("batch_combo", 150, 80),
+            ("item_combo", 320, 140),
+            ("batch_combo", 180, 100),
             ("pack_edit", 70, 34),
             ("location_edit", 90, 40),
             ("expiry_edit", 105, 48),
@@ -2928,7 +2993,7 @@ class _SalePanel(QWidget):
         # Search fields and the Add button are the ones a user actually types
         # into or reads at length, so they are guaranteed a comfortable width
         # first; the compact read-outs share what is left.
-        floors = {"item_combo": 200, "batch_combo": 100, "add_btn": 64}
+        floors = {"item_combo": 220, "batch_combo": 120, "add_btn": 64}
         if room >= sum(floors.values()):
             widths = dict(floors)
             shared = room - sum(floors.values())
@@ -2945,16 +3010,39 @@ class _SalePanel(QWidget):
         # Give the rounding remainder to the Item field so the row consumes
         # exactly the space that was measured.
         widths["item_combo"] += room - sum(widths.values())
+        # Guarantee a usable Qty width without breaking the measured total:
+        # borrow from Item (which keeps >=180) so Qty stays >=32 and the row
+        # still lands exactly inside the bar with no overlap.
+        try:
+            _qty_need = 32 - int(widths.get("qty_edit", 0))
+            if _qty_need > 0:
+                _give = min(_qty_need, int(widths.get("item_combo", 0)) - 180)
+                if _give > 0:
+                    widths["item_combo"] -= _give
+                    widths["qty_edit"] += _give
+        except Exception:
+            pass
 
         for attribute, comfortable, floor in preferred:
             widget = getattr(bar, attribute)
             width = widths[attribute]
             _ItemEntryBar._fit(widget, width, width)
 
-        # CNo mirrors the bill number in its own narrow label, kept wide
-        # enough for the number and narrow enough to stay out of Item's way.
-        bar.cno_label.setMinimumWidth(_POPUP_CNO_WIDTH)
-        bar.cno_label.setMaximumWidth(_POPUP_CNO_WIDTH)
+        # CNo mirrors the bill number in a compact measured slot: wide
+        # enough for the complete number, narrow enough to leave Item/Batch
+        # the remainder.
+        try:
+            _cno_w = self._popup_cno_slot_width()
+        except Exception:
+            _cno_w = _POPUP_CNO_WIDTH
+        bar.cno_label.setMinimumWidth(_cno_w)
+        bar.cno_label.setMaximumWidth(_cno_w)
+        # Re-render CNo now that the slot has its final width (it may have
+        # been elided against a zero width before layout).
+        try:
+            bar.set_cno(self.bill_no_edit.text())
+        except Exception:
+            pass
         self._pin_popup_entry_captions()
         self._fit_popup_entry_row_to_width(available_width, preferred)
 
@@ -2987,7 +3075,10 @@ class _SalePanel(QWidget):
                 if widget is None:
                     continue
                 if widget is bar.cno_label:
-                    total += _POPUP_CNO_WIDTH
+                    try:
+                        total += self._popup_cno_slot_width()
+                    except Exception:
+                        total += _POPUP_CNO_WIDTH
                 elif isinstance(widget, QLabel):
                     total += widget.maximumWidth()
                 else:
@@ -3438,7 +3529,7 @@ class _SalePanel(QWidget):
             f"background-color: {_SURFACE}; border-top: 1px solid {_BORDER};"
         )
         layout = QHBoxLayout(self._totals_widget)
-        layout.setContentsMargins(12, 2, 12, 2)
+        layout.setContentsMargins(12, 6, 12, 6)
         layout.setSpacing(10)
 
         if self._popup_mode:
@@ -3454,20 +3545,20 @@ class _SalePanel(QWidget):
             layout.addStretch()
             return
 
-        layout.setContentsMargins(6, 2, 6, 2)
-        layout.setSpacing(4)
+        layout.setContentsMargins(8, 6, 8, 6)
+        layout.setSpacing(8)
 
         self._add_total_field(layout, "Total Items", "total_items_label",
-                              width=64, emphasised=False)
+                              width=76, emphasised=False)
         self._add_total_field(layout, "Total Amt", "total_amount_label",
-                              width=96)
+                              width=110)
         self._add_total_field(layout, "Customer Saving", "bill_disc_edit",
-                              width=100)
+                              width=120)
         self._add_total_field(layout, "Round Off", "round_off_label",
-                              width=92)
+                              width=100)
         self._add_total_field(layout, "NET AMT", "net_amt_label",
-                              width=112, emphasised=True)
-        self._add_total_field(layout, "Paid", "paid_edit", width=96)
+                              width=130, emphasised=True)
+        self._add_total_field(layout, "Paid", "paid_edit", width=110)
 
         # Wire recalc
         self.bill_disc_edit.textChanged.connect(self._recalc_totals)
@@ -3491,16 +3582,16 @@ class _SalePanel(QWidget):
         combined_layout.setSpacing(0)
         self._combined_line1 = QLabel("All Bills (1)")
         self._combined_line1.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        self._combined_line1.setFixedWidth(172)
+        self._combined_line1.setFixedWidth(210)
         self._combined_line1.setStyleSheet(
-            f"color: {_TEXT}; font-size: {TYPE_HINT}px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: {TYPE_FORM_LABEL}px; font-weight: bold;"
             f"font-family: {FONT_FAMILY}; background: transparent;"
         )
         self._combined_line2 = QLabel("Qty 0   Amt 0.00   Net 0.00")
         self._combined_line2.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        self._combined_line2.setFixedWidth(172)
+        self._combined_line2.setFixedWidth(210)
         self._combined_line2.setStyleSheet(
-            f"color: {_TEXT}; font-size: {TYPE_FORM_LABEL}px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: {TYPE_VALUE}px; font-weight: bold;"
             f"font-family: {FONT_FAMILY}; background: transparent;"
         )
         combined_layout.addWidget(self._combined_line1)
@@ -3509,33 +3600,40 @@ class _SalePanel(QWidget):
 
         hold_btn = QPushButton("Hold Bill")
         hold_btn.setStyleSheet(_BTN_ORANGE)
-        hold_btn.setFixedSize(88, _ACTION_BUTTON_HEIGHT)
+        hold_btn.setFixedSize(102, _ACTION_BUTTON_HEIGHT)
         hold_btn.clicked.connect(self._on_hold)
         layout.addWidget(hold_btn)
 
         save_btn = QPushButton("Save Sale")
         save_btn.setStyleSheet(_BTN_SAVE)
-        save_btn.setFixedSize(96, _ACTION_BUTTON_HEIGHT)
+        save_btn.setFixedSize(110, _ACTION_BUTTON_HEIGHT)
         save_btn.clicked.connect(self._on_save)
         layout.addWidget(save_btn)
 
         cancel_btn = QPushButton("Cancel")
         cancel_btn.setStyleSheet(_BTN_SECONDARY)
-        cancel_btn.setFixedSize(78, _ACTION_BUTTON_HEIGHT)
+        cancel_btn.setFixedSize(90, _ACTION_BUTTON_HEIGHT)
         cancel_btn.clicked.connect(self.cancelled.emit)
         layout.addWidget(cancel_btn)
 
     def _add_total_field(self, layout: QHBoxLayout, title: str, attr_name: str,
                          *, width: int, emphasised: bool = False):
-        """One caption-over-value block of a fixed width in the footer."""
+        """One caption-over-value block of a fixed width in the footer.
+
+        Captions use the 14 px form-label size (bold) and values use
+        15/17 px so the taller 70 px footer reads at a glance.
+        """
         container = QVBoxLayout()
-        container.setSpacing(0)
+        container.setSpacing(2)
         container.setContentsMargins(0, 0, 0, 0)
         lbl = QLabel(title)
-        lbl.setStyleSheet(_CAPTION_STYLE)
+        lbl.setStyleSheet(
+            f"color: {_TEXT}; font-size: {TYPE_FORM_LABEL}px; font-weight: bold;"
+            f"font-family: {FONT_FAMILY}; background: transparent;"
+        )
         lbl.setAlignment(Qt.AlignCenter)
         lbl.setFixedWidth(width)
-        lbl.setFixedHeight(16)
+        lbl.setFixedHeight(20)
         container.addWidget(lbl)
 
         if attr_name.endswith("_label"):
@@ -3685,13 +3783,13 @@ class _SalePanel(QWidget):
             line1 = getattr(self, "_combined_line1", None)
             if line1 is not None:
                 line1.setStyleSheet(
-                    f"color: {p['text']}; font-size: {TYPE_HINT}px; font-weight: bold;"
+                    f"color: {p['text']}; font-size: {TYPE_FORM_LABEL}px; font-weight: bold;"
                     f"font-family: {FONT_FAMILY}; background: transparent;"
                 )
             line2 = getattr(self, "_combined_line2", None)
             if line2 is not None:
                 line2.setStyleSheet(
-                    f"color: {p['text']}; font-size: {TYPE_FORM_LABEL}px; font-weight: bold;"
+                    f"color: {p['text']}; font-size: {TYPE_VALUE}px; font-weight: bold;"
                     f"font-family: {FONT_FAMILY}; background: transparent;"
                 )
         except Exception:
@@ -4358,15 +4456,23 @@ class _SaleDialog(QDialog):
 # Sales Bill â€” review / edit popup (compact, modal, classic layout)
 # ======================================================================
 
-# Traditional pharmacy-software popup header: a solid blue title bar with
-# white bold text, matching the reference bill window rather than a modern
-# card.  Only this dialog uses the blue bar; the app palette is untouched.
-_BILL_HEADER_BG = "#1f5c9e"
+# Sales Bill popup chrome.  The old solid blue banner was removed: the
+# native window title bar already identifies the dialog, so the freed
+# vertical space goes to the Bill Items table.  Voucher No / Date / Time
+# live in one compact metadata row below the title bar (see
+# _build_compact_voucher_row), using the live Day/Night palette.
+_BILL_HEADER_BG = "#1f5c9e"  # kept for backwards-compat imports; unused
 # Horizontal space the popup's own chrome takes from the item entry row:
 # the body widget's margins and the vertical border either side.
 _POPUP_BODY_CHROME = 16
-# Slot reserved for the CNo mirror at the head of the popup's entry row.
-_POPUP_CNO_WIDTH = 54
+# Default slot for the CNo mirror at the head of the popup's entry row.
+# The actual width is measured from the bill number text (compact yet never
+# clipped); this is only the fallback before the first measurement.
+_POPUP_CNO_WIDTH = 56
+# Bounds for the measured CNo slot: compact for simple numbers (1911),
+# wide enough for long FY numbers without stealing Item/Batch space.
+_POPUP_CNO_MIN_WIDTH = 44
+_POPUP_CNO_MAX_WIDTH = 140
 _BILL_DIALOG_STYLE = (
     f"QDialog#SalesBillDialog {{ background-color: {_SURFACE}; }}"
 )
@@ -4409,13 +4515,15 @@ class SalesBillReviewDialog(QDialog):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        root.addWidget(self._build_blue_header(panel))
-
+        # No blue banner: the native window title bar already says
+        # "Sales Bill".  Voucher No / Date / Time live in one compact row
+        # inside the panel's top strip (see _build_popup_top_strip), so no
+        # invoice identity is lost and the freed 56 px goes to the table.
         body = QWidget()
         body.setObjectName("SalesBillBody")
         body_layout = QVBoxLayout(body)
-        body_layout.setContentsMargins(6, 6, 6, 4)
-        body_layout.setSpacing(0)
+        body_layout.setContentsMargins(8, 6, 8, 6)
+        body_layout.setSpacing(6)
 
         # The editable copy of the draft.  Review mode makes its own
         # "Save Sale" behave as the final commit instead of opening a
@@ -4428,6 +4536,15 @@ class SalesBillReviewDialog(QDialog):
         self._panel.set_other_draft_reservation_provider(
             panel._other_draft_reserved_qty
         )
+        # Remove the duplicate upper totals summary: the panel's own
+        # Total Amt / Round Off / NET AMT row would repeat the dialog's
+        # single compact footer.  The hidden labels still exist so
+        # _recalc_totals and the totals_changed signal keep working; they
+        # simply take no vertical space.
+        try:
+            self._panel._totals_widget.setVisible(False)
+        except Exception:
+            pass
 
         body_layout.addWidget(self._panel, 1)
         root.addWidget(body, 1)
@@ -4461,282 +4578,163 @@ class SalesBillReviewDialog(QDialog):
 
 
     def _build_blue_header(self, panel: _SalePanel) -> QWidget:
-        """Blue title bar carrying Voucher No / Date / Time from the bill.
+        """Compact Voucher No / Date / Time row (blue banner removed).
 
-        Professional layout with aligned Voucher No, Date, Time fields.
+        Kept under the old name for backwards compatibility.  The native
+        window title bar already says "Sales Bill", so this is a single
+        compact metadata row using the live Day/Night palette — no large
+        blue banner, no duplicated title.  The full invoice number, date
+        and time are preserved here.
         """
         bar = QWidget()
         bar.setObjectName("SalesBillHeader")
-        bar.setFixedHeight(56)
-        bar.setStyleSheet(
-            f"#SalesBillHeader {{ background-color: {_BILL_HEADER_BG};"
-            f"  border-bottom: 1px solid {_BILL_HEADER_BG}; }}"
-        )
+        # Compact single row; the panel's own top strip carries the same
+        # three values, so this row is intentionally small.
+        bar.setFixedHeight(30)
+        try:
+            p = palette()
+            bar.setStyleSheet(
+                f"#SalesBillHeader {{ background-color: {p['surface']};"
+                f"  border-bottom: 1px solid {p['border']}; }}"
+            )
+            cap_style = (
+                f"color: {p['text_dim']}; font-size: {TYPE_FORM_LABEL}px;"
+                f"background: transparent; font-family: {FONT_FAMILY};"
+            )
+            val_style = (
+                f"color: {p['text']}; font-size: {TYPE_VALUE}px; font-weight: bold;"
+                f"background: transparent; font-family: {FONT_FAMILY};"
+            )
+        except Exception:
+            cap_style = _CAPTION_STYLE
+            val_style = _LABEL_STYLE
         layout = QHBoxLayout(bar)
-        layout.setContentsMargins(16, 6, 16, 6)
-        layout.setSpacing(24)
+        layout.setContentsMargins(12, 2, 12, 2)
+        layout.setSpacing(12)
 
-        title = QLabel("Sales Bill")
-        title.setStyleSheet(
-            "color: #ffffff; font-size: 14px; font-weight: bold;"
-            f"background: transparent; font-family: {FONT_FAMILY};"
-        )
-        layout.addWidget(title)
-        layout.addSpacing(20)
+        def _pair(caption: str, value: str, min_w: int) -> None:
+            cap = QLabel(caption)
+            cap.setStyleSheet(cap_style)
+            layout.addWidget(cap)
+            val = QLabel(value or "--")
+            val.setStyleSheet(val_style)
+            val.setMinimumWidth(min_w)
+            layout.addWidget(val)
+            if caption == "Voucher No":
+                self._header_voucher_label = val
+            elif caption == "Date":
+                self._header_date_label = val
+            elif caption == "Time":
+                self._header_time_label = val
 
-        # Voucher No
-        voucher_layout = QHBoxLayout()
-        voucher_layout.setSpacing(8)
-        voucher_caption = QLabel("Voucher No")
-        voucher_caption.setStyleSheet(
-            "color: #d8e6f5; font-size: 11px; background: transparent;"
-            f"font-family: {FONT_FAMILY};"
-        )
-        voucher_layout.addWidget(voucher_caption)
-        self._header_voucher_label = QLabel(panel.bill_no_edit.text() or "--")
-        self._header_voucher_label.setStyleSheet(
-            "color: #ffffff; font-size: 12px; font-weight: bold;"
-            f"background: transparent; font-family: {FONT_FAMILY};"
-        )
-        self._header_voucher_label.setMinimumWidth(140)
-        voucher_layout.addWidget(self._header_voucher_label)
-        layout.addLayout(voucher_layout)
-
-        # Date
-        date_layout = QHBoxLayout()
-        date_layout.setSpacing(8)
-        date_caption = QLabel("Date")
-        date_caption.setStyleSheet(
-            "color: #d8e6f5; font-size: 11px; background: transparent;"
-            f"font-family: {FONT_FAMILY};"
-        )
-        date_layout.addWidget(date_caption)
-        self._header_date_label = QLabel(panel.sale_date.date().toString("dd-MM-yyyy"))
-        self._header_date_label.setStyleSheet(
-            "color: #ffffff; font-size: 12px; font-weight: bold;"
-            f"background: transparent; font-family: {FONT_FAMILY};"
-        )
-        self._header_date_label.setMinimumWidth(110)
-        date_layout.addWidget(self._header_date_label)
-        layout.addLayout(date_layout)
-
-        # Time
-        time_layout = QHBoxLayout()
-        time_layout.setSpacing(8)
-        time_caption = QLabel("Time")
-        time_caption.setStyleSheet(
-            "color: #d8e6f5; font-size: 11px; background: transparent;"
-            f"font-family: {FONT_FAMILY};"
-        )
-        time_layout.addWidget(time_caption)
-        self._header_time_label = QLabel(panel.sale_time_edit.text() or "--")
-        self._header_time_label.setStyleSheet(
-            "color: #ffffff; font-size: 12px; font-weight: bold;"
-            f"background: transparent; font-family: {FONT_FAMILY};"
-        )
-        self._header_time_label.setMinimumWidth(80)
-        time_layout.addWidget(self._header_time_label)
-        layout.addLayout(time_layout)
+        try:
+            _pair("Voucher No", panel.bill_no_edit.text() or "--", 140)
+            _pair("Date", panel.sale_date.date().toString("dd-MM-yyyy"), 100)
+            _pair("Time", panel.sale_time_edit.text() or "--", 70)
+        except Exception:
+            pass
 
         layout.addStretch(1)
         return bar
 
-    def _build_actions(self) -> QWidget:
-        """Bottom footer with professional multi-row structure.
+    def _compact_footer_block(self, row: QHBoxLayout, title: str,
+                                attr: str, initial: str, width: int,
+                                *, net: bool = False) -> None:
+        """One caption-over-value block inside the single compact footer."""
+        box = QVBoxLayout()
+        box.setSpacing(1)
+        box.setContentsMargins(0, 0, 0, 0)
+        cap = QLabel(title)
+        cap.setStyleSheet(
+            f"color: {_TEXT}; font-size: {TYPE_FORM_LABEL}px; font-weight: bold;"
+            f"background: transparent; font-family: {FONT_FAMILY};"
+        )
+        cap.setAlignment(Qt.AlignCenter)
+        cap.setFixedWidth(width)
+        box.addWidget(cap)
+        val = QLabel(initial)
+        val.setAlignment(Qt.AlignCenter)
+        val.setFixedWidth(width)
+        # Compact value height so the whole footer stays one short band.
+        val.setFixedHeight(26)
+        if net:
+            # Larger bold type identifies Net; no boxed border so Day/Night
+            # refresh (which rewrites label `color:` only) can never leave
+            # a stale light border in Night Mode.
+            val.setStyleSheet(
+                f"color: {_TEXT}; font-size: {TYPE_VALUE_EMPHASIS}px;"
+                f"font-weight: bold; background: transparent;"
+                f"font-family: {FONT_FAMILY};"
+            )
+        else:
+            val.setStyleSheet(
+                f"color: {_TEXT}; font-size: {TYPE_VALUE}px; font-weight: bold;"
+                f"background: transparent; font-family: {FONT_FAMILY};"
+            )
+        box.addWidget(val)
+        setattr(self, attr, val)
+        row.addLayout(box)
 
-        ROW 1: Total Items | Remarks
-        ROW 2: Total Amount | Bill Discount | CN Amount | Dr Amount | Credit Note | Round Off | Net Amount
-        ROW 3: Save | Close (bottom-right aligned)
+    def _build_actions(self) -> QWidget:
+        """Single compact totals/remarks footer + Save/Close.
+
+        One totals row (each total shown exactly once) plus one
+        remarks + Save/Close row.  The old three-row layout repeated
+        Total Amount / Round Off / Net Amount in both the panel's upper
+        summary and this lower area; the upper panel summary is now
+        hidden (see __init__), so every total appears only here.
         """
         bar = QWidget()
         bar.setObjectName("SalesBillActions")
+        bar.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         bar.setStyleSheet(
             f"#SalesBillActions {{ background-color: {_SURFACE};"
             f"  border-top: 1px solid {_BORDER}; }}"
         )
         main_layout = QVBoxLayout(bar)
-        main_layout.setContentsMargins(12, 8, 12, 8)
-        main_layout.setSpacing(8)
+        # Reduced vertical padding vs the old 12,8 layout.
+        main_layout.setContentsMargins(8, 4, 8, 4)
+        main_layout.setSpacing(4)
 
-        # ============================================================
-        # ROW 1: Total Items | Remarks
-        # ============================================================
-        row1 = QHBoxLayout()
-        row1.setSpacing(16)
+        # ---- Single horizontal totals row (wraps via small widths) ----
+        totals_row = QHBoxLayout()
+        totals_row.setSpacing(6)
+        totals_row.setContentsMargins(0, 0, 0, 0)
+        self._compact_footer_block(totals_row, "Total Items", "_total_items_label",
+                                   str(len(self._panel._item_rows)), 62)
+        self._compact_footer_block(totals_row, "Total Amount", "_footer_total_amount",
+                                   self._panel.total_amount_label.text(), 92)
+        self._compact_footer_block(totals_row, "Bill Discount", "_footer_bill_discount",
+                                   f"{_safe_float(self._panel.bill_disc_edit.text()):.2f}", 92)
+        self._compact_footer_block(totals_row, "CN Amount", "_footer_cn_amount",
+                                   "0.00", 78)
+        self._compact_footer_block(totals_row, "Dr Amount", "_footer_dr_amount",
+                                   "0.00", 78)
+        self._compact_footer_block(totals_row, "Credit Note", "_footer_credit_note",
+                                   "0.00", 92)
+        self._compact_footer_block(totals_row, "Round Off", "_footer_round_off",
+                                   self._panel.round_off_label.text(), 78)
+        self._compact_footer_block(totals_row, "Net Amount", "_footer_net_amount",
+                                   self._panel.net_amt_label.text(), 112, net=True)
+        totals_row.addStretch(1)
+        main_layout.addLayout(totals_row)
 
-        items_caption = QLabel("Total Items")
-        items_caption.setStyleSheet(
-            f"color: {_TEXT}; font-size: {TYPE_FORM_LABEL}px;"
-            f"font-weight: bold; background: transparent;"
-            f"font-family: {FONT_FAMILY};"
-        )
-        row1.addWidget(items_caption)
-
-        self._total_items_label = QLabel(str(len(self._panel._item_rows)))
-        self._total_items_label.setStyleSheet(
-            f"color: {_TEXT}; font-size: {TYPE_VALUE}px; font-weight: bold;"
-            f"background: transparent; font-family: {FONT_FAMILY};"
-        )
-        self._total_items_label.setMinimumWidth(50)
-        row1.addWidget(self._total_items_label)
-        row1.addSpacing(24)
-
+        # ---- Remarks + Save/Close (bottom-right aligned) ----
+        bottom_row = QHBoxLayout()
+        bottom_row.setSpacing(8)
+        bottom_row.setContentsMargins(0, 0, 0, 0)
         remarks_caption = QLabel("Remarks")
         remarks_caption.setStyleSheet(
             f"color: {_TEXT}; font-size: {TYPE_FORM_LABEL}px;"
             f"font-weight: bold; background: transparent;"
             f"font-family: {FONT_FAMILY};"
         )
-        row1.addWidget(remarks_caption)
-
+        bottom_row.addWidget(remarks_caption)
         self.remarks_edit = _make_edit()
-        self.remarks_edit.setMinimumWidth(280)
-        row1.addWidget(self.remarks_edit)
-
-        row1.addStretch(1)
-        main_layout.addLayout(row1)
-
-        # ============================================================
-        # ROW 2: Totals breakdown
-        # ============================================================
-        row2 = QHBoxLayout()
-        row2.setSpacing(16)
-
-        # Total Amount
-        total_amt_container = QVBoxLayout()
-        total_amt_container.setSpacing(2)
-        total_amt_caption = QLabel("Total Amount")
-        total_amt_caption.setStyleSheet(_HEADER_LABEL)
-        total_amt_caption.setAlignment(Qt.AlignCenter)
-        total_amt_container.addWidget(total_amt_caption)
-        self._footer_total_amount = QLabel(self._panel.total_amount_label.text())
-        self._footer_total_amount.setAlignment(Qt.AlignCenter)
-        self._footer_total_amount.setStyleSheet(
-            f"color: {_TEXT}; font-size: {TYPE_VALUE}px; font-weight: bold;"
-            f"background: transparent; font-family: {FONT_FAMILY};"
-        )
-        self._footer_total_amount.setMinimumWidth(100)
-        self._footer_total_amount.setFixedHeight(_TOTALS_CONTROL_HEIGHT)
-        total_amt_container.addWidget(self._footer_total_amount)
-        row2.addLayout(total_amt_container)
-
-        # Bill Discount
-        bill_disc_container = QVBoxLayout()
-        bill_disc_container.setSpacing(2)
-        bill_disc_caption = QLabel("Bill Discount")
-        bill_disc_caption.setStyleSheet(_HEADER_LABEL)
-        bill_disc_caption.setAlignment(Qt.AlignCenter)
-        bill_disc_container.addWidget(bill_disc_caption)
-        self._footer_bill_discount = QLabel(f"{_safe_float(self._panel.bill_disc_edit.text()):.2f}")
-        self._footer_bill_discount.setAlignment(Qt.AlignCenter)
-        self._footer_bill_discount.setStyleSheet(
-            f"color: {_TEXT}; font-size: {TYPE_VALUE}px; font-weight: bold;"
-            f"background: transparent; font-family: {FONT_FAMILY};"
-        )
-        self._footer_bill_discount.setMinimumWidth(100)
-        self._footer_bill_discount.setFixedHeight(_TOTALS_CONTROL_HEIGHT)
-        bill_disc_container.addWidget(self._footer_bill_discount)
-        row2.addLayout(bill_disc_container)
-
-        # CN Amount (Credit Note)
-        cn_container = QVBoxLayout()
-        cn_container.setSpacing(2)
-        cn_caption = QLabel("CN Amount")
-        cn_caption.setStyleSheet(_HEADER_LABEL)
-        cn_caption.setAlignment(Qt.AlignCenter)
-        cn_container.addWidget(cn_caption)
-        self._footer_cn_amount = QLabel("0.00")
-        self._footer_cn_amount.setAlignment(Qt.AlignCenter)
-        self._footer_cn_amount.setStyleSheet(
-            f"color: {_TEXT}; font-size: {TYPE_VALUE}px; font-weight: bold;"
-            f"background: transparent; font-family: {FONT_FAMILY};"
-        )
-        self._footer_cn_amount.setMinimumWidth(100)
-        self._footer_cn_amount.setFixedHeight(_TOTALS_CONTROL_HEIGHT)
-        cn_container.addWidget(self._footer_cn_amount)
-        row2.addLayout(cn_container)
-
-        # Dr Amount (Debit Note)
-        dr_container = QVBoxLayout()
-        dr_container.setSpacing(2)
-        dr_caption = QLabel("Dr Amount")
-        dr_caption.setStyleSheet(_HEADER_LABEL)
-        dr_caption.setAlignment(Qt.AlignCenter)
-        dr_container.addWidget(dr_caption)
-        self._footer_dr_amount = QLabel("0.00")
-        self._footer_dr_amount.setAlignment(Qt.AlignCenter)
-        self._footer_dr_amount.setStyleSheet(
-            f"color: {_TEXT}; font-size: {TYPE_VALUE}px; font-weight: bold;"
-            f"background: transparent; font-family: {FONT_FAMILY};"
-        )
-        self._footer_dr_amount.setMinimumWidth(100)
-        self._footer_dr_amount.setFixedHeight(_TOTALS_CONTROL_HEIGHT)
-        dr_container.addWidget(self._footer_dr_amount)
-        row2.addLayout(dr_container)
-
-        # Credit Note (placeholder for future)
-        credit_note_container = QVBoxLayout()
-        credit_note_container.setSpacing(2)
-        credit_note_caption = QLabel("Credit Note")
-        credit_note_caption.setStyleSheet(_HEADER_LABEL)
-        credit_note_caption.setAlignment(Qt.AlignCenter)
-        credit_note_container.addWidget(credit_note_caption)
-        self._footer_credit_note = QLabel("0.00")
-        self._footer_credit_note.setAlignment(Qt.AlignCenter)
-        self._footer_credit_note.setStyleSheet(
-            f"color: {_TEXT}; font-size: {TYPE_VALUE}px; font-weight: bold;"
-            f"background: transparent; font-family: {FONT_FAMILY};"
-        )
-        self._footer_credit_note.setMinimumWidth(100)
-        self._footer_credit_note.setFixedHeight(_TOTALS_CONTROL_HEIGHT)
-        credit_note_container.addWidget(self._footer_credit_note)
-        row2.addLayout(credit_note_container)
-
-        # Round Off
-        round_off_container = QVBoxLayout()
-        round_off_container.setSpacing(2)
-        round_off_caption = QLabel("Round Off")
-        round_off_caption.setStyleSheet(_HEADER_LABEL)
-        round_off_caption.setAlignment(Qt.AlignCenter)
-        round_off_container.addWidget(round_off_caption)
-        self._footer_round_off = QLabel(self._panel.round_off_label.text())
-        self._footer_round_off.setAlignment(Qt.AlignCenter)
-        self._footer_round_off.setStyleSheet(
-            f"color: {_TEXT}; font-size: {TYPE_VALUE}px; font-weight: bold;"
-            f"background: transparent; font-family: {FONT_FAMILY};"
-        )
-        self._footer_round_off.setMinimumWidth(90)
-        self._footer_round_off.setFixedHeight(_TOTALS_CONTROL_HEIGHT)
-        round_off_container.addWidget(self._footer_round_off)
-        row2.addLayout(round_off_container)
-
-        # Net Amount (emphasized)
-        net_amt_container = QVBoxLayout()
-        net_amt_container.setSpacing(2)
-        net_amt_caption = QLabel("Net Amount")
-        net_amt_caption.setStyleSheet(_HEADER_LABEL)
-        net_amt_caption.setAlignment(Qt.AlignCenter)
-        net_amt_container.addWidget(net_amt_caption)
-        self._footer_net_amount = QLabel(self._panel.net_amt_label.text())
-        self._footer_net_amount.setAlignment(Qt.AlignCenter)
-        self._footer_net_amount.setStyleSheet(
-            f"color: {_TEXT}; font-size: {TYPE_VALUE_EMPHASIS}px;"
-            f"font-weight: bold;"
-            f"background: transparent; font-family: {FONT_FAMILY};"
-        )
-        self._footer_net_amount.setMinimumWidth(120)
-        self._footer_net_amount.setFixedHeight(_TOTALS_CONTROL_HEIGHT)
-        net_amt_container.addWidget(self._footer_net_amount)
-        row2.addLayout(net_amt_container)
-
-        row2.addStretch(1)
-        main_layout.addLayout(row2)
-
-        # ============================================================
-        # ROW 3: Save / Close (bottom-right aligned)
-        # ============================================================
-        row3 = QHBoxLayout()
-        row3.addStretch(1)
+        self.remarks_edit.setMinimumWidth(120)
+        self.remarks_edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        bottom_row.addWidget(self.remarks_edit, 1)
+        bottom_row.addStretch(1)
 
         self._final_save_btn = QPushButton("Save")
         self._final_save_btn.setStyleSheet(_BTN_SAVE)
@@ -4747,9 +4745,9 @@ class SalesBillReviewDialog(QDialog):
             "Commit this bill: save the sale, deduct stock and post accounting"
         )
         self._final_save_btn.clicked.connect(self._on_final_save)
-        row3.addWidget(self._final_save_btn)
+        bottom_row.addWidget(self._final_save_btn)
 
-        row3.addSpacing(8)
+        bottom_row.addSpacing(8)
 
         close_btn = QPushButton("Close")
         close_btn.setStyleSheet(_BTN_SECONDARY)
@@ -4757,9 +4755,9 @@ class SalesBillReviewDialog(QDialog):
         close_btn.setFixedHeight(32)
         close_btn.setAutoDefault(False)
         close_btn.clicked.connect(self.reject)
-        row3.addWidget(close_btn)
+        bottom_row.addWidget(close_btn)
 
-        main_layout.addLayout(row3)
+        main_layout.addLayout(bottom_row)
 
         # Keep footer totals live while the bill is edited.
         self._panel.totals_changed.connect(self._on_totals_changed)
@@ -4794,33 +4792,87 @@ class SalesBillReviewDialog(QDialog):
         if hasattr(self, '_footer_net_amount'):
             self._footer_net_amount.setText(bill_total)
 
-    # Reference proportions for the Sales Bill window: a compact dialog that is
-    # never full-screen at any of the supported desktop resolutions.  The
-    # width is sized so the whole Item Entry row fits on ONE line with every
-    # label and value clear of its neighbour â€” twelve labelled fields plus
-    # their captions need roughly 1.2k px, so the window is wide and short
-    # rather than square, and the height stays compact.
-    MIN_WIDTH, MAX_WIDTH = 1180, 1300
-    MIN_HEIGHT, MAX_HEIGHT = 520, 600
+    # Sales Bill window: spacious yet screen-aware.  Approximately 85-90%
+    # of the available width and 80-85% of the available height, so several
+    # Bill Items rows are visible at once.  The dialog stays resizable and
+    # centred; on smaller displays it clamps to the available geometry
+    # instead of forcing controls off-screen.  The table owns the stretch,
+    # so extra height goes to item rows while Save/Close stay visible.
+    MIN_WIDTH, MAX_WIDTH = 900, 16777215
+    MIN_HEIGHT, MAX_HEIGHT = 600, 16777215
 
     @classmethod
     def target_size(cls, available_w: int, available_h: int) -> tuple[int, int]:
-        """Popup size for a screen of ``available_w`` x ``available_h``."""
-        width = min(cls.MAX_WIDTH,
-                    max(cls.MIN_WIDTH, int(available_w * 0.96)))
-        height = min(cls.MAX_HEIGHT,
-                     max(cls.MIN_HEIGHT, int(available_h * 0.72)))
+        """Popup size for a screen of ``available_w`` x ``available_h``.
+
+        Approximately 87% of the width and 82% of the height.  On a display
+        smaller than the minimum, the available size wins so controls are
+        never forced beyond the screen.
+        """
+        try:
+            aw = max(1, int(available_w or 0))
+            ah = max(1, int(available_h or 0))
+        except Exception:
+            aw, ah = 1366, 768
+        width = int(round(aw * 0.87))
+        height = int(round(ah * 0.82))
+        # Clamp into [min(available, MIN), available] so a small display
+        # never gets a window larger than itself.
+        width = max(min(cls.MIN_WIDTH, aw), min(width, aw))
+        height = max(min(cls.MIN_HEIGHT, ah), min(height, ah))
         return width, height
 
     def _resize_compact(self):
-        """Keep the popup in the reference proportions, not full-screen."""
-        screen = self.screen() if self.screen() else None
-        available = (screen.availableSize() if screen else QSize(1366, 768))
+        """Open large, resizable and centred on the available screen."""
+        try:
+            screen = self.screen() if self.screen() else None
+            available = (screen.availableSize() if screen is not None
+                         else QSize(1366, 768))
+        except Exception:
+            available = QSize(1366, 768)
+        # Offscreen/headless screens report a tiny available size while the
+        # parent Counter Sale page is 1366x768.  Size from the larger of the
+        # two so the entry row keeps its readable widths in tests; on a real
+        # small display the parent is itself small, so this still fits.
+        try:
+            host = self.parentWidget()
+            anchor = host.window() if host is not None else None
+            if anchor is not None:
+                pw = anchor.width() or 0
+                ph = anchor.height() or 0
+                if pw > available.width() or ph > available.height():
+                    available = QSize(max(available.width(), pw),
+                                      max(available.height(), ph))
+        except Exception:
+            pass
         width, height = self.target_size(available.width(), available.height())
-        self.setFixedSize(width, height)
-        self.setMinimumSize(self.MIN_WIDTH, self.MIN_HEIGHT)
-        self.setMaximumSize(self.MAX_WIDTH, self.MAX_HEIGHT)
+        try:
+            self.setMinimumSize(self.MIN_WIDTH, self.MIN_HEIGHT)
+        except Exception:
+            pass
+        # Resizable: no fixed size and no tight maximum.  Clamp the maximum
+        # to the available screen so the window can never open off-screen.
+        try:
+            self.setMaximumSize(available.width(), available.height())
+        except Exception:
+            pass
+        try:
+            self.resize(width, height)
+        except Exception:
+            pass
         self._center_over_host()
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        """Re-fit the single-line entry row after a manual resize."""
+        try:
+            super().resizeEvent(event)
+        except Exception:
+            pass
+        try:
+            if hasattr(self, "_panel") and hasattr(self._panel, "apply_popup_entry_widths"):
+                self._panel.apply_popup_entry_widths(self.width() - _POPUP_BODY_CHROME)
+        except Exception:
+            pass
 
     def _center_over_host(self):
         """Centre the popup on the Counter Sale screen behind it.
@@ -4927,6 +4979,11 @@ _HISTORY_COLUMNS = {
     ],
 }
 
+_HISTORY_COLUMN_WIDTHS = {
+    HISTORY_MODE_ITEM: (80, 56, 145, 56, 44, 70, 110, 76, 95, 86, 60, 76, 118),
+    HISTORY_MODE_BILL: (80, 56, 135, 100, 60, 64, 112, 80, 104, 125),
+}
+
 # Column that takes the leftover width in each mode.
 _HISTORY_STRETCH_COLUMN = {
     HISTORY_MODE_ITEM: 2,
@@ -4937,23 +4994,49 @@ _HISTORY_STRETCH_COLUMN = {
 # every Day/Night switch) rather than from a baked module constant: the
 # indicator style carries a generated check/dot glyph, which can only be
 # produced once a QGuiApplication exists.
-_HISTORY_FILTER_BAR_HEIGHT = 30
+_HISTORY_FILTER_BAR_HEIGHT = 34
 _HISTORY_VISIBLE_ROWS = 10
-_HISTORY_HEADER_HEIGHT = 36
+_HISTORY_HEADER_HEIGHT = 40
 
 
 class _OpenBillCard(QPushButton):
-    """Four-line open-bill selector with a guaranteed readable height.
+    """Two-line open-bill selector with readable identity and amount.
 
     A plain ``QPushButton`` reports a multi-line ``sizeHint`` that is too
-    short for its own text (about 74 px for four 11 px lines), so a layout
-    shrinks the card to that hint and the last two lines clip or paint
-    over the next card.  Pinning the hints to the measured four-line
-    height keeps every line inside its own card even if an explicit
-    fixed height is later cleared by style changes.
+    short for its own text, so a layout shrinks the card to that hint
+    and the last line clips or paints over the next card.  Pinning the
+    hints to the measured two-line height (14-15 px type) keeps every
+    line inside its own card even if an explicit fixed height is later
+    cleared by style changes.
     """
 
-    CARD_HEIGHT = 80
+    CARD_HEIGHT = 68
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(6, 3, 6, 3)
+        layout.setSpacing(1)
+        self.identity_label = QLabel(self)
+        self.amount_label = QLabel(self)
+        for label in (self.identity_label, self.amount_label):
+            label.setAlignment(Qt.AlignCenter)
+            label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+            layout.addWidget(label)
+
+    def set_bill_text(self, text: str, color: str) -> None:
+        identity, _, amount = text.partition("\n")
+        self.identity_label.setText(identity)
+        self.amount_label.setText(amount)
+        self.identity_label.setStyleSheet(
+            f"color: {color}; background: transparent;"
+        )
+        self.amount_label.setStyleSheet(
+            f"color: {color}; background: transparent; font-weight: bold;"
+        )
+
+    def display_text(self) -> str:
+        return f"{self.identity_label.text()}\n{self.amount_label.text()}"
 
     def sizeHint(self):  # noqa: N802 (Qt override)
         hint = super().sizeHint()
@@ -5073,6 +5156,7 @@ class CounterSalePage(QWidget):
         # Open bills are in-memory workspaces only.  Their snapshots never
         # create invoices, reserve rows in the database, or alter stock.
         self._open_bills: dict[int, dict] = {}
+        self._last_saved_bill_state: dict | None = None
         self._active_open_bill_id = 1
         self._next_open_bill_id = 2
         self._sale_panel.set_other_draft_reservation_provider(
@@ -5114,7 +5198,7 @@ class CounterSalePage(QWidget):
         """Region A header: page title + New Sale (history actions live in
         the right-side bill panel)."""
         header = QWidget()
-        header.setFixedHeight(30)
+        header.setFixedHeight(34)
         header.setStyleSheet(
             f"background-color: {_SURFACE}; border-bottom: 1px solid {_BORDER};"
         )
@@ -5163,9 +5247,15 @@ class CounterSalePage(QWidget):
     def _set_current_bill_label(self, bill_no: str) -> None:
         label = getattr(self, "_current_bill_no_label", None)
         if label is not None:
-            short = _display_bill_no(bill_no) if (bill_no or "").strip() else "--"
-            label.setText(f"Bill: {short}")
-            label.setToolTip((bill_no or "").strip() or "--")
+            provisional = (
+                getattr(self._sale_panel, "_provisional_bill_no", False)
+                and not getattr(self._sale_panel, "_saved", False)
+            )
+            identity = "New Bill (Draft)" if provisional else (
+                (bill_no or "").strip() or "--"
+            )
+            label.setText(f"Bill: {identity}")
+            label.setToolTip(identity)
 
     # ------------------------------------------------------------------
     # Bill-history filter bar (single Date + Item Wise / Bill Wise)
@@ -5216,16 +5306,17 @@ class CounterSalePage(QWidget):
         )
 
         self._hist_today_btn = QPushButton("Today")
-        self._hist_today_btn.setFixedWidth(56)
         self._hist_today_btn.setStyleSheet(_BTN_SECONDARY)
+        self._hist_today_btn.setMinimumWidth(self._hist_today_btn.sizeHint().width())
         self._hist_today_btn.setToolTip("Show today's sales")
 
         self._hist_all_btn = QPushButton("All Dates")
-        self._hist_all_btn.setFixedWidth(80)
+        self._hist_all_btn.setVisible(False)
+        self._hist_all_btn.setFixedWidth(1)
         self._hist_all_btn.setStyleSheet(_BTN_SECONDARY)
-        self._hist_all_btn.setToolTip(
-            "Show every bill regardless of date"
-        )
+        self._hist_all_btn.setToolTip("Show every bill regardless of date")
+        self._hist_all_btn.clicked.connect(self._on_show_all_history)
+
         self._hist_refresh_btn = QPushButton("Refresh")
         self._hist_refresh_btn.setFixedWidth(76)
         self._hist_refresh_btn.setStyleSheet(_BTN_SECONDARY)
@@ -5234,7 +5325,6 @@ class CounterSalePage(QWidget):
         layout.addWidget(self._flbl("Date"))
         layout.addWidget(self._hist_date)
         layout.addWidget(self._hist_today_btn)
-        layout.addWidget(self._hist_all_btn)
         layout.addStretch()
         layout.addWidget(self._flbl("View"))
         layout.addWidget(self._hist_item_mode)
@@ -5247,7 +5337,6 @@ class CounterSalePage(QWidget):
         self._hist_today_btn.clicked.connect(self._on_show_today_history)
         self._hist_item_mode.toggled.connect(self._on_history_mode_toggled)
         self._hist_bill_mode.toggled.connect(self._on_history_mode_toggled)
-        self._hist_all_btn.clicked.connect(self._on_show_all_history)
         self._hist_refresh_btn.clicked.connect(self._refresh_history)
         return bar
 
@@ -5260,29 +5349,40 @@ class CounterSalePage(QWidget):
         self._history_financial_year = None
         self._refresh_history()
 
+    def _on_show_all_history(self):
+        """Compatibility hook: no visible All Dates control in the toolbar."""
+        self._history_filter = HISTORY_FILTER_ALL
+        self._history_financial_year = None
+        self._refresh_history()
+
     # ------------------------------------------------------------------
     # History view filtering (date / financial year / all)
     # ------------------------------------------------------------------
 
     def _history_filter_dates(self) -> tuple[str, str]:
-        """Return the (start, end) YYYY-MM-DD bounds; ("", "") means all."""
+        """Return the (start, end) YYYY-MM-DD bounds for the active day view."""
         if self._history_filter == HISTORY_FILTER_ALL:
             return "", ""
         if self._history_filter == HISTORY_FILTER_FY:
             year = self._history_financial_year or {}
             return year.get("start_date", ""), year.get("end_date", "")
-        day = self._hist_date.date().toString("yyyy-MM-dd")
+        date = self._hist_date.date()
+        if not date.isValid():
+            date = QDate.currentDate()
+            self._hist_date.blockSignals(True)
+            self._hist_date.setDate(date)
+            self._hist_date.blockSignals(False)
+        day = date.toString("yyyy-MM-dd")
         return day, day
 
     def _on_history_date_changed(self, _date):
         """A date picked from the calendar is a single-date history filter."""
+        if _date is None or not _date.isValid():
+            _date = QDate.currentDate()
+            self._hist_date.blockSignals(True)
+            self._hist_date.setDate(_date)
+            self._hist_date.blockSignals(False)
         self._history_filter = HISTORY_FILTER_DATE
-        self._history_financial_year = None
-        self._refresh_history()
-
-    def _on_show_all_history(self):
-        """Drop the filter and show every bill again (mode is kept)."""
-        self._history_filter = HISTORY_FILTER_ALL
         self._history_financial_year = None
         self._refresh_history()
 
@@ -5387,11 +5487,12 @@ class CounterSalePage(QWidget):
         table.setHorizontalHeaderLabels(labels)
         hv = table.horizontalHeader()
         stretch_col = _HISTORY_STRETCH_COLUMN[self._history_mode]
-        hv.setSectionResizeMode(QHeaderView.ResizeToContents)
-        for col in range(len(labels)):
-            if col == stretch_col:
-                hv.setSectionResizeMode(col, QHeaderView.Stretch)
-        hv.setStretchLastSection(stretch_col != len(labels) - 1)
+        hv.setSectionResizeMode(QHeaderView.Interactive)
+        for col, width in enumerate(_HISTORY_COLUMN_WIDTHS[self._history_mode]):
+            table.setColumnWidth(col, width)
+        for col in {stretch_col, len(labels) - 1}:
+            hv.setSectionResizeMode(col, QHeaderView.Stretch)
+        hv.setStretchLastSection(True)
         table.setSortingEnabled(True)
 
     def _build_history_table(self) -> QTableWidget:
@@ -5415,14 +5516,15 @@ class CounterSalePage(QWidget):
         table.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
 
+        for col, width in enumerate(_HISTORY_COLUMN_WIDTHS[HISTORY_MODE_ITEM]):
+            table.setColumnWidth(col, width)
+
         hv = table.horizontalHeader()
         hv.setStretchLastSection(True)
         hv.setFixedHeight(_HISTORY_HEADER_HEIGHT)
-        for col in range(13):
-            if col == 2:
-                hv.setSectionResizeMode(col, QHeaderView.Stretch)
-            else:
-                hv.setSectionResizeMode(col, QHeaderView.ResizeToContents)
+        hv.setSectionResizeMode(QHeaderView.Interactive)
+        for col in (2, 12):
+            hv.setSectionResizeMode(col, QHeaderView.Stretch)
         hv.setStyleSheet(
             f"QHeaderView::section {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
@@ -5458,7 +5560,7 @@ class CounterSalePage(QWidget):
         """Fixed right-side 'Bill' panel: actions + live bill totals."""
         panel = QWidget()
         panel.setObjectName("BillPanel")
-        panel.setFixedWidth(236)
+        panel.setFixedWidth(248)
         panel.setStyleSheet(
             f"#BillPanel {{ background-color: {_SURFACE};"
             f"  border-left: 1px solid {_BORDER}; }}"
@@ -5619,7 +5721,10 @@ class CounterSalePage(QWidget):
 
     def _assign_new_provisional_bill_no(self) -> None:
         """Show a fresh unique provisional CNo on the active workspace."""
-        self._sale_panel.set_provisional_bill_no(self._next_provisional_bill_no())
+        preview = self._next_provisional_bill_no()
+        self._sale_panel.set_provisional_bill_no(preview)
+        if hasattr(self, "_current_bill_no_label"):
+            self._set_current_bill_label(preview)
 
     def _fix_conflicting_provisional_numbers(self) -> None:
         """Reassign only those provisional previews that collide with a committed invoice.
@@ -5746,45 +5851,27 @@ class CounterSalePage(QWidget):
             net = total - discount
         return f"{net:.2f}"
 
-    def _open_bill_card_text(self, draft_id: int, state: dict) -> str:
-        """Compact three-line card for one open bill.
-
-        Line 1: simple CNo (1911 for active-FY bills) + Active mark.
-        Line 2: customer / patient name when entered.
-        Line 3: current bill total.
-        Internal draft ids are never shown.  Every line is kept short so
-        nothing clips inside the fixed-width panel.
-        """
-        if draft_id == self._active_open_bill_id:
-            live = self._sale_panel.draft_state()
-            customer = self._sale_panel.customer_combo.currentText()
-            patient = self._sale_panel.patient_name_edit.text().strip()
+    def _open_bill_card_text(self, draft_id: int | None, state: dict) -> str:
+        """Return plain identity and amount lines for a bill card."""
+        invoice = state.get("invoice")
+        if invoice is None:
+            identity = "New Bill (Draft)"
+        else:
+            identity = str(
+                state.get("bill_no") or invoice.get("bill_no") or "--"
+            ).strip() or "--"
+        if state.get("saved_total") is not None:
+            bill_total = state["saved_total"]
+        elif draft_id == self._active_open_bill_id:
             bill_total = self._sale_panel.net_amt_label.text()
-            cno = _display_bill_no((live.get("bill_no") or "").strip() or "--")
         else:
-            customer_index = self._sale_panel.customer_combo.findData(state.get("customer_id"))
-            customer = (self._sale_panel.customer_combo.itemText(customer_index)
-                        if customer_index >= 0 else "")
-            patient = str(state.get("patient_name") or "").strip()
             bill_total = self._open_bill_net_total(state)
-            cno = _display_bill_no(str(state.get("bill_no") or "").strip() or "--")
-        cust_clean = (customer or "").strip()
-        if cust_clean.upper().startswith("-- SELECT"):
-            cust_clean = ""
-        if patient:
-            name_line = f"Patient: {patient}"
-        elif cust_clean:
-            name_line = f"Customer: {cust_clean}"
-        else:
-            name_line = "New customer"
-        if len(name_line) > 26:
-            name_line = name_line[:23] + "..."
-        head = f"{cno} \u2022 Active" if draft_id == self._active_open_bill_id else cno
-        if len(head) > 28:
-            head = head[:25] + "..."
-        return (f"{head}\n"
-                f"{name_line}\n"
-                f"Bill Total: \u20b9{bill_total}")
+        try:
+            amount = float(str(bill_total).strip() or 0.0)
+            amount_line = f"₹{amount:.2f}"
+        except Exception:
+            amount_line = f"₹{bill_total}"
+        return f"{identity}\n{amount_line}"
 
     def _refresh_open_bill_cards(self) -> None:
         """Rebuild the Open Bills card list, reusing card widgets.
@@ -5799,6 +5886,7 @@ class CounterSalePage(QWidget):
             return
         # Detach live cards for reuse, keyed by their stable draft id.
         reusable: dict[int, object] = {}
+        reusable_saved = None
         while self._open_bills_layout.count():
             item = self._open_bills_layout.takeAt(0)
             widget = item.widget()
@@ -5812,7 +5900,11 @@ class CounterSalePage(QWidget):
                 is_card = isinstance(widget, _OpenBillCard)
             except Exception:
                 is_card = False
-            if is_card and isinstance(did, int) and did in self._open_bills:
+            is_saved_card = bool(widget.property("saved_bill_card"))
+            if (is_card and is_saved_card
+                    and self._last_saved_bill_state is not None):
+                reusable_saved = widget
+            elif is_card and isinstance(did, int) and did in self._open_bills:
                 reusable[did] = widget
             else:
                 try:
@@ -5820,31 +5912,46 @@ class CounterSalePage(QWidget):
                 except Exception:
                     pass
         p = palette()
-        for draft_id in sorted(self._open_bills.keys()):
-            state = self._open_bills[draft_id]
-            selected = draft_id == self._active_open_bill_id
-            button = reusable.pop(draft_id, None)
+        card_specs = []
+        if self._last_saved_bill_state is not None:
+            card_specs.append((None, self._last_saved_bill_state, True))
+        card_specs.extend(
+            (draft_id, self._open_bills[draft_id], False)
+            for draft_id in sorted(self._open_bills)
+        )
+        for draft_id, state, is_saved_card in card_specs:
+            selected = not is_saved_card and draft_id == self._active_open_bill_id
+            button = reusable_saved if is_saved_card else reusable.pop(draft_id, None)
             if button is None:
-                button = _OpenBillCard(self._open_bill_card_text(draft_id, state))
-                button.setObjectName("OpenBillCard")
-                button.setCursor(Qt.PointingHandCursor)
+                button = _OpenBillCard()
+                button.setObjectName(
+                    "RecentSavedBillCard" if is_saved_card else "OpenBillCard"
+                )
+                button.setCursor(
+                    Qt.ArrowCursor if is_saved_card else Qt.PointingHandCursor
+                )
                 # Three compact lines (CNo / name / total): CARD_HEIGHT keeps
                 # every line inside its own card; shorter clipped the last
                 # lines so they painted over the next card.
                 button.pin_height()
-                try:
+                button.setProperty("saved_bill_card", is_saved_card)
+                if not is_saved_card:
                     button.setProperty("draft_id", draft_id)
-                except Exception:
-                    pass
-                button.clicked.connect(lambda _checked=False, did=draft_id: self._select_open_bill(did))
-            else:
-                button.setText(self._open_bill_card_text(draft_id, state))
+                    button.clicked.connect(
+                        lambda _checked=False, did=draft_id:
+                        self._select_open_bill(did)
+                    )
+            elif is_saved_card:
+                reusable_saved = None
+            card_text = self._open_bill_card_text(draft_id, state)
+            button.set_bill_text(card_text, p["text"])
             button.setStyleSheet(
-                "QPushButton { text-align: left; padding: 5px 7px;"
+                "QPushButton { padding: 3px 4px;"
                 f" background-color: {p['selected'] if selected else p['surface_alt']};"
                 f" color: {p['text']};"
                 f" border: {'2px' if selected else '1px'} solid {p['accent'] if selected else p['border']};"
-                " border-radius: 3px; font-size: 12px; font-family: 'Segoe UI'; }"
+                f" border-radius: 4px; font-size: {TYPE_VALUE}px; font-weight: bold;"
+                f" font-family: {FONT_FAMILY}; }}"
                 f"QPushButton:hover {{ border: 2px solid {p['accent']}; }}"
             )
             # Bold the active card without rebuilding on every keystroke.
@@ -5854,13 +5961,14 @@ class CounterSalePage(QWidget):
                 button.setFont(font)
             except Exception:
                 pass
-            try:
-                _tip_head = self._open_bill_card_text(draft_id, state).split("\n")[0]
-            except Exception:
-                _tip_head = str(state.get("bill_no") or "")
-            button.setToolTip(
-                f"Open bill {_tip_head} -- items, customer and totals restored exactly"
-            )
+            _tip_head = card_text.replace("\n", " -- ")
+            if is_saved_card:
+                button.setToolTip(f"Most recently saved bill: {_tip_head}")
+            else:
+                button.setToolTip(
+                    f"Bill {_tip_head} -- click to switch "
+                    "(items and totals restored exactly)"
+                )
                         # Re-pin LAST (see pin_height): the updates above reset the
             # explicit minimum, which would let the scroll layout compress
             # the card and clip its last two lines.
@@ -5871,6 +5979,8 @@ class CounterSalePage(QWidget):
                 stale.deleteLater()
             except Exception:
                 pass
+        if reusable_saved is not None:
+            reusable_saved.deleteLater()
         # One stretch only: leftovers from a previous build were detached
         # above (the stretch is a spacer, not a widget, so it is gone).
         self._open_bills_layout.addStretch()
@@ -5880,7 +5990,9 @@ class CounterSalePage(QWidget):
         # two lines).  Taller viewports simply leave the extra room to the
         # stretch above; shorter ones scroll.
         try:
-            n = len(self._open_bills)
+            n = len(self._open_bills) + int(
+                self._last_saved_bill_state is not None
+            )
             spacing = self._open_bills_layout.spacing()
             self._open_bills_host.setMinimumHeight(
                 n * _OpenBillCard.CARD_HEIGHT + max(0, n - 1) * spacing
@@ -6017,7 +6129,9 @@ class CounterSalePage(QWidget):
         try:
             if hasattr(self, "_new_btn"):
                 self._new_btn.setStyleSheet(_fresh_btn_style(p["accent"], p))
-            for attr in ("_hist_all_btn", "_hist_refresh_btn"):
+            for attr in (
+                "_hist_all_btn", "_hist_today_btn", "_hist_refresh_btn"
+            ):
                 btn = getattr(self, attr, None)
                 if btn is not None:
                     btn.setStyleSheet(_fresh_btn_style(p["text_dim"], p))
@@ -6364,6 +6478,15 @@ class CounterSalePage(QWidget):
         # draft's provisional number: the cashier sees stable previews while
         # working with multiple open bills.  Only fix a preview that now
         # collides with a committed invoice in the database.
+        saved_state = self._sale_panel.draft_state()
+        saved_bill_no = (self._sale_panel.bill_no_edit.text() or "").strip()
+        saved_state["bill_no"] = saved_bill_no
+        saved_state["invoice"] = saved_state.get("invoice") or {
+            "bill_no": saved_bill_no,
+        }
+        saved_state["provisional_bill_no"] = False
+        saved_state["saved_total"] = self._sale_panel.net_amt_label.text()
+        self._last_saved_bill_state = saved_state
         self._editing_invoice_id = None
         self._refresh_history()
         self._open_bills.pop(self._active_open_bill_id, None)

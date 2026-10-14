@@ -4,7 +4,7 @@ Covers the feature spec on the development code path only (isolated test
 database, never production data, migrations, reports or dist):
 
   * creating multiple bills via + Add Bill without DB writes
-  * open-bill cards (CNo / Patient / Bill Total / Amount, active highlight)
+  * open-bill cards (CNo + amount only, active highlight via border)
   * switching restores items, batches, customer/patient/doctor, payment,
     discounts, paid and totals without mixing data
   * provisional CNo safety + sequential unique CNo on save (FY convention kept)
@@ -276,19 +276,19 @@ class TestAddBillAndCards(MultiBillBase):
         cards = self._cards(page)
         self.assertEqual(len(cards), 3)
         for card in cards:
-            text = card.text()
-            # Bill-number preview (FY format, never a Draft label), name
-            # slot and current total -- short enough to read unclipped.
-            self.assertRegex(text.split("\n")[0], r"CS-\d{4}")
-            self.assertNotIn("Draft", text)
-            self.assertIn("Bill Total:", text)
-            self.assertTrue(
-                ("New customer" in text) or ("Patient:" in text) or ("Customer:" in text),
-                f"card must show a customer/patient slot, got: {text!r}",
-            )
-        # Previews are distinct across the three cards.
-        heads = [c.text().split("\n")[0] for c in cards]
-        self.assertEqual(len(set(heads)), 3, "each open bill needs its own CNo")
+            self.assertEqual(card.identity_label.text(), "New Bill (Draft)")
+            self.assertRegex(card.amount_label.text(), r"^\u20b9\d+\.\d{2}$")
+            self.assertNotIn("<", card.display_text())
+
+    def test_03a_saved_card_uses_permanent_number(self):
+        page = self._make_page()
+        state = page._sale_panel.draft_state()
+        state["bill_no"] = "CS-0042"
+        state["invoice"] = {"id": 42, "bill_no": "CS-0042"}
+        self.assertEqual(
+            page._open_bill_card_text(page._active_open_bill_id, state),
+            "CS-0042\n₹0.00",
+        )
 
     def test_04_active_bill_highlighted(self):
         page = self._make_page()
@@ -298,9 +298,16 @@ class TestAddBillAndCards(MultiBillBase):
         self.assertEqual(len(cards), 2)
         from ui.theme import palette
         accent = palette()["accent"].lower()
-        active = [c for c in cards if "Active" in c.text()]
+        # Selection is conveyed by highlight (accent border + selected bg), not text.
+        for card in cards:
+            self.assertEqual(card.identity_label.text(), "New Bill (Draft)")
+        def _main_rule(c):
+            return c.styleSheet().split("QPushButton:hover")[0]
+        active = [c for c in cards if "border: 2px" in _main_rule(c)]
         self.assertEqual(len(active), 1)
         self.assertIn(accent, active[0].styleSheet().lower())
+        inactive = [c for c in cards if "border: 1px" in _main_rule(c)]
+        self.assertEqual(len(inactive), 1)
 
 
 @unittest.skipUnless(HAS_PYSIDE6, _PYSIDE_SKIP_REASON)
@@ -435,6 +442,17 @@ class TestBillNumberSafety(MultiBillBase):
             self.assertTrue(b.startswith("CS-"))
         nums = sorted(int(b.split("-")[1]) for b in bills)
         self.assertEqual(nums[1], nums[0] + 1)
+        saved_cards = [
+            page._open_bills_layout.itemAt(i).widget()
+            for i in range(page._open_bills_layout.count())
+            if page._open_bills_layout.itemAt(i).widget() is not None
+            and page._open_bills_layout.itemAt(i).widget().property(
+                "saved_bill_card"
+            )
+        ]
+        self.assertEqual(len(saved_cards), 1)
+        self.assertEqual(saved_cards[0].identity_label.text(), bills[-1])
+        self.assertEqual(saved_cards[0].amount_label.text(), "₹50.00")
 
     def test_09_save_one_bill_keeps_others(self):
         page = self._make_page()
@@ -698,8 +716,9 @@ class TestThemeWithDrafts(MultiBillBase):
         # Data intact after cycling (active stored above keeps snapshot fresh).
         patients = sorted(s.get("patient_name") for s in page._open_bills.values())
         self.assertEqual(patients, ["Patient A", "Patient B", "Patient C"])
-        # No stale crash: scroll + cards still themed, active still marked.
-        actives = [c for c in _live_cards() if "Active" in c.text()]
+        # No stale crash: scroll + cards still themed, active still highlighted.
+        actives = [c for c in _live_cards()
+                   if "border: 2px" in c.styleSheet().split("QPushButton:hover")[0]]
         self.assertEqual(len(actives), 1)
 
     def test_18_bill_number_convention_kept(self):

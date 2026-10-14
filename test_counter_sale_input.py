@@ -363,8 +363,12 @@ class TestItemEntryBarLoadItems(_DBBase):
 
     def test_21_set_cno(self):
         bar = self._bar()
+        # Simple sequential numbers (new convention) display in full.
+        bar.set_cno("1911")
+        self.assertEqual(bar.cno_label.text(), "1911")
+        # Legacy CS numbers keep the full value in the tooltip even when elided.
         bar.set_cno("CS-9999")
-        self.assertEqual(bar.cno_label.text(), "CS-9999")
+        self.assertEqual(bar.cno_label.toolTip(), "CS-9999")
 
 
 @GUI
@@ -600,9 +604,11 @@ class TestNewSaleReset(_DBBase):
         QApplication.processEvents()
 
     def test_36_clears_table(self):
+        from PySide6.QtWidgets import QMessageBox as _QMB
         self.panel._item_rows.append(_make_bill_row(1))
         self.panel._refresh_table()
-        self.page._on_new()
+        with __import__('unittest.mock', fromlist=['patch']).patch.object(_QMB, 'question', return_value=_QMB.Yes):
+            self.page._on_new()
         QApplication.processEvents()
         self.assertEqual(self.panel._table.rowCount(), 0)
 

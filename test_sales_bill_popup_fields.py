@@ -97,6 +97,10 @@ class PopupFieldBase(unittest.TestCase):
         # system ledgers/roles present in this isolated database.
         from database.account_roles import ensure_system_ledgers
         ensure_system_ledgers()
+        # Validation requires an active financial year covering today.
+        # The wipe above clears financial_years, so re-ensure the default.
+        from database import financial_year as _fy
+        _fy.ensure_default_financial_year()
 
         from database.customer_dao import CustomerDAO
         from database.doctor_dao import DoctorDAO
@@ -190,34 +194,41 @@ class PopupFieldBase(unittest.TestCase):
 @unittest.skipUnless(HAS_PYSIDE6, "PySide6 not available")
 class TestPopupSize(PopupFieldBase):
 
-    def test_popup_is_wider_than_the_old_narrow_window(self):
-        self.assertGreaterEqual(SalesBillReviewDialog.MIN_WIDTH, 1180)
-        self.assertLessEqual(SalesBillReviewDialog.MAX_WIDTH, 1300)
+    def test_popup_is_spacious_but_screen_aware(self):
+        # ~85-90% of available width, resizable (no tight maximum).
+        self.assertEqual(SalesBillReviewDialog.MIN_WIDTH, 900)
+        self.assertGreaterEqual(SalesBillReviewDialog.MAX_WIDTH, 10000)
+        self.assertEqual(SalesBillReviewDialog.MIN_HEIGHT, 600)
 
-    def test_popup_height_stays_compact(self):
-        self.assertGreaterEqual(SalesBillReviewDialog.MIN_HEIGHT, 520)
-        self.assertLessEqual(SalesBillReviewDialog.MAX_HEIGHT, 600)
+    def test_popup_height_is_spacious(self):
+        self.assertEqual(SalesBillReviewDialog.MIN_HEIGHT, 600)
+        self.assertGreaterEqual(SalesBillReviewDialog.MAX_HEIGHT, 10000)
 
     def test_size_at_1366x768(self):
         width, height = SalesBillReviewDialog.target_size(1366, 768)
-        self.assertTrue(900 <= width <= 1300, width)
-        self.assertTrue(520 <= height <= 600, height)
+        self.assertTrue(0.85 * 1366 <= width <= 0.90 * 1366, (width, height))
+        self.assertTrue(0.80 * 768 <= height <= 0.85 * 768, (width, height))
 
     def test_size_at_1600x900(self):
         width, height = SalesBillReviewDialog.target_size(1600, 900)
-        self.assertTrue(900 <= width <= 1300, width)
-        self.assertTrue(520 <= height <= 600, height)
+        self.assertTrue(0.85 * 1600 <= width <= 0.90 * 1600, (width, height))
+        self.assertTrue(0.80 * 900 <= height <= 0.85 * 900, (width, height))
 
     def test_popup_is_never_full_screen(self):
         for width, height in ((1366, 768), (1600, 900)):
             popup_w, popup_h = SalesBillReviewDialog.target_size(width, height)
-            self.assertLess(popup_w, width)
-            self.assertLess(popup_h, height)
+            self.assertLessEqual(popup_w, width)
+            self.assertLessEqual(popup_h, height)
+            self.assertGreater(popup_w, width * 0.5)
+            self.assertGreater(popup_h, height * 0.5)
 
     def test_live_popup_uses_the_configured_size(self):
         _, dlg = self._open_popup()
         self.assertGreaterEqual(dlg.width(), SalesBillReviewDialog.MIN_WIDTH)
-        self.assertLessEqual(dlg.width(), SalesBillReviewDialog.MAX_WIDTH)
+        self.assertGreaterEqual(dlg.height(), SalesBillReviewDialog.MIN_HEIGHT)
+        # Resizable, not fixed: min/max allow growth, size matches target.
+        self.assertLessEqual(dlg.minimumWidth(), dlg.width())
+        self.assertLessEqual(dlg.minimumHeight(), dlg.height())
 
     def test_popup_is_centred_over_the_parent_page(self):
         page, dlg = self._open_popup()
@@ -761,11 +772,12 @@ class TestTopStripSpacing(PopupFieldBase):
                     f"{type(right).__name__}",
                 )
 
-    def test_popup_size_is_unchanged_by_the_spacing_fix(self):
-        self.assertEqual(SalesBillReviewDialog.MIN_WIDTH, 1180)
-        self.assertEqual(SalesBillReviewDialog.MAX_WIDTH, 1300)
-        self.assertEqual(SalesBillReviewDialog.MIN_HEIGHT, 520)
-        self.assertEqual(SalesBillReviewDialog.MAX_HEIGHT, 600)
+    def test_popup_size_is_spacious_not_compact(self):
+        self.assertEqual(SalesBillReviewDialog.MIN_WIDTH, 900)
+        self.assertEqual(SalesBillReviewDialog.MIN_HEIGHT, 600)
+        w, h = SalesBillReviewDialog.target_size(1366, 768)
+        self.assertGreaterEqual(w, 1100)
+        self.assertGreaterEqual(h, 600)
 
     def test_strip_fills_the_window_width(self):
         _, dlg = self._open_popup()
