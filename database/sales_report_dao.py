@@ -54,7 +54,8 @@ class SalesReportDAO:
 
         Returns:
             {"rows": [ {bill_no, sale_date, customer_name, patient_name,
-                        doctor_name, item_name, company_name, batch_no,
+                        doctor_name, item_name, company_name, unit_name,
+                        pack_size, batch_no,
                         expiry, mrp, sale_qty, discount_amount, amount,
                         invoice_id, bill_discount, bill_net_amount}, ... ],
              "summary": {total_bills, total_lines, total_qty,
@@ -103,6 +104,8 @@ class SalesReportDAO:
                     d.doctor_name    AS doctor_name,
                     i.item_name      AS item_name,
                     co.company_name  AS company_name,
+                    u.unit_name      AS unit_name,
+                    COALESCE(sii.pack_size, i.pack_size, '') AS pack_size,
                     sii.batch_no     AS batch_no,
                     sii.expiry       AS expiry,
                     sii.mrp          AS mrp,
@@ -115,6 +118,8 @@ class SalesReportDAO:
                 JOIN sales_invoice_items sii ON sii.sales_invoice_id = si.id
                 LEFT JOIN items i
                        ON i.id = sii.item_id
+                LEFT JOIN units u
+                       ON u.id = i.unit_id
                 LEFT JOIN companies co
                        ON co.id = i.company_id
                 LEFT JOIN customers c
