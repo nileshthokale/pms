@@ -418,8 +418,9 @@ class TestSalesBillReview(_DBBase):
         self._valid_sale(page)
         page._sale_panel._on_save()
         dialog = page._sale_panel._review_dialog
-        self.assertGreater(dialog.width(), 700)
-        self.assertLess(dialog.height(), 600)
+        self.assertGreaterEqual(dialog.width(), 900)
+        self.assertGreaterEqual(dialog.height(), 600)
+        self.assertLessEqual(dialog.height(), 950)
 
     def test_35_editing_quantity_in_review_updates_totals(self):
         page = CounterSalePage()
@@ -500,10 +501,17 @@ class TestSalesBillPopupLayout(_DBBase):
 
     def test_41_popup_header_carries_voucher_no_date_time(self):
         dialog = self._open()
-        header = dialog.findChild(QWidget, "SalesBillHeader")
-        self.assertIsNotNone(header)
-        texts = {lbl.text() for lbl in header.findChildren(QLabel)}
-        self.assertTrue({"Sales Bill", "Voucher No", "Date", "Time"} <= texts)
+        # Blue banner removed: native title bar identifies the dialog.
+        # Voucher No / Date / Time live in one compact row of the top strip.
+        self.assertEqual(dialog.windowTitle(), "Sales Bill")
+        self.assertIsNone(dialog.findChild(QWidget, "SalesBillHeader"))
+        strip = dialog._panel.findChild(QWidget, "SalesBillTopStrip")
+        self.assertIsNotNone(strip)
+        texts = {lbl.text() for lbl in strip.findChildren(QLabel)}
+        self.assertTrue({"Voucher No", "Date", "Time"} <= texts)
+        self.assertTrue(dialog._panel.voucher_no_label.text())
+        self.assertTrue(dialog._panel.header_date_label.text())
+        self.assertTrue(dialog._panel.header_time_label.text())
 
     # -- top customer section -------------------------------------------
 
@@ -571,8 +579,11 @@ class TestSalesBillPopupLayout(_DBBase):
 
     def test_51_totals_are_at_the_bottom_of_the_bill(self):
         dialog = self._open()
+        # Single compact footer (panel's duplicate upper totals hidden).
+        self.assertFalse(dialog._panel._totals_widget.isVisible())
+        actions = dialog.findChild(QWidget, "SalesBillActions")
         self.assertLess(self._y(dialog._panel._table_group, dialog),
-                        self._y(dialog._panel._totals_widget, dialog))
+                        self._y(actions, dialog))
 
     def test_52_actions_are_below_the_bill(self):
         dialog = self._open()
@@ -629,14 +640,15 @@ class TestSalesBillPopupLayout(_DBBase):
     # -- behaviour preserved --------------------------------------------
 
     def test_58_popup_size_is_compact(self):
-        # The bill window was widened so the single Item Entry row fits on
-        # one line: wide enough for every labelled field, still short enough
-        # to stay a dialog rather than a full-screen window.
+        # Spacious dialog (~87% W, ~82% H): several item rows visible,
+        # resizable, centred, never full-screen.
         dialog = self._open()
-        self.assertLessEqual(dialog.width(), 1300)
-        self.assertLessEqual(dialog.height(), 600)
         self.assertGreaterEqual(dialog.width(), 900)
-        self.assertGreaterEqual(dialog.height(), 520)
+        self.assertGreaterEqual(dialog.height(), 600)
+        self.assertLessEqual(dialog.width(), 1750)
+        self.assertLessEqual(dialog.height(), 950)
+        self.assertLessEqual(dialog.minimumWidth(), dialog.width())
+        self.assertLessEqual(dialog.minimumHeight(), dialog.height())
 
     def test_59_popup_still_opens_after_save_sale(self):
         page = CounterSalePage()

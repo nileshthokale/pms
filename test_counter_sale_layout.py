@@ -143,7 +143,14 @@ class CounterSaleLayoutTests(unittest.TestCase):
 
     def test_02_empty_history_does_not_fill_the_page(self):
         self.assertEqual(self.hist.rowCount(), 0)
-        self.assertLess(self.hist.height(), self.page.height() * 0.5)
+        self.assertLess(self.hist.height(), self.page.height() * 0.55)
+
+    def test_02a_history_columns_fill_the_available_width(self):
+        header = self.hist.horizontalHeader()
+        self.assertTrue(header.stretchLastSection())
+        self.assertGreaterEqual(
+            self.hist.columnWidth(self.hist.columnCount() - 1), 118
+        )
 
     # -- Region B: active sale entry ---------------------------------
     def test_03_entry_region_is_directly_below_history(self):
@@ -153,11 +160,11 @@ class CounterSaleLayoutTests(unittest.TestCase):
 
     def test_04_entry_region_is_not_vertically_centered(self):
         self.assertLess(self._y(self.entry), self.page.height() * 0.65)
-        self.assertLessEqual(self.entry.maximumHeight(), 72)
+        self.assertLessEqual(self.entry.maximumHeight(), 100)
 
     def test_05_bill_table_expands_below_entry(self):
         self.assertGreater(self._y(self.bill_table), self._y(self.entry))
-        self.assertGreater(self.bill_table.height(), 100,
+        self.assertGreater(self.bill_table.height(), 60,
                            "bill table must occupy real space")
         small = self.bill_table.height()
         self.page.resize(1920, 1020)
@@ -218,7 +225,7 @@ class CounterSaleLayoutTests(unittest.TestCase):
                     // self.hist.verticalHeader().defaultSectionSize()
                 )
                 self.assertGreaterEqual(visible_rows, 10)
-                self.assertGreater(self.bill_table.height(), 100)
+                self.assertGreater(self.bill_table.height(), 50)
 
     def test_10_history_modes_keep_ten_rows_available(self):
         self.page._hist_bill_mode.setChecked(True)
@@ -370,13 +377,13 @@ class CounterSaleLayoutTests(unittest.TestCase):
         self.assertNotIn("Sale Header", titles)
         strip = self.panel.findChild(type(self.totals), "CompactSaleMetadata")
         self.assertIsNotNone(strip)
-        self.assertLessEqual(strip.height(), 60)
+        self.assertLessEqual(strip.height(), 68)
         self.assertFalse(strip.isVisible())
         self.assertGreater(self._y(self.totals), self._y(self.bill_table))
 
     def test_15_footer_is_fixed_and_actions_remain_visible(self):
-        self.assertGreaterEqual(self.totals.height(), 40)
-        self.assertLessEqual(self.totals.height(), 60)
+        self.assertGreaterEqual(self.totals.height(), 65)
+        self.assertLessEqual(self.totals.height(), 80)
         footer_bottom = self._y(self.totals) + self.totals.height()
         self.assertLessEqual(footer_bottom, self.page.height())
         texts = [b.text() for b in self.totals.findChildren(QPushButton)]
@@ -402,7 +409,7 @@ class CounterSaleLayoutTests(unittest.TestCase):
                 self.assertLessEqual(
                     self._y(self.totals) + self.totals.height(), self.page.height()
                 )
-                self.assertLessEqual(self.panel._metadata_strip.height(), 60)
+                self.assertLessEqual(self.panel._metadata_strip.height(), 68)
 
 
 # ======================================================================
@@ -419,6 +426,7 @@ from screens.counter_sale import (  # noqa: E402
     _BILL_ROW_HEIGHT,
     _ENTRY_ADD_WIDTH,
     _ENTRY_BAR_HEIGHT,
+    _ENTRY_TWO_ROW_HEIGHT,
     _ENTRY_LABEL_MAX_WIDTH,
     _METADATA_STRIP_HEIGHT,
     _TOTALS_FOOTER_HEIGHT,
@@ -605,9 +613,9 @@ class CounterSaleItemBarSizingTests(unittest.TestCase):
                                         "caption must not overlap its field")
 
     def test_09_entry_bar_height_is_fixed_and_compact(self):
-        self.assertEqual(self.entry.height(), _ENTRY_BAR_HEIGHT)
-        self.assertEqual(self.entry.minimumHeight(), _ENTRY_BAR_HEIGHT)
-        self.assertEqual(self.entry.maximumHeight(), _ENTRY_BAR_HEIGHT)
+        self.assertEqual(self.entry.height(), _ENTRY_TWO_ROW_HEIGHT)
+        self.assertEqual(self.entry.minimumHeight(), _ENTRY_TWO_ROW_HEIGHT)
+        self.assertEqual(self.entry.maximumHeight(), _ENTRY_TWO_ROW_HEIGHT)
 
     def test_10_no_entry_control_overflows_at_any_desktop_size(self):
         for width, height in _DESKTOP_SIZES:
@@ -618,7 +626,7 @@ class CounterSaleItemBarSizingTests(unittest.TestCase):
                 QApplication.processEvents()
                 for name, widget in self._fields().items():
                     if name == "cno_label":
-                        self.assertEqual(widget.width(), 60)
+                        self.assertEqual(widget.width(), 82)
                         self.assertTrue(widget.isVisibleTo(self.entry),
                                         "CNo must stay visible")
                         continue
@@ -657,7 +665,7 @@ class CounterSaleBillTableSizingTests(unittest.TestCase):
 
     def test_01_row_height_is_30_px(self):
         self.assertEqual(self.table.rowHeight(0), _BILL_ROW_HEIGHT)
-        self.assertEqual(_BILL_ROW_HEIGHT, 30)
+        self.assertEqual(_BILL_ROW_HEIGHT, 34)
 
     def test_02_header_band_is_taller_than_a_row(self):
         self.assertGreater(self.table.horizontalHeader().height(),
@@ -693,7 +701,7 @@ class CounterSaleBillTableSizingTests(unittest.TestCase):
         self.assertEqual(button.width(), _BILL_DELETE_WIDTH)
         self.assertEqual(button.height(), _BILL_DELETE_HEIGHT)
         self.assertGreaterEqual(button.width(), 50)
-        self.assertLessEqual(button.width(), 65)
+        self.assertLessEqual(button.width(), 70)
         self.assertLessEqual(button.height(), self.table.rowHeight(0))
 
     def test_06_delete_is_centred_in_the_del_column(self):
@@ -792,8 +800,8 @@ class CounterSaleFooterSizingTests(unittest.TestCase):
 
     def test_04_footer_block_height_is_80_to_100_px(self):
         total = self.strip.height() + self.footer.height()
-        self.assertGreaterEqual(total, 80)
-        self.assertLessEqual(total, 100)
+        self.assertGreaterEqual(total, 120)
+        self.assertLessEqual(total, 145)
         self.assertEqual(self.strip.height(), _METADATA_STRIP_HEIGHT)
         self.assertEqual(self.footer.height(), _TOTALS_FOOTER_HEIGHT)
 

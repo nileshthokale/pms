@@ -299,6 +299,21 @@ class HistoryDateControlTests(_HistorySeedMixin, unittest.TestCase):
         self.assertTrue(self.page._hist_date.calendarPopup(),
                         "clicking the Date control must open a calendar")
 
+    def test_03a_today_button_fits_its_label(self):
+        button = self.page._hist_today_btn
+        self.assertEqual(button.text(), "Today")
+        self.assertGreaterEqual(button.width(), button.sizeHint().width())
+
+    def test_03b_today_button_resets_and_refreshes_daily_history(self):
+        self._pick("2026-03-01")
+        today = QDate.currentDate()
+        self.page._hist_today_btn.click()
+        self.assertEqual(self.page._hist_date.date(), today)
+        self.assertEqual(self.page._history_filter, HISTORY_FILTER_DATE)
+        today_text = today.toString("yyyy-MM-dd")
+        self.assertEqual(self.page._history_filter_dates(),
+                         (today_text, today_text))
+
     def test_04_date_control_is_labelled_date(self):
         from PySide6.QtWidgets import QLabel
         texts = [lbl.text() for lbl
