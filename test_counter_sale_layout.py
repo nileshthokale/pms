@@ -146,11 +146,31 @@ class CounterSaleLayoutTests(unittest.TestCase):
         self.assertLess(self.hist.height(), self.page.height() * 0.55)
 
     def test_02a_history_columns_fill_the_available_width(self):
+        # Fill viewport; Item/Bill Fixed moderate; Patient/Batch share spare
+        # (suitable, not only Item/Bill); Time/Expiry Fixed moderate (no hundreds).
+        from PySide6.QtWidgets import QHeaderView as _HV
         header = self.hist.horizontalHeader()
-        self.assertTrue(header.stretchLastSection())
-        self.assertGreaterEqual(
-            self.hist.columnWidth(self.hist.columnCount() - 1), 118
-        )
+        self.assertFalse(header.stretchLastSection())
+        for col, lo, hi in ((0, 75, 100), (1, 45, 60), (2, 120, 160),
+                             (4, 40, 50), (5, 70, 85),
+                             (7, 65, 75), (9, 95, 110),
+                             (10, 70, 85), (11, 65, 80), (12, 90, 110)):
+            with self.subTest(column=col):
+                self.assertGreaterEqual(self.hist.columnWidth(col), lo)
+                self.assertLessEqual(self.hist.columnWidth(col), hi)
+        self.assertGreaterEqual(self.hist.columnWidth(3), 70)
+        # Suitable columns fill (at least base, not hundreds for Time/Expiry).
+        for col, base in ((6, 145), (8, 130)):
+            with self.subTest(column=col):
+                self.assertGreaterEqual(self.hist.columnWidth(col), base)
+                self.assertLessEqual(self.hist.columnWidth(col), 220)
+        total = sum(self.hist.columnWidth(i) for i in range(self.hist.columnCount()))
+        self.assertGreaterEqual(total, self.hist.viewport().width() - 30)
+        # Targets Fixed; fillers Stretch.
+        self.assertEqual(header.sectionResizeMode(2), _HV.Fixed)
+        self.assertEqual(header.sectionResizeMode(12), _HV.Fixed)
+        for col in (6, 8):
+            self.assertEqual(header.sectionResizeMode(col), _HV.Stretch)
 
     # -- Region B: active sale entry ---------------------------------
     def test_03_entry_region_is_directly_below_history(self):
@@ -398,7 +418,9 @@ class CounterSaleLayoutTests(unittest.TestCase):
         self.assertIsNotNone(cell)
         buttons = cell.findChildren(QPushButton)
         self.assertEqual(len(buttons), 1)
-        self.assertEqual(buttons[0].text(), "Delete")
+        self.assertEqual(buttons[0].text(), "\u00d7")
+        self.assertEqual(buttons[0].toolTip(), "Remove item")
+        self.assertEqual(buttons[0].accessibleName(), "Delete")
         self.assertLessEqual(buttons[0].height(), self.bill_table.rowHeight(0))
 
     def test_17_desktop_sizes_keep_compact_footer_visible(self):
@@ -613,9 +635,9 @@ class CounterSaleItemBarSizingTests(unittest.TestCase):
                                         "caption must not overlap its field")
 
     def test_09_entry_bar_height_is_fixed_and_compact(self):
-        self.assertEqual(self.entry.height(), _ENTRY_TWO_ROW_HEIGHT)
-        self.assertEqual(self.entry.minimumHeight(), _ENTRY_TWO_ROW_HEIGHT)
-        self.assertEqual(self.entry.maximumHeight(), _ENTRY_TWO_ROW_HEIGHT)
+        self.assertEqual(self.entry.height(), _ENTRY_BAR_HEIGHT)
+        self.assertEqual(self.entry.minimumHeight(), _ENTRY_BAR_HEIGHT)
+        self.assertEqual(self.entry.maximumHeight(), _ENTRY_BAR_HEIGHT)
 
     def test_10_no_entry_control_overflows_at_any_desktop_size(self):
         for width, height in _DESKTOP_SIZES:
@@ -626,7 +648,10 @@ class CounterSaleItemBarSizingTests(unittest.TestCase):
                 QApplication.processEvents()
                 for name, widget in self._fields().items():
                     if name == "cno_label":
-                        self.assertEqual(widget.width(), 82)
+                        # Compact slot: 60 px for short numbers (1911),
+                        # wider only for longer legacy numbers (clamped).
+                        self.assertGreaterEqual(widget.width(), 60)
+                        self.assertLessEqual(widget.width(), 115)
                         self.assertTrue(widget.isVisibleTo(self.entry),
                                         "CNo must stay visible")
                         continue
@@ -672,24 +697,59 @@ class CounterSaleBillTableSizingTests(unittest.TestCase):
                            _BILL_ROW_HEIGHT)
 
     def test_03_columns_are_content_sized_with_item_name_stretching(self):
+        from PySide6.QtWidgets import QHeaderView as _HV
         self.assertEqual(self.table.columnCount(), len(_BILL_COLUMN_WIDTHS))
         self.assertEqual(
             [self.table.horizontalHeaderItem(i).text() for i in range(11)],
             ["#", "Item Name", "Pack Size", "Location", "Batch No", "Expiry",
              "MRP", "Qty", "Disc Amt", "Amount", "Del"])
-        item_name_width = self.table.columnWidth(1)
+        # Item/Loc/Delete Fixed moderate (never excessively wide); Batch/Amount
+        # share spare (suitable) to fill with no blank strip.
+        for col, lo, hi in ((1, 240, 300), (2, 60, 75), (3, 90, 120),
+                             (5, 90, 100)):
+            with self.subTest(column=col):
+                self.assertGreaterEqual(self.table.columnWidth(col), lo)
+                self.assertLessEqual(self.table.columnWidth(col), hi)
         for index, width in enumerate(_BILL_COLUMN_WIDTHS):
-            if index == 1:
+            if index in (4, 9):
                 continue
             with self.subTest(column=index):
                 self.assertEqual(self.table.columnWidth(index), width)
+        for col, base in ((4, 145), (9, 95)):
+            with self.subTest(column=col):
+                self.assertGreaterEqual(self.table.columnWidth(col), base)
+                self.assertLessEqual(self.table.columnWidth(col), 220)
+        total = sum(self.table.columnWidth(i) for i in range(11))
+        self.assertGreaterEqual(total, self.table.viewport().width() - 40)
+        # Item/Loc/Delete Fixed; fillers Stretch.
+        for index in (1, 3, 10):
+            with self.subTest(column=index):
+                self.assertEqual(
+                    self.table.horizontalHeader().sectionResizeMode(index),
+                    _HV.Fixed)
+        for index in (4, 9):
+            with self.subTest(column=index):
+                self.assertEqual(
+                    self.table.horizontalHeader().sectionResizeMode(index),
+                    _HV.Stretch)
 
     def test_04_grid_fits_without_a_horizontal_scrollbar(self):
-        total = sum(self.table.columnWidth(i) for i in range(11))
-        self.assertLessEqual(total, self.table.viewport().width(),
-                             "Bill Items must not need horizontal scrolling")
-        self.assertGreater(self.table.columnWidth(1), 150,
-                           "Item Name must keep a readable width")
+        # Fill with no blank; Item/Loc/Delete moderate; Batch/Amount fill.
+        for i, lo, hi in ((1, 240, 300), (2, 60, 75), (3, 90, 120),
+                           (5, 90, 100)):
+            with self.subTest(column=i):
+                self.assertGreaterEqual(self.table.columnWidth(i), lo)
+                self.assertLessEqual(self.table.columnWidth(i), hi)
+        for i, width in enumerate(_BILL_COLUMN_WIDTHS):
+            if i in (4, 9):
+                continue
+            with self.subTest(column=i):
+                self.assertEqual(self.table.columnWidth(i), width)
+        for i, base in ((4, 145), (9, 95)):
+            with self.subTest(column=i):
+                self.assertGreaterEqual(self.table.columnWidth(i), base)
+        headers = [self.table.horizontalHeaderItem(i).text() for i in range(11)]
+        self.assertEqual(headers[1], "Item Name")
 
     def test_05_delete_is_a_compact_table_action(self):
         cell = self.table.cellWidget(0, 10)
@@ -697,11 +757,13 @@ class CounterSaleBillTableSizingTests(unittest.TestCase):
         buttons = cell.findChildren(QPushButton)
         self.assertEqual(len(buttons), 1)
         button = buttons[0]
-        self.assertEqual(button.text(), "Delete")
+        self.assertEqual(button.text(), "\u00d7")
+        self.assertEqual(button.toolTip(), "Remove item")
+        self.assertEqual(button.accessibleName(), "Delete")
         self.assertEqual(button.width(), _BILL_DELETE_WIDTH)
         self.assertEqual(button.height(), _BILL_DELETE_HEIGHT)
-        self.assertGreaterEqual(button.width(), 50)
-        self.assertLessEqual(button.width(), 70)
+        self.assertGreaterEqual(button.width(), 24)
+        self.assertLessEqual(button.width(), 40)
         self.assertLessEqual(button.height(), self.table.rowHeight(0))
 
     def test_06_delete_is_centred_in_the_del_column(self):
@@ -712,9 +774,9 @@ class CounterSaleBillTableSizingTests(unittest.TestCase):
         top = button.y()
         bottom = cell.height() - (button.y() + button.height())
         self.assertLessEqual(abs(left - right), 2,
-                             "Delete must be horizontally centred")
+                             "\u00d7 must be horizontally centred")
         self.assertLessEqual(abs(top - bottom), 2,
-                             "Delete must be vertically centred")
+                             "\u00d7 must be vertically centred")
 
     def test_07_numeric_columns_are_right_aligned(self):
         from PySide6.QtCore import Qt
