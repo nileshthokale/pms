@@ -295,7 +295,7 @@ _BTN_ROW_ACTION = (
     "QPushButton {"
     f"  background-color: {_p['surface_alt']}; color: {_BTN_DANGER_EDGE};"
     f"  border: 1px solid {_BTN_DANGER_EDGE}; border-radius: 3px;"
-    f"  padding: 3px 8px; font-size: {TYPE_BUTTON}px; font-weight: bold;"
+    f"  padding: 0px 0px; font-size: 16px; font-weight: bold;"
     f"  font-family: {FONT_FAMILY};"
     "}"
     "QPushButton:hover {"
@@ -346,9 +346,9 @@ _HEADER_LABEL = (
 # same box height so the bar reads as a single instrument strip instead of
 # a row of mismatched boxes, and the label width is measured from the real
 # font (capped) so labels never reserve a wide, mostly empty box.
-_ENTRY_BAR_HEIGHT = 50          # single row used by the Sales Bill popup
-_ENTRY_TWO_ROW_HEIGHT = 86      # two readable lanes in the inline Counter Sale
-_ENTRY_ADD_WIDTH = 84           # compact "+ Add": inside the 70-90 px target
+_ENTRY_BAR_HEIGHT = 40          # label + control box, one straight row
+_ENTRY_TWO_ROW_HEIGHT = 86      # legacy two-lane height (unused: bar is single-row)
+_ENTRY_ADD_WIDTH = 78           # compact "+ Add": inside the 70-90 px target
 
 # Caption metrics.  A caption box is its own text plus one fixed gap, so the
 # text can never be clipped by the box that holds it, and the gap between a
@@ -358,7 +358,7 @@ _ENTRY_ADD_WIDTH = 84           # compact "+ Add": inside the 70-90 px target
 # stuck to their fields.  The cap only stops a future long caption from
 # stealing width from the fields.
 _ENTRY_LABEL_GAP = 10           # caption -> the field it names (10-14 px)
-_ENTRY_LABEL_MAX_WIDTH = 62     # longest caption + gap at 14 px, on any platform font
+_ENTRY_LABEL_MAX_WIDTH = 52     # longest caption + gap, on any platform font
 
 # Seam between one field and the caption that follows it.  A caption names
 # the field on its RIGHT, so it must hug that field and stand clear of the
@@ -379,28 +379,28 @@ _ENTRY_ITEM_BATCH_GAP = 10
 # and Batch lead -- they hold the text a cashier actually reads -- while Pack
 # and Qty stay compact by design.
 _ENTRY_PREFERRED_WIDTHS = {
-    "item_combo": 260,          # useful product-name search width
-    "batch_combo": 190,         # long batch numbers stay readable at 14 px
-    "pack_edit": 70,
-    "location_edit": 110,
-    "expiry_edit": 95,
-    "mrp_edit": 110,
-    "stock_edit": 110,
-    "qty_edit": 90,
-    "discount_edit": 110,
-    "amount_edit": 110,
+    "item_combo": 250,          # the primary search box
+    "batch_combo": 157,         # long batch numbers stay readable
+    "pack_edit": 50,
+    "location_edit": 80,
+    "expiry_edit": 80,
+    "mrp_edit": 80,
+    "stock_edit": 80,
+    "qty_edit": 48,
+    "discount_edit": 75,
+    "amount_edit": 80,
 }
 _ENTRY_FLOOR_WIDTHS = {
-    "item_combo": 180,
-    "batch_combo": 136,
-    "pack_edit": 60,
-    "location_edit": 65,
-    "expiry_edit": 88,
-    "mrp_edit": 75,
-    "stock_edit": 80,
-    "qty_edit": 60,
-    "discount_edit": 80,
-    "amount_edit": 90,
+    "item_combo": 150,
+    "batch_combo": 110,
+    "pack_edit": 44,
+    "location_edit": 44,
+    "expiry_edit": 44,
+    "mrp_edit": 44,
+    "stock_edit": 44,
+    "qty_edit": 44,
+    "discount_edit": 44,
+    "amount_edit": 44,
 }
 # Absolute floor.  Below this a field can show nothing useful, so the row
 # stops shrinking rather than pretend the partition still fits.
@@ -418,8 +418,8 @@ _ENTRY_MIN_BAR_WIDTH = 420
 # this chrome, never guessed: 6 px padding each side, the 22 px drop-down
 # arrow reserved by QComboBox::drop-down, and a 1 px border each side.
 _ENTRY_BATCH_CHROME = 6 + 6 + 22 + 2
-_ENTRY_BATCH_MIN_WIDTH = 136   # matches _ENTRY_FLOOR_WIDTHS["batch_combo"]
-_ENTRY_BATCH_MAX_WIDTH = 190   # matches _ENTRY_PREFERRED_WIDTHS["batch_combo"]
+_ENTRY_BATCH_MIN_WIDTH = 110   # matches _ENTRY_FLOOR_WIDTHS["batch_combo"]
+_ENTRY_BATCH_MAX_WIDTH = 157   # matches _ENTRY_PREFERRED_WIDTHS["batch_combo"]
 
 # â”€â”€ Bottom billing block metrics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # The Sale Header strip and the totals/action footer together form the
@@ -432,13 +432,13 @@ _TOTALS_CONTROL_HEIGHT = 30    # shared box height for footer totals
 _ACTION_BUTTON_HEIGHT = 38     # Hold Bill / Save Sale / Cancel
 _BILL_ROW_HEIGHT = 34          # Bill Items body row height (14 px text)
 _BILL_HEADER_HEIGHT = 38       # header band is slightly taller than a row
-_BILL_DELETE_WIDTH = 64        # compact Del action inside the table cell
+_BILL_DELETE_WIDTH = 30        # compact x action (30x26) inside the Del column
 _BILL_DELETE_HEIGHT = 26
 
-# Bill Items columns.  Index 1 (Item Name) stretches; the rest are sized to
-# their content so long item names and batch numbers cannot push the
-# numeric columns off screen.
-_BILL_COLUMN_WIDTHS = (36, 0, 82, 106, 150, 76, 76, 54, 84, 96, 72)
+# Bill Items columns meeting content ranges (all Fixed, no stretch back).
+# Item 240-300, Pack 60-75, Loc 90-120, Batch 130-160, Expiry 90-100,
+# MRP fits 341.34, Qty/Disc/Amt/Del compact readable.
+_BILL_COLUMN_WIDTHS = (40, 295, 75, 115, 155, 100, 100, 55, 82, 105, 60)
 _BILL_CENTERED_COLUMNS = (0, 10)
 _BILL_RIGHT_COLUMNS = (6, 7, 8, 9)
 
@@ -639,7 +639,7 @@ def _fresh_row_action_style(p: dict | None = None) -> str:
         "QPushButton {"
         f"  background-color: {p['surface_alt']}; color: {danger};"
         f"  border: 1px solid {danger}; border-radius: 3px;"
-        f"  padding: 3px 8px; font-size: {TYPE_BUTTON}px; font-weight: bold;"
+        f"  padding: 0px 0px; font-size: 16px; font-weight: bold;"
         f"  font-family: {FONT_FAMILY};"
         "}"
         "QPushButton:hover {"
@@ -1557,43 +1557,36 @@ class _ItemEntryBar(QWidget):
         self._focus_quantity_timer = QTimer(self)
         self._focus_quantity_timer.setSingleShot(True)
         self.setObjectName("ItemEntryBar")
-        self._two_row = two_row
+        # Single-row only: the legacy two_row flag is accepted for
+        # backwards compatibility but ignored so MRP/Avail/Qty/Disc/Amt
+        # stay on the same horizontal line as Item/Batch.
+        self._two_row = False
         self._draft_reserved_qty = lambda _batch_id: 0.0
         # The row sizes itself (see _refit_to_bar).  Off until the row has
         # been built and measured, then on for good; the Sales Bill popup
         # turns it off because it measures and pins its own widths.
-        self._auto_fit = not self._two_row
+        self._auto_fit = False
         self._in_refit = False
         # Batch's real floor: _ENTRY_FLOOR_WIDTHS, raised by
         # _reserve_batch_number_width when a batch number needs more room.
         self._batch_floor = _ENTRY_FLOOR_WIDTHS["batch_combo"]
-        # The inline form uses two lanes so fields remain readable at the
-        # sale panel's real width. The Sales Bill popup keeps its one-row path.
-        self.setFixedHeight(
-            _ENTRY_TWO_ROW_HEIGHT if self._two_row else _ENTRY_BAR_HEIGHT
-        )
-        if self._two_row:
-            root_layout = QVBoxLayout(self)
-            root_layout.setContentsMargins(6, 1, 6, 1)
-            root_layout.setSpacing(0)
-            layout = QHBoxLayout()
-            layout.setContentsMargins(0, 0, 0, 0)
-            layout.setSpacing(1)
-            root_layout.addLayout(layout)
-        else:
-            layout = QHBoxLayout(self)
-            layout.setContentsMargins(6, 3, 6, 3)
-            layout.setSpacing(1)
+        # One single horizontal row -- the target billing-bar order:
+        #   CNo | Item | Batch | Pack | Loc | Exp | MRP | Avail | Qty |
+        #   Disc | Amount | + Add
+        #
+        # There is deliberately NO second row.
+        self.setFixedHeight(_ENTRY_BAR_HEIGHT)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(6, 3, 6, 3)
+        layout.setSpacing(1)
 
         # CNo (counter / current bill number — display only)
         layout.addWidget(self._lbl("CNo"))
         self.cno_label = QLabel("--")
-        # Keep the read-out compact so Item and Batch retain the visual space
-        # they need for real entry.  Unsaved drafts intentionally show a compact
-        # "Draft"/"--" label instead of a provisional invoice number.
-        self.cno_label.setFixedWidth(82)
-        self.cno_label.setMinimumWidth(52)
-        self.cno_label.setMaximumWidth(82)
+        # Simple sequential numbers (1911) need less room than the old
+        # FY-prefixed form (2026-2027-1911); 60 px shows the simple number
+        # in full with the complete stored value in the tooltip.
+        self.cno_label.setFixedWidth(60)
         self.cno_label.setAlignment(Qt.AlignCenter)
         self.cno_label.setStyleSheet(_LABEL_STYLE)
         self.cno_label.setFixedHeight(_ENTRY_BAR_HEIGHT - 8)
@@ -1674,12 +1667,6 @@ class _ItemEntryBar(QWidget):
         self.expiry_edit.setAlignment(Qt.AlignCenter)
         self.expiry_edit.setReadOnly(True)
         layout.addWidget(self.expiry_edit, 1)
-
-        if self._two_row:
-            layout = QHBoxLayout()
-            layout.setContentsMargins(0, 0, 0, 0)
-            layout.setSpacing(1)
-            self.layout().addLayout(layout)
 
         # MRP (auto-filled)
         layout.addSpacing(_ENTRY_GROUP_GAP)
@@ -1784,9 +1771,8 @@ class _ItemEntryBar(QWidget):
 
         # The row is built and measured: from here on it keeps itself fitting
         # the bar.  Enabled last so the first fit sees the finished row.
-        self._auto_fit = not self._two_row
-        if self._auto_fit:
-            self._refit_to_bar()
+        self._auto_fit = True
+        self._refit_to_bar()
 
     # ------------------------------------------------------------------
     # Responsive width fitting
@@ -1817,10 +1803,6 @@ class _ItemEntryBar(QWidget):
         resizable, and ``_refit_to_bar`` recomputes the partition for
         whatever width the bar is actually given.
         """
-        if self._two_row:
-            hint = super().minimumSizeHint()
-            return QSize(max(_ENTRY_MIN_BAR_WIDTH, hint.width()),
-                         _ENTRY_TWO_ROW_HEIGHT)
         width = max(_ENTRY_MIN_BAR_WIDTH, self._fixed_chrome_width())
         return QSize(width, _ENTRY_BAR_HEIGHT)
 
@@ -1937,8 +1919,7 @@ class _ItemEntryBar(QWidget):
 
     def _refit_to_bar(self) -> None:
         """Share the bar's real width across the row whenever it changes."""
-        if (self._two_row or self._in_refit or self.layout() is None
-            or self.width() <= 0):
+        if self._in_refit or self.layout() is None or self.width() <= 0:
             return
         self._in_refit = True
         try:
@@ -2193,27 +2174,46 @@ class _ItemEntryBar(QWidget):
         self.discount_edit.setText("0.00")
 
     def set_cno(self, text: str):
-        """Display the current counter/bill number (no logic attached).
+        """Display preview for unsaved bills, number for saved viewing.
 
-        Unsaved drafts intentionally show a compact non-permanent label so the
-        item-entry row stays aligned and the user is not misled by a provisional
-        invoice number that will be assigned only on Save.
+        Unsaved drafts show the next bill-number preview without FY prefix
+        (e.g. 1912); flagged provisional, not consumed until Save succeeds.
+        Saved viewing shows the actual number. Full value in tooltip.
         """
-        parent = getattr(self, "parentWidget", lambda: None)()
-        provisional = bool(getattr(parent, "_provisional_bill_no", False))
-        saved = bool(getattr(parent, "_saved", False))
-        if provisional and not saved:
-            short = "Draft"
-            full = "New Bill (Draft)"
+        try:
+            parent = self.parentWidget()
+        except Exception:
+            parent = None
+        try:
+            is_draft = bool(getattr(parent, "_provisional_bill_no", True))
+            is_saved = bool(getattr(parent, "_saved", False))
+            has_invoice = getattr(parent, "_invoice", None) is not None
+        except Exception:
+            is_draft, is_saved, has_invoice = True, False, False
+        if is_draft and not is_saved and not has_invoice:
+            try:
+                short = _display_bill_no(text) if (text or "").strip() else "--"
+            except Exception:
+                short = (text or "--").strip() or "--"
+            full = f"{(text or short).strip()} (preview, assigned on Save)"
         else:
             try:
-                short = (text or "").strip() or "--"
+                short = _display_bill_no(text) if (text or "").strip() else "--"
             except Exception:
-                short = text or "--"
-            full = short
+                short = (text or "--").strip() or "--"
+            full = (text or "--").strip() or "--"
         try:
             fm = QFontMetrics(self.cno_label.font())
-            elided = fm.elidedText(short, Qt.ElideRight, max(32, self.cno_label.width()))
+            needed = fm.horizontalAdvance(short) + 16
+            compact = max(60, min(int(needed), 115))
+            if self.cno_label.minimumWidth() != compact or self.cno_label.maximumWidth() != compact:
+                self.cno_label.setFixedWidth(compact)
+                try:
+                    if getattr(self, "_auto_fit", False):
+                        self._refit_to_bar()
+                except Exception:
+                    pass
+            elided = fm.elidedText(short, Qt.ElideRight, max(40, self.cno_label.width()))
         except Exception:
             elided = short
         self.cno_label.setText(elided)
@@ -2594,18 +2594,32 @@ class _SalePanel(QWidget):
         self._other_draft_reserved_qty = provider or (lambda _batch_id: 0.0)
         self._refresh_draft_availability()
 
-    def set_provisional_bill_no(self, preview: str) -> None:
-        """Display an in-memory provisional CNo preview.
+    def set_provisional_bill_no(self, preview: str = "") -> None:
+        """Set provisional preview (no consume; permanent only on Save).
 
         The preview uses the regular bill-number format but reserves
         nothing: no invoice record is written and the permanent
         sequence is untouched until Save (see
         :func:`_resolve_bill_no_for_save`).
         """
+        # Provisional preview: displayed, never consumed until Save succeeds.
+        # Empty preview falls back to a fresh read (recalculated safely).
         self._provisional_bill_no = True
-        self.bill_no_edit.setText(preview)
         try:
-            self.bill_no_edit.setToolTip(preview)
+            if not (preview or "").strip():
+                preview = SalesDAO.generate_next_bill_no()
+        except Exception:
+            preview = preview or ""
+        try:
+            self.bill_no_edit.blockSignals(True)
+            self.bill_no_edit.setText(preview)
+        finally:
+            try:
+                self.bill_no_edit.blockSignals(False)
+            except Exception:
+                pass
+        try:
+            self.bill_no_edit.setToolTip(f"{preview} (preview, assigned on Save)" if preview else "Unsaved draft")
         except Exception:
             pass
         self._entry_bar.set_cno(preview)
@@ -2874,12 +2888,22 @@ class _SalePanel(QWidget):
         """Keep the header row labels in sync with the editable fields."""
         if hasattr(self, 'voucher_no_label'):
             try:
-                short = _display_bill_no(self.bill_no_edit.text()) if self.bill_no_edit.text().strip() else "--"
+                is_draft = bool(getattr(self, "_provisional_bill_no", True))
+                is_saved = bool(getattr(self, "_saved", False))
+                has_invoice = getattr(self, "_invoice", None) is not None
             except Exception:
-                short = self.bill_no_edit.text() or "--"
+                is_draft, is_saved, has_invoice = True, False, False
+            if is_draft and not is_saved and not has_invoice:
+                short, full = "Draft", "Unsaved draft (number assigned on Save)"
+            else:
+                try:
+                    short = _display_bill_no(self.bill_no_edit.text()) if self.bill_no_edit.text().strip() else "--"
+                except Exception:
+                    short = self.bill_no_edit.text() or "--"
+                full = self.bill_no_edit.text() or "--"
             self.voucher_no_label.setText(short)
             try:
-                self.voucher_no_label.setToolTip(self.bill_no_edit.text() or "--")
+                self.voucher_no_label.setToolTip(full)
             except Exception:
                 pass
         if hasattr(self, 'header_date_label'):
@@ -2896,19 +2920,24 @@ class _SalePanel(QWidget):
         long number can never starve the search fields.
         """
         try:
-            # Mirror set_cno(): unsaved provisional drafts show "Draft", not
-            # the raw bill number.  Measuring the displayed text keeps the
-            # slot compact ("Draft" ~50px) while saved/long numbers still get
-            # the width they need (clamped so Item/Batch keep their share).
-            short = "Draft"
+            # Mirror set_cno(): unsaved drafts show Draft, saved show number.
+            # Measuring the displayed text keeps Draft compact while saved
+            # numbers get the width they need (clamped so Item/Batch keep
+            # their share).
             try:
-                provisional = bool(getattr(self, "_provisional_bill_no", False))
-                saved = bool(getattr(self, "_saved", False))
-                if not (provisional and not saved):
+                is_draft = bool(getattr(self, "_provisional_bill_no", True))
+                is_saved = bool(getattr(self, "_saved", False))
+                has_invoice = getattr(self, "_invoice", None) is not None
+            except Exception:
+                is_draft, is_saved, has_invoice = True, False, False
+            try:
+                if is_draft and not is_saved and not has_invoice:
+                    short = "Draft"
+                else:
                     raw = (self.bill_no_edit.text() or "").strip()
                     short = _display_bill_no(raw) if raw else "--"
             except Exception:
-                pass
+                short = "--"
             font = readable_font(TYPE_VALUE, bold=True)
             needed = QFontMetrics(font).horizontalAdvance(short) + 16
             return max(_POPUP_CNO_MIN_WIDTH, min(int(needed), _POPUP_CNO_MAX_WIDTH))
@@ -3261,9 +3290,27 @@ class _SalePanel(QWidget):
             self.doctor_combo.addItem(d["doctor_name"], d["id"])
 
     def _set_bill_no(self):
+        # Unsaved preview: next number without FY prefix, flagged provisional.
+        # Read-only preview (no consume); permanent assigned transactionally
+        # only when Save succeeds.
         if not self._invoice:
-            self._provisional_bill_no = False
-            self.bill_no_edit.setText(SalesDAO.generate_next_bill_no())
+            self._provisional_bill_no = True
+            try:
+                preview = SalesDAO.generate_next_bill_no()
+            except Exception:
+                preview = ""
+            try:
+                self.bill_no_edit.blockSignals(True)
+                self.bill_no_edit.setText(preview)
+            finally:
+                try:
+                    self.bill_no_edit.blockSignals(False)
+                except Exception:
+                    pass
+            try:
+                self.bill_no_edit.setToolTip(f"{preview} (preview, assigned on Save)" if preview else "Unsaved draft")
+            except Exception:
+                pass
 
     def _set_current_datetime(self):
         now = datetime.now()
@@ -3297,15 +3344,17 @@ class _SalePanel(QWidget):
         self._table.horizontalHeader().setStretchLastSection(False)
         self._table.horizontalHeader().setFixedHeight(_BILL_HEADER_HEIGHT)
 
-        # Content-based fixed widths keep the grid readable and stop a long
-        # batch number or location from inflating its column: only *Item
-        # Name* stretches, so it absorbs the spare width at every desktop
-        # size instead of pushing the numeric columns out of view.
+        # Fixed bases meeting content ranges; Batch/Amount share spare via
+        # controlled stretch so viewport fills with no blank strip. Item/
+        # Location/Delete stay Fixed moderate (never excessively wide);
+        # h-scroll appears when narrower than the total.
+        self._table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         hv = self._table.horizontalHeader()
         for index, width in enumerate(_BILL_COLUMN_WIDTHS):
             hv.setSectionResizeMode(index, QHeaderView.Fixed)
             hv.resizeSection(index, width)
-        hv.setSectionResizeMode(1, QHeaderView.Stretch)
+        for index in (4, 9):
+            hv.setSectionResizeMode(index, QHeaderView.Stretch)
 
         for index in _BILL_CENTERED_COLUMNS:
             item = self._table.horizontalHeaderItem(index)
@@ -3476,14 +3525,19 @@ class _SalePanel(QWidget):
         never stretches to the row height â€” a small table action instead of a
         standalone control dominating the row.  Delete behaviour is unchanged.
         """
-        del_btn = QPushButton("Delete")
+        del_btn = QPushButton("\u00d7")
         del_btn.setStyleSheet(_BTN_ROW_ACTION)
         try:
             del_btn.setProperty("cs_btn_kind", "row_delete")
         except Exception:
             pass
+        try:
+            del_btn.setAccessibleName("Delete")
+            del_btn.setAccessibleDescription("Remove item")
+        except Exception:
+            pass
         del_btn.setFixedSize(_BILL_DELETE_WIDTH, _BILL_DELETE_HEIGHT)
-        del_btn.setToolTip(f"Remove line {index + 1} from this bill")
+        del_btn.setToolTip("Remove item")
         del_btn.clicked.connect(lambda _, idx=index: self._delete_item(idx))
 
         cell = QWidget()
@@ -4027,7 +4081,9 @@ class _SalePanel(QWidget):
             QMessageBox.warning(self, "Validation", "Customer is required.")
             return False
 
-        if not self.bill_no_edit.text().strip():
+        # Drafts carry no number until Save (assigned transactionally);
+        # only edits of existing invoices require a bill number here.
+        if self._invoice and not self.bill_no_edit.text().strip():
             self.bill_no_edit.setFocus()
             QMessageBox.warning(self, "Validation", "Bill number is required.")
             return False
@@ -4106,14 +4162,16 @@ class _SalePanel(QWidget):
             patient_name = self.patient_name_edit.text().strip()
             cid = self.customer_combo.currentData()
             did = self.doctor_combo.currentData()
-            # Provisional previews never reserve a database number.  Keep the
-            # displayed preview when it is still free; otherwise take the next
-            # free number, so sequential open drafts can never share one
-            # permanent CNo even if a preview went stale.
+            # Drafts carry no number: assign the next unique sequential number
+            # transactionally at Save time only. insert_invoice re-checks
+            # uniqueness inside its transaction, so concurrent saves can
+            # never share one permanent CNo. On failure the draft is
+            # preserved (still Draft, not marked saved).
             displayed = self.bill_no_edit.text().strip()
-            bill_no = (_resolve_bill_no_for_save(displayed)
-                       if self._provisional_bill_no and not self._invoice
-                       else displayed)
+            if self._invoice:
+                bill_no = displayed
+            else:
+                bill_no = SalesDAO.generate_next_bill_no()
             remarks = self._remarks_text()
             items_data = [r.to_dict() for r in self._item_rows]
 
@@ -4980,11 +5038,12 @@ _HISTORY_COLUMNS = {
 }
 
 _HISTORY_COLUMN_WIDTHS = {
-    HISTORY_MODE_ITEM: (80, 56, 145, 56, 44, 70, 110, 76, 95, 86, 60, 76, 118),
+    HISTORY_MODE_ITEM: (85, 55, 140, 96, 45, 80, 145, 70, 130, 100, 82, 75, 100),
     HISTORY_MODE_BILL: (80, 56, 135, 100, 60, 64, 112, 80, 104, 125),
 }
 
-# Column that takes the leftover width in each mode.
+# Stretch map (kept for backwards-compat imports; _apply_history_columns
+# uses controlled stretch below, not this map directly).
 _HISTORY_STRETCH_COLUMN = {
     HISTORY_MODE_ITEM: 2,
     HISTORY_MODE_BILL: 2,
@@ -5224,8 +5283,9 @@ class CounterSalePage(QWidget):
         hl.addStretch()
 
         self._current_bill_no_label = QLabel("Bill: --")
-        self._current_bill_no_label.setMinimumWidth(180)
-        self._current_bill_no_label.setMaximumWidth(280)
+        self._current_bill_no_label.setMinimumWidth(0)
+        self._current_bill_no_label.setMaximumWidth(0)
+        self._current_bill_no_label.setVisible(False)
         self._current_bill_no_label.setStyleSheet(
             f"color: {_TEXT}; font-size: {TYPE_FORM_LABEL}px;"
             f"font-weight: bold; background: transparent;"
@@ -5244,18 +5304,32 @@ class CounterSalePage(QWidget):
 
         return header
 
-    def _set_current_bill_label(self, bill_no: str) -> None:
+    def _set_current_bill_label(self, bill_no: str = "") -> None:
         label = getattr(self, "_current_bill_no_label", None)
-        if label is not None:
-            provisional = (
-                getattr(self._sale_panel, "_provisional_bill_no", False)
-                and not getattr(self._sale_panel, "_saved", False)
-            )
-            identity = "New Bill (Draft)" if provisional else (
-                (bill_no or "").strip() or "--"
-            )
-            label.setText(f"Bill: {identity}")
-            label.setToolTip(identity)
+        if label is None:
+            return
+        try:
+            panel = getattr(self, "_sale_panel", None)
+            has_invoice = getattr(panel, "_invoice", None) is not None
+            is_saved = bool(getattr(panel, "_saved", False))
+        except Exception:
+            has_invoice, is_saved = False, False
+        if has_invoice or is_saved:
+            try:
+                short = _display_bill_no(bill_no) if (bill_no or "").strip() else "--"
+            except Exception:
+                short = (bill_no or "").strip() or "--"
+            full = (bill_no or "").strip() or "--"
+            label.setText(f"Bill: {short}")
+            label.setToolTip(full)
+        else:
+            try:
+                short = _display_bill_no(bill_no) if (bill_no or "").strip() else "--"
+            except Exception:
+                short = (bill_no or "").strip() or "--"
+            full = f"{(bill_no or short).strip()} (preview, assigned on Save)" if (bill_no or "").strip() else "Unsaved draft"
+            label.setText(f"Next Bill: {short} (Unsaved)")
+            label.setToolTip(full)
 
     # ------------------------------------------------------------------
     # Bill-history filter bar (single Date + Item Wise / Bill Wise)
@@ -5307,7 +5381,8 @@ class CounterSalePage(QWidget):
 
         self._hist_today_btn = QPushButton("Today")
         self._hist_today_btn.setStyleSheet(_BTN_SECONDARY)
-        self._hist_today_btn.setMinimumWidth(self._hist_today_btn.sizeHint().width())
+        self._hist_today_btn.setFixedHeight(_METADATA_CONTROL_HEIGHT)
+        self._hist_today_btn.setMinimumWidth(max(70, self._hist_today_btn.sizeHint().width() + 16))
         self._hist_today_btn.setToolTip("Show today's sales")
 
         self._hist_all_btn = QPushButton("All Dates")
@@ -5318,18 +5393,22 @@ class CounterSalePage(QWidget):
         self._hist_all_btn.clicked.connect(self._on_show_all_history)
 
         self._hist_refresh_btn = QPushButton("Refresh")
-        self._hist_refresh_btn.setFixedWidth(76)
+        self._hist_refresh_btn.setFixedWidth(84)
+        self._hist_refresh_btn.setFixedHeight(_METADATA_CONTROL_HEIGHT)
         self._hist_refresh_btn.setStyleSheet(_BTN_SECONDARY)
+        self._hist_refresh_btn.setToolTip("Reload the selected day's results")
 
         layout.addWidget(self._flbl("Daily Sales:"))
         layout.addWidget(self._flbl("Date"))
         layout.addWidget(self._hist_date)
+        layout.addSpacing(4)
         layout.addWidget(self._hist_today_btn)
+        layout.addSpacing(4)
+        layout.addWidget(self._hist_refresh_btn)
         layout.addStretch()
         layout.addWidget(self._flbl("View"))
         layout.addWidget(self._hist_item_mode)
         layout.addWidget(self._hist_bill_mode)
-        layout.addWidget(self._hist_refresh_btn)
 
         # A committed date change or a mode switch refreshes the grid
         # immediately.  Neither path touches the active sale area.
@@ -5486,13 +5565,31 @@ class CounterSalePage(QWidget):
         table.setColumnCount(len(labels))
         table.setHorizontalHeaderLabels(labels)
         hv = table.horizontalHeader()
-        stretch_col = _HISTORY_STRETCH_COLUMN[self._history_mode]
-        hv.setSectionResizeMode(QHeaderView.Interactive)
-        for col, width in enumerate(_HISTORY_COLUMN_WIDTHS[self._history_mode]):
-            table.setColumnWidth(col, width)
-        for col in {stretch_col, len(labels) - 1}:
-            hv.setSectionResizeMode(col, QHeaderView.Stretch)
-        hv.setStretchLastSection(True)
+        if self._history_mode == HISTORY_MODE_ITEM:
+            # Target ranges, no Time/Expiry hundreds px; MRP/Batch readable.
+            # Item/Bill Fixed (never re-expand); others Interactive (user-
+            # resizable, previous behavior). Total ~= viewport at current
+            # size (no large blank); h-scroll when narrower.
+            for col, width in enumerate(_HISTORY_COLUMN_WIDTHS[HISTORY_MODE_ITEM]):
+                table.setColumnWidth(col, width)
+            hv.setSectionResizeMode(QHeaderView.Interactive)
+            for col in (2, 12):
+                hv.setSectionResizeMode(col, QHeaderView.Fixed)
+            # Fill viewport via suitable columns (Patient/Batch benefit);
+            # Item/Bill stay Fixed moderate, Time/Expiry stay Interactive
+            # moderate (never hundreds px).
+            for col in (6, 8):
+                hv.setSectionResizeMode(col, QHeaderView.Stretch)
+            hv.setStretchLastSection(False)
+        else:
+            # Bill mode restored exactly (previous behavior).
+            stretch_col = _HISTORY_STRETCH_COLUMN[self._history_mode]
+            hv.setSectionResizeMode(QHeaderView.Interactive)
+            for col, width in enumerate(_HISTORY_COLUMN_WIDTHS[self._history_mode]):
+                table.setColumnWidth(col, width)
+            for col in {stretch_col, len(labels) - 1}:
+                hv.setSectionResizeMode(col, QHeaderView.Stretch)
+            hv.setStretchLastSection(True)
         table.setSortingEnabled(True)
 
     def _build_history_table(self) -> QTableWidget:
@@ -5520,10 +5617,12 @@ class CounterSalePage(QWidget):
             table.setColumnWidth(col, width)
 
         hv = table.horizontalHeader()
-        hv.setStretchLastSection(True)
+        hv.setStretchLastSection(False)
         hv.setFixedHeight(_HISTORY_HEADER_HEIGHT)
         hv.setSectionResizeMode(QHeaderView.Interactive)
         for col in (2, 12):
+            hv.setSectionResizeMode(col, QHeaderView.Fixed)
+        for col in (6, 8):
             hv.setSectionResizeMode(col, QHeaderView.Stretch)
         hv.setStyleSheet(
             f"QHeaderView::section {{"
@@ -5671,104 +5770,52 @@ class CounterSalePage(QWidget):
             self._open_bills[self._active_open_bill_id] = self._sale_panel.draft_state()
 
     def _next_provisional_bill_no(self) -> str:
-        """Unique in-memory CNo preview in bill-number format (no DB write).
-
-        Starts from the database next number and advances past every
-        preview already held by other open bills.
-        """
+        """Next preview from committed records (read-only, never consumed)."""
         try:
-            candidate = SalesDAO.generate_next_bill_no()
+            return SalesDAO.generate_next_bill_no()
         except Exception:
-            candidate = 'CS-0001'
-        try:
-            used = {
-                str((s.get('bill_no') or '').strip())
-                for did, s in self._open_bills.items()
-                if did != self._active_open_bill_id and str((s.get('bill_no') or '').strip())
-            }
-            used.discard('')
-            guard = 0
-            while (candidate in used or SalesDAO.bill_no_exists(candidate)) and guard < 10000:
-                candidate = _increment_bill_no(candidate)
-                guard += 1
-        except Exception:
-            pass
-        return candidate
+            return ""
 
     def _sync_provisional_bill_numbers(self) -> None:
-        """Re-sequence provisional CNo previews for all in-memory open drafts.
-
-        Committed invoices in the database determine the base sequence.
-        Open drafts receive sequential provisional previews in order of draft_id,
-        skipping any draft that is currently editing a saved invoice.
-        Closing or cancelling an unsaved draft drops its preview and re-syncs,
-        so the next draft or new bill is immediately eligible for the earliest
-        free permanent number without gaps.
-        """
+        """Recalculate previews safely (stable IDs; no consume)."""
         try:
-            current_preview = SalesDAO.generate_next_bill_no()
+            preview = SalesDAO.generate_next_bill_no()
         except Exception:
-            current_preview = "CS-0001"
+            preview = ""
         for did in sorted(self._open_bills.keys()):
             draft = self._open_bills[did]
             if draft.get("invoice") is not None:
                 continue
-            draft["bill_no"] = current_preview
+            draft["bill_no"] = preview
             draft["provisional_bill_no"] = True
             if did == self._active_open_bill_id:
-                self._sale_panel.set_provisional_bill_no(current_preview)
-            current_preview = _increment_bill_no(current_preview)
+                try:
+                    self._sale_panel.set_provisional_bill_no(preview)
+                except Exception:
+                    pass
+                try:
+                    self._set_current_bill_label(preview)
+                except Exception:
+                    pass
 
     def _assign_new_provisional_bill_no(self) -> None:
-        """Show a fresh unique provisional CNo on the active workspace."""
-        preview = self._next_provisional_bill_no()
-        self._sale_panel.set_provisional_bill_no(preview)
-        if hasattr(self, "_current_bill_no_label"):
+        """Show next preview on active workspace (read-only, no consume)."""
+        try:
+            preview = SalesDAO.generate_next_bill_no()
+        except Exception:
+            preview = ""
+        try:
+            self._sale_panel.set_provisional_bill_no(preview)
+        except Exception:
+            pass
+        try:
             self._set_current_bill_label(preview)
+        except Exception:
+            pass
 
     def _fix_conflicting_provisional_numbers(self) -> None:
-        """Reassign only those provisional previews that collide with a committed invoice.
-
-        After a save, one provisional number may now match a permanent invoice
-        number in the database.  This method checks each remaining draft and
-        replaces its preview only when a collision is found, leaving all
-        non-conflicting previews untouched.  This keeps the cashier's view
-        stable: the other open bills don't jump to new numbers just because
-        one bill was saved.
-        """
-        # Collect all provisional bill_nos across open drafts to avoid
-        # assigning a number that another draft already holds.
-        used_previews = set()
-        for did in sorted(self._open_bills.keys()):
-            draft = self._open_bills[did]
-            if draft.get("invoice") is not None:
-                continue
-            bno = (draft.get("bill_no") or "").strip()
-            if bno:
-                used_previews.add(bno)
-
-        for did in sorted(self._open_bills.keys()):
-            draft = self._open_bills[did]
-            if draft.get("invoice") is not None:
-                continue
-            bno = (draft.get("bill_no") or "").strip()
-            if not bno or not SalesDAO.bill_no_exists(bno):
-                continue
-            # This preview collides with a committed invoice — find a new one.
-            used_previews.discard(bno)
-            try:
-                candidate = SalesDAO.generate_next_bill_no()
-            except Exception:
-                candidate = "CS-0001"
-            guard = 0
-            while (candidate in used_previews or SalesDAO.bill_no_exists(candidate)) and guard < 10000:
-                candidate = _increment_bill_no(candidate)
-                guard += 1
-            draft["bill_no"] = candidate
-            draft["provisional_bill_no"] = True
-            used_previews.add(candidate)
-            if did == self._active_open_bill_id:
-                self._sale_panel.set_provisional_bill_no(candidate)
+        """No-op in Draft mode (no previews to collide)."""
+        return
 
     def _combined_open_bill_totals(self) -> tuple:
         """(bill count, total qty, combined amount, combined net) over open bills.
@@ -5852,14 +5899,16 @@ class CounterSalePage(QWidget):
         return f"{net:.2f}"
 
     def _open_bill_card_text(self, draft_id: int | None, state: dict) -> str:
-        """Return plain identity and amount lines for a bill card."""
+        """Draft shows Draft+amount; saved viewing shows number+amount."""
         invoice = state.get("invoice")
         if invoice is None:
-            identity = "New Bill (Draft)"
+            identity = "Draft"
         else:
-            identity = str(
-                state.get("bill_no") or invoice.get("bill_no") or "--"
-            ).strip() or "--"
+            try:
+                raw = str(state.get("bill_no") or invoice.get("bill_no") or "--").strip() or "--"
+                identity = _display_bill_no(raw) if raw != "--" else "--"
+            except Exception:
+                identity = str(state.get("bill_no") or invoice.get("bill_no") or "--").strip() or "--"
         if state.get("saved_total") is not None:
             bill_total = state["saved_total"]
         elif draft_id == self._active_open_bill_id:
@@ -5884,7 +5933,9 @@ class CounterSalePage(QWidget):
         """
         if not hasattr(self, "_open_bills_layout"):
             return
-        # Detach live cards for reuse, keyed by their stable draft id.
+        # Detach live cards for reuse, keyed by stable draft id. Saved bills
+        # never appear here (they live in Daily Sales history); only unsaved
+        # drafts (+ invoice being edited) are listed.
         reusable: dict[int, object] = {}
         reusable_saved = None
         while self._open_bills_layout.count():
@@ -5900,21 +5951,31 @@ class CounterSalePage(QWidget):
                 is_card = isinstance(widget, _OpenBillCard)
             except Exception:
                 is_card = False
-            is_saved_card = bool(widget.property("saved_bill_card"))
-            if (is_card and is_saved_card
-                    and self._last_saved_bill_state is not None):
-                reusable_saved = widget
-            elif is_card and isinstance(did, int) and did in self._open_bills:
+            try:
+                is_saved_card = bool(widget.property("saved_bill_card"))
+            except Exception:
+                is_saved_card = False
+            if is_saved_card:
+                try:
+                    widget.deleteLater()
+                except Exception:
+                    pass
+                continue
+            if is_card and isinstance(did, int) and did in self._open_bills:
                 reusable[did] = widget
             else:
                 try:
                     widget.deleteLater()
                 except Exception:
                     pass
+        # Never show saved bills here; discard any lingering saved state
+        # without deleting invoice records (list filtering only).
+        try:
+            self._last_saved_bill_state = None
+        except Exception:
+            pass
         p = palette()
         card_specs = []
-        if self._last_saved_bill_state is not None:
-            card_specs.append((None, self._last_saved_bill_state, True))
         card_specs.extend(
             (draft_id, self._open_bills[draft_id], False)
             for draft_id in sorted(self._open_bills)
@@ -5962,13 +6023,10 @@ class CounterSalePage(QWidget):
             except Exception:
                 pass
             _tip_head = card_text.replace("\n", " -- ")
-            if is_saved_card:
-                button.setToolTip(f"Most recently saved bill: {_tip_head}")
-            else:
-                button.setToolTip(
-                    f"Bill {_tip_head} -- click to switch "
-                    "(items and totals restored exactly)"
-                )
+            button.setToolTip(
+                f"Bill {_tip_head} -- click to switch "
+                "(items and totals restored exactly)"
+            )
                         # Re-pin LAST (see pin_height): the updates above reset the
             # explicit minimum, which would let the scroll layout compress
             # the card and clip its last two lines.
@@ -5990,9 +6048,7 @@ class CounterSalePage(QWidget):
         # two lines).  Taller viewports simply leave the extra room to the
         # stretch above; shorter ones scroll.
         try:
-            n = len(self._open_bills) + int(
-                self._last_saved_bill_state is not None
-            )
+            n = len(self._open_bills)
             spacing = self._open_bills_layout.spacing()
             self._open_bills_host.setMinimumHeight(
                 n * _OpenBillCard.CARD_HEIGHT + max(0, n - 1) * spacing
@@ -6472,21 +6528,14 @@ class CounterSalePage(QWidget):
     # ------------------------------------------------------------------
 
     def _on_sale_saved(self):
-        # Commit applies to this workspace only.  Drop it after the existing
-        # atomic DAO save, then restore another unsaved bill if one exists.
-        # Unlike cancel/close, a save must NOT re-sequence every remaining
-        # draft's provisional number: the cashier sees stable previews while
-        # working with multiple open bills.  Only fix a preview that now
-        # collides with a committed invoice in the database.
-        saved_state = self._sale_panel.draft_state()
-        saved_bill_no = (self._sale_panel.bill_no_edit.text() or "").strip()
-        saved_state["bill_no"] = saved_bill_no
-        saved_state["invoice"] = saved_state.get("invoice") or {
-            "bill_no": saved_bill_no,
-        }
-        saved_state["provisional_bill_no"] = False
-        saved_state["saved_total"] = self._sale_panel.net_amt_label.text()
-        self._last_saved_bill_state = saved_state
+        # Save succeeded (panel already committed transactionally and emitted
+        # saved). Remove the saved draft from Open Bills; its permanent
+        # number/amount live in Daily Sales history. Other drafts untouched.
+        # No invoice records deleted here (list filtering only).
+        try:
+            self._last_saved_bill_state = None
+        except Exception:
+            pass
         self._editing_invoice_id = None
         self._refresh_history()
         self._open_bills.pop(self._active_open_bill_id, None)
@@ -6499,9 +6548,6 @@ class CounterSalePage(QWidget):
             self._sale_panel.reset_for_new()
             self._assign_new_provisional_bill_no()
             self._open_bills[self._active_open_bill_id] = self._sale_panel.draft_state()
-        # Fix only conflicting provisionals (preview now taken by a saved bill)
-        # without reassigning every draft's number from scratch.
-        self._fix_conflicting_provisional_numbers()
         self._sale_panel.set_other_draft_reservation_provider(self._reserved_by_other_open_bills)
         self._refresh_open_bill_cards()
         self._refresh_combined_summary()
