@@ -1,15 +1,18 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QDate, Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QButtonGroup,
+    QCheckBox,
+    QDateEdit,
     QFileDialog,
     QHBoxLayout,
     QHeaderView,
     QLabel,
-    QLineEdit,
     QMessageBox,
     QPushButton,
+    QRadioButton,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -20,7 +23,7 @@ from database import document_printing
 from database.sales_report_dao import SalesReportDAO
 from ui.fy_view import view_year_bounds
 from ui.searchable_filter import SearchableFilterEdit
-from ui.theme import palette
+from ui.theme import indicator_style, palette
 
 _p = palette()
 _DARK_BG = _p["bg"]
@@ -58,6 +61,37 @@ _LABEL_STYLE = (
     f"color: {_TEXT}; font-size: 12px; background: transparent;"
     f"font-family: 'Segoe UI';"
 )
+
+
+def _date_style(p: dict) -> str:
+    return (
+        "QDateEdit {"
+        f" background-color: {p['surface']}; color: {p['text']};"
+        f" border: 1px solid {p['border']}; border-radius: 2px;"
+        " padding: 5px 8px; font-size: 12px; font-family: 'Segoe UI';"
+        "} QDateEdit:focus {"
+        f" border: 1px solid {p['accent']}; }}"
+        "QDateEdit::drop-down { border: none; width: 20px; }"
+    )
+
+
+_DATE_STYLE = _date_style(_p)
+
+
+def _radio_style(p: dict) -> str:
+    """Item Wise / Bill Wise radios: text plus a theme-aware indicator dot."""
+    return (
+        f"QRadioButton {{ color: {p['text']}; font-size: 12px;"
+        f"  background: transparent; border: none; outline: none;"
+        f"  spacing: 5px; font-family: 'Segoe UI'; }}"
+        "QRadioButton:focus { background: transparent;"
+        "  border: none; outline: none; }"
+        "QRadioButton:hover { background: transparent; border: none; }"
+        + indicator_style(checkbox=False)
+    )
+
+
+_RADIO_STYLE = _radio_style(_p)
 
 
 def _edit_style(p: dict) -> str:
@@ -162,23 +196,37 @@ class SalesReportPage(QWidget):
         row1.addWidget(self._label("Item"))
         self.item_edit = SearchableFilterEdit("All items")
         self.item_edit.setMinimumWidth(155)
+        self.item_edit.returnPressed.connect(self._on_generate)
         row1.addWidget(self.item_edit)
 
-        row1.addWidget(self._label("Bill No"))
-        self.bill_edit = QLineEdit()
-        self.bill_edit.setStyleSheet(_EDIT_STYLE)
-        self.bill_edit.setPlaceholderText("e.g. CS-0001")
-        self.bill_edit.setFixedWidth(110)
-        self.bill_edit.returnPressed.connect(self._on_generate)
-        row1.addWidget(self.bill_edit)
+        # Single-day selector.  Off by default so the page keeps its
+        # financial-year view; when on, the picked day is intersected with
+        # the FY bounds below and both the table and the print follow it.
+        self._date_check = QCheckBox("Date:")
+        self._date_check.setChecked(False)
+        self._date_check.setStyleSheet(_LABEL_STYLE)
+        self._date_check.toggled.connect(self._on_date_toggled)
+        row1.addWidget(self._date_check)
 
-        row1.addWidget(self._label("Patient"))
-        self.patient_edit = QLineEdit()
-        self.patient_edit.setStyleSheet(_EDIT_STYLE)
-        self.patient_edit.setPlaceholderText("patient name")
-        self.patient_edit.setFixedWidth(120)
-        self.patient_edit.returnPressed.connect(self._on_generate)
-        row1.addWidget(self.patient_edit)
+        self._date_edit = QDateEdit()
+        self._date_edit.setCalendarPopup(True)
+        self._date_edit.setDate(QDate.currentDate())
+        self._date_edit.setEnabled(False)
+        self._date_edit.setFixedWidth(110)
+        self._date_edit.setStyleSheet(_DATE_STYLE)
+        self._date_edit.dateChanged.connect(self._on_generate)
+        row1.addWidget(self._date_edit)
+
+        self.mode_group = QButtonGroup(self)
+        self.item_wise_radio = QRadioButton("Item Wise")
+        self.bill_wise_radio = QRadioButton("Bill Wise")
+        self.item_wise_radio.setStyleSheet(_RADIO_STYLE)
+        self.bill_wise_radio.setStyleSheet(_RADIO_STYLE)
+        self.item_wise_radio.setChecked(True)
+        self.mode_group.addButton(self.item_wise_radio)
+        self.mode_group.addButton(self.bill_wise_radio)
+        row1.addWidget(self.item_wise_radio)
+        row1.addWidget(self.bill_wise_radio)
 
         row1.addStretch()
 
@@ -295,15 +343,31 @@ class SalesReportPage(QWidget):
         # `view_year_bounds` falls back to the active FY, so this call can
         # never form an unbounded query even before a navbar selection.
         from_date, to_date = view_year_bounds(self._history_financial_year)
+        if self._date_check.isChecked():
+            # Narrow to the picked day without ever widening past the FY
+            # bounds; a day outside the FY yields an (honest) empty report.
+            picked = self._date_edit.date().toString("yyyy-MM-dd")
+            from_date = max(from_date, picked)
+            to_date = min(to_date, picked)
         return {
             "from_date": from_date,
             "to_date": to_date,
             "customer_id": self.customer_edit.selected_id,
             "item_id": self.item_edit.selected_id,
             "company_id": self.company_edit.selected_id,
-            "bill_no": self.bill_edit.text().strip() or None,
-            "patient": self.patient_edit.text().strip() or None,
         }
+
+    def _selected_day(self) -> str | None:
+        """Picked calendar day (ISO) when the Date box is checked."""
+        if self._date_check.isChecked():
+            picked = self._date_edit.date()
+            if picked.isValid():
+                return picked.toString("yyyy-MM-dd")
+        return None
+
+    def _on_date_toggled(self, checked: bool):
+        self._date_edit.setEnabled(checked)
+        self._on_generate()
 
     def set_history_financial_year(self, year: dict | None):
         """Refresh for the navbar's view-only selected financial year."""
@@ -362,8 +426,13 @@ class SalesReportPage(QWidget):
         self.customer_edit.clear_filter()
         self.company_edit.clear_filter()
         self.item_edit.clear_filter()
-        self.bill_edit.clear()
-        self.patient_edit.clear()
+        self._date_check.blockSignals(True)
+        self._date_edit.blockSignals(True)
+        self._date_check.setChecked(False)
+        self._date_edit.setDate(QDate.currentDate())
+        self._date_check.blockSignals(False)
+        self._date_edit.blockSignals(False)
+        self._date_edit.setEnabled(False)
         self._on_generate()
 
     def _filter_summary(self) -> str:
@@ -372,8 +441,11 @@ class SalesReportPage(QWidget):
                             ("Company", self.company_edit), ("Item", self.item_edit)):
             if edit.selected_id is not None:
                 parts.append(f"{label}: {edit.text()}")
-        if self.bill_edit.text().strip(): parts.append(f"Bill: {self.bill_edit.text().strip()}")
-        if self.patient_edit.text().strip(): parts.append(f"Patient: {self.patient_edit.text().strip()}")
+        picked = self._selected_day()
+        if picked is not None:
+            day = picked.split("-")
+            parts.append(f"Date: {day[2]}-{day[1]}-{day[0]}")
+        parts.append(f"Mode: {'Bill Wise' if self.bill_wise_radio.isChecked() else 'Item Wise'}")
         return " | ".join(parts)
 
     def _financial_year_name(self) -> str:
@@ -384,21 +456,36 @@ class SalesReportPage(QWidget):
 
     def _on_print(self):
         # Re-query so printed output exactly matches the current controls.
+        # The selected mode changes only the print rendering, never the data.
         try:
-            report = SalesReportDAO.get_sales_report(**self._current_filters())
+            filters = self._current_filters()
+            report = SalesReportDAO.get_sales_report(**filters)
         except Exception as exc:
             QMessageBox.warning(self, "Sales Report", f"Could not prepare report: {exc}")
             return
+        billwise = self.bill_wise_radio.isChecked()
+        if billwise:
+            dialog_title, default_name = "Save Bill Wise Sales Report PDF", "sales_report_billwise.pdf"
+        else:
+            dialog_title, default_name = "Save Item Wise Sales Report PDF", "sales_report_itemwise.pdf"
         path, _ = QFileDialog.getSaveFileName(
-            self, "Save Sales Report PDF", "sales_report.pdf", "PDF (*.pdf)"
+            self, dialog_title, default_name, "PDF (*.pdf)"
         )
         if not path:
             return
         try:
-            output = document_printing.generate_sales_report_pdf(
-                report["rows"], report["summary"], self._financial_year_name(),
-                self._filter_summary(), path,
-            )
+            if billwise:
+                output = document_printing.generate_billwise_sales_report_pdf(
+                    report["rows"], report["summary"], self._financial_year_name(),
+                    self._filter_summary(), path,
+                )
+            else:
+                output = document_printing.generate_sales_report_pdf(
+                    report["rows"], report["summary"], self._financial_year_name(),
+                    self._filter_summary(), path,
+                    report_from=self._selected_day() or filters["from_date"],
+                    report_to=self._selected_day() or filters["to_date"],
+                )
         except document_printing.DocumentPrintError as exc:
             QMessageBox.warning(self, "Sales Report", str(exc))
             return
@@ -419,8 +506,13 @@ class SalesReportPage(QWidget):
         )
         for edit in (self.customer_edit, self.company_edit, self.item_edit):
             edit.refresh_theme()
-        for edit in (self.bill_edit, self.patient_edit):
-            edit.setStyleSheet(_edit_style(p))
+        for radio in (self.item_wise_radio, self.bill_wise_radio):
+            radio.setStyleSheet(_radio_style(p))
+        self._date_edit.setStyleSheet(_date_style(p))
+        self._date_check.setStyleSheet(
+            f"color: {p['text']}; font-size: 12px; background: transparent;"
+            f"font-family: 'Segoe UI';"
+        )
         for button in self.findChildren(QPushButton):
             button.setStyleSheet(_button_style(p, button.text() == "Search"))
         self._table.setStyleSheet(

@@ -53,7 +53,7 @@ class SalesReportDAO:
         from those rows (no N+1, no second aggregate round-trip).
 
         Returns:
-            {"rows": [ {bill_no, sale_date, customer_name, patient_name,
+            {"rows": [ {bill_no, sale_date, sale_type, customer_name, patient_name,
                         doctor_name, item_name, company_name, unit_name,
                         pack_size, batch_no,
                         expiry, mrp, sale_qty, discount_amount, amount,
@@ -99,6 +99,7 @@ class SalesReportDAO:
                     si.id            AS invoice_id,
                     si.bill_no       AS bill_no,
                     si.sale_date     AS sale_date,
+                    si.sale_type     AS sale_type,
                     c.customer_name  AS customer_name,
                     si.patient_name  AS patient_name,
                     d.doctor_name    AS doctor_name,
