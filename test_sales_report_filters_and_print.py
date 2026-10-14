@@ -68,27 +68,67 @@ class TestSearchableFilterEdit(unittest.TestCase):
 
 class TestSalesReportPdf(unittest.TestCase):
     def test_print_pdf_repeats_headings_and_contains_year_filters_and_totals(self):
+        # Companywise portrait layout: one group per distinct item so that a
+        # large company report paginates and repeats its column headings.
         rows = [{
             "bill_no": f"CS-{number:03d}", "sale_date": "2017-06-15",
             "customer_name": "Customer", "patient_name": "Patient", "doctor_name": "Doctor",
-            "item_name": "Item", "batch_no": "B1", "expiry": "12/27", "mrp": 10,
+            "item_name": f"Item-{number:03d}", "company_name": "TestCompany",
+            "unit_name": "TAB", "pack_size": "10x10",
+            "batch_no": "B1", "expiry": "12/27", "mrp": 10,
             "sale_qty": 1, "discount_amount": 0, "amount": 10,
         } for number in range(45)]
         summary = {"total_bills": 45, "total_lines": 45, "total_qty": 45,
                    "total_gross": 450, "total_discount": 0, "total_net": 450}
         with tempfile.TemporaryDirectory() as directory:
             path = generate_sales_report_pdf(
-                rows, summary, "2017-2018", "Financial year: 2017-2018 | Item: Item",
+                rows, summary, "2017-2018", "Financial year: 2017-2018 | Company: TestCompany",
                 os.path.join(directory, "sales.pdf"),
             )
             with open(path, "rb") as pdf:
                 content = pdf.read().decode("latin-1")
-        self.assertIn("/MediaBox [0 0 842 595]", content)
-        self.assertIn("Financial Year: 2017-2018", content)
-        self.assertIn("Totals: Bills: 45", content)
+        # Portrait A4, companywise title and header.
+        self.assertIn("/MediaBox [0 0 595 842]", content)
+        self.assertIn("Companywise Sales Report", content)
+        self.assertIn("Company : TestCompany", content)
+        self.assertIn("From : 15-06-2017", content)
+        # Table columns, per-item subtotals and bordered grand total.
+        for head in ("SrNo", "Item Name", "Unit", "Pack Size", "Batch No", "MRP", "SalesQty", "Amount"):
+            self.assertIn(head, content)
+        self.assertIn("Total", content)
+        self.assertIn("Grand Total", content)
+        self.assertIn("450.00", content)
+        # Paginated with repeated headings and page numbers.
         self.assertIn("Page 1 of 2", content)
         self.assertIn("Page 2 of 2", content)
-        self.assertGreaterEqual(content.count("Bill No"), 2)
+        self.assertGreaterEqual(content.count("SrNo"), 2)
+
+    def test_print_pdf_single_company_group_shows_subtotal_and_grand_total(self):
+        rows = [
+            {"bill_no": "CS-001", "sale_date": "2017-06-15", "item_name": "ItemA",
+             "company_name": "TestCompany", "unit_name": "TAB", "pack_size": "10x10",
+             "batch_no": "B1", "mrp": 10, "sale_qty": 2, "amount": 20},
+            {"bill_no": "CS-002", "sale_date": "2017-06-16", "item_name": "ItemA",
+             "company_name": "TestCompany", "unit_name": "TAB", "pack_size": "10x10",
+             "batch_no": "B2", "mrp": 10, "sale_qty": 3, "amount": 30},
+        ]
+        summary = {"total_bills": 2, "total_lines": 2, "total_qty": 5,
+                   "total_gross": 50, "total_discount": 0, "total_net": 50}
+        with tempfile.TemporaryDirectory() as directory:
+            path = generate_sales_report_pdf(
+                rows, summary, "2017-2018", "Financial year: 2017-2018 | Company: TestCompany",
+                os.path.join(directory, "sales.pdf"),
+            )
+            with open(path, "rb") as pdf:
+                content = pdf.read().decode("latin-1")
+        self.assertIn("Companywise Sales Report", content)
+        self.assertIn("ItemA", content)
+        self.assertIn("B1", content)
+        self.assertIn("B2", content)
+        # Item subtotal qty 5 / amount 50.00 and identical grand total.
+        self.assertIn("50.00", content)
+        self.assertIn("Grand Total", content)
+        self.assertIn("/MediaBox [0 0 595 842]", content)
 
 
 if __name__ == "__main__":
