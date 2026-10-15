@@ -321,6 +321,7 @@ def _billwise_bills(rows: list[dict]) -> list[dict]:
                 "bill_no": str(r.get("bill_no") or "").strip(),
                 "sale_date": str(r.get("sale_date") or "").strip(),
                 "customer_name": str(r.get("customer_name") or "").strip(),
+                "patient_name": str(r.get("patient_name") or "").strip(),
                 "lines": [], "qty": 0.0, "discount": 0.0, "amount": 0.0,
             }
             bills[key] = bill
@@ -395,14 +396,14 @@ def _billwise_pdf_bytes(
             return f"{parts[2]}-{parts[1]}-{parts[0]}"
         return str(iso)
 
-    def _bill_head_text(bill_no: str, sale_date: str, customer: str) -> str:
+    def _bill_head_text(bill_no: str, sale_date: str, patient: str) -> str:
         parts: list[str] = []
         if bill_no:
             parts.append(f"Bill No: {bill_no}")
         if sale_date:
             parts.append(f"Date: {_fmt_date(sale_date)}")
-        if customer:
-            parts.append(f"Customer: {customer}")
+        if patient:
+            parts.append(f"Patient: {patient}")
         return "     ".join(parts) if parts else "Bill"
 
     objects: list[bytes] = [
@@ -519,7 +520,7 @@ def _billwise_pdf_bytes(
             bottom = top - h
             if kind == "billhead":
                 txt = _companywise_fit(
-                    _bill_head_text(str(row.get("bill_no") or ""), str(row.get("sale_date") or ""), str(row.get("customer") or "")),
+                    _bill_head_text(str(row.get("bill_no") or ""), str(row.get("sale_date") or ""), str(row.get("patient") or "")),
                     CONTENT_W - 6.0, BILLHEAD_FONT, True,
                 )
                 if txt:
@@ -632,7 +633,8 @@ def generate_daily_sales_report_pdf(
     for bill in bills:
         group: list[dict] = [{
             "kind": "billhead", "bill_no": bill["bill_no"],
-            "sale_date": bill["sale_date"], "customer": bill["customer_name"],
+            "sale_date": bill["sale_date"],
+            "patient": bill["patient_name"] or "WALKIN",
         }]
         for line in bill["lines"]:
             serial += 1

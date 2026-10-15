@@ -183,6 +183,12 @@ class SalesReportPage(QWidget):
         self.item_edit.returnPressed.connect(self._on_generate)
         row1.addWidget(self.item_edit)
 
+        # Picking a suggestion (Enter key or mouse click) searches at once:
+        # the widget records the selected ID first, then this refresh runs
+        # with the fresh selection.
+        for edit in (self.customer_edit, self.company_edit, self.item_edit):
+            edit.picked.connect(self._on_generate)
+
         row1.addWidget(self._label("Patient"))
         self.patient_edit = QLineEdit()
         self.patient_edit.setStyleSheet(_EDIT_STYLE)
@@ -234,9 +240,9 @@ class SalesReportPage(QWidget):
 
         # ── Table ────────────────────────────────────────────────
         self._table = QTableWidget()
-        self._table.setColumnCount(12)
+        self._table.setColumnCount(11)
         self._table.setHorizontalHeaderLabels([
-            "Bill No", "Sale Date", "Customer", "Patient", "Doctor",
+            "Bill No", "Sale Date", "Patient Name", "Doctor",
             "Item Name", "Batch No", "Expiry", "MRP", "Qty",
             "Discount", "Amount",
         ])
@@ -250,7 +256,7 @@ class SalesReportPage(QWidget):
         hv.setStretchLastSection(True)
         hv.setSectionResizeMode(0, QHeaderView.ResizeToContents)
         hv.setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        hv.setSectionResizeMode(5, QHeaderView.Stretch)
+        hv.setSectionResizeMode(4, QHeaderView.Stretch)
         hv.setStyleSheet(
             f"QHeaderView::section {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
@@ -325,6 +331,16 @@ class SalesReportPage(QWidget):
         ):
             edit.set_options(rows, id_key, name_key)
 
+    def _filter_id(self, edit: SearchableFilterEdit):
+        """Selected ID, falling back to fully-typed filter text.
+
+        Covers typing an exact name and pressing Search without ever picking
+        the completion popup; partial or unknown text still means no filter.
+        """
+        if edit.selected_id is not None:
+            return edit.selected_id
+        return edit.exact_id_for_text(edit.text())
+
     def _current_filters(self) -> dict:
         # The FY range always caps the report; the From/To editors narrow
         # inside it but can never widen past it.
@@ -333,9 +349,9 @@ class SalesReportPage(QWidget):
         return {
             "from_date": max(fy_from, picked_from),
             "to_date": min(fy_to, picked_to),
-            "customer_id": self.customer_edit.selected_id,
-            "item_id": self.item_edit.selected_id,
-            "company_id": self.company_edit.selected_id,
+            "customer_id": self._filter_id(self.customer_edit),
+            "item_id": self._filter_id(self.item_edit),
+            "company_id": self._filter_id(self.company_edit),
             "patient": self.patient_edit.text().strip() or None,
         }
 
@@ -372,8 +388,7 @@ class SalesReportPage(QWidget):
             values = [
                 r["bill_no"],
                 r["sale_date"],
-                r["customer_name"] or "",
-                r["patient_name"] or "",
+                str(r["patient_name"] or "").strip() or "WALKIN",
                 r["doctor_name"] or "",
                 r["item_name"] or "",
                 r["batch_no"] or "",
@@ -385,7 +400,7 @@ class SalesReportPage(QWidget):
             ]
             for col, value in enumerate(values):
                 item = QTableWidgetItem(str(value))
-                if col >= 8:
+                if col >= 7:
                     item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 self._table.setItem(i, col, item)
 

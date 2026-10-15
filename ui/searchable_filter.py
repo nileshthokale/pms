@@ -8,7 +8,7 @@ display text.
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import QAbstractItemView, QCompleter, QLineEdit
 
@@ -17,6 +17,11 @@ from ui.theme import palette
 
 class SearchableFilterEdit(QLineEdit):
     """A compact contains-match autocomplete whose value is a master ID."""
+
+    # Emitted whenever the user picks a suggestion (Enter key or mouse
+    # click), after the selected ID is recorded.  Screens that want an
+    # instant search on pick can connect it; existing behaviour is unchanged.
+    picked = Signal()
 
     max_visible_rows = 12
 
@@ -102,6 +107,22 @@ class SearchableFilterEdit(QLineEdit):
         self.setText(str(index.data(Qt.DisplayRole) or ""))
         self._setting_text = False
         self._completer.popup().hide()
+        self.picked.emit()
+
+    def exact_id_for_text(self, text: str):
+        """ID whose display text equals ``text`` (case-insensitive), or None.
+
+        Lets a screen honour fully-typed filter text even when the user never
+        picks the completion popup.  Read-only; changes no widget behaviour.
+        """
+        needle = str(text or "").strip().casefold()
+        if not needle:
+            return None
+        for row in range(self._model.rowCount()):
+            index = self._model.index(row, 0)
+            if str(index.data(Qt.DisplayRole) or "").strip().casefold() == needle:
+                return index.data(Qt.UserRole)
+        return None
 
     def keyPressEvent(self, event) -> None:
         popup = self._completer.popup()
