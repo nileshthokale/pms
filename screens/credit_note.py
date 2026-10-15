@@ -34,7 +34,7 @@ from database.customer_dao import CustomerDAO
 from database.item_dao import ItemDAO
 from database.stock_dao import StockDAO
 
-from ui.theme import palette
+from ui.theme import date_subcontrols, palette
 _p = palette()
 _DARK_BG = _p["bg"]
 _SURFACE = _p["surface"]
@@ -77,8 +77,10 @@ _DATE_STYLE = (
     f"  padding: 5px; font-size: 12px; font-family: 'Segoe UI';"
     f"}}"
     f"QDateEdit:focus {{ border: 1px solid {_ACCENT}; }}"
-    f"QDateEdit::drop-down {{ border: none; width: 24px; }}"
-    f"QDateEdit::down-arrow {{ image: none; border: none; }}"
+    # Shared calendar chevron (see ui.theme.date_subcontrols): a tinted,
+    # high-contrast drop-down button + arrow.  Never `image: none` here —
+    # that is what hid the icon on every date field.
+    + date_subcontrols(_p, width=24)
 )
 
 _BTN_SAVE = (

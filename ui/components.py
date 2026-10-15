@@ -154,15 +154,20 @@ def combo_style() -> str:
 
 
 def date_style() -> str:
+    # Shared date-field look: base input rules plus the centralized
+    # drop-down button + calendar chevron from ui.theme.  The chevron is a
+    # generated PNG tinted with the live palette (never `image: none`, which
+    # is what hid the icon on every screen).
+    from ui.theme import date_subcontrols
     p = palette()
     return (
         _input_rules("QDateEdit, QTimeEdit, QDateTimeEdit")
         + "QDateEdit:focus, QTimeEdit:focus, QDateTimeEdit:focus"
         + f" {{ border: 1px solid {p['focus']}; }}"
-        + "QDateEdit::drop-down, QTimeEdit::drop-down,"
-        + "QDateTimeEdit::drop-down { border: none; width: 18px; }"
-        + "QDateEdit::down-arrow, QTimeEdit::down-arrow,"
-        + "QDateTimeEdit::down-arrow { image: none; border: none; }"
+        + f"QDateEdit:disabled, QTimeEdit:disabled, QDateTimeEdit:disabled"
+        + f" {{ background-color: {p['disabled_bg']};"
+        + f"  color: {p['disabled_text']}; }}"
+        + date_subcontrols(p, width=22)
     )
 
 
@@ -624,8 +629,20 @@ def style_combo(widget):
 
 
 def style_date(widget):
+    """Apply the shared date style and enable its calendar popup.
+
+    Every editable date-selection control in the application must open a
+    calendar when its button is clicked; the popup flag is set here so no
+    screen can end up with a styled but popup-less field.  Read-only date
+    *displays* (QLabels) never pass through this helper, so they are
+    unaffected.
+    """
     widget.setStyleSheet(date_style())
     _mark(widget, "date")
+    try:
+        widget.setCalendarPopup(True)
+    except Exception:
+        pass
     return widget
 
 
@@ -1127,6 +1144,11 @@ def refresh_generic_screen(root: QWidget) -> int:
                 if "QDateEdit" not in ss:
                     continue
                 try:
+                    # First remap the baked base colours (bg/text/border/
+                    # accent), preserving the screen's own metrics, then
+                    # replace the icon-hiding drop-down/arrow rules with the
+                    # shared visible chevron.  A plain hex remap alone would
+                    # preserve `image: none` and keep the icon invisible.
                     new_ss = ss
                     for old, new in (
                         (_PALS["dark"]["surface"], p["surface"]),
@@ -1143,9 +1165,30 @@ def refresh_generic_screen(root: QWidget) -> int:
                         if old and new and old.lower() != new.lower():
                             new_ss = _re.sub(_re.escape(old), new, new_ss,
                                              flags=_re.IGNORECASE)
+                    try:
+                        from ui.theme import fix_date_stylesheet as _fix_dates
+                        new_ss = _fix_dates(new_ss, p)
+                    except Exception:
+                        pass
+                    try:
+                        if not w.calendarPopup():
+                            w.setCalendarPopup(True)
+                    except Exception:
+                        pass
                     if new_ss != ss:
                         w.setStyleSheet(new_ss)
                         updated += 1
+                    elif "down-arrow" not in ss and "drop-down" not in ss:
+                        # Unstyled date field follows the app stylesheet;
+                        # repolish so the global chevron applies.
+                        try:
+                            style = w.style()
+                            if style is not None:
+                                style.unpolish(w)
+                                style.polish(w)
+                            w.update()
+                        except Exception:
+                            pass
                 except Exception:
                     pass
                 continue

@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
 
 from database.gst_report_dao import GSTReportDAO
 from database.financial_year import active_date_range
-from ui.theme import palette
+from ui.theme import date_subcontrols, palette
 
 _p = palette()
 _DARK_BG = _p["bg"]
@@ -62,7 +62,9 @@ _DATE_STYLE = (
     f"  padding: 4px 6px; font-size: 12px; font-family: 'Segoe UI';"
     f"}}"
     f"QDateEdit:disabled {{ color: {_TEXT_DIM}; }}"
-    f"QDateEdit::drop-down {{ border: none; }}"
+    # Shared calendar chevron (ui.theme.date_subcontrols) — replaces the
+    # bare `border: none` drop-down that left no visible button or arrow.
+    + date_subcontrols(_p, width=24)
 )
 
 _BTN_PRIMARY = (

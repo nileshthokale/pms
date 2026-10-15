@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 
 from database.profit_loss_dao import ProfitLossDAO
 from database.financial_year import active_date_range
-from ui.theme import palette
+from ui.theme import date_subcontrols, palette
 
 _p = palette()
 _DARK_BG = _p["bg"]
@@ -140,7 +140,8 @@ class ProfitLossPage(QWidget):
             f"QDateEdit {{ background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; border-radius: 2px;"
             f"  padding: 0 8px; font-size: 12px; font-family: 'Segoe UI'; }}"
-            f"QDateEdit::drop-down {{ border: none; }}"
+            # Shared calendar chevron (ui.theme.date_subcontrols).
+            + date_subcontrols(_p, width=24)
         )
         fl.addWidget(self.from_edit)
 
@@ -157,7 +158,8 @@ class ProfitLossPage(QWidget):
             f"QDateEdit {{ background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; border-radius: 2px;"
             f"  padding: 0 8px; font-size: 12px; font-family: 'Segoe UI'; }}"
-            f"QDateEdit::drop-down {{ border: none; }}"
+            # Shared calendar chevron (ui.theme.date_subcontrols).
+            + date_subcontrols(_p, width=24)
         )
         fl.addWidget(self.to_edit)
 

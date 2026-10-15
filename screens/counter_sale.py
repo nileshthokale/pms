@@ -64,7 +64,7 @@ from database.hold_bill_dao import (
     STATUS_RESUMED,
 )
 
-from ui.theme import palette
+from ui.theme import date_subcontrols, palette
 from ui.theme import indicator_style
 from ui.components import FONT_FAMILY, readable_font, refresh_containers
 from ui import fy_view
@@ -168,8 +168,9 @@ _DATE_STYLE = (
     f"  font-family: {FONT_FAMILY};"
     f"}}"
     f"QDateEdit:focus {{ border: 1px solid {_ACCENT}; }}"
-    f"QDateEdit::drop-down {{ border: none; width: 22px; }}"
-    f"QDateEdit::down-arrow {{ image: none; border: none; }}"
+    # Shared calendar chevron (ui.theme.date_subcontrols) — never
+    # `image: none`, which hid the icon on every date field.
+    + date_subcontrols(_p, width=22)
 )
 
 # â”€â”€ Compact controls for the bottom billing block â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -220,8 +221,9 @@ _COMPACT_DATE_STYLE = (
     f"  font-family: {FONT_FAMILY};"
     f"}}"
     f"QDateEdit:focus {{ border: 1px solid {_ACCENT}; }}"
-    f"QDateEdit::drop-down {{ border: none; width: 18px; }}"
-    f"QDateEdit::down-arrow {{ image: none; border: none; }}"
+    # Shared calendar chevron (ui.theme.date_subcontrols) — never
+    # `image: none`, which hid the icon on every date field.
+    + date_subcontrols(_p, width=18)
 )
 
 # â”€â”€ Classic front-page buttons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -543,8 +545,9 @@ def _fresh_date_style(p: dict | None = None) -> str:
         f"  font-family: {FONT_FAMILY};"
         f"}}"
         f"QDateEdit:focus {{ border: 1px solid {p['accent']}; }}"
-        f"QDateEdit::drop-down {{ border: none; width: 22px; }}"
-        f"QDateEdit::down-arrow {{ image: none; border: none; }}"
+        # Shared calendar chevron (ui.theme.date_subcontrols) — never
+        # `image: none`, which hid the icon on every date field.
+        + date_subcontrols(p, width=22)
     )
 
 
@@ -597,8 +600,9 @@ def _fresh_compact_date_style(p: dict | None = None) -> str:
         f"  font-family: {FONT_FAMILY};"
         f"}}"
         f"QDateEdit:focus {{ border: 1px solid {p['accent']}; }}"
-        f"QDateEdit::drop-down {{ border: none; width: 18px; }}"
-        f"QDateEdit::down-arrow {{ image: none; border: none; }}"
+        # Shared calendar chevron (ui.theme.date_subcontrols) — never
+        # `image: none`, which hid the icon on every date field.
+        + date_subcontrols(p, width=18)
     )
 
 

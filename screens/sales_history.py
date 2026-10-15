@@ -41,6 +41,7 @@ from ui.theme import (
     TYPE_TABLE_DATA,
     TYPE_VALUE,
     TYPE_VALUE_EMPHASIS,
+    date_subcontrols,
     palette,
 )
 
@@ -84,7 +85,9 @@ def _fresh_date_style(p: dict) -> str:
         f"  padding: 4px 6px; font-size: {TYPE_INPUT}px; font-family: {FONT_FAMILY};"
         f"}}"
         f"QDateEdit:focus {{ border: 1px solid {p['accent']}; }}"
-        f"QDateEdit::drop-down {{ border: none; width: 20px; }}"
+        # Shared calendar chevron (ui.theme.date_subcontrols) — never
+        # `image: none`, which hid the icon on every date field.
+        + date_subcontrols(p, width=20)
     )
 
 

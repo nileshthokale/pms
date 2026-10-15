@@ -942,6 +942,178 @@ def indicator_style(*, checkbox: bool = True, radio: bool = True,
     return "".join(rule for rule in rules if rule)
 
 
+# ── Date-picker drop-down / calendar indicator ────────────────────────
+# Every editable date field in the application is a QDateEdit (no
+# QDateTimeEdit/QTimeEdit is currently used for date selection, but the
+# same rules cover them).  All of them set ``setCalendarPopup(True)`` so
+# clicking the drop-down button opens a QCalendarWidget.
+#
+# Root cause of the missing-icon defect: every date stylesheet in the
+# codebase declared
+#     QDateEdit::down-arrow { image: none; border: none; }
+# which tells Qt to paint NO indicator, and
+#     QDateEdit::drop-down { border: none; ... }
+# which leaves the button area as an empty, borderless strip.  The field
+# still opened its popup when the empty strip was clicked, but there was
+# no visible affordance — the Daily Sales date looked like a plain line
+# edit.
+#
+# The fix mirrors the checkbox/radio indicator approach above: the
+# down-chevron is generated as a small PNG tinted with the live palette's
+# text colour (bright on the dark Night Mode field, dark on the light Day
+# Mode field), with a disabled-text variant for the disabled state.  The
+# drop-down button gets an explicit width, a left separator border and a
+# hover fill so the clickable area reads as a button in both modes.  When
+# no QApplication exists yet (import time) the glyph path is "" and the
+# rules fall back to a sized, image-less ::down-arrow so the native arrow
+# paints instead of nothing.
+
+_DATE_DROP_WIDTH = 24
+_DATE_ARROW_SIZE = 12
+_DATE_ARROW_IMAGE_SIZE = 16
+_DATE_ARROW_FILES: dict[str, str] = {}
+
+
+def _drop_arrow_path(colour: str) -> str:
+    """Path to a generated down-chevron PNG, or "" when unavailable.
+
+    Same headless contract as _glyph_path: returns "" without caching the
+    failure when no QGuiApplication exists yet, so import-time stylesheets
+    use the native-arrow fallback and the next call with an application
+    produces the real tinted glyph.
+    """
+    key = str(colour).lower()
+    cached = _DATE_ARROW_FILES.get(key)
+    if cached and Path(cached).is_file():
+        return cached
+    try:
+        from PySide6.QtGui import QGuiApplication
+        if QGuiApplication.instance() is None:
+            return ""
+    except Exception:
+        return ""
+    path = _paint_drop_arrow(colour)
+    _DATE_ARROW_FILES[key] = path
+    return path
+
+
+def _paint_drop_arrow(colour: str) -> str:
+    """Draw one down-chevron glyph and save it as a PNG ("" on failure)."""
+    try:
+        from PySide6.QtCore import QPointF, Qt
+        from PySide6.QtGui import QColor, QImage, QPainter, QPen
+
+        directory = _indicator_dir()
+        directory.mkdir(parents=True, exist_ok=True)
+        target = directory / f"drop_{str(colour).lstrip('#').lower()}.png"
+        size = _DATE_ARROW_IMAGE_SIZE
+        image = QImage(size, size, QImage.Format.Format_ARGB32)
+        image.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(image)
+        if not painter.isActive():
+            return ""
+        try:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            pen = QPen(QColor(colour), 2.2)
+            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+            painter.setPen(pen)
+            # Thick down-chevron, centred with side margins so it never
+            # touches the button edge or the date text.
+            painter.drawPolyline([
+                QPointF(3.5, 6.0), QPointF(8.0, 10.5), QPointF(12.5, 6.0),
+            ])
+        finally:
+            painter.end()
+        if not _image_has_ink(image):
+            return ""
+        if image.save(str(target), "PNG"):
+            return target.as_posix()
+    except Exception:
+        pass
+    return ""
+
+
+def date_subcontrols(p: dict | None = None, *, width: int = _DATE_DROP_WIDTH) -> str:
+    """QSS fragment for the date-picker button + arrow in the given palette.
+
+    Covers QDateEdit, QDateTimeEdit and QTimeEdit together so every date
+    field shares one icon size (12 px), one right-side button width and one
+    alignment.  The button carries a left separator border and a hover fill;
+    the arrow uses the generated chevron in the palette's text colour with
+    a disabled-text variant, falling back to the native arrow when the
+    glyph cannot be produced.
+    """
+    pal = p if p is not None else palette()
+    arrow = _drop_arrow_path(pal["text"])
+    arrow_off = _drop_arrow_path(pal.get("disabled_text", pal["text_dim"]))
+
+    def arrow_decl(glyph: str) -> str:
+        if glyph:
+            return f'image: url("{glyph}"); width: {_DATE_ARROW_SIZE}px; height: {_DATE_ARROW_SIZE}px;'
+        # Fallback: sized but image-less, so Qt paints the native arrow
+        # instead of nothing (never `image: none` here).
+        return f"width: {_DATE_ARROW_SIZE}px; height: {_DATE_ARROW_SIZE}px;"
+
+    drops = ("QDateEdit::drop-down", "QDateTimeEdit::drop-down",
+             "QTimeEdit::drop-down")
+    arrows = ("QDateEdit::down-arrow", "QDateTimeEdit::down-arrow",
+              "QTimeEdit::down-arrow")
+    arrows_off = tuple(f"{a}:disabled" for a in arrows)
+    return (
+        f"{', '.join(drops)} {{"
+        "  subcontrol-origin: padding; subcontrol-position: top right;"
+        f"  width: {int(width)}px;"
+        f"  border-left: 1px solid {pal['border']};"
+        "  border-top-right-radius: 2px; border-bottom-right-radius: 2px;"
+        f"  background: {pal['surface']}; margin: 0px;"
+        "}"
+        f"{', '.join(f'{d}:hover' for d in drops)} {{"
+        f"  background: {pal['selected']};"
+        "}"
+        f"{', '.join(f'{d}:disabled' for d in drops)} {{"
+        f"  background: {pal['disabled_bg']};"
+        f"  border-left: 1px solid {pal['border']};"
+        "}"
+        f"{', '.join(arrows)} {{ {arrow_decl(arrow)} }}"
+        f"{', '.join(arrows_off)} {{ {arrow_decl(arrow_off)} }}"
+    )
+
+
+def fix_date_stylesheet(stylesheet_text: str, p: dict | None = None) -> str:
+    """Replace icon-hiding date rules in a baked sheet with the shared icon.
+
+    Preserves each screen's own drop-down width (18/20/22/24 px) so layout
+    never shifts; only the invisible button/arrow becomes the shared
+    visible one.  Sheets without any QDateEdit rule are returned untouched.
+    """
+    import re as _re
+
+    if not stylesheet_text or "QDateEdit" not in stylesheet_text:
+        return stylesheet_text
+    pal = p if p is not None else palette()
+    width = _DATE_DROP_WIDTH
+    try:
+        m = _re.search(
+            r"QDateEdit::drop-down\s*\{[^}]*?width:\s*(\d+)px", stylesheet_text)
+        if m:
+            width = max(18, min(28, int(m.group(1))))
+    except Exception:
+        pass
+    fresh = date_subcontrols(pal, width=width)
+    # Remove every baked drop-down / down-arrow rule for the date classes
+    # (including QDateTimeEdit/QTimeEdit variants), then append the shared
+    # fragment once.  The base QDateEdit/QDateTimeEdit/QTimeEdit rules
+    # (background, padding, fonts) are left byte-for-byte.
+    pattern = _re.compile(
+        r"QDateEdit::(?:drop-down|down-arrow)[^{]*\{[^}]*\}"
+        r"|QDateTimeEdit::(?:drop-down|down-arrow)[^{]*\{[^}]*\}"
+        r"|QTimeEdit::(?:drop-down|down-arrow)[^{]*\{[^}]*\}"
+    )
+    stripped = pattern.sub("", stylesheet_text).strip()
+    return (stripped + fresh) if stripped else fresh
+
+
 def stylesheet() -> str:
     """Return the application-wide stylesheet for the current mode.
 
@@ -1036,6 +1208,14 @@ def stylesheet() -> str:
         f"  background-color: {p['disabled_bg']};"
         f"  color: {p['disabled_text']};"
         "}"
+        # Date-picker button + calendar chevron.  Without an explicit
+        # ::down-arrow image Qt still paints the native arrow for unstyled
+        # fields, but any widget-level `image: none` hides it — so the
+        # shared fragment pins a tinted, high-contrast glyph here for every
+        # field that follows the application stylesheet (e.g. the
+        # Financial Year dialog).  Fields with their own stylesheet get the
+        # same fragment from date_subcontrols()/fix_date_stylesheet().
+        + date_subcontrols(p) +
         # Editable combo text field must not render as a nested white box.
         "QComboBox QLineEdit {"
         "  background: transparent;"
