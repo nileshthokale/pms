@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 
 from database import document_printing
 from database.day_end_dao import DayEndDAO, DayEndError
-from ui.theme import palette
+from ui.theme import date_subcontrols, palette
 
 _p = palette()
 _DARK_BG = _p["bg"]
@@ -49,7 +49,9 @@ _DATE_STYLE = (
     f"  border: 1px solid {_BORDER}; border-radius: 2px;"
     f"  padding: 4px 6px; font-size: 12px; font-family: 'Segoe UI';"
     f"}}"
-    f"QDateEdit::drop-down {{ border: none; }}"
+    # Shared calendar chevron (ui.theme.date_subcontrols) — replaces the
+    # bare `border: none` drop-down that left no visible button or arrow.
+    + date_subcontrols(_p, width=24)
 )
 
 _LABEL_STYLE = (
