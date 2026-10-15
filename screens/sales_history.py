@@ -9,13 +9,11 @@ from PySide6.QtWidgets import (
     QDateEdit,
     QDialog,
     QFileDialog,
-    QFrame,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
-    QLineEdit,
     QMessageBox,
     QPushButton,
     QTableWidget,
@@ -25,8 +23,6 @@ from PySide6.QtWidgets import (
 )
 
 from database import document_printing, financial_year
-from database.customer_dao import CustomerDAO
-from database.doctor_dao import DoctorDAO
 from database.sales_dao import SalesDAO
 from ui.components import FONT_FAMILY
 from ui.searchable_filter import SearchableFilterEdit
@@ -35,7 +31,6 @@ from ui.theme import (
     TYPE_FORM_LABEL,
     TYPE_HINT,
     TYPE_INPUT,
-    TYPE_INPUT_COMPACT,
     TYPE_PAGE_TITLE,
     TYPE_SECTION_HEADER,
     TYPE_TABLE_DATA,
@@ -144,6 +139,23 @@ def _fresh_btn_style(p: dict, *, primary: bool = False, warning: bool = False) -
         f"  border: 1px solid {p['border']};"
         f"}}"
     )
+
+
+def _fmt_bill_no(bill_no: str | None) -> str:
+    """Return the bill number with the financial-year prefix stripped for display.
+
+    Bill numbers may carry a financial-year prefix like ``2025-2026-0123``.
+    Only the exact pattern ``YYYY-YYYY-\d+`` is stripped; other formats
+    (e.g. hand-written ``CS-0001``, bare ``1905``, or internally generated
+    sequences) are left untouched so existing numbers are never corrupted.
+    """
+    if not bill_no or bill_no == "--":
+        return bill_no
+    import re
+    m = re.match(r"\d{4}-\d{4}-(\d+)$", bill_no)
+    if m:
+        return m.group(1)
+    return bill_no
 
 
 class SalesBillDetailsDialog(QDialog):
@@ -401,50 +413,27 @@ class SalesHistoryPage(QWidget):
         filter_layout.setContentsMargins(8, 12, 8, 8)
         filter_layout.setSpacing(6)
 
-        # Row 1: Patient Name, Customer Name, Bill / CNo
-        row1 = QHBoxLayout()
-        row1.setSpacing(10)
+        # Single-row filter bar: Patient | Financial Year | Filter by Date |
+        # From | To | Search | Reset.  All controls stay on ONE line at the
+        # default window width; Patient and Financial Year absorb the spare
+        # width so nothing is clipped at narrower sizes.
+        row = QHBoxLayout()
+        row.setSpacing(10)
 
-        # Patient autocomplete edit
+        # Patient autocomplete edit (widest input — must stay readable)
         p_box = QHBoxLayout()
+        p_box.setSpacing(6)
         p_lbl = QLabel("Patient:")
         p_lbl.setStyleSheet(f"font-size: {TYPE_FORM_LABEL}px; font-weight: bold;")
         p_box.addWidget(p_lbl)
         self._patient_edit = SearchableFilterEdit("Search patient name...")
         self._patient_edit.returnPressed.connect(self._on_search_clicked)
         p_box.addWidget(self._patient_edit)
-        row1.addLayout(p_box, 1)
-
-        # Customer searchable edit
-        c_box = QHBoxLayout()
-        c_lbl = QLabel("Customer:")
-        c_lbl.setStyleSheet(f"font-size: {TYPE_FORM_LABEL}px; font-weight: bold;")
-        c_box.addWidget(c_lbl)
-        self._customer_edit = SearchableFilterEdit("Search customer name...")
-        self._customer_edit.returnPressed.connect(self._on_search_clicked)
-        c_box.addWidget(self._customer_edit)
-        row1.addLayout(c_box, 1)
-
-        # Bill No / CNo
-        b_box = QHBoxLayout()
-        b_lbl = QLabel("Bill / CNo:")
-        b_lbl.setStyleSheet(f"font-size: {TYPE_FORM_LABEL}px; font-weight: bold;")
-        b_box.addWidget(b_lbl)
-        self._bill_no_edit = QLineEdit()
-        self._bill_no_edit.setPlaceholderText("Search bill number...")
-        self._bill_no_edit.setClearButtonEnabled(True)
-        self._bill_no_edit.returnPressed.connect(self._on_search_clicked)
-        b_box.addWidget(self._bill_no_edit)
-        row1.addLayout(b_box, 1)
-
-        filter_layout.addLayout(row1)
-
-        # Row 2: Financial Year, Date Range Checkbox + Pickers, Search / Reset buttons
-        row2 = QHBoxLayout()
-        row2.setSpacing(10)
+        row.addLayout(p_box, 2)
 
         # FY Dropdown
         fy_box = QHBoxLayout()
+        fy_box.setSpacing(6)
         fy_lbl = QLabel("Financial Year:")
         fy_lbl.setStyleSheet(f"font-size: {TYPE_FORM_LABEL}px; font-weight: bold;")
         fy_box.addWidget(fy_lbl)
@@ -452,44 +441,44 @@ class SalesHistoryPage(QWidget):
         self._fy_combo.addItem("All Financial Years", userData=None)
         self._fy_combo.currentIndexChanged.connect(self._on_fy_changed)
         fy_box.addWidget(self._fy_combo)
-        row2.addLayout(fy_box, 1)
+        row.addLayout(fy_box, 2)
 
         # Date Range filter
         self._date_check = QCheckBox("Filter by Date:")
         self._date_check.setChecked(False)
         self._date_check.toggled.connect(self._on_date_check_toggled)
-        row2.addWidget(self._date_check)
+        row.addWidget(self._date_check)
 
         from_lbl = QLabel("From:")
         from_lbl.setStyleSheet(f"font-size: {TYPE_FORM_LABEL}px;")
-        row2.addWidget(from_lbl)
+        row.addWidget(from_lbl)
         self._from_date = QDateEdit()
         self._from_date.setCalendarPopup(True)
         self._from_date.setDate(QDate.currentDate())
         self._from_date.setEnabled(False)
         self._from_date.setFixedWidth(115)
-        row2.addWidget(self._from_date)
+        row.addWidget(self._from_date)
 
         to_lbl = QLabel("To:")
         to_lbl.setStyleSheet(f"font-size: {TYPE_FORM_LABEL}px;")
-        row2.addWidget(to_lbl)
+        row.addWidget(to_lbl)
         self._to_date = QDateEdit()
         self._to_date.setCalendarPopup(True)
         self._to_date.setDate(QDate.currentDate())
         self._to_date.setEnabled(False)
         self._to_date.setFixedWidth(115)
-        row2.addWidget(self._to_date)
+        row.addWidget(self._to_date)
 
         # Search & Reset buttons
         self._search_btn = QPushButton("Search")
         self._search_btn.clicked.connect(self._on_search_clicked)
-        row2.addWidget(self._search_btn)
+        row.addWidget(self._search_btn)
 
         self._reset_btn = QPushButton("Reset")
         self._reset_btn.clicked.connect(self._on_reset_clicked)
-        row2.addWidget(self._reset_btn)
+        row.addWidget(self._reset_btn)
 
-        filter_layout.addLayout(row2)
+        filter_layout.addLayout(row)
         layout.addWidget(self._filter_box)
 
         # ── 3. Results Table ─────────────────────────────────────────
@@ -576,12 +565,7 @@ class SalesHistoryPage(QWidget):
         layout.addLayout(footer_layout)
 
     def _load_master_data(self):
-        """Populate customer, patient and financial year candidates."""
-        # Customers
-        customers = CustomerDAO.get_all()
-        cust_rows = [{"id": c["id"], "name": c["customer_name"]} for c in customers]
-        self._customer_edit.set_options(cust_rows, id_key="id", text_key="name")
-
+        """Populate patient and financial year candidates."""
         # Patients
         patients = SalesDAO.get_distinct_patient_names()
         pat_rows = [{"id": p, "name": p} for p in patients]
@@ -633,8 +617,6 @@ class SalesHistoryPage(QWidget):
 
     def _on_reset_clicked(self):
         self._patient_edit.clear_filter()
-        self._customer_edit.clear_filter()
-        self._bill_no_edit.clear()
         self._fy_combo.setCurrentIndex(0)
         self._date_check.setChecked(False)
         self._from_date.setDate(QDate.currentDate())
@@ -709,9 +691,6 @@ class SalesHistoryPage(QWidget):
     def _perform_search(self):
         """Execute database query with filters and populate the results table."""
         patient_name = self._patient_edit.text().strip()
-        customer_name = self._customer_edit.text().strip()
-        customer_id = self._customer_edit.selected_id
-        bill_no = self._bill_no_edit.text().strip()
 
         start_date = ""
         end_date = ""
@@ -724,9 +703,6 @@ class SalesHistoryPage(QWidget):
         try:
             rows, total = SalesDAO.search_sales_history(
                 patient_name=patient_name,
-                customer_name=customer_name,
-                customer_id=customer_id,
-                bill_no=bill_no,
                 start_date=start_date,
                 end_date=end_date,
                 limit=self._page_size,
@@ -814,8 +790,6 @@ class SalesHistoryPage(QWidget):
         self._table.horizontalHeader().setStyleSheet(_fresh_header_style(p))
 
         # Inputs
-        self._bill_no_edit.setStyleSheet(_fresh_edit_style(p))
-        self._customer_edit.setStyleSheet(_fresh_edit_style(p))
         self._patient_edit.setStyleSheet(_fresh_edit_style(p))
         self._fy_combo.setStyleSheet(_fresh_combo_style(p))
         self._page_size_combo.setStyleSheet(_fresh_combo_style(p))
