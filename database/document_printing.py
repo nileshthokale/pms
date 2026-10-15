@@ -478,14 +478,11 @@ def _billwise_pdf_bytes(
         _h_line(table_top, 0.7)
         _h_line(table_top - HEADER_H, 0.7)
         for _row, _top, _h in row_tops[1:]:
-            if _row.get("kind") == "grand":
-                _h_line(_top, 0.8)
-                _h_line(_top - _h, 0.8)
-            else:
+            if str(_row.get("kind")) != "grand":
                 _h_line(_top - _h, 0.5)
-        # Verticals run only through grid rows (header/detail/totals), so the
-        # full-width bill header bands stay free of crossing lines.
-        GRID_KINDS = {"header", "detail", "billtotal", "grand"}
+        # Verticals run only through the table grid, so the full-width bill
+        # header bands and the grand-total footer box stay clean rectangles.
+        GRID_KINDS = {"header", "detail", "billtotal"}
         run_top: float | None = None
         run_bottom: float | None = None
 
@@ -555,21 +552,15 @@ def _billwise_pdf_bytes(
                         f"BT /F2 {BODY_FONT:.2f} Tf 1 0 0 1 {_cell_x(col, txt, BODY_FONT, True, 'right'):.2f} {base:.2f} Tm ({_escape(txt)}) Tj ET"
                     )
             elif kind == "grand":
-                base = bottom + 5.0
-                span_w = sum(COL_WIDTHS[:4]) - 6.0
-                label = _companywise_fit("Grand Total", span_w, GRAND_FONT, True)
-                lw = _companywise_text_width_pt(label, GRAND_FONT, True)
-                lx = COL_X[0] + sum(COL_WIDTHS[:4]) - 3.0 - lw
                 commands.append(
-                    f"BT /F2 {GRAND_FONT:.2f} Tf 1 0 0 1 {lx:.2f} {base:.2f} Tm ({_escape(label)}) Tj ET"
+                    f"0.80 w {CONTENT_X0:.2f} {bottom:.2f} {CONTENT_W:.2f} {h:.2f} re S"
                 )
-                for col, key in ((4, "qty_str"), (5, "disc_str"), (6, "amt_str")):
-                    txt = _fitted(col, row.get(key, ""), GRAND_FONT, True)
-                    if not txt:
-                        continue
-                    commands.append(
-                        f"BT /F2 {GRAND_FONT:.2f} Tf 1 0 0 1 {_cell_x(col, txt, GRAND_FONT, True, 'right'):.2f} {base:.2f} Tm ({_escape(txt)}) Tj ET"
-                    )
+                total_txt = _companywise_fit(
+                    f"Grand Total: {row.get('amt_str', '')}", CONTENT_W - 8.0, GRAND_FONT, True)
+                total_w = _companywise_text_width_pt(total_txt, GRAND_FONT, True)
+                commands.append(
+                    f"BT /F2 {GRAND_FONT:.2f} Tf 1 0 0 1 {COL_RIGHT - 4.0 - total_w:.2f} {bottom + 5.0:.2f} Tm ({_escape(total_txt)}) Tj ET"
+                )
             elif kind == "empty":
                 msg = _companywise_fit(row.get("message", "No sales found."), CONTENT_W - 12.0, 8.0, False)
                 base = bottom + 5.0
