@@ -318,11 +318,11 @@ class SalesHistoryAndNumberingTests(unittest.TestCase):
         self.assertIn("CS-D01", bill_nos)
         self.assertNotIn("CS-D02", bill_nos)
 
+# ------------------------------------------------------------------
+    # Criterion 6: Patient name search finds historical bills across
+    # financial years (customer-name filter removed from the UI).
     # ------------------------------------------------------------------
-    # Criterion 6: Patient and customer name search finds historical bills
-    # across financial years.
-    # ------------------------------------------------------------------
-    def test_06_search_patient_and_customer_across_financial_years(self):
+    def test_06_search_patient_across_financial_years(self):
         # Bill 1 in FY 2025-2026 (date: 2025-06-15)
         SalesDAO.insert_invoice(
             bill_no="CS-2025-01", sale_date="2025-06-15", sale_time="10:00",
@@ -351,8 +351,8 @@ class SalesHistoryAndNumberingTests(unittest.TestCase):
         self._pump()
         self.addCleanup(lambda: (hist_page.hide(), hist_page.deleteLater()))
 
-        # Search by patient name "Alice" across all years
-        hist_page._patient_edit.setText("Alice")
+        # Search by patient name "Alice" across all years (case-insensitive)
+        hist_page._patient_edit.setText("alice")
         hist_page._perform_search()
         self._pump()
 
@@ -360,15 +360,22 @@ class SalesHistoryAndNumberingTests(unittest.TestCase):
         self.assertEqual(hist_page._table.item(0, 0).text(), "CS-2025-01")
         self.assertEqual(hist_page._table.item(0, 3).text(), "Alice Wonderland")
 
-        # Search by customer name "Beta" across all years
+        # Patient search must be partial: "bob" matches "Bob Builder"
         hist_page._patient_edit.clear()
-        hist_page._customer_edit.setText("Customer Beta")
+        hist_page._patient_edit.setText("bob")
         hist_page._perform_search()
         self._pump()
 
         self.assertEqual(hist_page._table.rowCount(), 1)
         self.assertEqual(hist_page._table.item(0, 0).text(), "CS-2026-01")
-        self.assertEqual(hist_page._table.item(0, 2).text(), "Customer Beta")
+        self.assertEqual(hist_page._table.item(0, 3).text(), "Bob Builder")
+
+        # Clearing patient search returns every bill across all years
+        hist_page._patient_edit.clear()
+        hist_page._perform_search()
+        self._pump()
+
+        self.assertEqual(hist_page._table.rowCount(), 2)
 
     # ------------------------------------------------------------------
     # Criterion 7: Date and optional FY filtering use correct inclusive boundaries.
