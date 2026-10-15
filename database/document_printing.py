@@ -9,7 +9,6 @@ from PDF generation.
 from __future__ import annotations
 
 import os
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -295,460 +294,6 @@ def _companywise_period(rows: list[dict]) -> tuple[str | None, str | None]:
     return _fmt(dates[0]), _fmt(dates[-1])
 
 
-def _mono_width_pt(text: Any, size_pt: float) -> float:
-    """Width of ``text`` in PDF points for the monospaced itemwise table."""
-    return len(str(text)) * 0.6 * float(size_pt)
-
-
-def _mono_fit(text: Any, max_pt: float, size_pt: float) -> str:
-    """Truncate ``text`` with '...' so it never overflows its column."""
-    s = _text(text).replace("\n", " ").strip()
-    if not s:
-        return ""
-    if _mono_width_pt(s, size_pt) <= max_pt:
-        return s
-    ell = "..."
-    if _mono_width_pt(ell, size_pt) > max_pt:
-        return ""
-    for cut in range(len(s) - 1, 0, -1):
-        cand = s[:cut].rstrip() + ell
-        if _mono_width_pt(cand, size_pt) <= max_pt:
-            return cand
-    return ""
-
-
-def _itemwise_fmt_mrp(value: Any) -> str:
-    try:
-        return f"{float(value or 0):,.2f}"
-    except (TypeError, ValueError):
-        return _text(value)
-
-
-def _itemwise_fmt_qty(value: Any) -> str:
-    try:
-        return f"{round(float(value or 0), 2):g}"
-    except (TypeError, ValueError):
-        return _text(value)
-
-
-def _itemwise_fmt_amt(value: Any) -> str:
-    try:
-        return f"{float(value or 0):,.2f}"
-    except (TypeError, ValueError):
-        return _text(value)
-
-
-def _itemwise_fmt_disc(value: Any) -> str:
-    """Line discount as shown in the Disc. column ('-' when zero)."""
-    try:
-        number = float(value or 0)
-    except (TypeError, ValueError):
-        return _text(value)
-    if number == 0:
-        return "-"
-    return f"{number:,.2f}"
-
-
-def _itemwise_fmt_bill_amt(value: Any) -> str:
-    try:
-        return f"{round(float(value or 0), 2):g}"
-    except (TypeError, ValueError):
-        return _text(value)
-
-
-def _itemwise_fmt_expiry(value: Any) -> str:
-    """Expiry exactly as the rest of the app displays it (never invented)."""
-    try:
-        return a6._expiry(value)
-    except Exception:
-        return _text(value)
-
-
-def _itemwise_iso_to_dmy(iso: str) -> str:
-    parts = str(iso).split("-")
-    if len(parts) == 3 and all(p.isdigit() for p in parts):
-        return f"{parts[2]}-{parts[1]}-{parts[0]}"
-    return str(iso)
-
-
-def _itemwise_report_date(
-    rows: list[dict], report_from: str | None, report_to: str | None,
-) -> tuple[str | None, str | None]:
-    """Single report date (DD-MM-YYYY) or date range for the header.
-
-    A uniform single-day result prints the daily title from its own date;
-    otherwise the caller-selected bounds are used, falling back to the rows'
-    own range so older callers without explicit bounds stay truthful.
-    """
-    dates = sorted({str(r.get("sale_date") or "").strip() for r in rows if str(r.get("sale_date") or "").strip()})
-    if len(dates) == 1:
-        return _itemwise_iso_to_dmy(dates[0]), None
-    if report_from and report_to:
-        if str(report_from) == str(report_to):
-            return _itemwise_iso_to_dmy(report_from), None
-        return _itemwise_iso_to_dmy(report_from), _itemwise_iso_to_dmy(report_to)
-    if dates:
-        return _itemwise_iso_to_dmy(dates[0]), _itemwise_iso_to_dmy(dates[-1])
-    if report_from:
-        return _itemwise_iso_to_dmy(report_from), None
-    return None, None
-
-
-def _itemwise_lines(rows: list[dict]) -> list[dict]:
-    """Flat display rows in DAO order for the itemwise layout.
-
-    Rows sharing one bill plus identical item, batch and MRP merge into a
-    single row by summing their stored quantities, discounts and amounts.
-    Different bills, items, batches or MRPs always stay separate, and nothing
-    is ever recalculated as qty * MRP.
-    """
-    merged: dict[Any, dict] = {}
-    order: list[Any] = []
-    for r in rows:
-        inv = r.get("invoice_id")
-        bill_key: Any = ("id", inv) if inv is not None else ("bill", str(r.get("bill_no") or "").strip())
-        item = str(r.get("item_name") or "").strip() or "(Unknown Item)"
-        batch = str(r.get("batch_no") or "").strip()
-        try:
-            mrp = float(r.get("mrp") or 0)
-        except (TypeError, ValueError):
-            mrp = 0.0
-        try:
-            qty = float(r.get("sale_qty") or 0)
-        except (TypeError, ValueError):
-            qty = 0.0
-        try:
-            amount = float(r.get("amount") or 0)
-        except (TypeError, ValueError):
-            amount = 0.0
-        try:
-            discount = float(r.get("discount_amount") or 0)
-        except (TypeError, ValueError):
-            discount = 0.0
-        key = (bill_key, item.casefold(), batch.casefold(), round(mrp, 2))
-        bucket = merged.get(key)
-        if bucket is None:
-            merged[key] = {
-                "bill_no": str(r.get("bill_no") or "").strip(),
-                "sale_type": str(r.get("sale_type") or "").strip(),
-                "item_name": item,
-                "mrp": round(mrp, 2),
-                "qty": qty,
-                "amount": amount,
-                "discount": discount,
-                "batch_no": batch,
-                "expiry": r.get("expiry"),
-                "bill_net_amount": r.get("bill_net_amount"),
-            }
-            order.append(key)
-        else:
-            bucket["qty"] += qty
-            bucket["amount"] += amount
-            bucket["discount"] += discount
-    return [merged[key] for key in order]
-
-
-def _itemwise_pdf_bytes(
-    pages: list[list[dict]],
-    store_name: str,
-    store_address: str,
-    report_from: str | None,
-    report_to: str | None,
-    generated_at: str,
-    total_str: str,
-) -> bytes:
-    """Minimal portrait-A4 writer for the daily itemwise sales table."""
-    PAGE_W, PAGE_H = 595.0, 842.0
-    ML, MT, MB = 36.0, 36.0, 36.0
-    CONTENT_X0 = ML
-    CONTENT_W = PAGE_W - ML - 36.0
-    COL_WIDTHS = [38.0, 54.0, 105.0, 46.0, 38.0, 52.0, 52.0, 48.0, 38.0, 52.0]
-    COL_X: list[float] = []
-    _x = CONTENT_X0
-    for _w in COL_WIDTHS:
-        COL_X.append(_x)
-        _x += _w
-    COL_RIGHT = CONTENT_X0 + CONTENT_W
-    HEADS = ["BillNo", "VhType", "ItemName", "MRP", "Qty", "Amount",
-             "BatchNo", "Expiry", "Disc.", "Bill Amt"]
-    HEADER_H, DETAIL_H, EMPTY_H, FOOTER_H = 14.0, 12.0, 14.0, 18.0
-    TABLE_FONT, HEAD_FONT = 7.0, 7.0
-
-    if report_from and report_to:
-        _title = f"DAILY ITEMWISE SALES REPORT FOR DATE {report_from} TO {report_to}"
-    elif report_from:
-        _title = f"DAILY ITEMWISE SALES REPORT FOR DATE {report_from}"
-    else:
-        _title = "DAILY ITEMWISE SALES REPORT"
-
-    def _cell_x(col: int, text: str, align: str, size: float) -> float:
-        fitted = _mono_fit(text, COL_WIDTHS[col] - 6.0, size)
-        w = _mono_width_pt(fitted, size)
-        if align == "right":
-            return COL_X[col] + COL_WIDTHS[col] - 3.0 - w
-        if align == "center":
-            return COL_X[col] + max(3.0, (COL_WIDTHS[col] - w) / 2.0)
-        return COL_X[col] + 3.0
-
-    def _fitted(col: int, text: str, size: float) -> str:
-        return _mono_fit(text, COL_WIDTHS[col] - 6.0, size)
-
-    objects: list[bytes] = [
-        b"<< /Type /Catalog /Pages 2 0 R >>",
-        b"",
-        b"<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>",
-        b"<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold /Encoding /WinAnsiEncoding >>",
-    ]
-    page_ids: list[int] = []
-    total_pages = max(len(pages), 1)
-    for page_index, page_rows in enumerate(pages, 1):
-        is_first = page_index == 1
-        commands: list[str] = []
-        y_top = PAGE_H - MT
-        if is_first:
-            y = y_top
-            store_txt = _mono_fit(store_name, CONTENT_W, 11.0)
-            # The title shares the first header line, right-aligned.  Shrink
-            # it before ever truncating so the report date stays visible.
-            title_size = 8.5
-            title_txt = _mono_fit(_title, CONTENT_W, title_size)
-            store_w = _mono_width_pt(store_txt, 11.0)
-            while title_size > 7.0 and _mono_width_pt(title_txt, title_size) > CONTENT_W - store_w - 12.0:
-                title_size -= 0.5
-                title_txt = _mono_fit(_title, CONTENT_W, title_size)
-            if store_txt:
-                commands.append(
-                    f"BT /F2 11.00 Tf 1 0 0 1 {CONTENT_X0:.2f} {y - 11.00:.2f} Tm ({_escape(store_txt)}) Tj ET"
-                )
-            if title_txt:
-                title_w = _mono_width_pt(title_txt, title_size)
-                commands.append(
-                    f"BT /F2 {title_size:.2f} Tf 1 0 0 1 {COL_RIGHT - title_w:.2f} {y - 11.00:.2f} Tm ({_escape(title_txt)}) Tj ET"
-                )
-            y -= 15.0
-            if store_address:
-                addr_txt = _mono_fit(store_address, CONTENT_W, 8.0)
-                commands.append(
-                    f"BT /F1 8.00 Tf 1 0 0 1 {CONTENT_X0:.2f} {y - 8.00:.2f} Tm ({_escape(addr_txt)}) Tj ET"
-                )
-                y -= 11.0
-            y -= 6.0
-            table_top = y
-        else:
-            table_top = y_top
-        # ── table geometry for this page ──
-        row_tops: list[tuple[dict, float, float]] = []
-        cursor = table_top - HEADER_H
-        row_tops.append(({"kind": "header"}, table_top, HEADER_H))
-        for row in page_rows:
-            kind = str(row.get("kind"))
-            h = FOOTER_H if kind == "footer" else (EMPTY_H if kind == "empty" else DETAIL_H)
-            top = cursor
-            row_tops.append((row, top, h))
-            cursor -= h
-        table_bottom = cursor
-        # ── grid: horizontals for the grid rows, boxes for footer/empty ──
-        def _h_line(y: float, w: float = 0.5) -> None:
-            commands.append(f"{w:.2f} w {CONTENT_X0:.2f} {y:.2f} m {COL_RIGHT:.2f} {y:.2f} l S")
-
-        def _v_line(x: float, y0: float, y1: float, w: float = 0.5) -> None:
-            commands.append(f"{w:.2f} w {x:.2f} {y1:.2f} m {x:.2f} {y0:.2f} l S")
-
-        def _box(top: float, h: float, w: float = 0.5) -> None:
-            commands.append(
-                f"{w:.2f} w {CONTENT_X0:.2f} {top - h:.2f} {CONTENT_W:.2f} {h:.2f} re S"
-            )
-
-        _h_line(table_top, 0.7)
-        _h_line(table_top - HEADER_H, 0.7)
-        for _row, _top, _h in row_tops[1:]:
-            if str(_row.get("kind")) == "detail":
-                _h_line(_top - _h, 0.5)
-        # Verticals run only through the grid rows (header + detail) so the
-        # full-width footer box stays a clean rectangle.
-        GRID_KINDS = {"header", "detail"}
-        run_top: float | None = None
-        run_bottom: float | None = None
-
-        def _close_run() -> None:
-            nonlocal run_top, run_bottom
-            if run_top is not None and run_bottom is not None:
-                for _cx in COL_X[1:] + [COL_RIGHT]:
-                    _v_line(_cx, run_top, run_bottom, 0.5)
-                _v_line(CONTENT_X0, run_top, run_bottom, 0.7)
-            run_top = None
-            run_bottom = None
-
-        for _row, _top, _h in row_tops:
-            if str(_row.get("kind")) in GRID_KINDS:
-                if run_top is None:
-                    run_top = _top
-                run_bottom = _top - _h
-            else:
-                _close_run()
-        _close_run()
-        # ── column headings ──
-        head_base = table_top - HEADER_H + 4.5
-        for col, head in enumerate(HEADS):
-            align = "left" if col == 2 else ("right" if col in (3, 4, 5, 8, 9) else "center")
-            txt = _fitted(col, head, HEAD_FONT)
-            commands.append(
-                f"BT /F2 {HEAD_FONT:.2f} Tf 1 0 0 1 {_cell_x(col, txt, align, HEAD_FONT):.2f} {head_base:.2f} Tm ({_escape(txt)}) Tj ET"
-            )
-        # ── body rows ──
-        for row, top, h in row_tops[1:]:
-            kind = str(row.get("kind"))
-            bottom = top - h
-            if kind == "detail":
-                cells: list[str] = row.get("cells", [""] * 10)
-                aligns = ["center", "center", "left", "right", "right",
-                          "right", "center", "center", "right", "right"]
-                base = bottom + 3.5
-                for col in range(10):
-                    txt = _fitted(col, cells[col] if col < len(cells) else "", TABLE_FONT)
-                    if not txt:
-                        continue
-                    commands.append(
-                        f"BT /F1 {TABLE_FONT:.2f} Tf 1 0 0 1 {_cell_x(col, txt, aligns[col], TABLE_FONT):.2f} {base:.2f} Tm ({_escape(txt)}) Tj ET"
-                    )
-            elif kind == "empty":
-                _box(top, h, 0.5)
-                msg = _mono_fit(row.get("message", "No sales found."), CONTENT_W - 12.0, 7.5)
-                if msg:
-                    msg_w = _mono_width_pt(msg, 7.5)
-                    commands.append(
-                        f"BT /F1 7.50 Tf 1 0 0 1 {CONTENT_X0 + max(3.0, (CONTENT_W - msg_w) / 2.0):.2f} {bottom + 4.5:.2f} Tm ({_escape(msg)}) Tj ET"
-                    )
-            elif kind == "footer":
-                _box(top, h, 0.5)
-                base = bottom + 6.0
-                if generated_at:
-                    commands.append(
-                        f"BT /F1 7.50 Tf 1 0 0 1 {CONTENT_X0 + 4.0:.2f} {base:.2f} Tm ({_escape(generated_at)}) Tj ET"
-                    )
-                total_txt = _mono_fit(f"Total: {total_str}", CONTENT_W - 8.0, 8.0)
-                total_w = _mono_width_pt(total_txt, 8.0)
-                commands.append(
-                    f"BT /F2 8.00 Tf 1 0 0 1 {COL_RIGHT - 4.0 - total_w:.2f} {base:.2f} Tm ({_escape(total_txt)}) Tj ET"
-                )
-        # ── page number (small, bottom, outside the table) ──
-        stamp = f"Page {page_index} of {total_pages}"
-        stamp_w = _mono_width_pt(stamp, 7.0)
-        commands.append(
-            f"BT /F1 7.00 Tf 1 0 0 1 {CONTENT_X0 + max(0.0, (CONTENT_W - stamp_w) / 2.0):.2f} {(MB - 12.0):.2f} Tm ({_escape(stamp)}) Tj ET"
-        )
-        stream = "\n".join(commands).encode("latin-1", "replace")
-        page_id = len(objects) + 1
-        content_id = page_id + 1
-        page_ids.append(page_id)
-        objects.append(
-            f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {PAGE_W:.0f} {PAGE_H:.0f}] "
-            f"/Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents {content_id} 0 R >>".encode()
-        )
-        objects.append(b"<< /Length " + str(len(stream)).encode() + b" >>\nstream\n" + stream + b"\nendstream")
-    kids = " ".join(f"{pid} 0 R" for pid in page_ids)
-    objects[1] = f"<< /Type /Pages /Kids [{kids}] /Count {len(page_ids)} >>".encode()
-    output = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
-    offsets = [0]
-    for number, obj in enumerate(objects, 1):
-        offsets.append(len(output))
-        output.extend(f"{number} 0 obj\n".encode())
-        output.extend(obj)
-        output.extend(b"\nendobj\n")
-    xref = len(output)
-    output.extend(f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n".encode())
-    for offset in offsets[1:]:
-        output.extend(f"{offset:010d} 00000 n \n".encode())
-    output.extend(f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode())
-    return bytes(output)
-
-
-def generate_sales_report_pdf(
-    rows: list[dict], summary: dict, financial_year: str, filter_summary: str,
-    output_path: str | os.PathLike[str] | None = None,
-    report_from: str | None = None, report_to: str | None = None,
-) -> str:
-    """Create a read-only, portrait Daily Itemwise Sales Report PDF.
-
-    This deliberately receives already-filtered report rows rather than
-    querying the database.  The caller therefore prints exactly the visible
-    filter result and printing cannot change data or filters.  Layout:
-    store name/address top-left, daily title top-right, one BillNo/VhType/
-    ItemName/MRP/Qty/Amount/BatchNo/Expiry/Disc./Bill Amt row per bill line
-    (exact duplicates within a bill merge by summing stored values), and a
-    bordered footer with the generation timestamp and the total of the
-    Amount column.  Column headings repeat on every page, content stays at
-    the top of the page, and each page carries its number.
-    """
-    path = _output_path(output_path, "sales_report", str(financial_year).replace(" ", "_"))
-    try:
-        profile = a6.store_profile()
-    except Exception:
-        profile = {}
-    store_name = str(profile.get("name") or "").strip()
-    store_address = str(profile.get("address") or "").strip()
-    lines = _itemwise_lines(rows)
-    # ── build drawable rows in bill order ──
-    flat: list[dict] = []
-    for line in lines:
-        flat.append({"kind": "detail", "cells": [
-            str(line["bill_no"]),
-            str(line["sale_type"]),
-            str(line["item_name"]),
-            _itemwise_fmt_mrp(line["mrp"]),
-            _itemwise_fmt_qty(line["qty"]),
-            _itemwise_fmt_amt(line["amount"]),
-            str(line["batch_no"]),
-            _itemwise_fmt_expiry(line["expiry"]),
-            _itemwise_fmt_disc(line["discount"]),
-            _itemwise_fmt_bill_amt(line["bill_net_amount"]),
-        ]})
-    # The footer total is the sum of the displayed Amount column, i.e. the
-    # same stored line amounts the previous layout totalled (never the Bill
-    # Amt column, whose per-line bill nets would double-count).
-    total_amt = round(sum(line["amount"] for line in lines), 2) if lines else 0.0
-    total_str = _itemwise_fmt_amt(total_amt)
-    generated_at = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-    footer: dict = {"kind": "footer"}
-    # ── paginate (flat bill order; footer stays with the last page) ──
-    HEADER_H, DETAIL_H, EMPTY_H, FOOTER_H = 14.0, 12.0, 14.0, 18.0
-    FIRST_CAP = 710.0
-    OTHER_CAP = 742.0
-    pages: list[list[dict]] = []
-    if not flat:
-        empty = [{"kind": "empty", "message": "No sales found for the selected filters."}]
-        if EMPTY_H + FOOTER_H <= FIRST_CAP:
-            pages = [empty + [footer]]
-        else:
-            pages = [empty, [footer]]
-    else:
-        current: list[dict] = []
-        remaining = FIRST_CAP
-        for row in flat:
-            if DETAIL_H > remaining:
-                pages.append(current)
-                current = []
-                remaining = OTHER_CAP
-            current.append(row)
-            remaining -= DETAIL_H
-        if FOOTER_H > remaining:
-            if current:
-                pages.append(current)
-            current = []
-            remaining = OTHER_CAP
-        current.append(footer)
-        pages.append(current)
-    date_from, date_to = _itemwise_report_date(rows, report_from, report_to)
-    try:
-        path.write_bytes(_itemwise_pdf_bytes(
-            pages, store_name, store_address, date_from, date_to,
-            generated_at, total_str,
-        ))
-    except OSError as exc:
-        raise DocumentPrintError(f"Could not create PDF at {path}: {exc}") from exc
-    return str(path)
-
-
 def _billwise_bills(rows: list[dict]) -> list[dict]:
     """Group already-filtered rows by bill (display-only, no recalculation).
 
@@ -811,7 +356,7 @@ def _billwise_pdf_bytes(
     financial_year: str,
     company_name: str,
 ) -> bytes:
-    """Minimal portrait-A4 writer for the Billwise Sales Report table."""
+    """Minimal portrait-A4 writer for the Daily Sales Report table."""
     PAGE_W, PAGE_H = 595.0, 842.0
     ML, MT, MB = 36.0, 36.0, 36.0
     CONTENT_X0 = ML
@@ -886,7 +431,7 @@ def _billwise_pdf_bytes(
                     f"BT /F1 8.50 Tf 1 0 0 1 {_centered_x(txt, 8.5, False):.2f} {y - 7.50:.2f} Tm ({_escape(txt)}) Tj ET"
                 )
                 y -= 11.0
-            title = "Billwise Sales Report"
+            title = "DAILY SALES REPORT"
             commands.append(
                 f"BT /F2 11.00 Tf 1 0 0 1 {_centered_x(title, 11.0, True):.2f} {y - 10.00:.2f} Tm ({_escape(title)}) Tj ET"
             )
@@ -1060,17 +605,16 @@ def _billwise_pdf_bytes(
     return bytes(output)
 
 
-def generate_billwise_sales_report_pdf(
+def generate_daily_sales_report_pdf(
     rows: list[dict], summary: dict, financial_year: str, filter_summary: str,
     output_path: str | os.PathLike[str] | None = None,
 ) -> str:
-    """Create a read-only, portrait Billwise Sales Report PDF.
+    """Create a read-only, portrait Daily Sales Report PDF.
 
     This deliberately receives already-filtered report rows rather than
-    querying the database, exactly like the item-wise report.  Bills are
-    never combined: each bill prints its own stored lines with its own bill
-    total, followed by a bordered grand total summed from the displayed
-    stored values.
+    querying the database.  Every bill prints as its own section with its
+    stored item lines and its own bill total, followed by a bordered grand
+    total summed from the displayed stored values.
     """
     path = _output_path(output_path, "sales_report", str(financial_year).replace(" ", "_"))
     try:
@@ -1136,7 +680,7 @@ def generate_billwise_sales_report_pdf(
 
     pages: list[list[dict]] = []
     if not bill_groups:
-        empty = [{"kind": "empty", "message": "No sales found for the selected filters."}]
+        empty = [{"kind": "empty", "message": "No records found."}]
         if EMPTY_H + GRAND_H <= FIRST_CAP:
             pages = [empty + [grand_row]]
         else:
@@ -1375,7 +919,7 @@ def print_pdf(path: str | os.PathLike[str], parent=None) -> bool:
 
 
 __all__ = [
-    "DocumentPrintError", "generate_document", "generate_sales_report_pdf", "generate_billwise_sales_report_pdf", "generate_purchase_report_pdf", "generate_sales_bill", "generate_counter_sale_bill",
+    "DocumentPrintError", "generate_document", "generate_daily_sales_report_pdf", "generate_purchase_report_pdf", "generate_sales_bill", "generate_counter_sale_bill",
     "generate_purchase_invoice", "generate_credit_note", "generate_debit_note",
     "generate_customer_receipt", "generate_supplier_payment", "preview_document", "print_pdf",
     "generate_pharmacy_a6_bill", "print_pharmacy_a6_bill", "preview_pharmacy_a6_bill", "a6_profile",

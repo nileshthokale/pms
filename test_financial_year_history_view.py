@@ -231,11 +231,17 @@ class TestReportScreensFollowFinancialYear(_BaseTest):
             )
 
     def test_10_sales_report_opens_scoped_to_the_active_year(self):
+        from PySide6.QtCore import QDate
+
         page = self._page("sales_report", "SalesReportPage")
+        # Default date editors show today's live date; the FY still caps the
+        # query, so instead of asserting raw FY bounds we assert the bounds
+        # the page actually queries with.
+        today = QDate.currentDate().toString("yyyy-MM-dd")
         self.assertEqual(
-            page._current_filters()["from_date"], "2026-04-01"
+            page._current_filters()["from_date"], max("2026-04-01", today)
         )
-        self.assertEqual(page._current_filters()["to_date"], "2027-03-31")
+        self.assertEqual(page._current_filters()["to_date"], min("2027-03-31", today))
 
     def test_11_sales_report_shows_only_the_selected_years_rows(self):
         self._seed_sale("B-2016", "2016-05-02")
@@ -266,11 +272,15 @@ class TestReportScreensFollowFinancialYear(_BaseTest):
         self.assertEqual(page._current_filters()["to_date"], "2027-03-31")
 
     def test_13_clear_keeps_the_financial_year_constraint(self):
+        from PySide6.QtCore import QDate
+
         page = self._page("sales_report", "SalesReportPage")
         page.set_history_financial_year(self.fy_2017)
         page._on_clear()
-        self.assertEqual(page._current_filters()["from_date"], "2017-04-01")
-        self.assertEqual(page._current_filters()["to_date"], "2018-03-31")
+        # Clear restores today's live date; the FY cap still applies on top.
+        today = QDate.currentDate().toString("yyyy-MM-dd")
+        self.assertEqual(page._current_filters()["from_date"], max("2017-04-01", today))
+        self.assertEqual(page._current_filters()["to_date"], min("2018-03-31", today))
 
     def test_13b_sales_report_switches_2017_2018_2026_without_changing_active_year(self):
         fy_2018 = financial_year.create_financial_year(
