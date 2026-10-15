@@ -129,12 +129,11 @@ class TestDailySalesReportPdf(unittest.TestCase):
         self.assertIn("(51.40)", content)
         self.assertIn("(257.00)", content)
         self.assertIn("(JB02668)", content)
-        # One Bill Total per bill plus the overall Grand Total.
+        # One Bill Total per bill plus the overall Grand Total at the right.
         self.assertEqual(content.count("(Bill Total)"), 2)
-        self.assertIn("(Grand Total)", content)
+        self.assertIn("(Grand Total: 598.96)", content)
         self.assertIn("457.00", content)
         self.assertIn("141.96", content)
-        self.assertIn("598.96", content)
         self.assertIn("Page 1 of 1", content)
 
     def test_daily_report_paginates_and_handles_empty(self):
@@ -159,7 +158,7 @@ class TestDailySalesReportPdf(unittest.TestCase):
                 directory, name="empty.pdf")
             self.assertIn("DAILY SALES REPORT", empty)
             self.assertIn("No records found", empty)
-            self.assertIn("(Grand Total)", empty)
+            self.assertIn("(Grand Total: 0.00)", empty)
 
 
 @unittest.skipUnless(HAS_QT, "PySide6 is required for daily report screen tests")

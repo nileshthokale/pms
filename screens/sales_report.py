@@ -296,6 +296,8 @@ class SalesReportPage(QWidget):
             ("discount", "Discount: 0.00"),
             ("net", "Net: 0.00"),
         ):
+            if key == "net":
+                sl.addStretch()
             lbl = QLabel(text)
             lbl.setStyleSheet(
                 f"color: {_TEXT}; font-size: 12px; font-weight: bold;"
@@ -303,7 +305,6 @@ class SalesReportPage(QWidget):
             )
             self._summary_labels[key] = lbl
             sl.addWidget(lbl)
-        sl.addStretch()
         root.addWidget(summary)
 
         # Default to today's live date so opening the page shows the daily
