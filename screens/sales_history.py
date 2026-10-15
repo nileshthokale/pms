@@ -145,7 +145,7 @@ def _fmt_bill_no(bill_no: str | None) -> str:
     """Return the bill number with the financial-year prefix stripped for display.
 
     Bill numbers may carry a financial-year prefix like ``2025-2026-0123``.
-    Only the exact pattern ``YYYY-YYYY-\d+`` is stripped; other formats
+    Only the exact pattern ``YYYY-YYYY-\\d+`` is stripped; other formats
     (e.g. hand-written ``CS-0001``, bare ``1905``, or internally generated
     sequences) are left untouched so existing numbers are never corrupted.
     """
@@ -225,13 +225,8 @@ class SalesBillDetailsDialog(QDialog):
                 grid.addWidget(l3, row_idx, 4)
                 grid.addWidget(v3, row_idx, 5)
 
-        _meta_row(0, "Bill / CNo", bill_no, "Date & Time", dt_str, "Payment Type", sale_type)
+        _meta_row(0, "Bill / CNo", _fmt_bill_no(bill_no), "Date & Time", dt_str, "Payment Type", sale_type)
         _meta_row(1, "Customer", cust_name, "Patient", pat_name, "Doctor", doc_name)
-        if remarks:
-            l_rem = QLabel("<b>Remarks:</b>")
-            v_rem = QLabel(remarks)
-            grid.addWidget(l_rem, 2, 0)
-            grid.addWidget(v_rem, 2, 1, 1, 5)
 
         layout.addWidget(self._meta_group)
 
@@ -727,7 +722,7 @@ class SalesHistoryPage(QWidget):
         self._table.setRowCount(len(rows))
         for r_idx, row in enumerate(rows):
             # 0: Bill No
-            bno_item = QTableWidgetItem(str(row.get("bill_no") or "--"))
+            bno_item = QTableWidgetItem(_fmt_bill_no(row.get("bill_no") or "--"))
             bno_item.setData(Qt.UserRole, row.get("id"))
             bno_item.setTextAlignment(Qt.AlignCenter)
             self._table.setItem(r_idx, 0, bno_item)
