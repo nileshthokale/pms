@@ -146,31 +146,33 @@ class CounterSaleLayoutTests(unittest.TestCase):
         self.assertLess(self.hist.height(), self.page.height() * 0.55)
 
     def test_02a_history_columns_fill_the_available_width(self):
-        # Fill viewport; Item/Bill Fixed moderate; Patient/Batch share spare
-        # (suitable, not only Item/Bill); Time/Expiry Fixed moderate (no hundreds).
+        # Fill viewport; Item/Bill Fixed moderate; only Patient widens with
+        # the viewport; Batch 150 / Expiry 110 stay compact (never re-expand).
         from PySide6.QtWidgets import QHeaderView as _HV
         header = self.hist.horizontalHeader()
         self.assertFalse(header.stretchLastSection())
         for col, lo, hi in ((0, 75, 100), (1, 45, 60), (2, 120, 160),
                              (4, 40, 50), (5, 70, 85),
-                             (7, 65, 75), (9, 95, 110),
+                             (7, 65, 75), (9, 105, 115),
                              (10, 70, 85), (11, 65, 80), (12, 90, 110)):
             with self.subTest(column=col):
                 self.assertGreaterEqual(self.hist.columnWidth(col), lo)
                 self.assertLessEqual(self.hist.columnWidth(col), hi)
         self.assertGreaterEqual(self.hist.columnWidth(3), 70)
-        # Suitable columns fill (at least base, not hundreds for Time/Expiry).
-        for col, base in ((6, 145), (8, 130)):
-            with self.subTest(column=col):
-                self.assertGreaterEqual(self.hist.columnWidth(col), base)
-                self.assertLessEqual(self.hist.columnWidth(col), 220)
+        # Patient is the single fill column (at least base, not hundreds);
+        # Batch No keeps its compact 140-160 px base.
+        self.assertGreaterEqual(self.hist.columnWidth(6), 145)
+        with self.subTest(column="batch"):
+            self.assertGreaterEqual(self.hist.columnWidth(8), 140)
+            self.assertLessEqual(self.hist.columnWidth(8), 160)
         total = sum(self.hist.columnWidth(i) for i in range(self.hist.columnCount()))
         self.assertGreaterEqual(total, self.hist.viewport().width() - 30)
-        # Targets Fixed; fillers Stretch.
+        # Targets Fixed; only Patient stretches; Batch stays Interactive
+        # at its 150 px base (never auto-expands).
         self.assertEqual(header.sectionResizeMode(2), _HV.Fixed)
         self.assertEqual(header.sectionResizeMode(12), _HV.Fixed)
-        for col in (6, 8):
-            self.assertEqual(header.sectionResizeMode(col), _HV.Stretch)
+        self.assertEqual(header.sectionResizeMode(6), _HV.Stretch)
+        self.assertEqual(header.sectionResizeMode(8), _HV.Interactive)
 
     # -- Region B: active sale entry ---------------------------------
     def test_03_entry_region_is_directly_below_history(self):
@@ -567,9 +569,11 @@ class CounterSaleItemBarSizingTests(unittest.TestCase):
             QApplication.processEvents()
 
     def test_03_batch_has_room_for_a_batch_number(self):
+        """Batch input stays in its compact 100-110 px band."""
         batch = self.entry.batch_combo
-        self.assertGreaterEqual(batch.minimumWidth(), 96)
+        self.assertGreaterEqual(batch.minimumWidth(), 100)
         self.assertGreaterEqual(batch.width(), 96)
+        self.assertLessEqual(batch.width(), 112)
         self.assertGreaterEqual(batch.maximumWidth(), batch.minimumWidth())
 
     def test_04_numeric_fields_are_readable_and_content_sized(self):
@@ -703,51 +707,50 @@ class CounterSaleBillTableSizingTests(unittest.TestCase):
             [self.table.horizontalHeaderItem(i).text() for i in range(11)],
             ["#", "Item Name", "Pack Size", "Location", "Batch No", "Expiry",
              "MRP", "Qty", "Disc Amt", "Amount", "Del"])
-        # Item/Loc/Delete Fixed moderate (never excessively wide); Batch/Amount
-        # share spare (suitable) to fill with no blank strip.
-        for col, lo, hi in ((1, 240, 300), (2, 60, 75), (3, 90, 120),
-                             (5, 90, 100)):
+        # Item Name is the lone Stretch section (owns the spare width); every
+        # other column keeps its compact Fixed base, so Batch No and Amount
+        # can never re-expand.
+        for col, lo, hi in ((1, 240, 420), (2, 60, 75), (3, 90, 120),
+                            (5, 105, 115)):
             with self.subTest(column=col):
                 self.assertGreaterEqual(self.table.columnWidth(col), lo)
                 self.assertLessEqual(self.table.columnWidth(col), hi)
         for index, width in enumerate(_BILL_COLUMN_WIDTHS):
-            if index in (4, 9):
+            if index == 1:
                 continue
             with self.subTest(column=index):
                 self.assertEqual(self.table.columnWidth(index), width)
-        for col, base in ((4, 145), (9, 95)):
-            with self.subTest(column=col):
-                self.assertGreaterEqual(self.table.columnWidth(col), base)
-                self.assertLessEqual(self.table.columnWidth(col), 220)
         total = sum(self.table.columnWidth(i) for i in range(11))
         self.assertGreaterEqual(total, self.table.viewport().width() - 40)
-        # Item/Loc/Delete Fixed; fillers Stretch.
-        for index in (1, 3, 10):
+        # Only Item Name stretches; Batch/Amount stay Fixed.
+        self.assertEqual(
+            self.table.horizontalHeader().sectionResizeMode(1),
+            _HV.Stretch)
+        for index in (4, 5, 9):
             with self.subTest(column=index):
                 self.assertEqual(
                     self.table.horizontalHeader().sectionResizeMode(index),
                     _HV.Fixed)
-        for index in (4, 9):
-            with self.subTest(column=index):
-                self.assertEqual(
-                    self.table.horizontalHeader().sectionResizeMode(index),
-                    _HV.Stretch)
+        # Content ranges for the re-sized columns (Batch 140-160, Amount
+        # 90-110) stay satisfied by the exact bases above.
+        self.assertLessEqual(self.table.columnWidth(4), 160)
+        self.assertGreaterEqual(self.table.columnWidth(4), 140)
+        self.assertLessEqual(self.table.columnWidth(9), 110)
+        self.assertGreaterEqual(self.table.columnWidth(9), 90)
 
     def test_04_grid_fits_without_a_horizontal_scrollbar(self):
-        # Fill with no blank; Item/Loc/Delete moderate; Batch/Amount fill.
-        for i, lo, hi in ((1, 240, 300), (2, 60, 75), (3, 90, 120),
-                           (5, 90, 100)):
+        # Fill with no blank strip; Item Name takes the spare width and
+        # Batch/Amount keep their compact bases.
+        for i, lo, hi in ((1, 240, 420), (2, 60, 75), (3, 90, 120),
+                          (5, 105, 115), (4, 140, 160), (9, 90, 110)):
             with self.subTest(column=i):
                 self.assertGreaterEqual(self.table.columnWidth(i), lo)
                 self.assertLessEqual(self.table.columnWidth(i), hi)
         for i, width in enumerate(_BILL_COLUMN_WIDTHS):
-            if i in (4, 9):
+            if i == 1:
                 continue
             with self.subTest(column=i):
                 self.assertEqual(self.table.columnWidth(i), width)
-        for i, base in ((4, 145), (9, 95)):
-            with self.subTest(column=i):
-                self.assertGreaterEqual(self.table.columnWidth(i), base)
         headers = [self.table.horizontalHeaderItem(i).text() for i in range(11)]
         self.assertEqual(headers[1], "Item Name")
 

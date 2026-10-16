@@ -383,19 +383,19 @@ _ENTRY_ITEM_BATCH_GAP = 10
 # and Qty stay compact by design.
 _ENTRY_PREFERRED_WIDTHS = {
     "item_combo": 250,          # the primary search box
-    "batch_combo": 157,         # long batch numbers stay readable
+    "batch_combo": 110,         # batch input stays 100-110 px (compact)
     "pack_edit": 50,
     "location_edit": 80,
-    "expiry_edit": 80,
+    "expiry_edit": 98,          # complete date (2029-02-28) stays visible
     "mrp_edit": 80,
     "stock_edit": 80,
     "qty_edit": 48,
     "discount_edit": 75,
-    "amount_edit": 80,
+    "amount_edit": 60,          # compact amount read-out (55-65 px)
 }
 _ENTRY_FLOOR_WIDTHS = {
     "item_combo": 150,
-    "batch_combo": 110,
+    "batch_combo": 100,         # batch input: floor of the 100-110 px target
     "pack_edit": 44,
     "location_edit": 44,
     "expiry_edit": 44,
@@ -421,8 +421,8 @@ _ENTRY_MIN_BAR_WIDTH = 420
 # this chrome, never guessed: 6 px padding each side, the 22 px drop-down
 # arrow reserved by QComboBox::drop-down, and a 1 px border each side.
 _ENTRY_BATCH_CHROME = 6 + 6 + 22 + 2
-_ENTRY_BATCH_MIN_WIDTH = 110   # matches _ENTRY_FLOOR_WIDTHS["batch_combo"]
-_ENTRY_BATCH_MAX_WIDTH = 157   # matches _ENTRY_PREFERRED_WIDTHS["batch_combo"]
+_ENTRY_BATCH_MIN_WIDTH = 100   # matches _ENTRY_FLOOR_WIDTHS["batch_combo"]
+_ENTRY_BATCH_MAX_WIDTH = 110   # matches _ENTRY_PREFERRED_WIDTHS["batch_combo"]
 
 # â”€â”€ Bottom billing block metrics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # The Sale Header strip and the totals/action footer together form the
@@ -438,10 +438,12 @@ _BILL_HEADER_HEIGHT = 38       # header band is slightly taller than a row
 _BILL_DELETE_WIDTH = 30        # compact x action (30x26) inside the Del column
 _BILL_DELETE_HEIGHT = 26
 
-# Bill Items columns meeting content ranges (all Fixed, no stretch back).
-# Item 240-300, Pack 60-75, Loc 90-120, Batch 130-160, Expiry 90-100,
-# MRP fits 341.34, Qty/Disc/Amt/Del compact readable.
-_BILL_COLUMN_WIDTHS = (40, 295, 75, 115, 155, 100, 100, 55, 82, 105, 60)
+# Bill Items columns meeting content ranges. Item Name is the only section
+# that stretches (it owns the spare viewport width); Batch 140-160 and
+# Amount 90-110 stay at their compact bases so they can never re-expand.
+# Pack 60-75, Loc 90-120, Expiry 105-115, MRP fits 341.34,
+# Qty/Disc/Del compact readable.
+_BILL_COLUMN_WIDTHS = (40, 295, 75, 115, 155, 110, 100, 55, 82, 105, 60)
 _BILL_CENTERED_COLUMNS = (0, 10)
 _BILL_RIGHT_COLUMNS = (6, 7, 8, 9)
 
@@ -1869,12 +1871,14 @@ class _ItemEntryBar(QWidget):
     def _share_row_width(self, room: int) -> dict:
         """Partition ``room`` px across the flexible fields.
 
-        Every field starts on its floor.  The surplus then goes to Item and
-        then to Batch -- the two fields a cashier actually reads and types
-        into -- up to their comfortable widths, and whatever is left widens
-        the read-outs in proportion to the room each one still has to grow
-        into.  When even the floors do not fit, the fields shrink together
-        instead of the row printing past the edge of its bar.
+        Every field starts on its floor.  Expiry and the Amount read-out then
+        reach their specified targets first (Expiry must hold a complete
+        date, Amount its two decimal places), after which the surplus goes to
+        Item and to Batch -- the two fields a cashier actually reads and
+        types into -- up to their comfortable widths, and whatever is left
+        widens the remaining read-outs in proportion to the room each one
+        still has to grow into.  When even the floors do not fit, the fields
+        shrink together instead of the row printing past the edge of its bar.
         """
         floors = dict(_ENTRY_FLOOR_WIDTHS)
         floors["batch_combo"] = max(floors["batch_combo"], self._batch_floor)
@@ -1888,6 +1892,14 @@ class _ItemEntryBar(QWidget):
 
         widths = dict(floors)
         surplus = room - total_floor
+        # Expiry/Amount reach their specified targets before the search
+        # fields take their comfort width (see the docstring above).
+        for name in ("expiry_edit", "amount_edit"):
+            if surplus <= 0:
+                break
+            grow = min(surplus, preferred[name] - widths[name])
+            widths[name] += grow
+            surplus -= grow
         for name in ("item_combo", "batch_combo"):
             if surplus <= 0:
                 break
@@ -3368,17 +3380,16 @@ class _SalePanel(QWidget):
         self._table.horizontalHeader().setStretchLastSection(False)
         self._table.horizontalHeader().setFixedHeight(_BILL_HEADER_HEIGHT)
 
-        # Fixed bases meeting content ranges; Batch/Amount share spare via
-        # controlled stretch so viewport fills with no blank strip. Item/
-        # Location/Delete stay Fixed moderate (never excessively wide);
+        # Fixed bases meeting content ranges; Item Name is the lone Stretch
+        # section, so the viewport fills with no blank strip while Batch No,
+        # Amount and Expiry stay at their compact bases (never re-expand).
         # h-scroll appears when narrower than the total.
         self._table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         hv = self._table.horizontalHeader()
         for index, width in enumerate(_BILL_COLUMN_WIDTHS):
             hv.setSectionResizeMode(index, QHeaderView.Fixed)
             hv.resizeSection(index, width)
-        for index in (4, 9):
-            hv.setSectionResizeMode(index, QHeaderView.Stretch)
+        hv.setSectionResizeMode(1, QHeaderView.Stretch)
 
         for index in _BILL_CENTERED_COLUMNS:
             item = self._table.horizontalHeaderItem(index)
@@ -5062,7 +5073,7 @@ _HISTORY_COLUMNS = {
 }
 
 _HISTORY_COLUMN_WIDTHS = {
-    HISTORY_MODE_ITEM: (85, 55, 140, 96, 45, 80, 145, 70, 130, 100, 82, 75, 100),
+    HISTORY_MODE_ITEM: (85, 55, 140, 96, 45, 80, 145, 70, 150, 110, 82, 75, 100),
     HISTORY_MODE_BILL: (80, 56, 135, 100, 60, 64, 112, 80, 104, 125),
 }
 
@@ -5590,20 +5601,20 @@ class CounterSalePage(QWidget):
         table.setHorizontalHeaderLabels(labels)
         hv = table.horizontalHeader()
         if self._history_mode == HISTORY_MODE_ITEM:
-            # Target ranges, no Time/Expiry hundreds px; MRP/Batch readable.
-            # Item/Bill Fixed (never re-expand); others Interactive (user-
-            # resizable, previous behavior). Total ~= viewport at current
-            # size (no large blank); h-scroll when narrower.
+            # Target ranges; Batch 150 / Expiry 110 stay compact and only
+            # Patient widens with the viewport (no blank strip, no Batch
+            # re-expansion). Item/Bill Fixed (never re-expand); others
+            # Interactive (user-resizable, previous behavior). h-scroll
+            # when narrower than the total.
             for col, width in enumerate(_HISTORY_COLUMN_WIDTHS[HISTORY_MODE_ITEM]):
                 table.setColumnWidth(col, width)
             hv.setSectionResizeMode(QHeaderView.Interactive)
             for col in (2, 12):
                 hv.setSectionResizeMode(col, QHeaderView.Fixed)
-            # Fill viewport via suitable columns (Patient/Batch benefit);
+            # Patient is the single fill column (long names benefit);
             # Item/Bill stay Fixed moderate, Time/Expiry stay Interactive
-            # moderate (never hundreds px).
-            for col in (6, 8):
-                hv.setSectionResizeMode(col, QHeaderView.Stretch)
+            # moderate (never hundreds px), Batch/Amount never re-expand.
+            hv.setSectionResizeMode(6, QHeaderView.Stretch)
             hv.setStretchLastSection(False)
         else:
             # Bill mode restored exactly (previous behavior).
@@ -5646,8 +5657,9 @@ class CounterSalePage(QWidget):
         hv.setSectionResizeMode(QHeaderView.Interactive)
         for col in (2, 12):
             hv.setSectionResizeMode(col, QHeaderView.Fixed)
-        for col in (6, 8):
-            hv.setSectionResizeMode(col, QHeaderView.Stretch)
+        # Patient is the only Stretch section; Batch No/Expiry keep their
+        # compact widths (see _apply_history_columns).
+        hv.setSectionResizeMode(6, QHeaderView.Stretch)
         hv.setStyleSheet(
             f"QHeaderView::section {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
