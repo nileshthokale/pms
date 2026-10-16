@@ -4,6 +4,7 @@ from PySide6.QtWidgets import QComboBox, QDialog, QFormLayout, QHBoxLayout, QLin
 
 from database import auth
 from ui import components as ui
+from ui.input_rules import set_uppercase
 
 _ID_ROLE = 32
 _ACTIVE_ROLE = 33
@@ -24,6 +25,9 @@ class _CreateUserDialog(QDialog):
         self.username = QLineEdit()
         self.password = QLineEdit(); self.password.setEchoMode(QLineEdit.Password)
         self.confirm = QLineEdit(); self.confirm.setEchoMode(QLineEdit.Password)
+        # An account name is an authentication identifier, stored and audited
+        # exactly as typed — not business data (see ui/input_rules.py).
+        set_uppercase(self.username, False)
         self.role = QComboBox(); self.role.addItems(list(auth.USER_ROLES))
         form.addRow("Username", self.username)
         form.addRow("Password", self.password)

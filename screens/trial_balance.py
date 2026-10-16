@@ -31,19 +31,19 @@ _TEXT_DIM = _p["text_dim"]
 _BTN_PRIMARY = (
     f"QPushButton {{ background-color: {_ACCENT}; color: white;"
     f"  border: none; border-radius: 2px; padding: 8px 20px;"
-    f"  font-weight: bold; font-size: 13px; font-family: 'Segoe UI'; }}"
+    f"  font-weight: bold; font-size: 15px; font-family: 'Segoe UI'; }}"
     f"QPushButton:hover {{ background-color: {_ACCENT_HOVER}; }}"
 )
 
 _BTN_SECONDARY = (
     f"QPushButton {{ background-color: {_BORDER}; color: {_TEXT};"
     f"  border: none; border-radius: 2px; padding: 8px 20px;"
-    f"  font-size: 13px; font-family: 'Segoe UI'; }}"
+    f"  font-size: 15px; font-family: 'Segoe UI'; }}"
     f"QPushButton:hover {{ background-color: #7d93a8; }}"
 )
 
 _FILTER_LABEL = (
-    f"color: {_TEXT}; font-size: 12px; font-weight: bold;"
+    f"color: {_TEXT}; font-size: 15px; font-weight: bold;"
     f"background: transparent; font-family: 'Segoe UI';"
 )
 
@@ -83,7 +83,7 @@ class TrialBalancePage(QWidget):
 
         title = QLabel("Trial Balance")
         title.setStyleSheet(
-            f"color: {_TEXT}; font-size: 18px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: 22px; font-weight: bold;"
             f"background: transparent; font-family: 'Segoe UI';"
         )
         hl.addWidget(title)
@@ -108,7 +108,7 @@ class TrialBalancePage(QWidget):
         self.as_of_edit.setStyleSheet(
             f"QDateEdit {{ background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-            f"  padding: 0 8px; font-size: 12px; font-family: 'Segoe UI'; }}"
+            f"  padding: 0 8px; font-size: 15px; font-family: 'Segoe UI'; }}"
             # Shared calendar chevron (ui.theme.date_subcontrols).
             + date_subcontrols(_p, width=24)
         )
@@ -117,7 +117,7 @@ class TrialBalancePage(QWidget):
         self.zero_check = QCheckBox("Show Zero Balance")
         self.zero_check.setChecked(True)
         self.zero_check.setStyleSheet(
-            f"QCheckBox {{ color: {_TEXT}; font-size: 12px;"
+            f"QCheckBox {{ color: {_TEXT}; font-size: 15px;"
             f"  font-family: 'Segoe UI'; background: transparent; }}"
             f"QCheckBox::indicator {{ width: 16px; height: 16px;"
             f"  border: 1px solid {_BORDER}; border-radius: 3px;"
@@ -160,7 +160,7 @@ class TrialBalancePage(QWidget):
             f"QHeaderView::section {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: none; border-bottom: 2px solid {_ACCENT};"
-            f"  padding: 3px 6px; font-weight: bold; font-size: 12px;"
+            f"  padding: 3px 6px; font-weight: bold; font-size: 15px;"
             f"  font-family: 'Segoe UI';"
             f"}}"
         )
@@ -168,7 +168,7 @@ class TrialBalancePage(QWidget):
             f"QTableWidget {{"
             f"  background-color: {_DARK_BG}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; gridline-color: {_BORDER};"
-            f"  font-size: 13px; font-family: 'Segoe UI';"
+            f"  font-size: 15px; font-family: 'Segoe UI';"
             f"  selection-background-color: {_ACCENT};"
             f"  selection-color: white;"
             f"}}"
@@ -192,11 +192,11 @@ class TrialBalancePage(QWidget):
         self._status_lbl = QLabel("Status: BALANCED")
 
         summary_style = (
-            f"color: {_TEXT}; font-size: 12px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: 15px; font-weight: bold;"
             f"background: transparent; font-family: 'Segoe UI';"
         )
         dim_style = (
-            f"color: {_TEXT_DIM}; font-size: 12px;"
+            f"color: {_TEXT_DIM}; font-size: 15px;"
             f"background: transparent; font-family: 'Segoe UI';"
         )
         for lbl, style in (
@@ -267,7 +267,7 @@ class TrialBalancePage(QWidget):
         if totals["balanced"]:
             self._status_lbl.setText("Status: BALANCED")
             self._status_lbl.setStyleSheet(
-                f"color: #2e7d32; font-size: 12px; font-weight: bold;"
+                f"color: #2e7d32; font-size: 15px; font-weight: bold;"
                 f"background: transparent; font-family: 'Segoe UI';"
             )
         else:
@@ -275,7 +275,7 @@ class TrialBalancePage(QWidget):
                 f"Status: UNBALANCED (by {totals['difference']:,.2f})"
             )
             self._status_lbl.setStyleSheet(
-                f"color: #c0392b; font-size: 12px; font-weight: bold;"
+                f"color: #c0392b; font-size: 15px; font-weight: bold;"
                 f"background: transparent; font-family: 'Segoe UI';"
             )
 

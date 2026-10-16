@@ -145,20 +145,20 @@ FONT_NAME = "Segoe UI"
 #
 # Minimum sizes are guarded by tests (see test_ui_typography.py): table data
 # never drops below ``TABLE_DATA``, table headers never below ``TABLE_HEADER``.
-# Baseline is ~10-11 pt for ordinary UI text (≈14 px at 96 dpi), with larger
+# Baseline is ~11-12 pt for ordinary UI text (≈15-16 px at 96 dpi), with larger
 # section headings and totals.  Hierarchy is preserved: titles outweigh
 # section headers, which outweigh table text; values outweigh plain data.
-TYPE_PAGE_TITLE = 20        # "Sales / Counter Sale", "Item Master", APP_TITLE
-TYPE_SECTION_HEADER = 15    # "Bill History", "Bill Items", report sections
-TYPE_TABLE_HEADER = 14      # column captions (bold, black)
-TYPE_TABLE_DATA = 14        # cell values — the most important size
-TYPE_FORM_LABEL = 14        # "Bill No", "Item", "MRP", "Qty" captions
-TYPE_INPUT = 14             # roomy inputs (entry bar, forms, dialogs)
-TYPE_INPUT_COMPACT = 13     # inputs inside a fixed 30 px control box
-TYPE_VALUE = 15             # totals / important values (bold)
-TYPE_VALUE_EMPHASIS = 17    # NET AMT and other headline figures (bold)
-TYPE_BUTTON = 14            # button captions
-TYPE_HINT = 12              # genuinely secondary hints (dimmed)
+TYPE_PAGE_TITLE = 22        # "Sales / Counter Sale", "Item Master", APP_TITLE
+TYPE_SECTION_HEADER = 17    # "Bill History", "Bill Items", report sections
+TYPE_TABLE_HEADER = 15      # column captions (bold, black)
+TYPE_TABLE_DATA = 15        # cell values — the most important size
+TYPE_FORM_LABEL = 15        # "Bill No", "Item", "MRP", "Qty" captions
+TYPE_INPUT = 15             # roomy inputs (entry bar, forms, dialogs)
+TYPE_INPUT_COMPACT = 14     # inputs inside a fixed 30 px control box
+TYPE_VALUE = 17             # totals / important values (bold)
+TYPE_VALUE_EMPHASIS = 20    # NET AMT and other headline figures (bold)
+TYPE_BUTTON = 15            # button captions
+TYPE_HINT = 13              # genuinely secondary hints (dimmed)
 
 # Ordering the hierarchy depends on: a page title must always outweigh
 # table text, and table text must never collapse below the readable floor.
@@ -1173,6 +1173,14 @@ def stylesheet() -> str:
         "QLabel {"
         f"  color: {p['text']};"
         "  background: transparent;"
+        # Captions, field labels and read-outs are business text: they are
+        # bold everywhere.  Qt merges declarations across rules, so a
+        # screen's own ``QLabel { color: …; font-size: … }`` rule keeps its
+        # size and colour and still picks this weight up — which is what
+        # makes the weight consistent across 37 screens without editing
+        # each one.  A genuinely secondary hint says ``font-weight: normal``
+        # itself (see ui.components.label_style).
+        "  font-weight: bold;"
         "}"
         "QLineEdit, QPlainTextEdit, QTextEdit, QSpinBox, QDoubleSpinBox {"
         f"  background-color: {p['bg']};"
@@ -1181,6 +1189,7 @@ def stylesheet() -> str:
         "  border-radius: 2px;"
         "  padding: 4px 7px;"
         f"  font-size: {TYPE_INPUT}px;"
+        "  font-weight: bold;"
         "  selection-background-color: " + p["selected"] + ";"
         f"  selection-color: {p['selected_text']};"
         "}"
@@ -1200,6 +1209,7 @@ def stylesheet() -> str:
         "  border-radius: 2px;"
         "  padding: 4px 7px;"
         f"  font-size: {TYPE_INPUT}px;"
+        "  font-weight: bold;"
         "}"
         "QComboBox:focus, QDateEdit:focus, QTimeEdit:focus, QDateTimeEdit:focus {"
         f"  border: 1px solid {p['focus']};"
@@ -1251,6 +1261,7 @@ def stylesheet() -> str:
         f"  selection-background-color: {p['selected']};"
         f"  selection-color: {p['selected_text']};"
         "  outline: none;"
+        "  font-weight: bold;"
         "}"
         "QAbstractItemView::item:selected {"
         f"  background-color: {p['selected']};"
@@ -1264,6 +1275,7 @@ def stylesheet() -> str:
         "  padding: 6px 14px;"
         "  min-height: 22px;"
         f"  font-size: {TYPE_BUTTON}px;"
+        "  font-weight: bold;"
         "}"
         "QPushButton:hover {"
         f"  background-color: {p['selected']};"
@@ -1323,6 +1335,7 @@ def stylesheet() -> str:
         f"  gridline-color: {p['grid']};"
         "  outline: none;"
         f"  font-size: {TYPE_TABLE_DATA}px;"
+        "  font-weight: bold;"
         "  selection-background-color: " + p["selected"] + ";"
         f"  selection-color: {p['selected_text']};"
         "}"

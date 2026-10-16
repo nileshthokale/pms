@@ -42,6 +42,7 @@ from database.tax_structures import (
     legacy_display,
 )
 
+from ui.input_rules import attach_uppercase
 from ui.theme import palette
 _p = palette()
 _DARK_BG = _p["bg"]
@@ -105,7 +106,7 @@ def _drug_combo_style() -> str:
         f"QComboBox {{"
         f"  background-color: {_SURFACE}; color: {_TEXT};"
         f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-        f"  padding: 6px; font-size: 13px; font-family: 'Segoe UI';"
+        f"  padding: 6px; font-size: 15px; font-family: 'Segoe UI';"
         f"}}"
         f"QComboBox:hover {{ border: 1px solid {_ACCENT}; }}"
         f"QComboBox::drop-down {{ border: none; width: 24px; }}"
@@ -114,7 +115,7 @@ def _drug_combo_style() -> str:
         # QLineEdit look the dialog's own stylesheet would give it.
         f"QComboBox QLineEdit {{"
         f"  background: transparent; border: none; padding: 0px;"
-        f"  color: {_TEXT}; font-size: 13px; font-family: 'Segoe UI';"
+        f"  color: {_TEXT}; font-size: 15px; font-family: 'Segoe UI';"
         f"}}"
     )
 
@@ -126,7 +127,7 @@ def _drug_popup_style(selector: str = "QAbstractItemView") -> str:
         f"  background-color: {_SURFACE}; color: {_TEXT};"
         f"  border: 1px solid {_BORDER}; selection-background-color: {_ACCENT};"
         f"  selection-color: white; outline: none;"
-        f"  font-size: 13px; font-family: 'Segoe UI';"
+        f"  font-size: 15px; font-family: 'Segoe UI';"
         f"}}"
     )
 
@@ -164,6 +165,9 @@ class _DrugComboBox(QComboBox):
             # Enter and focus-out must leave a real drug behind, never a
             # half-typed name that no longer matches the selected index.
             self.lineEdit().editingFinished.connect(self._sync_selection_to_text)
+            # Shared upper-casing hook first, so the filter receiver below
+            # always sees the final spelling when it sets the prefix.
+            attach_uppercase(self)
             self.lineEdit().textEdited.connect(self._filter_as_typed)
             # Navigation keys are handled in eventFilter(): the line edit
             # consumes Up/Down/Return itself, so they never reach the combo's
@@ -258,13 +262,20 @@ class _DrugComboBox(QComboBox):
         if popup is not None:
             popup.setMinimumWidth(width)
 
-    def _filter_as_typed(self, text: str) -> None:
+    def _filter_as_typed(self, _text: str = "") -> None:
         """Narrow the list as the user types, without losing the selection.
 
         Keeps the previously chosen drug selected while the filter is being
         edited; :meth:`_sync_selection_to_text` reconciles the index once the
         user commits the text with Enter or by leaving the field.
+
+        The live field text is read rather than the signal argument: the
+        shared upper-casing hook is connected first, so by the time this runs
+        the box already holds the final spelling while the argument still
+        carries the pre-conversion text.
         """
+        line = self.lineEdit()
+        text = line.text() if line is not None else self.currentText()
         completer = self.completer()
         completer.setCompletionPrefix(text)
         if text:
@@ -420,7 +431,7 @@ class _IngredientRow(QWidget):
             f"QLineEdit {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-            f"  padding: 6px; font-size: 13px; font-family: 'Segoe UI';"
+            f"  padding: 6px; font-size: 15px; font-family: 'Segoe UI';"
             f"}}"
             f"QLineEdit:focus {{ border: 1px solid {_ACCENT}; }}"
         )
@@ -479,16 +490,16 @@ class _ItemDialog(QDialog):
         self.setModal(True)
         self.setStyleSheet(
             f"QDialog {{ background-color: {_DARK_BG}; }}"
-            f"QLabel {{ color: {_TEXT}; font-family: 'Segoe UI'; font-size: 13px; }}"
+            f"QLabel {{ color: {_TEXT}; font-family: 'Segoe UI'; font-size: 15px; }}"
             f"QLineEdit {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-            f"  padding: 8px; font-size: 13px;"
+            f"  padding: 8px; font-size: 15px;"
             f"}}"
             f"QLineEdit:focus {{ border: 1px solid {_ACCENT}; }}"
             f"QScrollArea {{ border: none; background: transparent; }}"
             f"QGroupBox {{"
-            f"  color: {_TEXT}; font-weight: bold; font-size: 13px;"
+            f"  color: {_TEXT}; font-weight: bold; font-size: 15px;"
             f"  border: 1px solid {_BORDER}; border-radius: 2px;"
             f"  margin-top: 12px; padding-top: 16px;"
             f"}}"
@@ -519,7 +530,7 @@ class _ItemDialog(QDialog):
             f"QComboBox {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-            f"  padding: 8px; font-size: 13px; font-family: 'Segoe UI';"
+            f"  padding: 8px; font-size: 15px; font-family: 'Segoe UI';"
             f"}}"
             f"QComboBox:hover {{ border: 1px solid {_ACCENT}; }}"
             f"QComboBox::drop-down {{"
@@ -529,7 +540,7 @@ class _ItemDialog(QDialog):
             f"QComboBox QAbstractItemView {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; selection-background-color: {_ACCENT};"
-            f"  font-size: 13px; font-family: 'Segoe UI';"
+            f"  font-size: 15px; font-family: 'Segoe UI';"
             f"}}"
         )
         self._load_units()
@@ -540,7 +551,7 @@ class _ItemDialog(QDialog):
             f"QComboBox {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-            f"  padding: 8px; font-size: 13px; font-family: 'Segoe UI';"
+            f"  padding: 8px; font-size: 15px; font-family: 'Segoe UI';"
             f"}}"
             f"QComboBox:hover {{ border: 1px solid {_ACCENT}; }}"
             f"QComboBox::drop-down {{"
@@ -550,7 +561,7 @@ class _ItemDialog(QDialog):
             f"QComboBox QAbstractItemView {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; selection-background-color: {_ACCENT};"
-            f"  font-size: 13px; font-family: 'Segoe UI';"
+            f"  font-size: 15px; font-family: 'Segoe UI';"
             f"}}"
         )
         self._load_companies()
@@ -624,7 +635,7 @@ class _ItemDialog(QDialog):
             f"QPushButton {{"
             f"  background-color: {_ACCENT}; color: white;"
             f"  border: none; border-radius: 2px; padding: 8px 16px;"
-            f"  font-weight: bold; font-size: 13px;"
+            f"  font-weight: bold; font-size: 15px;"
             f"}}"
             f"QPushButton:hover {{ background-color: {_ACCENT_HOVER}; }}"
         )
@@ -947,7 +958,7 @@ class ItemMasterPage(QWidget):
 
         title = QLabel("Item Master")
         title.setStyleSheet(
-            f"color: {_TEXT}; font-size: 18px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: 22px; font-weight: bold;"
             f"background: transparent; font-family: 'Segoe UI';"
         )
         header_layout.addWidget(title)
@@ -958,7 +969,7 @@ class ItemMasterPage(QWidget):
         new_btn.setStyleSheet(
             f"QPushButton {{ background-color: {_ACCENT}; color: white;"
             f"  border: none; border-radius: 2px; padding: 8px 16px;"
-            f"  font-weight: bold; font-size: 13px; }}"
+            f"  font-weight: bold; font-size: 15px; }}"
             f"QPushButton:hover {{ background-color: {_ACCENT_HOVER}; }}"
         )
         new_btn.clicked.connect(self._on_new)
@@ -969,7 +980,7 @@ class ItemMasterPage(QWidget):
         edit_btn.setStyleSheet(
             f"QPushButton {{ background-color: {_BORDER}; color: {_TEXT};"
             f"  border: none; border-radius: 2px; padding: 8px 16px;"
-            f"  font-size: 13px; }}"
+            f"  font-size: 15px; }}"
             f"QPushButton:hover {{ background-color: #7d93a8; }}"
         )
         edit_btn.clicked.connect(self._on_edit)
@@ -988,7 +999,7 @@ class ItemMasterPage(QWidget):
 
         search_label = QLabel("Item Name:")
         search_label.setStyleSheet(
-            f"color: {_TEXT}; font-size: 13px;"
+            f"color: {_TEXT}; font-size: 15px;"
             f"background: transparent; font-family: 'Segoe UI';"
         )
         search_layout.addWidget(search_label)
@@ -1000,7 +1011,7 @@ class ItemMasterPage(QWidget):
             f"QLineEdit {{"
             f"  background-color: {_DARK_BG}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-            f"  padding: 6px 10px; font-size: 13px;"
+            f"  padding: 6px 10px; font-size: 15px;"
             f"  font-family: 'Segoe UI';"
             f"}}"
             f"QLineEdit:focus {{ border: 1px solid {_ACCENT}; }}"
@@ -1013,7 +1024,7 @@ class ItemMasterPage(QWidget):
         search_btn.setStyleSheet(
             f"QPushButton {{ background-color: {_ACCENT}; color: white;"
             f"  border: none; border-radius: 2px; padding: 6px 16px;"
-            f"  font-weight: bold; font-size: 13px; }}"
+            f"  font-weight: bold; font-size: 15px; }}"
             f"QPushButton:hover {{ background-color: {_ACCENT_HOVER}; }}"
         )
         search_btn.clicked.connect(self._on_search)
@@ -1052,7 +1063,7 @@ class ItemMasterPage(QWidget):
             f"QHeaderView::section {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: none; border-bottom: 2px solid {_ACCENT};"
-            f"  padding: 4px 8px; font-weight: bold; font-size: 12px;"
+            f"  padding: 4px 8px; font-weight: bold; font-size: 15px;"
             f"  font-family: 'Segoe UI';"
             f"}}"
         )
@@ -1060,7 +1071,7 @@ class ItemMasterPage(QWidget):
             f"QTableWidget {{"
             f"  background-color: {_DARK_BG}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; gridline-color: {_BORDER};"
-            f"  font-size: 13px; font-family: 'Segoe UI';"
+            f"  font-size: 15px; font-family: 'Segoe UI';"
             f"  selection-background-color: {_ACCENT};"
             f"  selection-color: white;"
             f"}}"

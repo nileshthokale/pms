@@ -68,7 +68,7 @@ class ImportDataPage(QWidget):
 
         self._summary = QLabel("Select a file to begin.")
         self._summary.setWordWrap(True)
-        self._summary.setStyleSheet(ui.label_style(size=9))
+        self._summary.setStyleSheet(ui.label_style())
         body.addWidget(self._summary)
         self._preview_table = QTableWidget(0, 0)
         ui.style_data_table(self._preview_table)

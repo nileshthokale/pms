@@ -41,7 +41,7 @@ _COMBO_STYLE = (
     f"QComboBox {{"
     f"  background-color: {_SURFACE}; color: {_TEXT};"
     f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-    f"  padding: 6px; font-size: 12px; font-family: 'Segoe UI';"
+    f"  padding: 6px; font-size: 15px; font-family: 'Segoe UI';"
     f"}}"
     f"QComboBox:hover {{ border: 1px solid {_ACCENT}; }}"
     f"QComboBox::drop-down {{ border: none; width: 24px; }}"
@@ -49,7 +49,7 @@ _COMBO_STYLE = (
     f"QComboBox QAbstractItemView {{"
     f"  background-color: {_SURFACE}; color: {_TEXT};"
     f"  border: 1px solid {_BORDER}; selection-background-color: {_ACCENT};"
-    f"  font-size: 12px; font-family: 'Segoe UI';"
+    f"  font-size: 15px; font-family: 'Segoe UI';"
     f"}}"
 )
 
@@ -57,7 +57,7 @@ _EDIT_STYLE = (
     f"QLineEdit {{"
     f"  background-color: {_SURFACE}; color: {_TEXT};"
     f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-    f"  padding: 5px; font-size: 12px; font-family: 'Segoe UI';"
+    f"  padding: 5px; font-size: 15px; font-family: 'Segoe UI';"
     f"}}"
     f"QLineEdit:focus {{ border: 1px solid {_ACCENT}; }}"
 )
@@ -65,32 +65,32 @@ _EDIT_STYLE = (
 _BTN_SAVE = (
     f"QPushButton {{ background-color: {_ACCENT}; color: white;"
     f"  border: none; border-radius: 2px; padding: 8px 20px;"
-    f"  font-weight: bold; font-size: 13px; font-family: 'Segoe UI'; }}"
+    f"  font-weight: bold; font-size: 15px; font-family: 'Segoe UI'; }}"
     f"QPushButton:hover {{ background-color: {_ACCENT_HOVER}; }}"
 )
 
 _BTN_SECONDARY = (
     f"QPushButton {{ background-color: {_BORDER}; color: {_TEXT};"
     f"  border: none; border-radius: 2px; padding: 8px 20px;"
-    f"  font-size: 13px; font-family: 'Segoe UI'; }}"
+    f"  font-size: 15px; font-family: 'Segoe UI'; }}"
     f"QPushButton:hover {{ background-color: #7d93a8; }}"
 )
 
 _BTN_DANGER = (
     f"QPushButton {{ background-color: {_ERROR}; color: white;"
     f"  border: none; border-radius: 3px; padding: 4px 8px;"
-    f"  font-weight: bold; font-size: 12px; font-family: 'Segoe UI'; }}"
+    f"  font-weight: bold; font-size: 15px; font-family: 'Segoe UI'; }}"
     f"QPushButton:hover {{ background-color: #d32f2f; }}"
 )
 
-_LABEL_STYLE = f"color: {_TEXT}; font-size: 12px; font-family: 'Segoe UI'; background: transparent;"
-_LABEL_DIM = f"color: {_TEXT}; font-size: 12px; font-weight: bold; font-family: 'Segoe UI'; background: transparent;"
-_HEADER_LABEL = f"color: {_TEXT}; font-size: 12px; font-family: 'Segoe UI'; background: transparent; font-weight: bold;"
+_LABEL_STYLE = f"color: {_TEXT}; font-size: 15px; font-family: 'Segoe UI'; background: transparent;"
+_LABEL_DIM = f"color: {_TEXT}; font-size: 15px; font-weight: bold; font-family: 'Segoe UI'; background: transparent;"
+_HEADER_LABEL = f"color: {_TEXT}; font-size: 15px; font-family: 'Segoe UI'; background: transparent; font-weight: bold;"
 
 _GROUP_BOX = (
     f"QGroupBox {{"
     f"  background-color: {_DARK_BG};"
-    f"  color: {_TEXT}; font-weight: bold; font-size: 12px;"
+    f"  color: {_TEXT}; font-weight: bold; font-size: 15px;"
     f"  border: 1px solid {_BORDER}; border-radius: 2px;"
     f"  margin-top: 10px; padding-top: 14px;"
     f"}}"
@@ -148,11 +148,11 @@ class _LedgerEntryDialog(QDialog):
         self.setModal(True)
         self.setStyleSheet(
             f"QDialog {{ background-color: {_DARK_BG}; }}"
-            f"QLabel {{ color: {_TEXT}; font-family: 'Segoe UI'; font-size: 13px; }}"
+            f"QLabel {{ color: {_TEXT}; font-family: 'Segoe UI'; font-size: 15px; }}"
             f"QLineEdit {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-            f"  padding: 8px; font-size: 13px;"
+            f"  padding: 8px; font-size: 15px;"
             f"}}"
             f"QLineEdit:focus {{ border: 1px solid {_ACCENT}; }}"
             f"QScrollArea {{ border: none; background: transparent; }}"
@@ -368,7 +368,7 @@ class AccountLedgerPage(QWidget):
 
         title = QLabel("Account Ledger")
         title.setStyleSheet(
-            f"color: {_TEXT}; font-size: 18px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: 22px; font-weight: bold;"
             f"background: transparent; font-family: 'Segoe UI';"
         )
         hl.addWidget(title)
@@ -444,7 +444,7 @@ class AccountLedgerPage(QWidget):
             f"QHeaderView::section {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: none; border-bottom: 2px solid {_ACCENT};"
-            f"  padding: 3px 6px; font-weight: bold; font-size: 12px;"
+            f"  padding: 3px 6px; font-weight: bold; font-size: 15px;"
             f"  font-family: 'Segoe UI';"
             f"}}"
         )
@@ -452,7 +452,7 @@ class AccountLedgerPage(QWidget):
             f"QTableWidget {{"
             f"  background-color: {_DARK_BG}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; gridline-color: {_BORDER};"
-            f"  font-size: 13px; font-family: 'Segoe UI';"
+            f"  font-size: 15px; font-family: 'Segoe UI';"
             f"  selection-background-color: {_ACCENT};"
             f"  selection-color: white;"
             f"}}"
@@ -489,7 +489,7 @@ class AccountLedgerPage(QWidget):
 
         self._detail_title = QLabel("Ledger Detail")
         self._detail_title.setStyleSheet(
-            f"color: {_TEXT}; font-size: 18px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: 22px; font-weight: bold;"
             f"background: transparent; font-family: 'Segoe UI';"
         )
         hl.addWidget(self._detail_title)
@@ -555,7 +555,7 @@ class AccountLedgerPage(QWidget):
             f"QHeaderView::section {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: none; border-bottom: 2px solid {_ACCENT};"
-            f"  padding: 3px 6px; font-weight: bold; font-size: 12px;"
+            f"  padding: 3px 6px; font-weight: bold; font-size: 15px;"
             f"  font-family: 'Segoe UI';"
             f"}}"
         )
@@ -563,7 +563,7 @@ class AccountLedgerPage(QWidget):
             f"QTableWidget {{"
             f"  background-color: {_DARK_BG}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; gridline-color: {_BORDER};"
-            f"  font-size: 13px; font-family: 'Segoe UI';"
+            f"  font-size: 15px; font-family: 'Segoe UI';"
             f"  selection-background-color: {_ACCENT};"
             f"  selection-color: white;"
             f"}}"
@@ -583,7 +583,7 @@ class AccountLedgerPage(QWidget):
     def _bal_value(text: str) -> QLabel:
         lbl = QLabel(text)
         lbl.setStyleSheet(
-            f"color: {_TEXT}; font-size: 14px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: 15px; font-weight: bold;"
             f"background: transparent; font-family: 'Segoe UI';"
         )
         return lbl

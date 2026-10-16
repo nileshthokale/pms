@@ -41,6 +41,7 @@ from ui.theme import (
     FONT_NAME,
     TYPE_BUTTON,
     TYPE_FORM_LABEL,
+    TYPE_HINT,
     TYPE_INPUT,
     TYPE_PAGE_TITLE,
     TYPE_SECTION_HEADER,
@@ -53,13 +54,19 @@ from ui.theme import (
 )
 
 # Readable desktop control metrics (px) shared across screens.
-# Rows are sized so the shared TYPE_TABLE_DATA text (14 px ≈ 10.5 pt) plus the
+# Rows are sized so the shared TYPE_TABLE_DATA text (15 px ≈ 11 pt) plus the
 # ``QTableWidget::item`` padding of 3 px never clips, while staying compact
-# enough for 1366x768 pharmacy desktops.  Heights grew with the 10-11 pt
+# enough for 1366x768 pharmacy desktops.  Heights grew with the 11-12 pt
 # baseline so larger fonts never clip or overlap.
-CONTROL_HEIGHT = 32
-ROW_HEIGHT = 30
-HEADER_HEIGHT = 32
+CONTROL_HEIGHT = 34
+ROW_HEIGHT = 32
+HEADER_HEIGHT = 34
+
+# The hint size screens declared before the shared type scale existed.  The
+# theme-refresh inference still recognises it, so a screen that has not been
+# moved onto the scale keeps its dim captions dim instead of silently
+# becoming full-strength text.
+_LEGACY_HINT_PX = 11
 
 
 def readable_font(size: int, *, bold: bool = False) -> QFont:
@@ -78,7 +85,7 @@ def readable_font(size: int, *, bold: bool = False) -> QFont:
 
 # ── Label styles ──────────────────────────────────────────────────────
 
-def label_style(*, dim: bool = False, bold: bool = False,
+def label_style(*, dim: bool = False, bold: bool = True,
                 size: int = TYPE_FORM_LABEL,
                 danger: bool = False, success: bool = False) -> str:
     """Stylesheet for a caption / label at the shared readable size."""
@@ -91,7 +98,10 @@ def label_style(*, dim: bool = False, bold: bool = False,
         color = p["text_dim"]
     else:
         color = p["text"]
-    weight = "font-weight: bold;" if bold else ""
+    # The application stylesheet makes every ``QLabel`` bold, so a caption
+    # that is deliberately *not* bold (a dim hint) has to say so explicitly —
+    # otherwise "unset" would silently inherit the bold weight.
+    weight = "font-weight: bold;" if bold else "font-weight: normal;"
     return (
         f"color: {color}; font-size: {size}px; {weight}"
         f"font-family: {FONT_FAMILY}; background: transparent;"
@@ -121,7 +131,7 @@ def _input_rules(selector: str, *, size: int = TYPE_INPUT) -> str:
         f"  background-color: {p['bg']}; color: {p['text']};"
         f"  border: 1px solid {p['border']}; border-radius: 2px;"
         f"  padding: 4px 7px; font-size: {size}px;"
-        f"  font-family: {FONT_FAMILY};"
+        f"  font-weight: bold; font-family: {FONT_FAMILY};"
         "}"
     )
 
@@ -228,7 +238,7 @@ def _button_style(bg: str, fg: str, hover: str, pressed: str) -> str:
         f"  background-color: {bg}; color: {fg};"
         f"  border: 1px solid {p['border']}; border-radius: 2px;"
         f"  padding: 5px 14px; font-size: {TYPE_BUTTON}px;"
-        f"  font-family: {FONT_FAMILY}; min-height: 22px;"
+        f"  font-weight: bold; font-family: {FONT_FAMILY}; min-height: 22px;"
         "}"
         f"QPushButton:hover {{ background-color: {hover}; }}"
         f"QPushButton:pressed {{ background-color: {pressed}; }}"
@@ -326,7 +336,7 @@ def table_style() -> str:
         f"  alternate-background-color: {p['surface_alt']};"
         f"  border: 1px solid {p['border']};"
         f"  gridline-color: {p['grid']};"
-        f"  font-size: {TYPE_TABLE_DATA}px; font-family: {FONT_FAMILY};"
+        f"  font-size: {TYPE_TABLE_DATA}px; font-weight: bold; font-family: {FONT_FAMILY};"
         f"  selection-background-color: {p['selected']};"
         f"  selection-color: {p['selected_text']};"
         "}"
@@ -606,13 +616,25 @@ def subtitle(text: str) -> QLabel:
     return label
 
 
-def style_edit(widget):
+def style_edit(widget, *, upper: bool | None = None):
+    """Apply the shared input style and, by default, upper-case entry.
+
+    ``upper`` is the explicit switch for the automatic UPPERCASE rule in
+    ``ui.input_rules``: ``True`` forces it, ``False`` opts the field out, and
+    the default ``None`` leaves the application-wide policy in charge (which
+    converts business data and already excludes passwords, read-only fields,
+    file dialogs and numeric spin boxes).  Screens only need to pass it for
+    the rare field that disagrees with the default.
+    """
     widget.setStyleSheet(edit_style())
     _mark(widget, "edit")
+    if upper is not None:
+        from ui.input_rules import set_uppercase
+        set_uppercase(widget, upper)
     return widget
 
 
-def style_combo(widget):
+def style_combo(widget, *, upper: bool | None = None):
     widget.setStyleSheet(combo_style())
     _mark(widget, "combo")
     # Editable combo text fields + dropdown views follow the app theme, but
@@ -625,6 +647,9 @@ def style_combo(widget):
                 _mark(line, "combo_line")
     except Exception:
         pass
+    if upper is not None:
+        from ui.input_rules import set_uppercase
+        set_uppercase(widget, upper)
     return widget
 
 
@@ -1253,7 +1278,17 @@ def refresh_generic_screen(root: QWidget) -> int:
                     if col in all_dim:
                         new_col = p["text_dim"]
                     elif col in all_text or col in ("#000000", "#ffffff", "black", "white"):
-                        if "font-size: 11px" in ss and "font-weight: bold" not in ss:
+                        # White/black alone is ambiguous; a screen's dim
+                        # hints declare the shared hint size without a bold
+                        # weight, while a caption of the same nominal colour
+                        # is bold.  The pre-scale hint size is still accepted
+                        # so the inference keeps working for any screen that
+                        # has not been moved onto the scale yet.
+                        hint_markers = (f"font-size: {TYPE_HINT}px",
+                                        f"font-size: {_LEGACY_HINT_PX}px")
+                        if ("font-weight: bold" not in ss
+                                and any(marker in ss
+                                        for marker in hint_markers)):
                             new_col = p["text_dim"]
                         else:
                             new_col = p["text"]

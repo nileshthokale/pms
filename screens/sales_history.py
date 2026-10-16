@@ -34,6 +34,7 @@ from ui.theme import (
     TYPE_PAGE_TITLE,
     TYPE_SECTION_HEADER,
     TYPE_TABLE_DATA,
+    TYPE_TABLE_HEADER,
     TYPE_VALUE,
     TYPE_VALUE_EMPHASIS,
     date_subcontrols,
@@ -104,7 +105,7 @@ def _fresh_header_style(p: dict) -> str:
         f"QHeaderView::section {{"
         f"  background-color: {p['surface']}; color: {p['text']};"
         f"  border: none; border-bottom: 2px solid {p['accent']};"
-        f"  padding: 4px 6px; font-weight: bold; font-size: 12px;"
+        f"  padding: 4px 6px; font-weight: bold; font-size: {TYPE_TABLE_HEADER}px;"
         f"  font-family: {FONT_FAMILY};"
         f"}}"
     )
@@ -507,7 +508,9 @@ class SalesHistoryPage(QWidget):
         title_box.addWidget(self._title_lbl)
 
         self._stats_lbl = QLabel("")
-        self._stats_lbl.setStyleSheet(f"color: #7f8c8d; font-size: {TYPE_HINT}px;")
+        self._stats_lbl.setStyleSheet(
+            f"color: {palette()['text_dim']}; font-size: {TYPE_HINT}px;"
+        )
         title_box.addWidget(self._stats_lbl)
         title_box.addStretch()
 

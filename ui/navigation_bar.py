@@ -37,8 +37,8 @@ from database import financial_year
 
 # The brand strip shows the application title, so it uses the page-title
 # weight of the shared type scale (a touch below the 20 px in-page title so
-# it fits the 32 px chrome strip without crowding the right-hand buttons).
-NAV_BRAND_PX = 18
+# it fits the 34 px chrome strip without crowding the right-hand buttons).
+NAV_BRAND_PX = 20
 
 
 class FinancialYearPickerDialog(QDialog):
@@ -62,7 +62,7 @@ class FinancialYearPickerDialog(QDialog):
         root.setSpacing(8)
 
         caption = QLabel("View history for financial year")
-        caption.setStyleSheet(ui.label_style(dim=True, size=9))
+        caption.setStyleSheet(ui.label_style(dim=True, size=ui.TYPE_HINT))
         root.addWidget(caption)
 
         self.combo = QComboBox()
@@ -353,6 +353,7 @@ class NavigationBar(QWidget):
                     "  border: none;"
                     "  padding: 4px 14px;"
                     f"  font-size: {TYPE_TABLE_DATA}px;"
+                    "  font-weight: bold;"
                     f"  font-family: {ui.FONT_FAMILY};"
                     "}"
                     "#NavButton:hover {"
@@ -375,6 +376,7 @@ class NavigationBar(QWidget):
                 "QMenu::item {"
                 "  padding: 4px 22px;"
                 f"  font-size: {TYPE_TABLE_DATA}px;"
+                "  font-weight: bold;"
                 f"  font-family: {ui.FONT_FAMILY};"
                 "}"
                 "QMenu::item:selected {"
