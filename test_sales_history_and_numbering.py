@@ -463,12 +463,15 @@ class SalesHistoryAndNumberingTests(unittest.TestCase):
         self._pump()
         self.addCleanup(lambda: (dlg.hide(), dlg.deleteLater()))
 
-        # Historical values displayed accurately
+        # Historical values displayed accurately (9 columns without redundant #)
         self.assertEqual(dlg._table.rowCount(), 1)
-        self.assertEqual(dlg._table.item(0, 1).text(), "Amoxicillin 500mg")
-        self.assertEqual(dlg._table.item(0, 4).text(), "BATCH-AMOX-01")
-        self.assertEqual(dlg._table.item(0, 6).text(), "2")
-        self.assertEqual(dlg._table.item(0, 9).text(), "140.00")
+        self.assertEqual(dlg._table.columnCount(), 9)
+        self.assertEqual(dlg._table.horizontalHeaderItem(0).text(), "Item Name")
+        self.assertNotIn("#", [dlg._table.horizontalHeaderItem(c).text() for c in range(9)])
+        self.assertEqual(dlg._table.item(0, 0).text(), "Amoxicillin 500mg")
+        self.assertEqual(dlg._table.item(0, 3).text(), "BATCH-AMOX-01")
+        self.assertEqual(dlg._table.item(0, 5).text(), "2")
+        self.assertEqual(dlg._table.item(0, 8).text(), "140.00")
 
         # Generate reprint PDF
         temp_pdf = os.path.join(tempfile.gettempdir(), "_test_reprint.pdf")

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import os
-from PySide6.QtCore import QDate, Qt
+from PySide6.QtCore import QDate, QRect, QSize, Qt
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -264,11 +265,29 @@ def _fmt_patient_name(patient_name: str | None) -> str:
 class SalesBillDetailsDialog(QDialog):
     """Modal dialog displaying original bill details, line items, and reprint options."""
 
+    MIN_WIDTH = 880
+    MIN_HEIGHT = 480
+    DEFAULT_WIDTH = 990
+    DEFAULT_HEIGHT = 540
+
+    @classmethod
+    def target_size(cls, available_w: int, available_h: int) -> tuple[int, int]:
+        """Calculate balanced dialog size that stays compact and readable across displays."""
+        try:
+            aw = max(1, int(available_w or 0))
+            ah = max(1, int(available_h or 0))
+        except Exception:
+            aw, ah = 1366, 768
+        width = min(cls.DEFAULT_WIDTH, int(round(aw * 0.85)))
+        height = min(cls.DEFAULT_HEIGHT, int(round(ah * 0.80)))
+        width = max(min(cls.MIN_WIDTH, aw), min(width, aw))
+        height = max(min(cls.MIN_HEIGHT, ah), min(height, ah))
+        return width, height
+
     def __init__(self, invoice_id: int, parent: QWidget | None = None):
         super().__init__(parent)
         self.invoice_id = invoice_id
         self.setWindowTitle("Sales Bill Details")
-        self.resize(920, 640)
         self.setModal(True)
 
         self._invoice = SalesDAO.get_by_id(invoice_id)
@@ -276,12 +295,51 @@ class SalesBillDetailsDialog(QDialog):
         self._customer_row_hidden = True
 
         self._build_ui()
+        self._apply_screen_aware_size()
         self.refresh_theme()
+
+    def _apply_screen_aware_size(self):
+        """Size the dialog to a balanced, compact popup centered on screen and resizable."""
+        try:
+            screen = self.screen()
+            if screen is None and self.parentWidget():
+                screen = self.parentWidget().screen()
+            if screen is None:
+                screen = QGuiApplication.primaryScreen()
+
+            geo = screen.availableGeometry() if screen is not None else QRect(0, 0, 1366, 768)
+            aw = geo.width()
+            ah = geo.height()
+
+            # Offscreen / test host fallback where screen reports tiny bounds
+            if self.parentWidget() and self.parentWidget().window():
+                host = self.parentWidget().window()
+                if host.width() > aw:
+                    aw = host.width()
+                if host.height() > ah:
+                    ah = host.height()
+
+            if aw < 1000:
+                aw = 1366
+            if ah < 600:
+                ah = 768
+
+            w, h = self.target_size(aw, ah)
+            self.setMinimumSize(min(self.MIN_WIDTH, aw), min(self.MIN_HEIGHT, ah))
+            self.setMaximumSize(aw, ah)
+            self.resize(w, h)
+
+            # Center on available screen
+            x = geo.x() + max(0, (geo.width() - w) // 2)
+            y = geo.y() + max(0, (geo.height() - h) // 2)
+            self.move(x, y)
+        except Exception:
+            self.resize(self.DEFAULT_WIDTH, self.DEFAULT_HEIGHT)
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(14, 14, 14, 14)
-        layout.setSpacing(10)
+        layout.setContentsMargins(14, 10, 14, 10)
+        layout.setSpacing(8)
 
         # Title strip
         title_box = QHBoxLayout()
@@ -296,11 +354,12 @@ class SalesBillDetailsDialog(QDialog):
             layout.addWidget(err_lbl)
             return
 
-        # Header metadata frame
+        # Header metadata frame (compact to preserve table space)
         self._meta_group = QGroupBox("Bill Information")
         grid = QGridLayout(self._meta_group)
-        grid.setSpacing(8)
-        grid.setContentsMargins(10, 14, 10, 10)
+        grid.setHorizontalSpacing(16)
+        grid.setVerticalSpacing(4)
+        grid.setContentsMargins(10, 8, 10, 8)
 
         bill_no = self._invoice.get("bill_no") or "--"
         sale_date = self._invoice.get("sale_date") or "--"
@@ -342,67 +401,93 @@ class SalesBillDetailsDialog(QDialog):
 
         layout.addWidget(self._meta_group)
 
-        # Line items table
+        # Line items table - given most of available space
         self._items_group = QGroupBox("Bill Items")
         items_layout = QVBoxLayout(self._items_group)
-        items_layout.setContentsMargins(10, 14, 10, 10)
+        items_layout.setContentsMargins(8, 8, 8, 8)
 
         self._table = QTableWidget()
-        self._table.setColumnCount(10)
+        self._table.setColumnCount(9)
         self._table.setHorizontalHeaderLabels([
-            "#", "Item Name", "Pack", "Location", "Batch No", "Expiry", "Qty", "MRP", "Disc Amt", "Amount"
+            "Item Name", "Pack", "Location", "Batch No", "Expiry", "Qty", "MRP", "Disc Amt", "Amount"
         ])
-        self._table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        header = self._table.horizontalHeader()
+        header.setStretchLastSection(False)
+        header.setSectionResizeMode(0, QHeaderView.Stretch)
+        for c in range(1, 9):
+            header.setSectionResizeMode(c, QHeaderView.Interactive)
+
         self._table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
 
         self._table.setRowCount(len(self._items))
         for idx, item in enumerate(self._items):
-            s_no = QTableWidgetItem(str(idx + 1))
-            s_no.setTextAlignment(Qt.AlignCenter)
-            self._table.setItem(idx, 0, s_no)
-
             name_item = QTableWidgetItem(str(item.get("item_name") or ""))
-            self._table.setItem(idx, 1, name_item)
+            self._table.setItem(idx, 0, name_item)
 
             pack_item = QTableWidgetItem(str(item.get("pack_size") or ""))
             pack_item.setTextAlignment(Qt.AlignCenter)
-            self._table.setItem(idx, 2, pack_item)
+            self._table.setItem(idx, 1, pack_item)
 
             loc_item = QTableWidgetItem(str(item.get("location") or ""))
             loc_item.setTextAlignment(Qt.AlignCenter)
-            self._table.setItem(idx, 3, loc_item)
+            self._table.setItem(idx, 2, loc_item)
 
             batch_item = QTableWidgetItem(str(item.get("batch_no") or ""))
             batch_item.setTextAlignment(Qt.AlignCenter)
-            self._table.setItem(idx, 4, batch_item)
+            self._table.setItem(idx, 3, batch_item)
 
             exp_item = QTableWidgetItem(str(item.get("expiry") or ""))
             exp_item.setTextAlignment(Qt.AlignCenter)
-            self._table.setItem(idx, 5, exp_item)
+            self._table.setItem(idx, 4, exp_item)
 
             qty_item = QTableWidgetItem(f"{float(item.get('sale_qty') or 0.0):g}")
             qty_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self._table.setItem(idx, 6, qty_item)
+            self._table.setItem(idx, 5, qty_item)
 
             mrp_item = QTableWidgetItem(f"{float(item.get('mrp') or 0.0):.2f}")
             mrp_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self._table.setItem(idx, 7, mrp_item)
+            self._table.setItem(idx, 6, mrp_item)
 
             disc_item = QTableWidgetItem(f"{float(item.get('discount_amount') or 0.0):.2f}")
             disc_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self._table.setItem(idx, 8, disc_item)
+            self._table.setItem(idx, 7, disc_item)
 
             amt_item = QTableWidgetItem(f"{float(item.get('amount') or 0.0):.2f}")
             amt_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self._table.setItem(idx, 9, amt_item)
+            self._table.setItem(idx, 8, amt_item)
+
+        # Baseline widths tailored for pharmacy data
+        self._table.setColumnWidth(1, 55)   # Pack
+        self._table.setColumnWidth(2, 75)   # Location
+        self._table.setColumnWidth(3, 125)  # Batch No
+        self._table.setColumnWidth(4, 105)  # Expiry
+        self._table.setColumnWidth(5, 52)   # Qty
+        self._table.setColumnWidth(6, 78)   # MRP
+        self._table.setColumnWidth(7, 78)   # Disc Amt
+        self._table.setColumnWidth(8, 88)   # Amount
+
+        # Content-aware expansion so long batches and dates are never truncated
+        fm = self._table.fontMetrics()
+        batch_w = 125
+        exp_w = 105
+        for it in self._items:
+            b_txt = str(it.get("batch_no") or "")
+            if b_txt:
+                batch_w = max(batch_w, fm.horizontalAdvance(b_txt) + 16)
+            e_txt = str(it.get("expiry") or "")
+            if e_txt:
+                exp_w = max(exp_w, fm.horizontalAdvance(e_txt) + 16)
+        self._table.setColumnWidth(3, batch_w)
+        self._table.setColumnWidth(4, exp_w)
 
         items_layout.addWidget(self._table)
         layout.addWidget(self._items_group, 1)
 
-        # Totals footer
+        # Totals footer (compact)
         totals_box = QHBoxLayout()
-        totals_box.setSpacing(16)
+        totals_box.setSpacing(12)
+        totals_box.setContentsMargins(0, 4, 0, 0)
 
         tot_amt = float(self._invoice.get("total_amount") or 0.0)
         tot_disc = float(self._invoice.get("discount") or 0.0)
@@ -412,6 +497,7 @@ class SalesBillDetailsDialog(QDialog):
 
         def _tot_card(caption: str, val: float, emphasize: bool = False):
             vbox = QVBoxLayout()
+            vbox.setSpacing(2)
             c_lbl = QLabel(caption)
             c_lbl.setStyleSheet(f"font-size: {TYPE_HINT}px; font-weight: bold;")
             c_lbl.setAlignment(Qt.AlignCenter)
