@@ -406,7 +406,8 @@ class PurchaseReportPage(QWidget):
 
     def _on_print(self):
         try:
-            report = PurchaseReportDAO.get_purchase_report(**self._current_filters())
+            filters = self._current_filters()
+            report = PurchaseReportDAO.get_purchase_report(**filters)
         except Exception as exc:
             QMessageBox.warning(self, "Purchase Report", f"Could not prepare report: {exc}")
             return
@@ -416,9 +417,18 @@ class PurchaseReportPage(QWidget):
         if not path:
             return
         try:
+            company_name = ""
+            try:
+                if self.company_edit.selected_id is not None:
+                    company_name = (self.company_edit.text() or "").strip()
+            except Exception:
+                company_name = ""
             output = document_printing.generate_purchase_report_pdf(
                 report["rows"], report["summary"], self._financial_year_name(),
                 self._filter_summary(), path,
+                from_date=filters.get("from_date") or "",
+                to_date=filters.get("to_date") or "",
+                company_name=company_name,
             )
         except document_printing.DocumentPrintError as exc:
             QMessageBox.warning(self, "Purchase Report", str(exc))
