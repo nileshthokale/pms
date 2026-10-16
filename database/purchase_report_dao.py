@@ -56,7 +56,7 @@ class PurchaseReportDAO:
         from those rows (no N+1).
 
         Returns:
-            {"rows": [ {voucher_no, voucher_date, invoice_no, invoice_date,
+            {"rows": [ {voucher_no, voucher_date, purchase_type, invoice_no, invoice_date,
                         supplier_name, item_name, company_name, pack_size,
                         batch_no, expiry, pay_qty, free_qty, rate, mrp,
                         discount, gst_percent, gst_amount, amount,
@@ -104,6 +104,7 @@ class PurchaseReportDAO:
                     pi.id            AS purchase_id,
                     pi.voucher_no    AS voucher_no,
                     pi.voucher_date  AS voucher_date,
+                    pi.purchase_type AS purchase_type,
                     pi.invoice_no    AS invoice_no,
                     pi.invoice_date  AS invoice_date,
                     s.supplier_name  AS supplier_name,
