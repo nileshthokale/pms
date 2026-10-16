@@ -26,8 +26,8 @@ from unittest import mock
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from PySide6.QtCore import QDate
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtCore import QDate, Qt
+from PySide6.QtWidgets import QApplication, QLabel, QMessageBox
 
 from database.connection import get_connection, init_database
 from database import auth, financial_year
@@ -358,7 +358,7 @@ class SalesHistoryAndNumberingTests(unittest.TestCase):
 
         self.assertEqual(hist_page._table.rowCount(), 1)
         self.assertEqual(hist_page._table.item(0, 0).text(), "CS-2025-01")
-        self.assertEqual(hist_page._table.item(0, 3).text(), "Alice Wonderland")
+        self.assertEqual(hist_page._table.item(0, 2).text(), "Alice Wonderland")
 
         # Patient search must be partial: "bob" matches "Bob Builder"
         hist_page._patient_edit.clear()
@@ -368,7 +368,7 @@ class SalesHistoryAndNumberingTests(unittest.TestCase):
 
         self.assertEqual(hist_page._table.rowCount(), 1)
         self.assertEqual(hist_page._table.item(0, 0).text(), "CS-2026-01")
-        self.assertEqual(hist_page._table.item(0, 3).text(), "Bob Builder")
+        self.assertEqual(hist_page._table.item(0, 2).text(), "Bob Builder")
 
         # Clearing patient search returns every bill across all years
         hist_page._patient_edit.clear()
@@ -512,6 +512,179 @@ class SalesHistoryAndNumberingTests(unittest.TestCase):
         # Both remain valid and responsive
         self.assertTrue(hist_page.isVisible())
         self.assertTrue(counter_page.isVisible())
+
+    # ------------------------------------------------------------------
+    # Criterion 11: Synthetic fallback bill numbers display as '---',
+    # Customer row is completely removed from SalesBillDetailsDialog,
+    # patient name shows WALKIN when empty, genuine bills preserve numbers,
+    # and reprinting neither modifies stock nor database records.
+    # ------------------------------------------------------------------
+    def test_11_synthetic_fallback_and_customer_row_removal(self):
+        conn = get_connection()
+        try:
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS legacy_id_map (entity TEXT, legacy_id TEXT, new_id INTEGER, PRIMARY KEY (entity, legacy_id))"
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        # 1. Fallback legacy bill: missing/zero original BillNo
+        fb_id = SalesDAO.insert_invoice(
+            bill_no="2026-2027-Cash-187-S72213",
+            sale_date="2026-10-05",
+            sale_time="17:47",
+            sale_type="Cash",
+            customer_id=self.customer_a,
+            patient_name="",
+            doctor_id=self.doctor_a,
+            discount=0.0,
+            paid_amount=268.0,
+            total_amount=268.0,
+            round_off=0.0,
+            net_amount=268.0,
+            remarks="Legacy salesvhheader ID 72213; Vh Cash 187; BillNo 0",
+            items=[{
+                "item_id": self.item_id,
+                "stock_batch_id": self.batch_id,
+                "pack_size": "10x10",
+                "location": "SHELF-1",
+                "batch_no": "BATCH-AMOX-01",
+                "expiry": "12/28",
+                "mrp": 70.0,
+                "sale_qty": 1.0,
+                "discount_amount": 0.0,
+                "amount": 70.0,
+            }],
+        )
+        conn = get_connection()
+        try:
+            conn.execute(
+                "INSERT OR REPLACE INTO legacy_id_map (entity, legacy_id, new_id) VALUES ('sale', '72213', ?)",
+                (fb_id,),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        # 2. Genuine historical bill: valid original BillNo 1905
+        gen_id = SalesDAO.insert_invoice(
+            bill_no="2026-2027-1905",
+            sale_date="2026-10-05",
+            sale_time="19:10",
+            sale_type="Cash",
+            customer_id=self.customer_b,
+            patient_name="Real Patient",
+            doctor_id=self.doctor_b,
+            discount=0.0,
+            paid_amount=70.0,
+            total_amount=70.0,
+            round_off=0.0,
+            net_amount=70.0,
+            remarks="Legacy salesvhheader ID 72214; Vh Cash 188; BillNo 1905",
+            items=[{
+                "item_id": self.item_id,
+                "stock_batch_id": self.batch_id,
+                "pack_size": "10x10",
+                "location": "SHELF-1",
+                "batch_no": "BATCH-AMOX-01",
+                "expiry": "12/28",
+                "mrp": 70.0,
+                "sale_qty": 1.0,
+                "discount_amount": 0.0,
+                "amount": 70.0,
+            }],
+        )
+
+        stock_before = StockDAO.get_stock_batches_for_item(self.item_id)[0]["stock_qty"]
+        fb_inv_before = SalesDAO.get_by_id(fb_id)
+        gen_inv_before = SalesDAO.get_by_id(gen_id)
+
+        # 3. Test SalesHistoryPage results table
+        hist_page = SalesHistoryPage()
+        hist_page.show()
+        self._pump()
+        self.addCleanup(lambda: (hist_page.hide(), hist_page.deleteLater()))
+
+        hist_page._date_check.setChecked(True)
+        hist_page._from_date.setDate(QDate.fromString("2026-10-05", "yyyy-MM-dd"))
+        hist_page._to_date.setDate(QDate.fromString("2026-10-05", "yyyy-MM-dd"))
+        hist_page._perform_search()
+        self._pump()
+
+        fb_row_idx = -1
+        gen_row_idx = -1
+        for r in range(hist_page._table.rowCount()):
+            item = hist_page._table.item(r, 0)
+            if item and item.data(Qt.UserRole) == fb_id:
+                fb_row_idx = r
+            elif item and item.data(Qt.UserRole) == gen_id:
+                gen_row_idx = r
+
+        self.assertGreaterEqual(fb_row_idx, 0)
+        self.assertGreaterEqual(gen_row_idx, 0)
+
+        # Fallback bill displays '---' and 'WALKIN'
+        self.assertEqual(hist_page._table.item(fb_row_idx, 0).text(), "---")
+        self.assertEqual(hist_page._table.item(fb_row_idx, 2).text(), "WALKIN")
+
+        # Genuine bill displays '1905' and 'Real Patient'
+        self.assertEqual(hist_page._table.item(gen_row_idx, 0).text(), "1905")
+        self.assertEqual(hist_page._table.item(gen_row_idx, 2).text(), "Real Patient")
+
+        # 4. Test SalesBillDetailsDialog for fallback bill
+        dlg_fb = SalesBillDetailsDialog(fb_id)
+        dlg_fb.show()
+        self._pump()
+        self.addCleanup(lambda: (dlg_fb.hide(), dlg_fb.deleteLater()))
+
+        customer_labels = [
+            lbl.text() for lbl in dlg_fb.findChildren(QLabel)
+            if "Customer" in lbl.text()
+        ]
+        self.assertEqual(customer_labels, [])
+
+        grid_fb = dlg_fb._meta_group.layout()
+        self.assertEqual(grid_fb.itemAtPosition(0, 1).widget().text(), "---")
+        self.assertIn("Patient", grid_fb.itemAtPosition(1, 0).widget().text())
+        self.assertEqual(grid_fb.itemAtPosition(1, 1).widget().text(), "WALKIN")
+        self.assertIn("Doctor", grid_fb.itemAtPosition(1, 2).widget().text())
+
+        # 5. Test SalesBillDetailsDialog for genuine bill
+        dlg_gen = SalesBillDetailsDialog(gen_id)
+        dlg_gen.show()
+        self._pump()
+        self.addCleanup(lambda: (dlg_gen.hide(), dlg_gen.deleteLater()))
+
+        customer_labels_gen = [
+            lbl.text() for lbl in dlg_gen.findChildren(QLabel)
+            if "Customer" in lbl.text()
+        ]
+        self.assertEqual(customer_labels_gen, [])
+
+        grid_gen = dlg_gen._meta_group.layout()
+        self.assertEqual(grid_gen.itemAtPosition(0, 1).widget().text(), "1905")
+        self.assertEqual(grid_gen.itemAtPosition(1, 1).widget().text(), "Real Patient")
+
+        # 6. Test reprinting both bills to PDF
+        temp_fb_pdf = os.path.join(tempfile.gettempdir(), "_test_reprint_fb_test11.pdf")
+        temp_gen_pdf = os.path.join(tempfile.gettempdir(), "_test_reprint_gen_test11.pdf")
+        for p in (temp_fb_pdf, temp_gen_pdf):
+            if os.path.exists(p):
+                os.remove(p)
+
+        out_fb = generate_counter_sale_bill(fb_id, temp_fb_pdf)
+        self.assertTrue(os.path.exists(out_fb) and os.path.getsize(out_fb) > 0)
+        out_gen = generate_counter_sale_bill(gen_id, temp_gen_pdf)
+        self.assertTrue(os.path.exists(out_gen) and os.path.getsize(out_gen) > 0)
+
+        # 7. Verify stock and database remain 100% unchanged
+        stock_after = StockDAO.get_stock_batches_for_item(self.item_id)[0]["stock_qty"]
+        self.assertEqual(stock_before, stock_after)
+        fb_inv_after = SalesDAO.get_by_id(fb_id)
+        gen_inv_after = SalesDAO.get_by_id(gen_id)
+        self.assertEqual(fb_inv_before, fb_inv_after)
+        self.assertEqual(gen_inv_before, gen_inv_after)
 
 
 if __name__ == "__main__":
