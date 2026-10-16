@@ -35,14 +35,14 @@ _COMBO_STYLE = (
     f"QComboBox {{"
     f"  background-color: {_SURFACE}; color: {_TEXT};"
     f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-    f"  padding: 5px 8px; font-size: 12px; font-family: 'Segoe UI';"
+    f"  padding: 5px 8px; font-size: 15px; font-family: 'Segoe UI';"
     f"}}"
     f"QComboBox:hover {{ border: 1px solid {_ACCENT}; }}"
     f"QComboBox::drop-down {{ border: none; width: 22px; }}"
     f"QComboBox QAbstractItemView {{"
     f"  background-color: {_SURFACE}; color: {_TEXT};"
     f"  border: 1px solid {_BORDER}; selection-background-color: {_ACCENT};"
-    f"  font-size: 12px; font-family: 'Segoe UI';"
+    f"  font-size: 15px; font-family: 'Segoe UI';"
     f"}}"
 )
 
@@ -50,7 +50,7 @@ _EDIT_STYLE = (
     f"QLineEdit {{"
     f"  background-color: {_SURFACE}; color: {_TEXT};"
     f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-    f"  padding: 5px 8px; font-size: 12px; font-family: 'Segoe UI';"
+    f"  padding: 5px 8px; font-size: 15px; font-family: 'Segoe UI';"
     f"}}"
     f"QLineEdit:focus {{ border: 1px solid {_ACCENT}; }}"
 )
@@ -59,7 +59,7 @@ _DATE_STYLE = (
     f"QDateEdit {{"
     f"  background-color: {_SURFACE}; color: {_TEXT};"
     f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-    f"  padding: 4px 6px; font-size: 12px; font-family: 'Segoe UI';"
+    f"  padding: 4px 6px; font-size: 15px; font-family: 'Segoe UI';"
     f"}}"
     f"QDateEdit:disabled {{ color: {_TEXT_DIM}; }}"
     # Shared calendar chevron (ui.theme.date_subcontrols) — replaces the
@@ -70,24 +70,24 @@ _DATE_STYLE = (
 _BTN_PRIMARY = (
     f"QPushButton {{ background-color: {_ACCENT}; color: white;"
     f"  border: none; border-radius: 2px; padding: 7px 18px;"
-    f"  font-weight: bold; font-size: 12px; font-family: 'Segoe UI'; }}"
+    f"  font-weight: bold; font-size: 15px; font-family: 'Segoe UI'; }}"
     f"QPushButton:hover {{ background-color: {_ACCENT_HOVER}; }}"
 )
 
 _BTN_SECONDARY = (
     f"QPushButton {{ background-color: {_BORDER}; color: {_TEXT};"
     f"  border: none; border-radius: 2px; padding: 7px 18px;"
-    f"  font-size: 12px; font-family: 'Segoe UI'; }}"
+    f"  font-size: 15px; font-family: 'Segoe UI'; }}"
     f"QPushButton:hover {{ background-color: #7d93a8; }}"
 )
 
 _LABEL_STYLE = (
-    f"color: {_TEXT}; font-size: 12px; background: transparent;"
+    f"color: {_TEXT}; font-size: 15px; background: transparent;"
     f"font-family: 'Segoe UI';"
 )
 
 _CHECK_STYLE = (
-    f"QCheckBox {{ color: {_TEXT}; font-size: 12px;"
+    f"QCheckBox {{ color: {_TEXT}; font-size: 15px;"
     f"  font-family: 'Segoe UI'; background: transparent; }}"
     f"QCheckBox::indicator {{ width: 14px; height: 14px;"
     f"  border: 1px solid {_BORDER}; border-radius: 3px;"
@@ -95,7 +95,7 @@ _CHECK_STYLE = (
 )
 
 _NOTICE_STYLE = (
-    f"color: #CC8800; font-size: 11px; font-style: italic;"
+    f"color: #CC8800; font-size: 13px; font-style: italic;"
     f"background: transparent; font-family: 'Segoe UI';"
 )
 
@@ -128,7 +128,7 @@ class GSTReportPage(QWidget):
 
         title = QLabel("GST Report")
         title.setStyleSheet(
-            f"color: {_TEXT}; font-size: 18px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: 22px; font-weight: bold;"
             f"background: transparent; font-family: 'Segoe UI';"
         )
         hl.addWidget(title)
@@ -136,7 +136,7 @@ class GSTReportPage(QWidget):
 
         hint = QLabel("Purchase GST only — Sales/Return GST not available")
         hint.setStyleSheet(
-            f"color: {_TEXT_DIM}; font-size: 11px; background: transparent;"
+            f"color: {_TEXT_DIM}; font-size: 13px; background: transparent;"
             f"font-family: 'Segoe UI'; margin-right: 10px;"
         )
         hl.addWidget(hint)
@@ -277,7 +277,7 @@ class GSTReportPage(QWidget):
         # ── Purchase GST Table ───────────────────────────────────
         section_label = QLabel("  Purchase GST")
         section_label.setStyleSheet(
-            f"color: {_TEXT}; font-size: 13px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: 15px; font-weight: bold;"
             f"background: {_SURFACE}; padding: 4px 16px;"
             f"font-family: 'Segoe UI';"
         )
@@ -305,7 +305,7 @@ class GSTReportPage(QWidget):
             f"QHeaderView::section {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: none; border-bottom: 2px solid {_ACCENT};"
-            f"  padding: 3px 6px; font-weight: bold; font-size: 12px;"
+            f"  padding: 3px 6px; font-weight: bold; font-size: 15px;"
             f"  font-family: 'Segoe UI';"
             f"}}"
         )
@@ -313,7 +313,7 @@ class GSTReportPage(QWidget):
             f"QTableWidget {{"
             f"  background-color: {_DARK_BG}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; gridline-color: {_BORDER};"
-            f"  font-size: 13px; font-family: 'Segoe UI';"
+            f"  font-size: 15px; font-family: 'Segoe UI';"
             f"  selection-background-color: {_ACCENT}; selection-color: white;"
             f"}}"
             f"QTableWidget::item {{ padding: 2px 5px; }}"
@@ -323,7 +323,7 @@ class GSTReportPage(QWidget):
         # ── GST Rate Summary Table ───────────────────────────────
         rate_label = QLabel("  GST Rate Summary")
         rate_label.setStyleSheet(
-            f"color: {_TEXT}; font-size: 13px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: 15px; font-weight: bold;"
             f"background: {_SURFACE}; padding: 4px 16px;"
             f"font-family: 'Segoe UI';"
         )
@@ -346,7 +346,7 @@ class GSTReportPage(QWidget):
             f"QHeaderView::section {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: none; border-bottom: 2px solid {_ACCENT};"
-            f"  padding: 3px 6px; font-weight: bold; font-size: 12px;"
+            f"  padding: 3px 6px; font-weight: bold; font-size: 15px;"
             f"  font-family: 'Segoe UI';"
             f"}}"
         )
@@ -354,7 +354,7 @@ class GSTReportPage(QWidget):
             f"QTableWidget {{"
             f"  background-color: {_DARK_BG}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; gridline-color: {_BORDER};"
-            f"  font-size: 13px; font-family: 'Segoe UI';"
+            f"  font-size: 15px; font-family: 'Segoe UI';"
             f"  selection-background-color: {_ACCENT}; selection-color: white;"
             f"}}"
             f"QTableWidget::item {{ padding: 2px 5px; }}"
@@ -382,7 +382,7 @@ class GSTReportPage(QWidget):
         ):
             lbl = QLabel(text)
             lbl.setStyleSheet(
-                f"color: {_TEXT}; font-size: 12px; font-weight: bold;"
+                f"color: {_TEXT}; font-size: 15px; font-weight: bold;"
                 f"background: transparent; font-family: 'Segoe UI';"
             )
             self._summary_labels[key] = lbl

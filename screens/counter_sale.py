@@ -67,6 +67,7 @@ from database.hold_bill_dao import (
 from ui.theme import date_subcontrols, palette
 from ui.theme import indicator_style
 from ui.components import FONT_FAMILY, readable_font, refresh_containers
+from ui.input_rules import attach_uppercase
 from ui import fy_view
 from ui.theme import (
     TYPE_BUTTON,
@@ -1454,12 +1455,21 @@ class _DBLookupCombo(_KeyboardCombo):
             # space the strip has spare, so the row never shows a gap.
             self.setMinimumWidth(width)
         self.show_all_completions_on_click()
+        # The shared upper-casing hook is attached first, so this combo's own
+        # receiver always sees the final spelling and the query it sends to
+        # the database matches what the operator sees in the box.
+        attach_uppercase(self)
         self.lineEdit().textEdited.connect(self._on_text_edited)
         self._on_text_edited("")
 
-    def _on_text_edited(self, text: str):
-        """Re-query the database for what the user has typed so far."""
-        self._reload(text)
+    def _on_text_edited(self, _text: str):
+        """Re-query the database for what the user has typed so far.
+
+        Reads the field's live text instead of the signal argument: the
+        upper-casing hook is connected first, so the argument still holds the
+        pre-conversion spelling while the box already holds the final text.
+        """
+        self._reload(self.lineEdit().text())
 
     def _reload(self, query: str):
         """Replace the suggestion rows, keeping the typed text intact."""
@@ -1617,6 +1627,9 @@ class _ItemEntryBar(QWidget):
         self._item_search_values: list[str] = []
         self._items_by_id: dict[int, dict] = {}
         self._has_no_match_row = False
+        # Shared upper-casing hook first, so this receiver (and the
+        # completion prefix it sets) always reflects the final spelling.
+        attach_uppercase(self.item_combo)
         self.item_combo.lineEdit().textEdited.connect(
             self._on_item_search_text_changed
         )
@@ -2040,7 +2053,14 @@ class _ItemEntryBar(QWidget):
         self.item_combo.lineEdit().setPlaceholderText("Search products")
         self.item_combo.lineEdit().clear()
 
-    def _on_item_search_text_changed(self, text: str):
+    def _on_item_search_text_changed(self, _text: str):
+        """Filter the item suggestions for what the operator has typed.
+
+        Reads the field's live text instead of the signal argument: the
+        shared upper-casing hook runs first, so the argument holds the
+        pre-conversion spelling while the box already holds the final text.
+        """
+        text = self.item_combo.lineEdit().text()
         query = text.strip()
         if self._has_no_match_row:
             self._item_completion_model.removeRow(
@@ -5073,7 +5093,7 @@ class _OpenBillCard(QPushButton):
     cleared by style changes.
     """
 
-    CARD_HEIGHT = 68
+    CARD_HEIGHT = 72
 
     def __init__(self, parent=None):
         super().__init__(parent)

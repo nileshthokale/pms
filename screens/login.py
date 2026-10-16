@@ -4,6 +4,7 @@ from PySide6.QtWidgets import QDialog, QFormLayout, QLabel, QLineEdit, QMessageB
 
 from database import auth
 from ui import components as ui
+from ui.input_rules import set_uppercase
 from version import APP_TITLE
 
 #login file
@@ -23,10 +24,10 @@ class LoginDialog(QDialog):
         layout.setContentsMargins(14, 14, 14, 14)
         layout.setSpacing(8)
         brand = QLabel(APP_TITLE)
-        brand.setStyleSheet(ui.title_style(13))
+        brand.setStyleSheet(ui.title_style())
         layout.addWidget(brand)
         title = QLabel("First-run ADMIN setup" if self._first_run else "Sign in")
-        title.setStyleSheet(ui.label_style(bold=True, size=10))
+        title.setStyleSheet(ui.label_style(bold=True))
         layout.addWidget(title)
         if self._first_run:
             layout.addWidget(ui.subtitle("Create the initial ADMIN account to continue."))
@@ -35,12 +36,19 @@ class LoginDialog(QDialog):
         self._username = ui.style_edit(QLineEdit())
         self._password = ui.style_edit(QLineEdit())
         self._password.setEchoMode(QLineEdit.Password)
+        # Authentication identifiers and secrets are not business data: the
+        # account name is stored and audited exactly as the operator typed
+        # it, and the password must keep its case.  (An echo-mode password
+        # field excludes itself; the username needs to say so explicitly.)
+        set_uppercase(self._username, False)
+        set_uppercase(self._password, False)
         form.addRow("Username", self._username)
         form.addRow("Password", self._password)
         layout.addLayout(form)
         if self._first_run:
             self._confirm = ui.style_edit(QLineEdit())
             self._confirm.setEchoMode(QLineEdit.Password)
+            set_uppercase(self._confirm, False)
             form.addRow("Confirm password", self._confirm)
         else:
             self._confirm = None

@@ -42,21 +42,21 @@ _DANGER_HOVER = "#d32f2f"
 _BTN_PRIMARY = (
     f"QPushButton {{ background-color: {_ACCENT}; color: white;"
     f"  border: none; border-radius: 2px; padding: 10px 22px;"
-    f"  font-weight: bold; font-size: 13px; font-family: 'Segoe UI'; }}"
+    f"  font-weight: bold; font-size: 15px; font-family: 'Segoe UI'; }}"
     f"QPushButton:hover {{ background-color: {_ACCENT_HOVER}; }}"
 )
 
 _BTN_DANGER = (
     f"QPushButton {{ background-color: {_DANGER}; color: white;"
     f"  border: none; border-radius: 2px; padding: 10px 22px;"
-    f"  font-weight: bold; font-size: 13px; font-family: 'Segoe UI'; }}"
+    f"  font-weight: bold; font-size: 15px; font-family: 'Segoe UI'; }}"
     f"QPushButton:hover {{ background-color: {_DANGER_HOVER}; }}"
 )
 
 _BTN_SECONDARY = (
     f"QPushButton {{ background-color: {_BORDER}; color: {_TEXT};"
     f"  border: none; border-radius: 2px; padding: 10px 22px;"
-    f"  font-size: 13px; font-family: 'Segoe UI'; }}"
+    f"  font-size: 15px; font-family: 'Segoe UI'; }}"
     f"QPushButton:hover {{ background-color: #7d93a8; }}"
 )
 
@@ -66,17 +66,17 @@ _CARD_STYLE = (
 )
 
 _TITLE_STYLE = (
-    f"color: {_TEXT}; font-size: 14px; font-weight: bold;"
+    f"color: {_TEXT}; font-size: 15px; font-weight: bold;"
     f"background: transparent; font-family: 'Segoe UI';"
 )
 
 _VALUE_STYLE = (
-    f"color: {_TEXT_DIM}; font-size: 12px;"
+    f"color: {_TEXT_DIM}; font-size: 15px;"
     f"background: transparent; font-family: 'Segoe UI';"
 )
 
 _NOTE_STYLE = (
-    f"color: {_TEXT_DIM}; font-size: 11px;"
+    f"color: {_TEXT_DIM}; font-size: 13px;"
     f"background: transparent; font-family: 'Segoe UI';"
 )
 
@@ -116,7 +116,7 @@ class BackupRestorePage(QWidget):
 
         title = QLabel("Backup & Restore")
         title.setStyleSheet(
-            f"color: {_TEXT}; font-size: 18px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: 22px; font-weight: bold;"
             f"background: transparent; font-family: 'Segoe UI';"
         )
         hl.addWidget(title)

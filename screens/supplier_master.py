@@ -46,11 +46,11 @@ class _SupplierDialog(QDialog):
         self.setModal(True)
         self.setStyleSheet(
             f"QDialog {{ background-color: {_DARK_BG}; }}"
-            f"QLabel {{ color: {_TEXT}; font-family: 'Segoe UI'; font-size: 13px; }}"
+            f"QLabel {{ color: {_TEXT}; font-family: 'Segoe UI'; font-size: 15px; }}"
             f"QLineEdit {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-            f"  padding: 8px; font-size: 13px;"
+            f"  padding: 8px; font-size: 15px;"
             f"}}"
             f"QLineEdit:focus {{ border: 1px solid {_ACCENT}; }}"
             f"QScrollArea {{ border: none; background: transparent; }}"
@@ -120,7 +120,7 @@ class _SupplierDialog(QDialog):
         # Read-only ledger indicator
         self._ledger_label = QLabel("")
         self._ledger_label.setStyleSheet(
-            f"color: {_ACCENT}; font-weight: bold; font-size: 13px;"
+            f"color: {_ACCENT}; font-weight: bold; font-size: 15px;"
             f"background: transparent; font-family: 'Segoe UI';"
         )
         form.addRow("Ledger:", self._ledger_label)
@@ -256,7 +256,7 @@ class SupplierMasterPage(QWidget):
 
         title = QLabel("Supplier Master")
         title.setStyleSheet(
-            f"color: {_TEXT}; font-size: 18px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: 22px; font-weight: bold;"
             f"background: transparent; font-family: 'Segoe UI';"
         )
         header_layout.addWidget(title)
@@ -267,7 +267,7 @@ class SupplierMasterPage(QWidget):
         new_btn.setStyleSheet(
             f"QPushButton {{ background-color: {_ACCENT}; color: white;"
             f"  border: none; border-radius: 2px; padding: 8px 16px;"
-            f"  font-weight: bold; font-size: 13px; }}"
+            f"  font-weight: bold; font-size: 15px; }}"
             f"QPushButton:hover {{ background-color: {_ACCENT_HOVER}; }}"
         )
         new_btn.clicked.connect(self._on_new)
@@ -278,7 +278,7 @@ class SupplierMasterPage(QWidget):
         edit_btn.setStyleSheet(
             f"QPushButton {{ background-color: {_BORDER}; color: {_TEXT};"
             f"  border: none; border-radius: 2px; padding: 8px 16px;"
-            f"  font-size: 13px; }}"
+            f"  font-size: 15px; }}"
             f"QPushButton:hover {{ background-color: #7d93a8; }}"
         )
         edit_btn.clicked.connect(self._on_edit)
@@ -313,7 +313,7 @@ class SupplierMasterPage(QWidget):
             f"QHeaderView::section {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: none; border-bottom: 2px solid {_ACCENT};"
-            f"  padding: 4px 8px; font-weight: bold; font-size: 12px;"
+            f"  padding: 4px 8px; font-weight: bold; font-size: 15px;"
             f"  font-family: 'Segoe UI';"
             f"}}"
         )
@@ -321,7 +321,7 @@ class SupplierMasterPage(QWidget):
             f"QTableWidget {{"
             f"  background-color: {_DARK_BG}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; gridline-color: {_BORDER};"
-            f"  font-size: 13px; font-family: 'Segoe UI';"
+            f"  font-size: 15px; font-family: 'Segoe UI';"
             f"  selection-background-color: {_ACCENT};"
             f"  selection-color: white;"
             f"}}"

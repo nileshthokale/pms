@@ -41,7 +41,7 @@ class CashBookPage(QWidget):
 
         self._summary = QLabel()
         self._summary.setWordWrap(True)
-        self._summary.setStyleSheet(ui.label_style(size=9))
+        self._summary.setStyleSheet(ui.label_style())
         summary_bar = QWidget()
         summary_bar.setStyleSheet(
             f"background-color: {colors['surface_alt']};"

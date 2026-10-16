@@ -28,7 +28,7 @@ class PlaceholderPage(QWidget):
         layout.addWidget(ui.PageHeader(title))
         body = QLabel(title)
         body.setAlignment(Qt.AlignCenter)
-        body.setStyleSheet(ui.label_style(dim=True, size=12))
+        body.setStyleSheet(ui.label_style(dim=True))
         layout.addWidget(body, 1)
 
 
