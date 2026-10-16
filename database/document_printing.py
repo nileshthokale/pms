@@ -754,18 +754,33 @@ def generate_purchase_report_pdf(
 ) -> str:
     """Write the current, already-filtered Purchase Report as landscape PDF.
 
-    Content and order are unchanged (same 20 columns, same summary math);
-    only the print presentation is improved: clean Helvetica type, bold
-    title/headings, padded grid cells with consistent alignment, and a
-    display-only Bill Number without the ``YYYY-YYYY`` financial-year
-    prefix.  Stored voucher/invoice numbers are never modified.
+    Print presentation only: clean Helvetica type, bold title/headings,
+    padded grid cells with consistent alignment, and a display-only Bill
+    Number without the ``YYYY-YYYY`` financial-year prefix.  Stored
+    voucher/invoice numbers are never modified.
+
+    Print-only columns: Voucher Date, Discount, GST%, GST Amount,
+    Purchase Rate and Net Rate are excluded from the printed PDF only.
+    The on-screen report, DAO rows, filters, summary math and stored data
+    are unchanged.  When a Company is entered in the top filter info, the
+    Company column is also hidden from the print (it is already known
+    from the header), print-only.
     """
     path = _output_path(output_path, "purchase_report", financial_year.replace(" ", "_"))
-    headings = [
-        "Voucher", "V Date", "Invoice", "I Date", "Supplier", "Item", "Company",
-        "Pack", "Batch", "Expiry", "Pay", "Free", "Rate", "MRP", "Disc",
-        "GST%", "GST Amt", "Amount", "Purc Rt", "Net Rt",
-    ]
+    # If a Company value was entered at the top (filter info), we already
+    # know the company, so hide the Company column from the print only.
+    _filter_text = str(filter_summary or "")
+    _hide_company = "Company:" in _filter_text
+    if _hide_company:
+        headings = [
+            "Voucher", "Invoice", "I Date", "Supplier", "Item",
+            "Pack", "Batch", "Expiry", "Pay", "Free", "Rate", "MRP", "Amount",
+        ]
+    else:
+        headings = [
+            "Voucher", "Invoice", "I Date", "Supplier", "Item", "Company",
+            "Pack", "Batch", "Expiry", "Pay", "Free", "Rate", "MRP", "Amount",
+        ]
 
     def _qty(value: Any) -> str:
         try:
@@ -784,9 +799,8 @@ def generate_purchase_report_pdf(
 
     detail_rows: list[list[str]] = []
     for row in rows:
-        detail_rows.append([
+        full = [
             _purchase_display_bill_no(row.get("voucher_no")),
-            _plain(row.get("voucher_date")),
             _purchase_display_bill_no(row.get("invoice_no")),
             _plain(row.get("invoice_date")),
             _plain(row.get("supplier_name")),
@@ -799,13 +813,12 @@ def generate_purchase_report_pdf(
             _qty(row.get("free_qty")),
             _amt(row.get("rate")),
             _amt(row.get("mrp")),
-            _amt(row.get("discount")),
-            _qty(row.get("gst_percent")),
-            _amt(row.get("gst_amount")),
             _amt(row.get("amount")),
-            _amt(row.get("purchase_rate")),
-            _amt(row.get("net_rate")),
-        ])
+        ]
+        if _hide_company:
+            # Drop the Company cell (index 5), print-only.
+            del full[5]
+        detail_rows.append(full)
 
     totals_line = "Totals: " + " | ".join([
         f"Bills: {summary.get('total_bills', 0)}",
@@ -834,7 +847,7 @@ def _purchase_report_pdf_bytes(
 ) -> bytes:
     """Professional landscape-A4 writer for the Purchase Report table only.
 
-    Same columns/order as before; Helvetica/Helvetica-Bold, bold headings,
+    Print-only column set; Helvetica/Helvetica-Bold, bold headings,
     padded grid cells, right-aligned numerics, fitted text so nothing
     touches borders or overlaps.  Totals and notes are preserved on the
     final page.
@@ -846,22 +859,36 @@ def _purchase_report_pdf_bytes(
     CONTENT_X1 = CONTENT_X0 + CONTENT_W
     # Column widths (points) sum to CONTENT_W (786).  Wider for Item /
     # Supplier / Company, narrow for qty columns, with breathing room so
-    # values never touch adjacent borders.
-    COL_WIDTHS = [
-        52.0, 48.0, 42.0, 48.0, 56.0, 68.0, 50.0, 28.0, 36.0, 30.0,
-        24.0, 24.0, 36.0, 36.0, 36.0, 24.0, 36.0, 40.0, 36.0, 36.0,
-    ]
+    # values never touch adjacent borders.  When the Company column is
+    # hidden (company already known from the top filter), its width is
+    # redistributed to the remaining columns.
+    if "Company" not in headings:
+        COL_WIDTHS = [
+            64.0, 60.0, 64.0, 90.0, 120.0, 42.0, 56.0, 44.0,
+            34.0, 34.0, 56.0, 56.0, 66.0,
+        ]
+    else:
+        COL_WIDTHS = [
+            62.0, 58.0, 62.0, 78.0, 104.0, 76.0, 38.0, 52.0, 40.0,
+            32.0, 32.0, 48.0, 48.0, 56.0,
+        ]
     COL_X: list[float] = []
     _x = CONTENT_X0
     for _w in COL_WIDTHS:
         COL_X.append(_x)
         _x += _w
-    ALIGNS = [
-        "left", "center", "left", "center", "left", "left", "left",
-        "center", "center", "center",
-        "right", "right", "right", "right", "right",
-        "right", "right", "right", "right", "right",
-    ]
+    if "Company" not in headings:
+        ALIGNS = [
+            "left", "left", "center", "left", "left",
+            "center", "center", "center",
+            "right", "right", "right", "right", "right",
+        ]
+    else:
+        ALIGNS = [
+            "left", "left", "center", "left", "left", "left",
+            "center", "center", "center",
+            "right", "right", "right", "right", "right",
+        ]
     TITLE_PT, FY_PT, FILTER_PT = 13.0, 8.5, 7.5
     HEADER_PT, BODY_PT = 7.0, 7.0
     TOTALS_PT, NOTE_PT = 7.5, 7.0
