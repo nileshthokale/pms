@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
         QWidget,
 )
 
-from ui.theme import palette
+from ui.theme import date_subcontrols, palette
 from database.financial_year import active_date_range
 
 _p = palette()
@@ -30,30 +30,30 @@ _TEXT_DIM = _p["text_dim"]
 _BTN_PRIMARY = (
     f"QPushButton {{ background-color: {_ACCENT}; color: white;"
     f"  border: none; border-radius: 2px; padding: 8px 20px;"
-    f"  font-weight: bold; font-size: 13px; font-family: 'Segoe UI'; }}"
+    f"  font-weight: bold; font-size: 15px; font-family: 'Segoe UI'; }}"
     f"QPushButton:hover {{ background-color: {_ACCENT_HOVER}; }}"
 )
 
 _BTN_SECONDARY = (
     f"QPushButton {{ background-color: {_BORDER}; color: {_TEXT};"
     f"  border: none; border-radius: 2px; padding: 8px 20px;"
-    f"  font-size: 13px; font-family: 'Segoe UI'; }}"
+    f"  font-size: 15px; font-family: 'Segoe UI'; }}"
     f"QPushButton:hover {{ background-color: #7d93a8; }}"
 )
 
 _FILTER_LABEL = (
-    f"color: {_TEXT}; font-size: 12px; font-weight: bold;"
+    f"color: {_TEXT}; font-size: 15px; font-weight: bold;"
     f"background: transparent; font-family: 'Segoe UI';"
 )
 
 _SECTION_HEADER = (
-    f"color: {_ACCENT}; font-size: 14px; font-weight: bold;"
+    f"color: {_ACCENT}; font-size: 15px; font-weight: bold;"
     f"background: transparent; font-family: 'Segoe UI';"
     f"padding: 8px 0 4px 0;"
 )
 
 _TOTAL_STYLE = (
-    f"color: {_TEXT}; font-size: 12px; font-weight: bold;"
+    f"color: {_TEXT}; font-size: 15px; font-weight: bold;"
     f"background: transparent; font-family: 'Segoe UI';"
     f"padding: 4px 0;"
 )
@@ -93,7 +93,7 @@ class BalanceSheetPage(QWidget):
 
         title = QLabel("Balance Sheet")
         title.setStyleSheet(
-            f"color: {_TEXT}; font-size: 18px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: 22px; font-weight: bold;"
             f"background: transparent; font-family: 'Segoe UI';"
         )
         hl.addWidget(title)
@@ -118,8 +118,9 @@ class BalanceSheetPage(QWidget):
         self.as_of_edit.setStyleSheet(
             f"QDateEdit {{ background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-            f"  padding: 0 8px; font-size: 12px; font-family: 'Segoe UI'; }}"
-            f"QDateEdit::drop-down {{ border: none; }}"
+            f"  padding: 0 8px; font-size: 15px; font-family: 'Segoe UI'; }}"
+            # Shared calendar chevron (ui.theme.date_subcontrols).
+            + date_subcontrols(_p, width=24)
         )
         fl.addWidget(self.as_of_edit)
 
@@ -168,11 +169,11 @@ class BalanceSheetPage(QWidget):
         self._status_lbl = QLabel("Status: BALANCED")
 
         summary_style = (
-            f"color: {_TEXT}; font-size: 12px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: 15px; font-weight: bold;"
             f"background: transparent; font-family: 'Segoe UI';"
         )
         dim_style = (
-            f"color: {_TEXT_DIM}; font-size: 12px;"
+            f"color: {_TEXT_DIM}; font-size: 15px;"
             f"background: transparent; font-family: 'Segoe UI';"
         )
         for lbl, style in (
@@ -224,7 +225,7 @@ class BalanceSheetPage(QWidget):
         # Section header
         lbl = QLabel(title)
         lbl.setStyleSheet(
-            f"color: {color}; font-size: 14px; font-weight: bold;"
+            f"color: {color}; font-size: 15px; font-weight: bold;"
             f"background: transparent; font-family: 'Segoe UI';"
             f"padding: 10px 0 4px 0;"
         )
@@ -233,7 +234,7 @@ class BalanceSheetPage(QWidget):
         if not rows:
             empty = QLabel("  No ledgers")
             empty.setStyleSheet(
-                f"color: {_TEXT_DIM}; font-size: 11px;"
+                f"color: {_TEXT_DIM}; font-size: 13px;"
                 f"background: transparent; font-family: 'Segoe UI';"
                 f"padding: 2px 0 2px 12px;"
             )
@@ -264,7 +265,7 @@ class BalanceSheetPage(QWidget):
                 f"QHeaderView::section {{"
                 f"  background-color: {_SURFACE}; color: {_TEXT};"
                 f"  border: none; border-bottom: 1px solid {_BORDER};"
-                f"  padding: 2px 5px; font-weight: bold; font-size: 12px;"
+                f"  padding: 2px 5px; font-weight: bold; font-size: 15px;"
                 f"  font-family: 'Segoe UI';"
                 f"}}"
             )
@@ -272,7 +273,7 @@ class BalanceSheetPage(QWidget):
                 f"QTableWidget {{"
                 f"  background-color: {_DARK_BG}; color: {_TEXT};"
                 f"  border: 1px solid {_BORDER}; gridline-color: {_BORDER};"
-                f"  font-size: 13px; font-family: 'Segoe UI';"
+                f"  font-size: 15px; font-family: 'Segoe UI';"
                 f"  selection-background-color: {_ACCENT};"
                 f"  selection-color: white;"
                 f"}}"
@@ -293,7 +294,7 @@ class BalanceSheetPage(QWidget):
         # Total row
         total_lbl = QLabel(f"  Total {title}: {_fmt(total)}")
         total_lbl.setStyleSheet(
-            f"color: {_TEXT}; font-size: 12px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: 15px; font-weight: bold;"
             f"background: transparent; font-family: 'Segoe UI';"
             f"padding: 4px 0 6px 0;"
         )
@@ -353,13 +354,13 @@ class BalanceSheetPage(QWidget):
         if status == "BALANCED":
             self._status_lbl.setText("Status: BALANCED")
             self._status_lbl.setStyleSheet(
-                f"color: #2e7d32; font-size: 12px; font-weight: bold;"
+                f"color: #2e7d32; font-size: 15px; font-weight: bold;"
                 f"background: transparent; font-family: 'Segoe UI';"
             )
         elif status == "EQUITY TREATMENT REQUIRED":
             self._status_lbl.setText("Status: EQUITY TREATMENT REQUIRED")
             self._status_lbl.setStyleSheet(
-                f"color: #b26a00; font-size: 12px; font-weight: bold;"
+                f"color: #b26a00; font-size: 15px; font-weight: bold;"
                 f"background: transparent; font-family: 'Segoe UI';"
             )
         else:
@@ -367,7 +368,7 @@ class BalanceSheetPage(QWidget):
                 f"Status: UNBALANCED (by {_fmt(totals['difference'])})"
             )
             self._status_lbl.setStyleSheet(
-                f"color: #c0392b; font-size: 12px; font-weight: bold;"
+                f"color: #c0392b; font-size: 15px; font-weight: bold;"
                 f"background: transparent; font-family: 'Segoe UI';"
             )
 

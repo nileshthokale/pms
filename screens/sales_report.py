@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QDate, Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QDateEdit,
     QFileDialog,
     QHBoxLayout,
     QHeaderView,
@@ -35,7 +36,7 @@ _EDIT_STYLE = (
     f"QLineEdit {{"
     f"  background-color: {_SURFACE}; color: {_TEXT};"
     f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-    f"  padding: 5px 8px; font-size: 12px; font-family: 'Segoe UI';"
+    f"  padding: 5px 8px; font-size: 15px; font-family: 'Segoe UI';"
     f"}}"
     f"QLineEdit:focus {{ border: 1px solid {_ACCENT}; }}"
 )
@@ -43,21 +44,36 @@ _EDIT_STYLE = (
 _BTN_PRIMARY = (
     f"QPushButton {{ background-color: {_ACCENT}; color: white;"
     f"  border: none; border-radius: 2px; padding: 7px 18px;"
-    f"  font-weight: bold; font-size: 12px; font-family: 'Segoe UI'; }}"
+    f"  font-weight: bold; font-size: 15px; font-family: 'Segoe UI'; }}"
     f"QPushButton:hover {{ background-color: {_ACCENT_HOVER}; }}"
 )
 
 _BTN_SECONDARY = (
     f"QPushButton {{ background-color: {_BORDER}; color: {_TEXT};"
     f"  border: none; border-radius: 2px; padding: 7px 18px;"
-    f"  font-size: 12px; font-family: 'Segoe UI'; }}"
+    f"  font-size: 15px; font-family: 'Segoe UI'; }}"
     f"QPushButton:hover {{ background-color: #7d93a8; }}"
 )
 
 _LABEL_STYLE = (
-    f"color: {_TEXT}; font-size: 12px; background: transparent;"
+    f"color: {_TEXT}; font-size: 15px; background: transparent;"
     f"font-family: 'Segoe UI';"
 )
+
+
+def _date_style(p: dict) -> str:
+    return (
+        "QDateEdit {"
+        f" background-color: {p['surface']}; color: {p['text']};"
+        f" border: 1px solid {p['border']}; border-radius: 2px;"
+        " padding: 5px 8px; font-size: 15px; font-family: 'Segoe UI';"
+        "} QDateEdit:focus {"
+        f" border: 1px solid {p['accent']}; }}"
+        "QDateEdit::drop-down { border: none; width: 20px; }"
+    )
+
+
+_DATE_STYLE = _date_style(_p)
 
 
 def _edit_style(p: dict) -> str:
@@ -65,7 +81,7 @@ def _edit_style(p: dict) -> str:
         "QLineEdit {"
         f" background-color: {p['surface']}; color: {p['text']};"
         f" border: 1px solid {p['border']}; border-radius: 2px;"
-        " padding: 5px 8px; font-size: 12px; font-family: 'Segoe UI';"
+        " padding: 5px 8px; font-size: 15px; font-family: 'Segoe UI';"
         "} QLineEdit:focus {"
         f" border: 1px solid {p['accent']}; }}"
     )
@@ -76,13 +92,13 @@ def _button_style(p: dict, primary: bool = False) -> str:
         return (
             f"QPushButton {{ background-color: {p['accent']}; color: white;"
             " border: none; border-radius: 2px; padding: 7px 18px;"
-            " font-weight: bold; font-size: 12px; font-family: 'Segoe UI'; }"
+            " font-weight: bold; font-size: 15px; font-family: 'Segoe UI'; }"
             f"QPushButton:hover {{ background-color: {p['accent_hover']}; }}"
         )
     return (
         f"QPushButton {{ background-color: {p['border']}; color: {p['text']};"
         " border: none; border-radius: 2px; padding: 7px 18px;"
-        " font-size: 12px; font-family: 'Segoe UI'; }"
+        " font-size: 15px; font-family: 'Segoe UI'; }"
         f"QPushButton:hover {{ background-color: {p['text_dim']}; }}"
     )
 
@@ -119,7 +135,7 @@ class SalesReportPage(QWidget):
 
         title = QLabel("Sales Report")
         title.setStyleSheet(
-            f"color: {_TEXT}; font-size: 18px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: 22px; font-weight: bold;"
             f"background: transparent; font-family: 'Segoe UI';"
         )
         hl.addWidget(title)
@@ -127,7 +143,7 @@ class SalesReportPage(QWidget):
 
         hint = QLabel("Based on sales bills — financial reports use ledger postings")
         hint.setStyleSheet(
-            f"color: {_TEXT_DIM}; font-size: 11px; background: transparent;"
+            f"color: {_TEXT_DIM}; font-size: 13px; background: transparent;"
             f"font-family: 'Segoe UI'; margin-right: 10px;"
         )
         hl.addWidget(hint)
@@ -152,25 +168,26 @@ class SalesReportPage(QWidget):
         row1.addWidget(self._label("Customer"))
         self.customer_edit = SearchableFilterEdit("All customers")
         self.customer_edit.setMinimumWidth(150)
+        self.customer_edit.returnPressed.connect(self._on_generate)
         row1.addWidget(self.customer_edit)
 
         row1.addWidget(self._label("Company"))
         self.company_edit = SearchableFilterEdit("All companies")
         self.company_edit.setMinimumWidth(135)
+        self.company_edit.returnPressed.connect(self._on_generate)
         row1.addWidget(self.company_edit)
 
         row1.addWidget(self._label("Item"))
         self.item_edit = SearchableFilterEdit("All items")
         self.item_edit.setMinimumWidth(155)
+        self.item_edit.returnPressed.connect(self._on_generate)
         row1.addWidget(self.item_edit)
 
-        row1.addWidget(self._label("Bill No"))
-        self.bill_edit = QLineEdit()
-        self.bill_edit.setStyleSheet(_EDIT_STYLE)
-        self.bill_edit.setPlaceholderText("e.g. CS-0001")
-        self.bill_edit.setFixedWidth(110)
-        self.bill_edit.returnPressed.connect(self._on_generate)
-        row1.addWidget(self.bill_edit)
+        # Picking a suggestion (Enter key or mouse click) searches at once:
+        # the widget records the selected ID first, then this refresh runs
+        # with the fresh selection.
+        for edit in (self.customer_edit, self.company_edit, self.item_edit):
+            edit.picked.connect(self._on_generate)
 
         row1.addWidget(self._label("Patient"))
         self.patient_edit = QLineEdit()
@@ -179,6 +196,22 @@ class SalesReportPage(QWidget):
         self.patient_edit.setFixedWidth(120)
         self.patient_edit.returnPressed.connect(self._on_generate)
         row1.addWidget(self.patient_edit)
+
+        row1.addWidget(self._label("From Date"))
+        self._from_date = QDateEdit()
+        self._from_date.setCalendarPopup(True)
+        self._from_date.setFixedWidth(105)
+        self._from_date.setStyleSheet(_DATE_STYLE)
+        self._from_date.dateChanged.connect(self._on_generate)
+        row1.addWidget(self._from_date)
+
+        row1.addWidget(self._label("To Date"))
+        self._to_date = QDateEdit()
+        self._to_date.setCalendarPopup(True)
+        self._to_date.setFixedWidth(105)
+        self._to_date.setStyleSheet(_DATE_STYLE)
+        self._to_date.dateChanged.connect(self._on_generate)
+        row1.addWidget(self._to_date)
 
         row1.addStretch()
 
@@ -207,9 +240,9 @@ class SalesReportPage(QWidget):
 
         # ── Table ────────────────────────────────────────────────
         self._table = QTableWidget()
-        self._table.setColumnCount(12)
+        self._table.setColumnCount(11)
         self._table.setHorizontalHeaderLabels([
-            "Bill No", "Sale Date", "Customer", "Patient", "Doctor",
+            "Bill No", "Sale Date", "Patient Name", "Doctor",
             "Item Name", "Batch No", "Expiry", "MRP", "Qty",
             "Discount", "Amount",
         ])
@@ -223,12 +256,12 @@ class SalesReportPage(QWidget):
         hv.setStretchLastSection(True)
         hv.setSectionResizeMode(0, QHeaderView.ResizeToContents)
         hv.setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        hv.setSectionResizeMode(5, QHeaderView.Stretch)
+        hv.setSectionResizeMode(4, QHeaderView.Stretch)
         hv.setStyleSheet(
             f"QHeaderView::section {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: none; border-bottom: 2px solid {_ACCENT};"
-            f"  padding: 3px 6px; font-weight: bold; font-size: 12px;"
+            f"  padding: 3px 6px; font-weight: bold; font-size: 15px;"
             f"  font-family: 'Segoe UI';"
             f"}}"
         )
@@ -236,7 +269,7 @@ class SalesReportPage(QWidget):
             f"QTableWidget {{"
             f"  background-color: {_DARK_BG}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; gridline-color: {_BORDER};"
-            f"  font-size: 13px; font-family: 'Segoe UI';"
+            f"  font-size: 15px; font-family: 'Segoe UI';"
             f"  selection-background-color: {_ACCENT}; selection-color: white;"
             f"}}"
             f"QTableWidget::item {{ padding: 2px 5px; }}"
@@ -263,16 +296,24 @@ class SalesReportPage(QWidget):
             ("discount", "Discount: 0.00"),
             ("net", "Net: 0.00"),
         ):
+            if key == "net":
+                sl.addStretch()
             lbl = QLabel(text)
             lbl.setStyleSheet(
-                f"color: {_TEXT}; font-size: 12px; font-weight: bold;"
+                f"color: {_TEXT}; font-size: 15px; font-weight: bold;"
                 f"background: transparent; font-family: 'Segoe UI';"
             )
             self._summary_labels[key] = lbl
             sl.addWidget(lbl)
-        sl.addStretch()
         root.addWidget(summary)
 
+        # Default to today's live date so opening the page shows the daily
+        # report straight away; Clear restores the same default.
+        today = QDate.currentDate()
+        for edit in (self._from_date, self._to_date):
+            edit.blockSignals(True)
+            edit.setDate(today)
+            edit.blockSignals(False)
         self._load_filter_options()
         self._on_generate()
 
@@ -291,23 +332,53 @@ class SalesReportPage(QWidget):
         ):
             edit.set_options(rows, id_key, name_key)
 
+    def _filter_id(self, edit: SearchableFilterEdit):
+        """Selected ID, falling back to fully-typed filter text.
+
+        Covers typing an exact name and pressing Search without ever picking
+        the completion popup; partial or unknown text still means no filter.
+        """
+        if edit.selected_id is not None:
+            return edit.selected_id
+        return edit.exact_id_for_text(edit.text())
+
     def _current_filters(self) -> dict:
-        # `view_year_bounds` falls back to the active FY, so this call can
-        # never form an unbounded query even before a navbar selection.
-        from_date, to_date = view_year_bounds(self._history_financial_year)
+        # The FY range always caps the report; the From/To editors narrow
+        # inside it but can never widen past it.
+        fy_from, fy_to = view_year_bounds(self._history_financial_year)
+        picked_from, picked_to = self._picked_dates()
         return {
-            "from_date": from_date,
-            "to_date": to_date,
-            "customer_id": self.customer_edit.selected_id,
-            "item_id": self.item_edit.selected_id,
-            "company_id": self.company_edit.selected_id,
-            "bill_no": self.bill_edit.text().strip() or None,
+            "from_date": max(fy_from, picked_from),
+            "to_date": min(fy_to, picked_to),
+            "customer_id": self._filter_id(self.customer_edit),
+            "item_id": self._filter_id(self.item_edit),
+            "company_id": self._filter_id(self.company_edit),
             "patient": self.patient_edit.text().strip() or None,
         }
+
+    def _picked_dates(self) -> tuple[str, str]:
+        """From/To editor values as ISO dates, falling back to the FY bounds."""
+        fy_from, fy_to = view_year_bounds(self._history_financial_year)
+        from_q, to_q = self._from_date.date(), self._to_date.date()
+        picked_from = from_q.toString("yyyy-MM-dd") if from_q.isValid() else fy_from
+        picked_to = to_q.toString("yyyy-MM-dd") if to_q.isValid() else fy_to
+        return picked_from, picked_to
+
+    def _range_valid(self) -> bool:
+        picked_from, picked_to = self._picked_dates()
+        return picked_from <= picked_to
+
+    def _reset_date_edits(self):
+        from_date, to_date = view_year_bounds(self._history_financial_year)
+        for edit, iso in ((self._from_date, from_date), (self._to_date, to_date)):
+            edit.blockSignals(True)
+            edit.setDate(QDate.fromString(iso, "yyyy-MM-dd"))
+            edit.blockSignals(False)
 
     def set_history_financial_year(self, year: dict | None):
         """Refresh for the navbar's view-only selected financial year."""
         self._history_financial_year = dict(year) if year else None
+        self._reset_date_edits()
         self._on_generate()
 
     # ------------------------------------------------------------------
@@ -318,8 +389,7 @@ class SalesReportPage(QWidget):
             values = [
                 r["bill_no"],
                 r["sale_date"],
-                r["customer_name"] or "",
-                r["patient_name"] or "",
+                str(r["patient_name"] or "").strip() or "WALKIN",
                 r["doctor_name"] or "",
                 r["item_name"] or "",
                 r["batch_no"] or "",
@@ -331,7 +401,7 @@ class SalesReportPage(QWidget):
             ]
             for col, value in enumerate(values):
                 item = QTableWidgetItem(str(value))
-                if col >= 8:
+                if col >= 7:
                     item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 self._table.setItem(i, col, item)
 
@@ -346,6 +416,9 @@ class SalesReportPage(QWidget):
         self._summary_labels["net"].setText(f"Net: {s['total_net']:,.2f}")
 
     def _on_generate(self):
+        if not self._range_valid():
+            QMessageBox.warning(self, "Sales Report", "From Date cannot be later than To Date.")
+            return
         try:
             self._last_report = SalesReportDAO.get_sales_report(**self._current_filters())
             self._render(self._last_report)
@@ -362,8 +435,12 @@ class SalesReportPage(QWidget):
         self.customer_edit.clear_filter()
         self.company_edit.clear_filter()
         self.item_edit.clear_filter()
-        self.bill_edit.clear()
         self.patient_edit.clear()
+        today = QDate.currentDate()
+        for edit in (self._from_date, self._to_date):
+            edit.blockSignals(True)
+            edit.setDate(today)
+            edit.blockSignals(False)
         self._on_generate()
 
     def _filter_summary(self) -> str:
@@ -372,8 +449,15 @@ class SalesReportPage(QWidget):
                             ("Company", self.company_edit), ("Item", self.item_edit)):
             if edit.selected_id is not None:
                 parts.append(f"{label}: {edit.text()}")
-        if self.bill_edit.text().strip(): parts.append(f"Bill: {self.bill_edit.text().strip()}")
-        if self.patient_edit.text().strip(): parts.append(f"Patient: {self.patient_edit.text().strip()}")
+        if self.patient_edit.text().strip():
+            parts.append(f"Patient: {self.patient_edit.text().strip()}")
+        picked_from, picked_to = self._picked_dates()
+
+        def _dmy(iso: str) -> str:
+            day = iso.split("-")
+            return f"{day[2]}-{day[1]}-{day[0]}" if len(day) == 3 else iso
+
+        parts.append(f"From: {_dmy(picked_from)} To: {_dmy(picked_to)}")
         return " | ".join(parts)
 
     def _financial_year_name(self) -> str:
@@ -384,18 +468,21 @@ class SalesReportPage(QWidget):
 
     def _on_print(self):
         # Re-query so printed output exactly matches the current controls.
+        if not self._range_valid():
+            QMessageBox.warning(self, "Sales Report", "From Date cannot be later than To Date.")
+            return
         try:
             report = SalesReportDAO.get_sales_report(**self._current_filters())
         except Exception as exc:
             QMessageBox.warning(self, "Sales Report", f"Could not prepare report: {exc}")
             return
         path, _ = QFileDialog.getSaveFileName(
-            self, "Save Sales Report PDF", "sales_report.pdf", "PDF (*.pdf)"
+            self, "Save Daily Sales Report PDF", "daily_sales_report.pdf", "PDF (*.pdf)"
         )
         if not path:
             return
         try:
-            output = document_printing.generate_sales_report_pdf(
+            output = document_printing.generate_daily_sales_report_pdf(
                 report["rows"], report["summary"], self._financial_year_name(),
                 self._filter_summary(), path,
             )
@@ -419,15 +506,16 @@ class SalesReportPage(QWidget):
         )
         for edit in (self.customer_edit, self.company_edit, self.item_edit):
             edit.refresh_theme()
-        for edit in (self.bill_edit, self.patient_edit):
-            edit.setStyleSheet(_edit_style(p))
+        self.patient_edit.setStyleSheet(_edit_style(p))
+        self._from_date.setStyleSheet(_date_style(p))
+        self._to_date.setStyleSheet(_date_style(p))
         for button in self.findChildren(QPushButton):
             button.setStyleSheet(_button_style(p, button.text() == "Search"))
         self._table.setStyleSheet(
             "QTableWidget {"
             f" background-color: {p['bg']}; color: {p['text']};"
             f" border: 1px solid {p['border']}; gridline-color: {p['border']};"
-            " font-size: 13px; font-family: 'Segoe UI';"
+            " font-size: 15px; font-family: 'Segoe UI';"
             f" selection-background-color: {p['accent']}; selection-color: white;"
             "} QTableWidget::item { padding: 2px 5px; }"
         )
@@ -435,28 +523,28 @@ class SalesReportPage(QWidget):
             "QHeaderView::section {"
             f" background-color: {p['surface']}; color: {p['text']};"
             f" border: none; border-bottom: 2px solid {p['accent']};"
-            " padding: 3px 6px; font-weight: bold; font-size: 12px;"
+            " padding: 3px 6px; font-weight: bold; font-size: 15px;"
             " font-family: 'Segoe UI'; }"
         )
         for label in self.findChildren(QLabel):
             text = label.text()
             if text == "Sales Report":
                 label.setStyleSheet(
-                    f"color: {p['text']}; font-size: 18px; font-weight: bold;"
+                    f"color: {p['text']}; font-size: 22px; font-weight: bold;"
                     "background: transparent; font-family: 'Segoe UI';"
                 )
             elif "Based on sales bills" in text:
                 label.setStyleSheet(
-                    f"color: {p['text_dim']}; font-size: 11px; background: transparent;"
+                    f"color: {p['text_dim']}; font-size: 13px; background: transparent;"
                     "font-family: 'Segoe UI'; margin-right: 10px;"
                 )
             elif label in self._summary_labels.values():
                 label.setStyleSheet(
-                    f"color: {p['text']}; font-size: 12px; font-weight: bold;"
+                    f"color: {p['text']}; font-size: 15px; font-weight: bold;"
                     "background: transparent; font-family: 'Segoe UI';"
                 )
             else:
                 label.setStyleSheet(
-                    f"color: {p['text']}; font-size: 12px; background: transparent;"
+                    f"color: {p['text']}; font-size: 15px; background: transparent;"
                     "font-family: 'Segoe UI';"
                 )

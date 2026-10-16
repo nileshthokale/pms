@@ -8,6 +8,7 @@ from database.financial_year import ensure_default_financial_year
 from screens.login import run_login
 from ui import PharmacyMainWindow
 from ui import theme
+from ui.input_rules import install_uppercase_input
 
 
 def main():
@@ -17,6 +18,13 @@ def main():
     # centralized palette + application-wide stylesheet also cover the
     # login dialog and every unstyled surface (no hardcoded colours).
     theme.apply_to_app(app)
+    # Business-data text is upper-cased as it is typed, everywhere.  The
+    # watcher is installed here — before the login dialog and before any
+    # screen exists — so every field in the application is covered without
+    # each screen having to opt in.  Password fields, read-only fields,
+    # file dialogs and numeric spin boxes exclude themselves (see
+    # ui/input_rules.py).
+    install_uppercase_input(app)
 
     init_database()
     auth.ensure_auth_schema()

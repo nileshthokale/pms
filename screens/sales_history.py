@@ -9,13 +9,11 @@ from PySide6.QtWidgets import (
     QDateEdit,
     QDialog,
     QFileDialog,
-    QFrame,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
-    QLineEdit,
     QMessageBox,
     QPushButton,
     QTableWidget,
@@ -25,8 +23,6 @@ from PySide6.QtWidgets import (
 )
 
 from database import document_printing, financial_year
-from database.customer_dao import CustomerDAO
-from database.doctor_dao import DoctorDAO
 from database.sales_dao import SalesDAO
 from ui.components import FONT_FAMILY
 from ui.searchable_filter import SearchableFilterEdit
@@ -35,12 +31,13 @@ from ui.theme import (
     TYPE_FORM_LABEL,
     TYPE_HINT,
     TYPE_INPUT,
-    TYPE_INPUT_COMPACT,
     TYPE_PAGE_TITLE,
     TYPE_SECTION_HEADER,
     TYPE_TABLE_DATA,
+    TYPE_TABLE_HEADER,
     TYPE_VALUE,
     TYPE_VALUE_EMPHASIS,
+    date_subcontrols,
     palette,
 )
 
@@ -84,7 +81,9 @@ def _fresh_date_style(p: dict) -> str:
         f"  padding: 4px 6px; font-size: {TYPE_INPUT}px; font-family: {FONT_FAMILY};"
         f"}}"
         f"QDateEdit:focus {{ border: 1px solid {p['accent']}; }}"
-        f"QDateEdit::drop-down {{ border: none; width: 20px; }}"
+        # Shared calendar chevron (ui.theme.date_subcontrols) — never
+        # `image: none`, which hid the icon on every date field.
+        + date_subcontrols(p, width=20)
     )
 
 
@@ -106,7 +105,7 @@ def _fresh_header_style(p: dict) -> str:
         f"QHeaderView::section {{"
         f"  background-color: {p['surface']}; color: {p['text']};"
         f"  border: none; border-bottom: 2px solid {p['accent']};"
-        f"  padding: 4px 6px; font-weight: bold; font-size: 12px;"
+        f"  padding: 4px 6px; font-weight: bold; font-size: {TYPE_TABLE_HEADER}px;"
         f"  font-family: {FONT_FAMILY};"
         f"}}"
     )
@@ -143,6 +142,125 @@ def _fresh_btn_style(p: dict, *, primary: bool = False, warning: bool = False) -
     )
 
 
+def _is_synthetic_fallback_bill(
+    bill_no: str | None,
+    remarks: str | None = None,
+    invoice_id: int | None = None,
+) -> bool:
+    """Return True when ``bill_no`` is a synthetic fallback identifier.
+
+    The legacy migrator (``database/legacy_migration.py``) generates a
+    fallback ``bill_no`` of the form ``{FY}-{Vh}-{row}-S{legacy_id}`` only
+    when the source legacy BillNo was missing, empty or zero, and records the
+    provenance in ``remarks`` as ``Legacy salesvhheader ID …; BillNo {orig}``
+    where {orig} is ``(missing)``, ``0``, or ``0.0``, and links the record in
+    ``legacy_id_map`` (entity='sale', legacy_id, new_id).  Genuine bills
+    record ``BillNo {actual}`` instead.
+
+    Identification therefore relies strictly on migration provenance and the
+    ``legacy_id_map`` audit trail — never on guessing from the shape of
+    ``bill_no`` itself (hyphens, FY prefixes, or suffixes also occur in genuine
+    historical numbers).  The stored ``bill_no``, source BillNo and
+    ``legacy_id_map`` audit trail are left untouched; only the displayed
+    value changes.
+    """
+    import re
+
+    if not remarks and invoice_id is not None:
+        try:
+            from database.connection import get_connection
+            conn = get_connection()
+            try:
+                row = conn.execute(
+                    "SELECT remarks FROM sales_invoices WHERE id = ?",
+                    (invoice_id,),
+                ).fetchone()
+                if row and row[0]:
+                    remarks = row[0]
+            finally:
+                conn.close()
+        except Exception:
+            pass
+
+    if not remarks:
+        return False
+
+    if "Legacy salesvhheader ID" not in remarks:
+        return False
+
+    # Extract original BillNo from provenance
+    m = re.search(r"BillNo\s+([^\s;]+)", remarks)
+    if not m:
+        return False
+
+    orig_bno = m.group(1).strip()
+    if orig_bno in ("(missing)", "0", "0.0", "", "None"):
+        if invoice_id is not None:
+            try:
+                from database.connection import get_connection
+                conn = get_connection()
+                try:
+                    has_table = conn.execute(
+                        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='legacy_id_map'"
+                    ).fetchone()
+                    if has_table:
+                        mapped = conn.execute(
+                            "SELECT legacy_id FROM legacy_id_map WHERE entity = 'sale' AND new_id = ?",
+                            (invoice_id,),
+                        ).fetchone()
+                        if mapped:
+                            return True
+                finally:
+                    conn.close()
+            except Exception:
+                pass
+        return True
+
+    return False
+
+
+def _fmt_bill_no(
+    bill_no: str | None,
+    remarks: str | None = None,
+    invoice_id: int | None = None,
+) -> str:
+    """Return the display value for a bill number.
+
+    Synthetic fallback identifiers (missing/zero legacy BillNo, detected
+    via migration provenance in ``remarks`` and ``legacy_id_map``) display
+    as ``---`` so users never see technical placeholders.  Bill numbers may
+    otherwise carry a financial-year prefix like ``2025-2026-0123``; only the
+    exact pattern ``YYYY-YYYY-\\d+`` is stripped, while other formats (e.g.
+    hand-written ``CS-0001``, bare ``1911``, or genuine numbers with
+    prefixes/suffixes) are left untouched so existing numbers are never
+    corrupted.
+    """
+    if _is_synthetic_fallback_bill(bill_no, remarks, invoice_id):
+        return "---"
+    if not bill_no or bill_no == "--":
+        return bill_no
+    import re
+    m = re.match(r"\d{4}-\d{4}-(\d+)$", bill_no)
+    if m:
+        return m.group(1)
+    return bill_no
+
+
+def _fmt_patient_name(patient_name: str | None) -> str:
+    """Return a display-friendly patient name.
+
+    Missing, empty, whitespace-only, or placeholder ``--`` values are
+    displayed as ``WALKIN`` so walk-in customers are obvious.  Real patient
+    names are returned unchanged.
+    """
+    if not patient_name:
+        return "WALKIN"
+    name = patient_name.strip()
+    if not name or name == "--":
+        return "WALKIN"
+    return patient_name
+
+
 class SalesBillDetailsDialog(QDialog):
     """Modal dialog displaying original bill details, line items, and reprint options."""
 
@@ -155,6 +273,7 @@ class SalesBillDetailsDialog(QDialog):
 
         self._invoice = SalesDAO.get_by_id(invoice_id)
         self._items = SalesDAO.get_invoice_items(invoice_id)
+        self._customer_row_hidden = True
 
         self._build_ui()
         self.refresh_theme()
@@ -188,8 +307,8 @@ class SalesBillDetailsDialog(QDialog):
         sale_time = self._invoice.get("sale_time") or ""
         dt_str = f"{sale_date} {sale_time}".strip()
         sale_type = self._invoice.get("sale_type") or "Cash"
-        cust_name = self._invoice.get("customer_name") or "--"
-        pat_name = self._invoice.get("patient_name") or "--"
+        raw_pat = self._invoice.get("patient_name")
+        pat_name = _fmt_patient_name(raw_pat)
         doc_name = self._invoice.get("doctor_name") or "--"
         remarks = self._invoice.get("remarks") or ""
 
@@ -210,13 +329,16 @@ class SalesBillDetailsDialog(QDialog):
                 grid.addWidget(l3, row_idx, 4)
                 grid.addWidget(v3, row_idx, 5)
 
-        _meta_row(0, "Bill / CNo", bill_no, "Date & Time", dt_str, "Payment Type", sale_type)
-        _meta_row(1, "Customer", cust_name, "Patient", pat_name, "Doctor", doc_name)
-        if remarks:
-            l_rem = QLabel("<b>Remarks:</b>")
-            v_rem = QLabel(remarks)
-            grid.addWidget(l_rem, 2, 0)
-            grid.addWidget(v_rem, 2, 1, 1, 5)
+        _meta_row(
+            0,
+            "Bill / CNo",
+            _fmt_bill_no(bill_no, remarks, self.invoice_id),
+            "Date & Time",
+            dt_str,
+            "Payment Type",
+            sale_type,
+        )
+        _meta_row(1, "Patient", pat_name, "Doctor", doc_name)
 
         layout.addWidget(self._meta_group)
 
@@ -386,7 +508,9 @@ class SalesHistoryPage(QWidget):
         title_box.addWidget(self._title_lbl)
 
         self._stats_lbl = QLabel("")
-        self._stats_lbl.setStyleSheet(f"color: #7f8c8d; font-size: {TYPE_HINT}px;")
+        self._stats_lbl.setStyleSheet(
+            f"color: {palette()['text_dim']}; font-size: {TYPE_HINT}px;"
+        )
         title_box.addWidget(self._stats_lbl)
         title_box.addStretch()
 
@@ -398,50 +522,27 @@ class SalesHistoryPage(QWidget):
         filter_layout.setContentsMargins(8, 12, 8, 8)
         filter_layout.setSpacing(6)
 
-        # Row 1: Patient Name, Customer Name, Bill / CNo
-        row1 = QHBoxLayout()
-        row1.setSpacing(10)
+        # Single-row filter bar: Patient | Financial Year | Filter by Date |
+        # From | To | Search | Reset.  All controls stay on ONE line at the
+        # default window width; Patient and Financial Year absorb the spare
+        # width so nothing is clipped at narrower sizes.
+        row = QHBoxLayout()
+        row.setSpacing(10)
 
-        # Patient autocomplete edit
+        # Patient autocomplete edit (widest input — must stay readable)
         p_box = QHBoxLayout()
+        p_box.setSpacing(6)
         p_lbl = QLabel("Patient:")
         p_lbl.setStyleSheet(f"font-size: {TYPE_FORM_LABEL}px; font-weight: bold;")
         p_box.addWidget(p_lbl)
         self._patient_edit = SearchableFilterEdit("Search patient name...")
         self._patient_edit.returnPressed.connect(self._on_search_clicked)
         p_box.addWidget(self._patient_edit)
-        row1.addLayout(p_box, 1)
-
-        # Customer searchable edit
-        c_box = QHBoxLayout()
-        c_lbl = QLabel("Customer:")
-        c_lbl.setStyleSheet(f"font-size: {TYPE_FORM_LABEL}px; font-weight: bold;")
-        c_box.addWidget(c_lbl)
-        self._customer_edit = SearchableFilterEdit("Search customer name...")
-        self._customer_edit.returnPressed.connect(self._on_search_clicked)
-        c_box.addWidget(self._customer_edit)
-        row1.addLayout(c_box, 1)
-
-        # Bill No / CNo
-        b_box = QHBoxLayout()
-        b_lbl = QLabel("Bill / CNo:")
-        b_lbl.setStyleSheet(f"font-size: {TYPE_FORM_LABEL}px; font-weight: bold;")
-        b_box.addWidget(b_lbl)
-        self._bill_no_edit = QLineEdit()
-        self._bill_no_edit.setPlaceholderText("Search bill number...")
-        self._bill_no_edit.setClearButtonEnabled(True)
-        self._bill_no_edit.returnPressed.connect(self._on_search_clicked)
-        b_box.addWidget(self._bill_no_edit)
-        row1.addLayout(b_box, 1)
-
-        filter_layout.addLayout(row1)
-
-        # Row 2: Financial Year, Date Range Checkbox + Pickers, Search / Reset buttons
-        row2 = QHBoxLayout()
-        row2.setSpacing(10)
+        row.addLayout(p_box, 2)
 
         # FY Dropdown
         fy_box = QHBoxLayout()
+        fy_box.setSpacing(6)
         fy_lbl = QLabel("Financial Year:")
         fy_lbl.setStyleSheet(f"font-size: {TYPE_FORM_LABEL}px; font-weight: bold;")
         fy_box.addWidget(fy_lbl)
@@ -449,53 +550,52 @@ class SalesHistoryPage(QWidget):
         self._fy_combo.addItem("All Financial Years", userData=None)
         self._fy_combo.currentIndexChanged.connect(self._on_fy_changed)
         fy_box.addWidget(self._fy_combo)
-        row2.addLayout(fy_box, 1)
+        row.addLayout(fy_box, 2)
 
         # Date Range filter
         self._date_check = QCheckBox("Filter by Date:")
         self._date_check.setChecked(False)
         self._date_check.toggled.connect(self._on_date_check_toggled)
-        row2.addWidget(self._date_check)
+        row.addWidget(self._date_check)
 
         from_lbl = QLabel("From:")
         from_lbl.setStyleSheet(f"font-size: {TYPE_FORM_LABEL}px;")
-        row2.addWidget(from_lbl)
+        row.addWidget(from_lbl)
         self._from_date = QDateEdit()
         self._from_date.setCalendarPopup(True)
         self._from_date.setDate(QDate.currentDate())
         self._from_date.setEnabled(False)
         self._from_date.setFixedWidth(115)
-        row2.addWidget(self._from_date)
+        row.addWidget(self._from_date)
 
         to_lbl = QLabel("To:")
         to_lbl.setStyleSheet(f"font-size: {TYPE_FORM_LABEL}px;")
-        row2.addWidget(to_lbl)
+        row.addWidget(to_lbl)
         self._to_date = QDateEdit()
         self._to_date.setCalendarPopup(True)
         self._to_date.setDate(QDate.currentDate())
         self._to_date.setEnabled(False)
         self._to_date.setFixedWidth(115)
-        row2.addWidget(self._to_date)
+        row.addWidget(self._to_date)
 
         # Search & Reset buttons
         self._search_btn = QPushButton("Search")
         self._search_btn.clicked.connect(self._on_search_clicked)
-        row2.addWidget(self._search_btn)
+        row.addWidget(self._search_btn)
 
         self._reset_btn = QPushButton("Reset")
         self._reset_btn.clicked.connect(self._on_reset_clicked)
-        row2.addWidget(self._reset_btn)
+        row.addWidget(self._reset_btn)
 
-        filter_layout.addLayout(row2)
+        filter_layout.addLayout(row)
         layout.addWidget(self._filter_box)
 
         # ── 3. Results Table ─────────────────────────────────────────
         self._table = QTableWidget()
-        self._table.setColumnCount(10)
+        self._table.setColumnCount(9)
         self._table.setHorizontalHeaderLabels([
             "Bill No / CNo",
             "Sale Date & Time",
-            "Customer",
             "Patient",
             "Doctor",
             "Bill Total",
@@ -505,6 +605,9 @@ class SalesHistoryPage(QWidget):
             "Payment Type",
         ])
         header = self._table.horizontalHeader()
+        # Bill No / CNo and Sale Date & Time size to their content so long
+        # legacy bill numbers are never clipped; Patient and Doctor absorb
+        # the recovered space from the removed Customer column.
         header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(2, QHeaderView.Stretch)
@@ -514,7 +617,6 @@ class SalesHistoryPage(QWidget):
         header.setSectionResizeMode(6, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(7, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(8, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(9, QHeaderView.ResizeToContents)
 
         self._table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -573,12 +675,7 @@ class SalesHistoryPage(QWidget):
         layout.addLayout(footer_layout)
 
     def _load_master_data(self):
-        """Populate customer, patient and financial year candidates."""
-        # Customers
-        customers = CustomerDAO.get_all()
-        cust_rows = [{"id": c["id"], "name": c["customer_name"]} for c in customers]
-        self._customer_edit.set_options(cust_rows, id_key="id", text_key="name")
-
+        """Populate patient and financial year candidates."""
         # Patients
         patients = SalesDAO.get_distinct_patient_names()
         pat_rows = [{"id": p, "name": p} for p in patients]
@@ -630,8 +727,6 @@ class SalesHistoryPage(QWidget):
 
     def _on_reset_clicked(self):
         self._patient_edit.clear_filter()
-        self._customer_edit.clear_filter()
-        self._bill_no_edit.clear()
         self._fy_combo.setCurrentIndex(0)
         self._date_check.setChecked(False)
         self._from_date.setDate(QDate.currentDate())
@@ -706,9 +801,6 @@ class SalesHistoryPage(QWidget):
     def _perform_search(self):
         """Execute database query with filters and populate the results table."""
         patient_name = self._patient_edit.text().strip()
-        customer_name = self._customer_edit.text().strip()
-        customer_id = self._customer_edit.selected_id
-        bill_no = self._bill_no_edit.text().strip()
 
         start_date = ""
         end_date = ""
@@ -721,9 +813,6 @@ class SalesHistoryPage(QWidget):
         try:
             rows, total = SalesDAO.search_sales_history(
                 patient_name=patient_name,
-                customer_name=customer_name,
-                customer_id=customer_id,
-                bill_no=bill_no,
                 start_date=start_date,
                 end_date=end_date,
                 limit=self._page_size,
@@ -747,8 +836,15 @@ class SalesHistoryPage(QWidget):
     def _populate_table(self, rows: list[dict]):
         self._table.setRowCount(len(rows))
         for r_idx, row in enumerate(rows):
-            # 0: Bill No
-            bno_item = QTableWidgetItem(str(row.get("bill_no") or "--"))
+            # 0: Bill No (synthetic migration fallbacks show as "---";
+            # the invoice id stays in UserRole so open/print still work).
+            bno_item = QTableWidgetItem(
+                _fmt_bill_no(
+                    row.get("bill_no") or "--",
+                    row.get("remarks"),
+                    row.get("id"),
+                )
+            )
             bno_item.setData(Qt.UserRole, row.get("id"))
             bno_item.setTextAlignment(Qt.AlignCenter)
             self._table.setItem(r_idx, 0, bno_item)
@@ -760,47 +856,43 @@ class SalesHistoryPage(QWidget):
             dt_item.setTextAlignment(Qt.AlignCenter)
             self._table.setItem(r_idx, 1, dt_item)
 
-            # 2: Customer
-            c_name = row.get("customer_name") or "--"
-            self._table.setItem(r_idx, 2, QTableWidgetItem(c_name))
+            # 2: Patient (WALKIN fallback for missing names)
+            p_name = _fmt_patient_name(row.get("patient_name"))
+            self._table.setItem(r_idx, 2, QTableWidgetItem(p_name))
 
-            # 3: Patient
-            p_name = row.get("patient_name") or "--"
-            self._table.setItem(r_idx, 3, QTableWidgetItem(p_name))
-
-            # 4: Doctor
+            # 3: Doctor
             d_name = row.get("doctor_name") or "--"
-            self._table.setItem(r_idx, 4, QTableWidgetItem(d_name))
+            self._table.setItem(r_idx, 3, QTableWidgetItem(d_name))
 
-            # 5: Bill Total
+            # 4: Bill Total
             tot = float(row.get("total_amount") or 0.0)
             tot_item = QTableWidgetItem(f"{tot:.2f}")
             tot_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self._table.setItem(r_idx, 5, tot_item)
+            self._table.setItem(r_idx, 4, tot_item)
 
-            # 6: Discount
+            # 5: Discount
             disc = float(row.get("discount") or 0.0)
             disc_item = QTableWidgetItem(f"{disc:.2f}")
             disc_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self._table.setItem(r_idx, 6, disc_item)
+            self._table.setItem(r_idx, 5, disc_item)
 
-            # 7: Paid Amount
+            # 6: Paid Amount
             paid = float(row.get("paid_amount") or 0.0)
             paid_item = QTableWidgetItem(f"{paid:.2f}")
             paid_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self._table.setItem(r_idx, 7, paid_item)
+            self._table.setItem(r_idx, 6, paid_item)
 
-            # 8: Net Amount
+            # 7: Net Amount
             net = float(row.get("net_amount") or 0.0)
             net_item = QTableWidgetItem(f"{net:.2f}")
             net_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self._table.setItem(r_idx, 8, net_item)
+            self._table.setItem(r_idx, 7, net_item)
 
-            # 9: Payment Type
+            # 8: Payment Type
             stype = row.get("sale_type") or "Cash"
             st_item = QTableWidgetItem(stype)
             st_item.setTextAlignment(Qt.AlignCenter)
-            self._table.setItem(r_idx, 9, st_item)
+            self._table.setItem(r_idx, 8, st_item)
 
     def refresh_theme(self):
         p = palette()
@@ -811,8 +903,6 @@ class SalesHistoryPage(QWidget):
         self._table.horizontalHeader().setStyleSheet(_fresh_header_style(p))
 
         # Inputs
-        self._bill_no_edit.setStyleSheet(_fresh_edit_style(p))
-        self._customer_edit.setStyleSheet(_fresh_edit_style(p))
         self._patient_edit.setStyleSheet(_fresh_edit_style(p))
         self._fy_combo.setStyleSheet(_fresh_combo_style(p))
         self._page_size_combo.setStyleSheet(_fresh_combo_style(p))

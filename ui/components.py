@@ -41,6 +41,7 @@ from ui.theme import (
     FONT_NAME,
     TYPE_BUTTON,
     TYPE_FORM_LABEL,
+    TYPE_HINT,
     TYPE_INPUT,
     TYPE_PAGE_TITLE,
     TYPE_SECTION_HEADER,
@@ -53,13 +54,19 @@ from ui.theme import (
 )
 
 # Readable desktop control metrics (px) shared across screens.
-# Rows are sized so the shared TYPE_TABLE_DATA text (13 px) plus the
+# Rows are sized so the shared TYPE_TABLE_DATA text (15 px ≈ 11 pt) plus the
 # ``QTableWidget::item`` padding of 3 px never clips, while staying compact
-# enough for 1366x768 pharmacy desktops.  Changing these would change the
-# layout, so they are left exactly as they were.
-CONTROL_HEIGHT = 28
-ROW_HEIGHT = 26
-HEADER_HEIGHT = 28
+# enough for 1366x768 pharmacy desktops.  Heights grew with the 11-12 pt
+# baseline so larger fonts never clip or overlap.
+CONTROL_HEIGHT = 34
+ROW_HEIGHT = 32
+HEADER_HEIGHT = 34
+
+# The hint size screens declared before the shared type scale existed.  The
+# theme-refresh inference still recognises it, so a screen that has not been
+# moved onto the scale keeps its dim captions dim instead of silently
+# becoming full-strength text.
+_LEGACY_HINT_PX = 11
 
 
 def readable_font(size: int, *, bold: bool = False) -> QFont:
@@ -78,7 +85,7 @@ def readable_font(size: int, *, bold: bool = False) -> QFont:
 
 # ── Label styles ──────────────────────────────────────────────────────
 
-def label_style(*, dim: bool = False, bold: bool = False,
+def label_style(*, dim: bool = False, bold: bool = True,
                 size: int = TYPE_FORM_LABEL,
                 danger: bool = False, success: bool = False) -> str:
     """Stylesheet for a caption / label at the shared readable size."""
@@ -91,7 +98,10 @@ def label_style(*, dim: bool = False, bold: bool = False,
         color = p["text_dim"]
     else:
         color = p["text"]
-    weight = "font-weight: bold;" if bold else ""
+    # The application stylesheet makes every ``QLabel`` bold, so a caption
+    # that is deliberately *not* bold (a dim hint) has to say so explicitly —
+    # otherwise "unset" would silently inherit the bold weight.
+    weight = "font-weight: bold;" if bold else "font-weight: normal;"
     return (
         f"color: {color}; font-size: {size}px; {weight}"
         f"font-family: {FONT_FAMILY}; background: transparent;"
@@ -121,7 +131,7 @@ def _input_rules(selector: str, *, size: int = TYPE_INPUT) -> str:
         f"  background-color: {p['bg']}; color: {p['text']};"
         f"  border: 1px solid {p['border']}; border-radius: 2px;"
         f"  padding: 4px 7px; font-size: {size}px;"
-        f"  font-family: {FONT_FAMILY};"
+        f"  font-weight: bold; font-family: {FONT_FAMILY};"
         "}"
     )
 
@@ -154,15 +164,20 @@ def combo_style() -> str:
 
 
 def date_style() -> str:
+    # Shared date-field look: base input rules plus the centralized
+    # drop-down button + calendar chevron from ui.theme.  The chevron is a
+    # generated PNG tinted with the live palette (never `image: none`, which
+    # is what hid the icon on every screen).
+    from ui.theme import date_subcontrols
     p = palette()
     return (
         _input_rules("QDateEdit, QTimeEdit, QDateTimeEdit")
         + "QDateEdit:focus, QTimeEdit:focus, QDateTimeEdit:focus"
         + f" {{ border: 1px solid {p['focus']}; }}"
-        + "QDateEdit::drop-down, QTimeEdit::drop-down,"
-        + "QDateTimeEdit::drop-down { border: none; width: 18px; }"
-        + "QDateEdit::down-arrow, QTimeEdit::down-arrow,"
-        + "QDateTimeEdit::down-arrow { image: none; border: none; }"
+        + f"QDateEdit:disabled, QTimeEdit:disabled, QDateTimeEdit:disabled"
+        + f" {{ background-color: {p['disabled_bg']};"
+        + f"  color: {p['disabled_text']}; }}"
+        + date_subcontrols(p, width=22)
     )
 
 
@@ -223,7 +238,7 @@ def _button_style(bg: str, fg: str, hover: str, pressed: str) -> str:
         f"  background-color: {bg}; color: {fg};"
         f"  border: 1px solid {p['border']}; border-radius: 2px;"
         f"  padding: 5px 14px; font-size: {TYPE_BUTTON}px;"
-        f"  font-family: {FONT_FAMILY}; min-height: 22px;"
+        f"  font-weight: bold; font-family: {FONT_FAMILY}; min-height: 22px;"
         "}"
         f"QPushButton:hover {{ background-color: {hover}; }}"
         f"QPushButton:pressed {{ background-color: {pressed}; }}"
@@ -321,7 +336,7 @@ def table_style() -> str:
         f"  alternate-background-color: {p['surface_alt']};"
         f"  border: 1px solid {p['border']};"
         f"  gridline-color: {p['grid']};"
-        f"  font-size: {TYPE_TABLE_DATA}px; font-family: {FONT_FAMILY};"
+        f"  font-size: {TYPE_TABLE_DATA}px; font-weight: bold; font-family: {FONT_FAMILY};"
         f"  selection-background-color: {p['selected']};"
         f"  selection-color: {p['selected_text']};"
         "}"
@@ -601,13 +616,25 @@ def subtitle(text: str) -> QLabel:
     return label
 
 
-def style_edit(widget):
+def style_edit(widget, *, upper: bool | None = None):
+    """Apply the shared input style and, by default, upper-case entry.
+
+    ``upper`` is the explicit switch for the automatic UPPERCASE rule in
+    ``ui.input_rules``: ``True`` forces it, ``False`` opts the field out, and
+    the default ``None`` leaves the application-wide policy in charge (which
+    converts business data and already excludes passwords, read-only fields,
+    file dialogs and numeric spin boxes).  Screens only need to pass it for
+    the rare field that disagrees with the default.
+    """
     widget.setStyleSheet(edit_style())
     _mark(widget, "edit")
+    if upper is not None:
+        from ui.input_rules import set_uppercase
+        set_uppercase(widget, upper)
     return widget
 
 
-def style_combo(widget):
+def style_combo(widget, *, upper: bool | None = None):
     widget.setStyleSheet(combo_style())
     _mark(widget, "combo")
     # Editable combo text fields + dropdown views follow the app theme, but
@@ -620,12 +647,27 @@ def style_combo(widget):
                 _mark(line, "combo_line")
     except Exception:
         pass
+    if upper is not None:
+        from ui.input_rules import set_uppercase
+        set_uppercase(widget, upper)
     return widget
 
 
 def style_date(widget):
+    """Apply the shared date style and enable its calendar popup.
+
+    Every editable date-selection control in the application must open a
+    calendar when its button is clicked; the popup flag is set here so no
+    screen can end up with a styled but popup-less field.  Read-only date
+    *displays* (QLabels) never pass through this helper, so they are
+    unaffected.
+    """
     widget.setStyleSheet(date_style())
     _mark(widget, "date")
+    try:
+        widget.setCalendarPopup(True)
+    except Exception:
+        pass
     return widget
 
 
@@ -1127,6 +1169,11 @@ def refresh_generic_screen(root: QWidget) -> int:
                 if "QDateEdit" not in ss:
                     continue
                 try:
+                    # First remap the baked base colours (bg/text/border/
+                    # accent), preserving the screen's own metrics, then
+                    # replace the icon-hiding drop-down/arrow rules with the
+                    # shared visible chevron.  A plain hex remap alone would
+                    # preserve `image: none` and keep the icon invisible.
                     new_ss = ss
                     for old, new in (
                         (_PALS["dark"]["surface"], p["surface"]),
@@ -1143,9 +1190,30 @@ def refresh_generic_screen(root: QWidget) -> int:
                         if old and new and old.lower() != new.lower():
                             new_ss = _re.sub(_re.escape(old), new, new_ss,
                                              flags=_re.IGNORECASE)
+                    try:
+                        from ui.theme import fix_date_stylesheet as _fix_dates
+                        new_ss = _fix_dates(new_ss, p)
+                    except Exception:
+                        pass
+                    try:
+                        if not w.calendarPopup():
+                            w.setCalendarPopup(True)
+                    except Exception:
+                        pass
                     if new_ss != ss:
                         w.setStyleSheet(new_ss)
                         updated += 1
+                    elif "down-arrow" not in ss and "drop-down" not in ss:
+                        # Unstyled date field follows the app stylesheet;
+                        # repolish so the global chevron applies.
+                        try:
+                            style = w.style()
+                            if style is not None:
+                                style.unpolish(w)
+                                style.polish(w)
+                            w.update()
+                        except Exception:
+                            pass
                 except Exception:
                     pass
                 continue
@@ -1210,7 +1278,17 @@ def refresh_generic_screen(root: QWidget) -> int:
                     if col in all_dim:
                         new_col = p["text_dim"]
                     elif col in all_text or col in ("#000000", "#ffffff", "black", "white"):
-                        if "font-size: 11px" in ss and "font-weight: bold" not in ss:
+                        # White/black alone is ambiguous; a screen's dim
+                        # hints declare the shared hint size without a bold
+                        # weight, while a caption of the same nominal colour
+                        # is bold.  The pre-scale hint size is still accepted
+                        # so the inference keeps working for any screen that
+                        # has not been moved onto the scale yet.
+                        hint_markers = (f"font-size: {TYPE_HINT}px",
+                                        f"font-size: {_LEGACY_HINT_PX}px")
+                        if ("font-weight: bold" not in ss
+                                and any(marker in ss
+                                        for marker in hint_markers)):
                             new_col = p["text_dim"]
                         else:
                             new_col = p["text"]

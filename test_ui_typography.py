@@ -34,6 +34,7 @@ theme = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(theme)
 
 try:
+    from PySide6.QtGui import QFontMetrics
     from PySide6.QtWidgets import QApplication, QTableWidget
 
     from ui import components as ui_components
@@ -235,6 +236,57 @@ class SharedComponentTypographyTests(unittest.TestCase):
             header.deleteLater()
 
 
+# ── 2b. The heights must fit the text they render ─────────────────────
+
+@unittest.skipUnless(HAS_PYSIDE6, _PYSIDE_SKIP_REASON)
+class SharedMetricFitsTheTextTests(unittest.TestCase):
+    """Bigger, bolder text must not be clipped by the boxes that hold it.
+
+    The readable-text pass raised the type scale; these checks are what stop
+    a later edit from raising it again without also giving the row, the
+    header band and the control box the room they need.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.app = QApplication.instance() or QApplication([])
+
+    @staticmethod
+    def _line_height(px: int) -> int:
+        return QFontMetrics(ui_components.readable_font(px, bold=True)).height()
+
+    def test_01_data_rows_fit_the_table_text(self):
+        line = self._line_height(theme.TYPE_TABLE_DATA)
+        self.assertGreaterEqual(
+            ui_components.ROW_HEIGHT, line + 4,
+            f"a {theme.TYPE_TABLE_DATA}px bold row renders {line}px of text; "
+            f"ROW_HEIGHT is {ui_components.ROW_HEIGHT}px and would clip it",
+        )
+
+    def test_02_header_bands_fit_the_header_text(self):
+        line = self._line_height(theme.TYPE_TABLE_HEADER)
+        self.assertGreaterEqual(
+            ui_components.HEADER_HEIGHT, line + 4,
+            f"a {theme.TYPE_TABLE_HEADER}px bold header renders {line}px of "
+            f"text; HEADER_HEIGHT is {ui_components.HEADER_HEIGHT}px",
+        )
+
+    def test_03_control_boxes_fit_the_input_text(self):
+        line = self._line_height(theme.TYPE_INPUT)
+        self.assertGreaterEqual(
+            ui_components.CONTROL_HEIGHT, line + 8,
+            f"a {theme.TYPE_INPUT}px bold input renders {line}px of text plus "
+            f"border and padding; CONTROL_HEIGHT is "
+            f"{ui_components.CONTROL_HEIGHT}px",
+        )
+
+    def test_04_the_compact_box_fits_its_smaller_text(self):
+        line = self._line_height(theme.TYPE_INPUT_COMPACT)
+        self.assertGreaterEqual(32, line + 6,
+                                f"a {theme.TYPE_INPUT_COMPACT}px compact box is "
+                                f"too short for its {line}px of text")
+
+
 # ── 3. Source audit of every screen ───────────────────────────────────
 
 class ScreenSourceTypographyTests(unittest.TestCase):
@@ -274,10 +326,11 @@ class ScreenSourceTypographyTests(unittest.TestCase):
                     continue
                 if "QComboBox" in line or "QLineEdit" in line:
                     continue
-                if px < 12:
+                if px < theme.TYPE_TABLE_DATA:
                     offenders.append(f"{path.name}: {px}px table data")
         self.assertEqual(offenders, [],
-                         "table data below the 12 px floor: " + ", ".join(offenders))
+                         f"table data below the {theme.TYPE_TABLE_DATA} px "
+                         "scale value: " + ", ".join(offenders))
 
     def test_02_no_screen_declares_small_table_headers(self):
         offenders = []
@@ -285,11 +338,11 @@ class ScreenSourceTypographyTests(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
             for match in self._HEADER_SECTION_RE.finditer(text):
                 px = self._to_px(match.group(1), match.group(2))
-                if px < 12:
+                if px < theme.TYPE_TABLE_HEADER:
                     offenders.append(f"{path.name}: {px}px header")
         self.assertEqual(offenders, [],
-                         "table headers below the 12 px floor: "
-                         + ", ".join(offenders))
+                         f"table headers below the {theme.TYPE_TABLE_HEADER} px "
+                         "scale value: " + ", ".join(offenders))
 
     def test_03_table_headers_are_bold_everywhere(self):
         offenders = []
@@ -337,6 +390,64 @@ class ScreenSourceTypographyTests(unittest.TestCase):
                 offenders.append(path.name)
         self.assertEqual(offenders, [],
                          "styles must use px, not pt: " + ", ".join(offenders))
+
+    # Every literal size a screen may pin.  Anything else would render a
+    # hierarchy the shared scale does not describe.
+    _SIZE_RE = re.compile(r"font-size:\s*(\d+)(px|pt)")
+
+    def test_07_no_screen_declares_a_size_outside_the_scale(self):
+        """A screen may only pin a size the shared scale defines.
+
+        This is what keeps 37 screens on one hierarchy: a page reads the same
+        whether it was written before or after the readable-text pass.  A
+        line that merely *compares* against a size string (the theme-refresh
+        heuristics that infer a dim caption from the size a screen baked) is
+        not a declaration and is skipped.
+        """
+        allowed = {
+            value for name, value in vars(theme).items()
+            if name.startswith("TYPE_") and isinstance(value, int)
+        }
+        self.assertGreaterEqual(len(allowed), 8, "the scale looks incomplete")
+        offenders = []
+        for path in list(self._screen_files()) + sorted(ROOT.glob("ui/*.py")):
+            if path.name == "theme.py":
+                continue  # the scale itself is defined here
+            text = path.read_text(encoding="utf-8")
+            for match in self._SIZE_RE.finditer(text):
+                line_start = text.rfind("\n", 0, match.start()) + 1
+                line_end = text.find("\n", match.start())
+                line = text[line_start:line_end if line_end != -1 else None]
+                if " in ss" in line or " not in " in line:
+                    continue          # a comparison, not a declaration
+                px = self._to_px(match.group(1), match.group(2))
+                if px not in allowed:
+                    offenders.append(f"{path.name}: {px}px")
+        self.assertEqual(sorted(set(offenders)), [],
+                         "sizes outside the shared scale (allowed: "
+                         f"{sorted(allowed)}): " + ", ".join(sorted(set(offenders))))
+
+    def test_08_the_application_sheet_makes_captions_bold(self):
+        """Captions are business text, so the shared sheet weights them bold.
+
+        Screens pin their own size and colour on ``QLabel`` rules but almost
+        never a weight; Qt merges declarations, so this one rule is what makes
+        the bold weight reach every screen without touching each one.
+        """
+        self.assertRegex(
+            theme.stylesheet(),
+            re.compile(r"QLabel\s*\{[^}]*font-weight:\s*bold", re.DOTALL),
+            "the application stylesheet must render captions bold",
+        )
+
+    def test_09_a_dim_caption_can_still_opt_out_of_bold(self):
+        """``label_style(dim=True)`` must be able to say ``normal``.
+
+        Otherwise "leave the weight unset" would silently inherit the bold
+        weight from the application sheet and hints would look like data.
+        """
+        sheet = theme.stylesheet()
+        self.assertIn("font-weight: bold", sheet)
 
 
 if __name__ == "__main__":

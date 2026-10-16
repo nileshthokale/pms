@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 
 from database import document_printing
 from database.day_end_dao import DayEndDAO, DayEndError
-from ui.theme import palette
+from ui.theme import date_subcontrols, palette
 
 _p = palette()
 _DARK_BG = _p["bg"]
@@ -32,14 +32,14 @@ _TEXT_DIM = _p["text_dim"]
 _BTN_PRIMARY = (
     f"QPushButton {{ background-color: {_ACCENT}; color: white;"
     f"  border: none; border-radius: 2px; padding: 7px 18px;"
-    f"  font-weight: bold; font-size: 12px; font-family: 'Segoe UI'; }}"
+    f"  font-weight: bold; font-size: 15px; font-family: 'Segoe UI'; }}"
     f"QPushButton:hover {{ background-color: {_ACCENT_HOVER}; }}"
 )
 
 _BTN_SECONDARY = (
     f"QPushButton {{ background-color: {_BORDER}; color: {_TEXT};"
     f"  border: none; border-radius: 2px; padding: 7px 18px;"
-    f"  font-size: 12px; font-family: 'Segoe UI'; }}"
+    f"  font-size: 15px; font-family: 'Segoe UI'; }}"
     f"QPushButton:hover {{ background-color: #7d93a8; }}"
 )
 
@@ -47,13 +47,15 @@ _DATE_STYLE = (
     f"QDateEdit {{"
     f"  background-color: {_SURFACE}; color: {_TEXT};"
     f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-    f"  padding: 4px 6px; font-size: 12px; font-family: 'Segoe UI';"
+    f"  padding: 4px 6px; font-size: 15px; font-family: 'Segoe UI';"
     f"}}"
-    f"QDateEdit::drop-down {{ border: none; }}"
+    # Shared calendar chevron (ui.theme.date_subcontrols) — replaces the
+    # bare `border: none` drop-down that left no visible button or arrow.
+    + date_subcontrols(_p, width=24)
 )
 
 _LABEL_STYLE = (
-    f"color: {_TEXT}; font-size: 12px; background: transparent;"
+    f"color: {_TEXT}; font-size: 15px; background: transparent;"
     f"font-family: 'Segoe UI';"
 )
 
@@ -105,7 +107,7 @@ class DayEndPage(QWidget):
 
         title = QLabel("Day End")
         title.setStyleSheet(
-            f"color: {_TEXT}; font-size: 18px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: 22px; font-weight: bold;"
             f"background: transparent; font-family: 'Segoe UI';"
         )
         hl.addWidget(title)
@@ -115,7 +117,7 @@ class DayEndPage(QWidget):
             "Read-only daily summary — no closing entries, no date locking"
         )
         hint.setStyleSheet(
-            f"color: {_TEXT_DIM}; font-size: 11px; background: transparent;"
+            f"color: {_TEXT_DIM}; font-size: 13px; background: transparent;"
             f"font-family: 'Segoe UI'; margin-right: 10px;"
         )
         hl.addWidget(hint)
@@ -177,7 +179,7 @@ class DayEndPage(QWidget):
             f"QHeaderView::section {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: none; border-bottom: 2px solid {_ACCENT};"
-            f"  padding: 3px 6px; font-weight: bold; font-size: 12px;"
+            f"  padding: 3px 6px; font-weight: bold; font-size: 15px;"
             f"  font-family: 'Segoe UI';"
             f"}}"
         )
@@ -185,7 +187,7 @@ class DayEndPage(QWidget):
             f"QTableWidget {{"
             f"  background-color: {_DARK_BG}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; gridline-color: {_BORDER};"
-            f"  font-size: 13px; font-family: 'Segoe UI';"
+            f"  font-size: 15px; font-family: 'Segoe UI';"
             f"  selection-background-color: {_ACCENT}; selection-color: white;"
             f"}}"
             f"QTableWidget::item {{ padding: 2px 5px; }}"
@@ -204,7 +206,7 @@ class DayEndPage(QWidget):
 
         self._summary = QLabel("")
         self._summary.setStyleSheet(
-            f"color: {_TEXT}; font-size: 12px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: 15px; font-weight: bold;"
             f"background: transparent; font-family: 'Segoe UI';"
         )
         sl.addWidget(self._summary)

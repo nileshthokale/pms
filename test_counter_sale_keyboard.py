@@ -650,6 +650,8 @@ class CounterSaleKeyboardTests(_DBBase):
         finally:
             conn.close()
 
+        from PySide6.QtCore import QDate as _QDate
+        self.page._hist_date.setDate(_QDate.fromString('2026-09-29', 'yyyy-MM-dd'))
         self.page._refresh_history()
         self.assertEqual(self.page._hist_table.rowCount(), self.page.HISTORY_PAGE_SIZE)
         self.assertTrue(self.page._history_has_more)
