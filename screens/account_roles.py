@@ -31,19 +31,19 @@ _MISSING_COLOR = QColor("#c0392b")
 _BTN_SAVE = (
     f"QPushButton {{ background-color: {_ACCENT}; color: white;"
     f"  border: none; border-radius: 2px; padding: 8px 20px;"
-    f"  font-weight: bold; font-size: 13px; font-family: 'Segoe UI'; }}"
+    f"  font-weight: bold; font-size: 15px; font-family: 'Segoe UI'; }}"
     f"QPushButton:hover {{ background-color: {_ACCENT_HOVER}; }}"
 )
 
 _BTN_SECONDARY = (
     f"QPushButton {{ background-color: {_BORDER}; color: {_TEXT};"
     f"  border: none; border-radius: 2px; padding: 8px 20px;"
-    f"  font-size: 13px; font-family: 'Segoe UI'; }}"
+    f"  font-size: 15px; font-family: 'Segoe UI'; }}"
     f"QPushButton:hover {{ background-color: #7d93a8; }}"
 )
 
 _NOTE_STYLE = (
-    f"color: {_TEXT_DIM}; font-size: 11px; font-family: 'Segoe UI';"
+    f"color: {_TEXT_DIM}; font-size: 13px; font-family: 'Segoe UI';"
     f" background: transparent;"
 )
 
@@ -76,7 +76,7 @@ class AccountRolesPage(QWidget):
 
         title = QLabel("Account Roles")
         title.setStyleSheet(
-            f"color: {_TEXT}; font-size: 18px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: 22px; font-weight: bold;"
             f"background: transparent; font-family: 'Segoe UI';"
         )
         hl.addWidget(title)
@@ -118,7 +118,7 @@ class AccountRolesPage(QWidget):
             f"QHeaderView::section {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: none; border-bottom: 2px solid {_ACCENT};"
-            f"  padding: 3px 6px; font-weight: bold; font-size: 12px;"
+            f"  padding: 3px 6px; font-weight: bold; font-size: 15px;"
             f"  font-family: 'Segoe UI';"
             f"}}"
         )
@@ -126,7 +126,7 @@ class AccountRolesPage(QWidget):
             f"QTableWidget {{"
             f"  background-color: {_DARK_BG}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; gridline-color: {_BORDER};"
-            f"  font-size: 13px; font-family: 'Segoe UI';"
+            f"  font-size: 15px; font-family: 'Segoe UI';"
             f"  selection-background-color: {_ACCENT};"
             f"  selection-color: white;"
             f"}}"

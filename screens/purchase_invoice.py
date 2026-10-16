@@ -36,7 +36,7 @@ from database import auth
 from database import financial_year
 from database.document_printing import DocumentPrintError, generate_purchase_invoice
 
-from ui.theme import palette
+from ui.theme import date_subcontrols, palette
 _p = palette()
 _DARK_BG = _p["bg"]
 _SURFACE = _p["surface"]
@@ -51,7 +51,7 @@ _COMBO_STYLE = (
     f"QComboBox {{"
     f"  background-color: {_SURFACE}; color: {_TEXT};"
     f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-    f"  padding: 6px; font-size: 12px; font-family: 'Segoe UI';"
+    f"  padding: 6px; font-size: 15px; font-family: 'Segoe UI';"
     f"}}"
     f"QComboBox:hover {{ border: 1px solid {_ACCENT}; }}"
     f"QComboBox::drop-down {{ border: none; width: 24px; }}"
@@ -59,7 +59,7 @@ _COMBO_STYLE = (
     f"QComboBox QAbstractItemView {{"
     f"  background-color: {_SURFACE}; color: {_TEXT};"
     f"  border: 1px solid {_BORDER}; selection-background-color: {_ACCENT};"
-    f"  font-size: 12px; font-family: 'Segoe UI';"
+    f"  font-size: 15px; font-family: 'Segoe UI';"
     f"}}"
 )
 
@@ -67,7 +67,7 @@ _EDIT_STYLE = (
     f"QLineEdit {{"
     f"  background-color: {_SURFACE}; color: {_TEXT};"
     f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-    f"  padding: 5px; font-size: 12px; font-family: 'Segoe UI';"
+    f"  padding: 5px; font-size: 15px; font-family: 'Segoe UI';"
     f"}}"
     f"QLineEdit:focus {{ border: 1px solid {_ACCENT}; }}"
 )
@@ -76,49 +76,51 @@ _DATE_STYLE = (
     f"QDateEdit {{"
     f"  background-color: {_SURFACE}; color: {_TEXT};"
     f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-    f"  padding: 5px; font-size: 12px; font-family: 'Segoe UI';"
+    f"  padding: 5px; font-size: 15px; font-family: 'Segoe UI';"
     f"}}"
     f"QDateEdit:focus {{ border: 1px solid {_ACCENT}; }}"
-    f"QDateEdit::drop-down {{ border: none; width: 24px; }}"
-    f"QDateEdit::down-arrow {{ image: none; border: none; }}"
+    # Shared calendar chevron (see ui.theme.date_subcontrols): a tinted,
+    # high-contrast drop-down button + arrow.  Never `image: none` here —
+    # that is what hid the icon on every date field.
+    + date_subcontrols(_p, width=24)
 )
 
 _BTN_SAVE = (
     f"QPushButton {{ background-color: {_ACCENT}; color: white;"
     f"  border: none; border-radius: 2px; padding: 8px 20px;"
-    f"  font-weight: bold; font-size: 13px; font-family: 'Segoe UI'; }}"
+    f"  font-weight: bold; font-size: 15px; font-family: 'Segoe UI'; }}"
     f"QPushButton:hover {{ background-color: {_ACCENT_HOVER}; }}"
 )
 
 _BTN_SECONDARY = (
     f"QPushButton {{ background-color: {_BORDER}; color: {_TEXT};"
     f"  border: none; border-radius: 2px; padding: 8px 20px;"
-    f"  font-size: 13px; font-family: 'Segoe UI'; }}"
+    f"  font-size: 15px; font-family: 'Segoe UI'; }}"
     f"QPushButton:hover {{ background-color: #7d93a8; }}"
 )
 
 _BTN_DANGER = (
     f"QPushButton {{ background-color: {_ERROR}; color: white;"
     f"  border: none; border-radius: 3px; padding: 4px 8px;"
-    f"  font-weight: bold; font-size: 12px; font-family: 'Segoe UI'; }}"
+    f"  font-weight: bold; font-size: 15px; font-family: 'Segoe UI'; }}"
     f"QPushButton:hover {{ background-color: #d32f2f; }}"
 )
 
 _BTN_GREEN_SM = (
     f"QPushButton {{ background-color: {_ACCENT}; color: white;"
     f"  border: none; border-radius: 2px; padding: 6px 14px;"
-    f"  font-weight: bold; font-size: 12px; font-family: 'Segoe UI'; }}"
+    f"  font-weight: bold; font-size: 15px; font-family: 'Segoe UI'; }}"
     f"QPushButton:hover {{ background-color: {_ACCENT_HOVER}; }}"
 )
 
-_LABEL_STYLE = f"color: {_TEXT}; font-size: 12px; font-family: 'Segoe UI'; background: transparent;"
-_LABEL_DIM = f"color: {_TEXT}; font-size: 12px; font-weight: bold; font-family: 'Segoe UI'; background: transparent;"
-_HEADER_LABEL = f"color: {_TEXT}; font-size: 12px; font-family: 'Segoe UI'; background: transparent; font-weight: bold;"
+_LABEL_STYLE = f"color: {_TEXT}; font-size: 15px; font-family: 'Segoe UI'; background: transparent;"
+_LABEL_DIM = f"color: {_TEXT}; font-size: 15px; font-weight: bold; font-family: 'Segoe UI'; background: transparent;"
+_HEADER_LABEL = f"color: {_TEXT}; font-size: 15px; font-family: 'Segoe UI'; background: transparent; font-weight: bold;"
 
 _GROUP_BOX = (
     f"QGroupBox {{"
     f"  background-color: {_DARK_BG};"
-    f"  color: {_TEXT}; font-weight: bold; font-size: 12px;"
+    f"  color: {_TEXT}; font-weight: bold; font-size: 15px;"
     f"  border: 1px solid {_BORDER}; border-radius: 2px;"
     f"  margin-top: 10px; padding-top: 14px;"
     f"}}"
@@ -459,7 +461,7 @@ class _InvoiceDialog(QDialog):
         grid.addWidget(self._lbl("Bal."), row, 2)
         self.supplier_bal_label = QLabel("0.00")
         self.supplier_bal_label.setStyleSheet(
-            f"color: {_TEXT_DIM}; font-size: 12px; background: transparent;"
+            f"color: {_TEXT_DIM}; font-size: 15px; background: transparent;"
             f"font-family: 'Segoe UI'; padding: 4px;"
         )
         grid.addWidget(self.supplier_bal_label, row, 3)
@@ -564,7 +566,7 @@ class _InvoiceDialog(QDialog):
             f"QHeaderView::section {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: none; border-bottom: 2px solid {_ACCENT};"
-            f"  padding: 2px 5px; font-weight: bold; font-size: 12px;"
+            f"  padding: 2px 5px; font-weight: bold; font-size: 15px;"
             f"  font-family: 'Segoe UI';"
             f"}}"
         )
@@ -572,7 +574,7 @@ class _InvoiceDialog(QDialog):
             f"QTableWidget {{"
             f"  background-color: {_DARK_BG}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; gridline-color: {_BORDER};"
-            f"  font-size: 13px; font-family: 'Segoe UI';"
+            f"  font-size: 15px; font-family: 'Segoe UI';"
             f"  selection-background-color: {_ACCENT};"
             f"  selection-color: white;"
             f"}}"
@@ -741,7 +743,7 @@ class _InvoiceDialog(QDialog):
             val_lbl = QLabel("0.00")
             val_lbl.setAlignment(Qt.AlignCenter)
             val_lbl.setStyleSheet(
-                f"color: {_TEXT}; font-size: 13px; font-weight: bold;"
+                f"color: {_TEXT}; font-size: 15px; font-weight: bold;"
                 f"background: transparent; font-family: 'Segoe UI'; padding: 2px;"
             )
             container.addWidget(val_lbl)
@@ -1007,7 +1009,7 @@ class PurchaseInvoicePage(QWidget):
         hl.setContentsMargins(16, 0, 16, 0)
         title = QLabel("Purchase History")
         title.setStyleSheet(
-            f"color: {_TEXT}; font-size: 18px; font-weight: bold;"
+            f"color: {_TEXT}; font-size: 22px; font-weight: bold;"
             f"background: transparent; font-family: 'Segoe UI';"
         )
         hl.addWidget(title)
@@ -1105,7 +1107,7 @@ class PurchaseInvoicePage(QWidget):
             f"QHeaderView::section {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: none; border-bottom: 2px solid {_ACCENT};"
-            f"  padding: 4px 8px; font-weight: bold; font-size: 12px;"
+            f"  padding: 4px 8px; font-weight: bold; font-size: 15px;"
             f"  font-family: 'Segoe UI';"
             f"}}"
         )
@@ -1113,7 +1115,7 @@ class PurchaseInvoicePage(QWidget):
             f"QTableWidget {{"
             f"  background-color: {_DARK_BG}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; gridline-color: {_BORDER};"
-            f"  font-size: 13px; font-family: 'Segoe UI';"
+            f"  font-size: 15px; font-family: 'Segoe UI';"
             f"  selection-background-color: {_ACCENT};"
             f"  selection-color: white;"
             f"}}"
@@ -1235,7 +1237,7 @@ class PurchaseInvoicePage(QWidget):
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
         lbl = QLabel("Invoice entry opens via dialog.")
-        lbl.setStyleSheet(f"color: {_TEXT}; font-size: 16px; font-family: 'Segoe UI';")
+        lbl.setStyleSheet(f"color: {_TEXT}; font-size: 17px; font-family: 'Segoe UI';")
         lbl.setAlignment(Qt.AlignCenter)
         layout.addWidget(lbl)
         return page

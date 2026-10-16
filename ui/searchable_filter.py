@@ -8,15 +8,21 @@ display text.
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import QAbstractItemView, QCompleter, QLineEdit
 
-from ui.theme import palette
+from ui.input_rules import attach_uppercase
+from ui.theme import TYPE_INPUT, palette
 
 
 class SearchableFilterEdit(QLineEdit):
     """A compact contains-match autocomplete whose value is a master ID."""
+
+    # Emitted whenever the user picks a suggestion (Enter key or mouse
+    # click), after the selected ID is recorded.  Screens that want an
+    # instant search on pick can connect it; existing behaviour is unchanged.
+    picked = Signal()
 
     max_visible_rows = 12
 
@@ -37,6 +43,11 @@ class SearchableFilterEdit(QLineEdit):
         popup.setSelectionMode(QAbstractItemView.SingleSelection)
         popup.setFocusPolicy(Qt.NoFocus)
         self.setCompleter(self._completer)
+        # Attach the shared upper-casing hook BEFORE this class's own
+        # ``textEdited`` receiver, so the receiver always observes the final
+        # (upper-cased) text and the completion prefix cannot disagree with
+        # what the operator sees in the box.
+        attach_uppercase(self)
         self.textEdited.connect(self._on_text_edited)
         self._completer.activated.connect(self._on_completion_activated)
         self.refresh_theme()
@@ -63,11 +74,14 @@ class SearchableFilterEdit(QLineEdit):
 
     def refresh_theme(self) -> None:
         p = palette()
+        # Sizes come from the shared type scale so a report filter reads the
+        # same as the field beside it, in both Day and Night mode.
         self.setStyleSheet(
             "QLineEdit {"
             f" background-color: {p['surface']}; color: {p['text']};"
             f" border: 1px solid {p['border']}; border-radius: 2px;"
-            " padding: 5px 8px; font-size: 12px; font-family: 'Segoe UI';"
+            f" padding: 5px 8px; font-size: {TYPE_INPUT}px; font-weight: bold;"
+            f" font-family: 'Segoe UI';"
             "} QLineEdit:focus {"
             f" border: 1px solid {p['accent']};"
             "}"
@@ -77,11 +91,16 @@ class SearchableFilterEdit(QLineEdit):
             f" background-color: {p['surface']}; color: {p['text']};"
             f" border: 1px solid {p['border']};"
             f" selection-background-color: {p['accent']}; selection-color: white;"
-            " font: 12px 'Segoe UI'; outline: 0;"
-            "} QAbstractItemView::item { min-height: 24px; padding: 1px 6px; }"
+            f" font: {TYPE_INPUT}px 'Segoe UI'; font-weight: bold; outline: 0;"
+            "} QAbstractItemView::item { min-height: 26px; padding: 2px 6px; }"
         )
 
-    def _on_text_edited(self, text: str) -> None:
+    def _on_text_edited(self, _text: str) -> None:
+        # Read the field's live text rather than the signal argument: the
+        # shared upper-casing hook is connected first, so by the time this
+        # receiver runs the box already holds the final (upper-cased) text,
+        # while the argument still carries the pre-conversion spelling.
+        text = self.text()
         # A typed display value must never retain a previous record ID.
         if not self._setting_text:
             self._selected_id = None
@@ -102,6 +121,22 @@ class SearchableFilterEdit(QLineEdit):
         self.setText(str(index.data(Qt.DisplayRole) or ""))
         self._setting_text = False
         self._completer.popup().hide()
+        self.picked.emit()
+
+    def exact_id_for_text(self, text: str):
+        """ID whose display text equals ``text`` (case-insensitive), or None.
+
+        Lets a screen honour fully-typed filter text even when the user never
+        picks the completion popup.  Read-only; changes no widget behaviour.
+        """
+        needle = str(text or "").strip().casefold()
+        if not needle:
+            return None
+        for row in range(self._model.rowCount()):
+            index = self._model.index(row, 0)
+            if str(index.data(Qt.DisplayRole) or "").strip().casefold() == needle:
+                return index.data(Qt.UserRole)
+        return None
 
     def keyPressEvent(self, event) -> None:
         popup = self._completer.popup()

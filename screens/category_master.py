@@ -19,17 +19,17 @@ _ACCENT, _HOVER, _TEXT = _p["accent"], _p["accent_hover"], _p["text"]
 
 _EDIT_STYLE = (
     f"QLineEdit {{ background-color: {_BG}; color: {_TEXT}; border: 1px solid {_BORDER};"
-    " border-radius: 2px; padding: 7px; font-size: 13px; font-family: 'Segoe UI'; }"
+    " border-radius: 2px; padding: 7px; font-size: 15px; font-family: 'Segoe UI'; }"
     f"QLineEdit:focus {{ border: 1px solid {_ACCENT}; }}"
 )
 _PRIMARY = (
     f"QPushButton {{ background-color: {_ACCENT}; color: white; border: none; border-radius: 2px;"
-    " padding: 8px 16px; font-weight: bold; font-size: 13px; }"
+    " padding: 8px 16px; font-weight: bold; font-size: 15px; }"
     f"QPushButton:hover {{ background-color: {_HOVER}; }}"
 )
 _SECONDARY = (
     f"QPushButton {{ background-color: {_BORDER}; color: {_TEXT}; border: none; border-radius: 2px;"
-    " padding: 8px 16px; font-size: 13px; } QPushButton:hover { background-color: #7d93a8; }"
+    " padding: 8px 16px; font-size: 15px; } QPushButton:hover { background-color: #7d93a8; }"
 )
 
 
@@ -85,7 +85,7 @@ class CategoryMasterPage(QWidget):
         root = QVBoxLayout(self); root.setContentsMargins(0, 0, 0, 0); root.setSpacing(0)
         header = QWidget(); header.setFixedHeight(56); header.setStyleSheet(f"background-color: {_SURFACE}; border-bottom: 1px solid {_BORDER};")
         layout = QHBoxLayout(header); layout.setContentsMargins(16, 0, 16, 0)
-        title = QLabel("Category Master"); title.setStyleSheet(f"color: {_TEXT}; font-size: 18px; font-weight: bold; background: transparent;")
+        title = QLabel("Category Master"); title.setStyleSheet(f"color: {_TEXT}; font-size: 22px; font-weight: bold; background: transparent;")
         layout.addWidget(title); layout.addStretch()
         self._new_btn = QPushButton("New"); self._new_btn.setStyleSheet(_PRIMARY); self._new_btn.clicked.connect(self._on_new); layout.addWidget(self._new_btn)
         self._edit_btn = QPushButton("Edit"); self._edit_btn.setStyleSheet(_SECONDARY); self._edit_btn.clicked.connect(self._on_edit); layout.addWidget(self._edit_btn)

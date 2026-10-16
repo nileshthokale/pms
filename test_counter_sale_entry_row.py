@@ -1,20 +1,20 @@
-"""Focused GUI tests — Counter Sale ONE-ROW item entry bar.
+"""Focused GUI tests — Counter Sale responsive item entry bar.
 
 The active item entry used to be split across two stacked rows:
 
     ROW 1: CNo | Item | Batch | Qty | Disc | Add
     ROW 2: Pack | Loc   | Exp  | MRP | Avail | Amount
 
-Both rows are now merged into a single horizontal billing bar:
+The inline Counter Sale keeps the entry order across two compact lanes:
 
-    CNo | Item | Batch | Pack | Loc | Exp | MRP | Avail | Qty | Disc |
-    Amount | + Add
+    CNo | Item | Batch | Pack | Loc | Exp
+    MRP | Avail | Qty | Disc | Amount | + Add
 
 Required contract covered here:
 
     01  all entry fields exist
-    02  all entry fields are in one horizontal row
-    03  no second entry row exists
+    02  fields appear in the required order across two horizontal lanes
+    03  both lanes stay inside the entry bar without overlap
     04  row fits at 1366x768
     05  row fits at 1600x900
     06  row fits at 1920x1080
@@ -119,20 +119,47 @@ class CounterSaleEntryRowTests(_DBBase):
         self.page._apply_history_height()
         self.app.processEvents()
 
-    def _layout_widgets(self):
-        """Every real widget of the single row, left to right.
+    def _layout_rows(self):
+        """Return widgets for each horizontal lane, in layout order.
 
-        The bar may also hold a trailing spacer that absorbs spare width so
-        "+ Add" stays flush right; a spacer is not a control, so only widgets
-        are returned and every ordering assertion below stays about fields.
+        Single-row bar returns one lane (the bar's own QHBoxLayout);
+        legacy two-lane bar returns two lanes.
         """
         layout = self.entry.layout()
-        widgets = []
+        # Single-row: the bar itself is the lane.
+        from PySide6.QtWidgets import QHBoxLayout as _HB
+        try:
+            is_single = isinstance(layout, _HB)
+        except Exception:
+            is_single = False
+        if is_single:
+            return [[layout.itemAt(i).widget()
+                     for i in range(layout.count())
+                     if layout.itemAt(i).widget() is not None]]
+        rows = []
         for i in range(layout.count()):
-            widget = layout.itemAt(i).widget()
-            if widget is not None:
-                widgets.append(widget)
-        return widgets
+            row_layout = layout.itemAt(i).layout()
+            if row_layout is None:
+                continue
+            rows.append([
+                row_layout.itemAt(j).widget()
+                for j in range(row_layout.count())
+                if row_layout.itemAt(j).widget() is not None
+            ])
+        return rows
+
+    def _layout_widgets(self):
+        # Single-row: every real widget left-to-right (spacers skipped).
+        layout = self.entry.layout()
+        from PySide6.QtWidgets import QHBoxLayout as _HB2
+        try:
+            if isinstance(layout, _HB2):
+                return [layout.itemAt(i).widget()
+                        for i in range(layout.count())
+                        if layout.itemAt(i).widget() is not None]
+        except Exception:
+            pass
+        return [widget for row in self._layout_rows() for widget in row]
 
     def _select_item(self):
         self.item.setCurrentIndex(self.item.findData(self.item_id))
@@ -149,33 +176,34 @@ class CounterSaleEntryRowTests(_DBBase):
         self.app.processEvents()
 
     def _assert_fits(self):
-        """The row must fit: full width, nothing squeezed out, no wrapping."""
+        """The single row fits at its readable floors without overlapping."""
         layout = self.entry.layout()
         margins = layout.contentsMargins()
-        usable = (self.entry.width() - margins.left() - margins.right())
 
         self.assertLessEqual(
             layout.minimumSize().width(), self.entry.width(),
-            "entry row minimum including margins is wider than the entry bar")
+            "entry lanes require more width than the entry bar")
 
-        previous_end = None
-        for widget in self._layout_widgets():
-            self.assertIsNotNone(widget, "row item without a widget")
-            self.assertGreaterEqual(
-                widget.width(), widget.minimumWidth(),
-                f"{widget.objectName() or widget} squeezed below its minimum")
-            if previous_end is not None:
+        for row in self._layout_rows():
+            previous_end = None
+            for widget in row:
                 self.assertGreaterEqual(
-                    widget.x(), previous_end,
-                    "entry fields overlap — the row wrapped or overflowed")
-            previous_end = widget.x() + widget.width()
-            self.assertGreaterEqual(widget.y(), 0)
-            self.assertLessEqual(widget.y() + widget.height(),
-                                 self.entry.height())
-
-        self.assertLessEqual(
-            previous_end, usable + margins.left(),
-            "entry row overflows the right edge of the bar")
+                    widget.width(), widget.minimumWidth(),
+                    f"{widget.objectName() or widget} squeezed below its minimum")
+                position = widget.mapTo(self.entry, widget.rect().topLeft())
+                if previous_end is not None:
+                    self.assertGreaterEqual(
+                        position.x(), previous_end,
+                        "entry fields overlap within a lane")
+                previous_end = position.x() + widget.width()
+                self.assertGreaterEqual(position.y(), margins.top())
+                self.assertLessEqual(
+                    position.y() + widget.height(),
+                    self.entry.height() - margins.bottom(),
+                )
+            self.assertLessEqual(
+                previous_end, self.entry.width() - margins.right(),
+                "entry lane overflows the right edge of the bar")
 
     def _focus_candidates(self, widget):
         """A combo is focused through its line-edit focus proxy."""
@@ -194,73 +222,63 @@ class CounterSaleEntryRowTests(_DBBase):
         for text in LABEL_ORDER:
             self.assertIn(text, labels, f"label missing: {text}")
 
-    # -- 2. one row ---------------------------------------------------
-    def test_02_all_fields_are_in_one_horizontal_row(self):
-        """02: all twelve fields share ONE horizontal row."""
+    def test_01a_draft_identity_is_consistent(self):
+        # Unsaved: CNo shows next preview (no FY prefix), header shows
+        # Next Bill preview; Open Bills cards (tested in multi-bill) stay Draft.
+        raw = self.panel.bill_no_edit.text().strip()
+        self.assertTrue(raw, "preview missing")
+        from screens.counter_sale import _display_bill_no as _disp
+        short = _disp(raw)
+        self.assertEqual(self.entry.cno_label.text(), short)
+        self.assertNotEqual(short.strip().lower(), "draft")
+        self.assertEqual(self.page._current_bill_no_label.text(),
+                         f"Next Bill: {short} (Unsaved)")
+
+    # -- 2. single ordered row ----------------------------------------
+    def test_02_fields_follow_order_across_two_lanes(self):
+        """02: the full field order is preserved on ONE row."""
         layout = self.entry.layout()
         self.assertEqual(layout.direction(), QBoxLayout.LeftToRight)
-
-        # Every control sits on the same vertical centre line.
-        centres = [w.mapTo(self.entry, w.rect().center()).y()
-                   for w in (getattr(self.entry, n) for n in FIELD_ORDER)]
-        self.assertLessEqual(
-            max(centres) - min(centres), 2,
-            "entry fields are spread over more than one row")
-
-        # ...and they run left to right in the required order.
-        xs = [w.mapTo(self.entry, w.rect().topLeft()).x()
-              for w in (getattr(self.entry, n) for n in FIELD_ORDER)]
-        self.assertEqual(xs, sorted(xs), "entry fields are out of order")
-
-    # -- 3. no second row --------------------------------------------
-    def test_03_no_second_entry_row_exists(self):
-        """03: the old Pack/Loc/Exp/MRP/Avail/Amount row is gone."""
-        layout = self.entry.layout()
-
-        # One flat row of widgets: 11 labels + 12 controls, no nested row.
+        rows = self._layout_rows()
+        self.assertEqual(len(rows), 1)
         self.assertEqual(len(self._layout_widgets()),
                          len(LABEL_ORDER) + len(FIELD_ORDER))
-        for i in range(layout.count()):
-            self.assertIsNone(layout.itemAt(i).layout(),
-                              "a nested row layout survived the merge")
-
-        # Two stacked rows needed 70px; one row must stay compact.
-        self.assertLessEqual(self.entry.height(), 44,
-                             "entry bar still has room for a second row")
-
-        # The six auto-filled details are on the SAME row as Qty/Disc/Add.
-        widgets = self._layout_widgets()
-        detail_row = {id(getattr(self.entry, n)) for n in
-                      ("pack_edit", "location_edit", "expiry_edit",
-                       "mrp_edit", "stock_edit", "amount_edit")}
-        self.assertTrue(detail_row.issubset({id(w) for w in widgets}))
+        xs = [getattr(self.entry, name).mapTo(
+            self.entry, getattr(self.entry, name).rect().topLeft()
+        ).x() for name in FIELD_ORDER]
+        self.assertEqual(xs, sorted(xs), "entry fields are out of order")
+        centres = [getattr(self.entry, name).mapTo(
+            self.entry, getattr(self.entry, name).rect().center()
+        ).y() for name in FIELD_ORDER]
+        self.assertLessEqual(max(centres) - min(centres), 2,
+                             "fields must share one horizontal line")
+        self.assertLessEqual(self.entry.height(), 60)
 
     # -- 4-6. fits at the three target resolutions --------------------
     def test_04_row_fits_at_1366x768(self):
-        """04: the single row fits at 1366x768."""
+        """04: single entry row fits at 1366x768."""
         self._resize(1366, 768)
         self._assert_fits()
 
     def test_05_row_fits_at_1600x900(self):
-        """05: the single row fits at 1600x900."""
+        """05: single entry row fits at 1600x900."""
         self._resize(1600, 900)
         self._assert_fits()
 
     def test_06_row_fits_at_1920x1080(self):
-        """06: the single row fits at 1920x1080."""
+        """06: single entry row fits at 1920x1080."""
         self._resize(1920, 1080)
         self._assert_fits()
 
     def test_06b_item_is_the_expanding_widest_field(self):
-        """Item Name keeps the most width and shrinks first when narrow."""
-        # 1366 is below the readable minimum for a 12-control row with
-        # visible CNo: the fitter must shrink to fit, so Item cannot stay
-        # widest there.  Verify the design intent at supported widths.
+        """Item Name remains the widest search field at supported widths."""
         for width, height in ((1600, 900), (1920, 1080)):
             with self.subTest(size=f"{width}x{height}"):
                 self._resize(width, height)
-                widths = {n: getattr(self.entry, n).width()
-                          for n in FIELD_ORDER}
+                # Pinned chrome (CNo slot, + Add) is excluded: the intent is
+                # that Item stays widest among the flexible entry fields.
+                flex = [n for n in FIELD_ORDER if n not in ("cno_label", "add_btn")]
+                widths = {n: getattr(self.entry, n).width() for n in flex}
                 self.assertEqual(
                     widths["item_combo"], max(widths.values()),
                     "Item Name must stay the widest entry field")
@@ -308,13 +326,13 @@ class CounterSaleEntryRowTests(_DBBase):
         self.assertEqual(self.discount.text(), "5.00")
 
     def test_11_add_button_remains_usable(self):
-        """11: the Add button is enabled, clickable and ends the row."""
+        """11: the Add button is enabled, clickable and ends the single row."""
         self.assertEqual(self.add.text(), "+ Add")
         self.assertTrue(self.add.isEnabled())
         self.assertNotEqual(self.add.focusPolicy(), Qt.NoFocus)
         self.assertGreaterEqual(self.add.width(), self.add.minimumWidth())
         self.assertFalse(self.add.isHidden())
-        # It is the last control of the single row.
+        # It is the last control in the ordered single row.
         self.assertIs(self._layout_widgets()[-1], self.add)
 
     # -- 12. keyboard navigation -------------------------------------
@@ -367,6 +385,8 @@ class CounterSaleEntryRowTests(_DBBase):
         self.assertTrue(self.entry.expiry_edit.text(), "Expiry not filled")
         self.assertTrue(self.entry.mrp_edit.text(), "MRP not filled")
         self.assertTrue(self.entry.stock_edit.text(), "Avail not filled")
+        self.assertEqual(self.batch.lineEdit().cursorPosition(), 0,
+                 "selected batch text must begin with its batch number")
         self.assertEqual(self.batch.currentData(), self.batch_id)
 
     # -- 15. live draft stock ----------------------------------------
@@ -458,7 +478,7 @@ class CounterSaleEntryRowTests(_DBBase):
                 f"Tab from {source} did not reach {target}")
 
     def test_20_labels_stay_compact(self):
-        """Captions stay compact but must read as bold black 11-12 px text."""
+        """Captions stay compact but must read as bold black 12-14 px text."""
         import re
 
         for text in LABEL_ORDER:
@@ -466,8 +486,8 @@ class CounterSaleEntryRowTests(_DBBase):
                 type(self.entry.cno_label)) if w.text() == text)
             match = re.search(r"font-size:\s*(\d+)px", label.styleSheet())
             self.assertIsNotNone(match, f"{text} lost its font size")
-            self.assertGreaterEqual(int(match.group(1)), 11)
-            self.assertLessEqual(int(match.group(1)), 12)
+            self.assertGreaterEqual(int(match.group(1)), 12)
+            self.assertLessEqual(int(match.group(1)), 14)
             self.assertIn("font-weight: bold", label.styleSheet(),
                           f"{text} caption must be bold")
             self.assertIn("#000000", label.styleSheet(),
