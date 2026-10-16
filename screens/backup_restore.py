@@ -31,6 +31,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMessageBox,
+    QPushButton,
     QVBoxLayout,
     QWidget,
 )
@@ -59,6 +60,9 @@ _TEXT_DIM = _p["text_dim"]
 
 _DANGER = "#c62828"
 _DANGER_HOVER = "#d32f2f"
+
+# Shown in place of a missing value — e.g. no modified date, no SHA yet.
+_DASH = "—"
 
 _BTN_PRIMARY = (
     f"QPushButton {{ background-color: {_ACCENT}; color: white;"
@@ -108,6 +112,31 @@ def _format_size(size_bytes: int) -> str:
     if size_bytes >= 1024:
         return f"{size_bytes / 1024:.1f} KB"
     return f"{size_bytes} bytes"
+
+
+def _readable_fg(fill: str) -> str:
+    """Plain black or white text colour — whichever reads on ``fill``."""
+    r, g, b = (int(fill[i:i + 2], 16) / 255 for i in (1, 3, 5))
+
+    def _linear(channel: float) -> float:
+        if channel <= 0.03928:
+            return channel / 12.92
+        return ((channel + 0.055) / 1.055) ** 2.4
+
+    # WCAG relative luminance; 0.179 is where black and white contrast tie.
+    luminance = (
+        0.2126 * _linear(r) + 0.7152 * _linear(g) + 0.0722 * _linear(b)
+    )
+    return "#000000" if luminance > 0.179 else "#ffffff"
+
+
+def _mix(color_a: str, color_b: str, t: float) -> str:
+    """Blend ``color_a`` towards ``color_b`` (0..1); #rrggbb in and out."""
+    a = tuple(int(color_a[i:i + 2], 16) for i in (1, 3, 5))
+    b = tuple(int(color_b[i:i + 2], 16) for i in (1, 3, 5))
+    return "#" + "".join(
+        f"{round(ca + (cb - ca) * t):02x}" for ca, cb in zip(a, b)
+    )
 
 
 def _format_stamp(stamp: datetime) -> str:
@@ -303,6 +332,7 @@ class BackupRestorePage(QWidget):
 
         # ── Header ───────────────────────────────────────────────
         header = QWidget()
+        self._header = header
         header.setFixedHeight(56)
         header.setStyleSheet(
             f"background-color: {_SURFACE}; border-bottom: 1px solid {_BORDER};"
@@ -311,6 +341,7 @@ class BackupRestorePage(QWidget):
         hl.setContentsMargins(16, 0, 16, 0)
 
         title = QLabel("Backup & Restore")
+        self._header_title = title
         title.setStyleSheet(
             f"color: {_TEXT}; font-size: 18px; font-weight: bold;"
             f"background: transparent; font-family: 'Segoe UI';"
@@ -431,13 +462,15 @@ class BackupRestorePage(QWidget):
 
         self.setStyleSheet(f"background-color: {p['surface_alt']};")
 
-        # PageHeader labels follow the live palette too.
-        title = getattr(self._header, "_title", None)
-        if title is not None:
-            title.setStyleSheet(ui.title_style())
-        subtitle = getattr(self._header, "_subtitle", None)
-        if subtitle is not None:
-            subtitle.setStyleSheet(ui.label_style(dim=True))
+        # Header strip and title follow the live palette too.
+        self._header.setStyleSheet(
+            f"background-color: {p['surface']};"
+            f"border-bottom: 1px solid {p['border']};"
+        )
+        self._header_title.setStyleSheet(
+            f"color: {p['text']}; font-size: 18px; font-weight: bold;"
+            f"background: transparent; font-family: 'Segoe UI';"
+        )
 
         self._db_card.apply_style(p)
         self._backup_card.apply_style(p)
