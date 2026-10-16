@@ -37,6 +37,31 @@ def _money(value: Any) -> str:
         return _text(value)
 
 
+def _purchase_display_bill_no(value: Any) -> str:
+    """Display-only Bill/Voucher number without the financial-year prefix.
+
+    Purchase vouchers are stored with a financial-year prefix such as
+    ``2026-2027-Credit-250`` (or, in simplified form, ``2026-2027-123``).
+    This helper strips only the leading ``YYYY-YYYY-`` prefix and returns
+    the remainder (``Credit-250`` / ``123``) for the Purchase Report
+    printout.  Values without that prefix (``PV-0001``, ``INV-001``,
+    plain numbers) are returned unchanged.  Stored data is never altered.
+    """
+    import re
+
+    if value is None:
+        return ""
+    text = str(value).strip()
+    if not text:
+        return ""
+    match = re.match(r"^\d{4}-\d{4}-(.+)$", text)
+    if match:
+        remainder = match.group(1).strip()
+        if remainder:
+            return remainder
+    return text
+
+
 def _escape(value: Any) -> str:
     return _text(value).replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
 
@@ -727,58 +752,326 @@ def generate_purchase_report_pdf(
     rows: list[dict], summary: dict, financial_year: str, filter_summary: str,
     output_path: str | os.PathLike[str] | None = None,
 ) -> str:
-    """Write the current, already-filtered Purchase Report as landscape PDF."""
+    """Write the current, already-filtered Purchase Report as landscape PDF.
+
+    Content and order are unchanged (same 20 columns, same summary math);
+    only the print presentation is improved: clean Helvetica type, bold
+    title/headings, padded grid cells with consistent alignment, and a
+    display-only Bill Number without the ``YYYY-YYYY`` financial-year
+    prefix.  Stored voucher/invoice numbers are never modified.
+    """
     path = _output_path(output_path, "purchase_report", financial_year.replace(" ", "_"))
     headings = [
         "Voucher", "V Date", "Invoice", "I Date", "Supplier", "Item", "Company",
         "Pack", "Batch", "Expiry", "Pay", "Free", "Rate", "MRP", "Disc",
         "GST%", "GST Amt", "Amount", "Purc Rt", "Net Rt",
     ]
-    widths = [9, 10, 9, 10, 12, 14, 11, 7, 9, 7, 6, 6, 8, 8, 7, 6, 9, 9, 8, 8]
 
-    def clip(value: Any, width: int) -> str:
-        value = _text(value).replace("\n", " ")
-        return value[:width - 1] + "…" if len(value) > width else value
+    def _qty(value: Any) -> str:
+        try:
+            return f"{round(float(value or 0), 2):g}"
+        except (TypeError, ValueError):
+            return _text(value).replace("\n", " ").strip()
 
-    def report_row(row: dict) -> str:
-        values = [
-            row.get("voucher_no"), row.get("voucher_date"), row.get("invoice_no"),
-            row.get("invoice_date"), row.get("supplier_name"), row.get("item_name"),
-            row.get("company_name"), row.get("pack_size"), row.get("batch_no"),
-            row.get("expiry"), row.get("pay_qty"), row.get("free_qty"),
-            _money(row.get("rate")), _money(row.get("mrp")), _money(row.get("discount")),
-            row.get("gst_percent"), _money(row.get("gst_amount")), _money(row.get("amount")),
-            _money(row.get("purchase_rate")), _money(row.get("net_rate")),
-        ]
-        return " ".join(clip(value, width).ljust(width) for value, width in zip(values, widths))
+    def _amt(value: Any) -> str:
+        try:
+            return f"{float(value or 0):,.2f}"
+        except (TypeError, ValueError):
+            return _text(value).replace("\n", " ").strip()
 
-    header = " ".join(name.ljust(width) for name, width in zip(headings, widths))
-    page_capacity = 37
-    chunks = [rows[index:index + page_capacity] for index in range(0, len(rows), page_capacity)] or [[]]
-    pages: list[list[str]] = []
-    for page_index, chunk in enumerate(chunks):
-        lines = ["Purchase Report", f"Financial Year: {financial_year}", f"Filters: {filter_summary}", "", header, "-" * len(header)]
-        lines.extend(report_row(row) for row in chunk)
-        if page_index == len(chunks) - 1:
-            lines.extend([
-                "",
-                "Totals: " + " | ".join([
-                    f"Bills: {summary.get('total_bills', 0)}",
-                    f"Pay Qty: {summary.get('total_pay_qty', 0):g}",
-                    f"Free Qty: {summary.get('total_free_qty', 0):g}",
-                    f"Gross: {summary.get('total_gross', 0):,.2f}",
-                    f"GST: {summary.get('total_gst', 0):,.2f}",
-                    f"Discount: {summary.get('total_discount', 0):,.2f}",
-                    f"Net: {summary.get('total_net', 0):,.2f}",
-                ]),
-                "Printed from stored application data. No transaction data was changed.",
-            ])
-        pages.append(lines)
+    def _plain(value: Any) -> str:
+        return _text(value).replace("\n", " ").strip()
+
+    detail_rows: list[list[str]] = []
+    for row in rows:
+        detail_rows.append([
+            _purchase_display_bill_no(row.get("voucher_no")),
+            _plain(row.get("voucher_date")),
+            _purchase_display_bill_no(row.get("invoice_no")),
+            _plain(row.get("invoice_date")),
+            _plain(row.get("supplier_name")),
+            _plain(row.get("item_name")),
+            _plain(row.get("company_name")),
+            _plain(row.get("pack_size")),
+            _plain(row.get("batch_no")),
+            _plain(row.get("expiry")),
+            _qty(row.get("pay_qty")),
+            _qty(row.get("free_qty")),
+            _amt(row.get("rate")),
+            _amt(row.get("mrp")),
+            _amt(row.get("discount")),
+            _qty(row.get("gst_percent")),
+            _amt(row.get("gst_amount")),
+            _amt(row.get("amount")),
+            _amt(row.get("purchase_rate")),
+            _amt(row.get("net_rate")),
+        ])
+
+    totals_line = "Totals: " + " | ".join([
+        f"Bills: {summary.get('total_bills', 0)}",
+        f"Pay Qty: {_qty(summary.get('total_pay_qty', 0))}",
+        f"Free Qty: {_qty(summary.get('total_free_qty', 0))}",
+        f"Gross: {_amt(summary.get('total_gross', 0))}",
+        f"GST: {_amt(summary.get('total_gst', 0))}",
+        f"Discount: {_amt(summary.get('total_discount', 0))}",
+        f"Net: {_amt(summary.get('total_net', 0))}",
+    ])
+    note_line = "Printed from stored application data. No transaction data was changed."
     try:
-        path.write_bytes(_landscape_pdf_bytes(pages, "Purchase Report"))
+        path.write_bytes(_purchase_report_pdf_bytes(
+            detail_rows, headings, str(financial_year), str(filter_summary),
+            totals_line, note_line,
+        ))
     except OSError as exc:
         raise DocumentPrintError(f"Could not create PDF at {path}: {exc}") from exc
     return str(path)
+
+
+def _purchase_report_pdf_bytes(
+    detail_rows: list[list[str]], headings: list[str],
+    financial_year: str, filter_summary: str,
+    totals_line: str, note_line: str,
+) -> bytes:
+    """Professional landscape-A4 writer for the Purchase Report table only.
+
+    Same columns/order as before; Helvetica/Helvetica-Bold, bold headings,
+    padded grid cells, right-aligned numerics, fitted text so nothing
+    touches borders or overlaps.  Totals and notes are preserved on the
+    final page.
+    """
+    PAGE_W, PAGE_H = 842.0, 595.0
+    ML, MT, MB, MR = 28.0, 28.0, 28.0, 28.0
+    CONTENT_X0 = ML
+    CONTENT_W = PAGE_W - ML - MR
+    CONTENT_X1 = CONTENT_X0 + CONTENT_W
+    # Column widths (points) sum to CONTENT_W (786).  Wider for Item /
+    # Supplier / Company, narrow for qty columns, with breathing room so
+    # values never touch adjacent borders.
+    COL_WIDTHS = [
+        52.0, 48.0, 42.0, 48.0, 56.0, 68.0, 50.0, 28.0, 36.0, 30.0,
+        24.0, 24.0, 36.0, 36.0, 36.0, 24.0, 36.0, 40.0, 36.0, 36.0,
+    ]
+    COL_X: list[float] = []
+    _x = CONTENT_X0
+    for _w in COL_WIDTHS:
+        COL_X.append(_x)
+        _x += _w
+    ALIGNS = [
+        "left", "center", "left", "center", "left", "left", "left",
+        "center", "center", "center",
+        "right", "right", "right", "right", "right",
+        "right", "right", "right", "right", "right",
+    ]
+    TITLE_PT, FY_PT, FILTER_PT = 13.0, 8.5, 7.5
+    HEADER_PT, BODY_PT = 7.0, 7.0
+    TOTALS_PT, NOTE_PT = 7.5, 7.0
+    TITLE_H, FY_H, FILTER_H, TITLE_GAP = 17.0, 11.0, 10.0, 8.0
+    HEADER_H, DETAIL_H = 15.0, 12.5
+    TOTALS_H, NOTE_H, BLOCK_GAP = 16.0, 11.0, 6.0
+
+    def _centered_x(text: str, size: float, bold: bool) -> float:
+        w = _companywise_text_width_pt(text, size, bold)
+        return CONTENT_X0 + max(0.0, (CONTENT_W - w) / 2.0)
+
+    def _cell_x(col: int, text: str, size: float, bold: bool, align: str) -> float:
+        max_w = COL_WIDTHS[col] - 6.0
+        fitted = _companywise_fit(text, max_w, size, bold)
+        w = _companywise_text_width_pt(fitted, size, bold)
+        if align == "right":
+            return COL_X[col] + COL_WIDTHS[col] - 3.0 - w
+        if align == "center":
+            return COL_X[col] + max(3.0, (COL_WIDTHS[col] - w) / 2.0)
+        return COL_X[col] + 3.0
+
+    def _fitted(col: int, text: str, size: float, bold: bool) -> str:
+        return _companywise_fit(text, COL_WIDTHS[col] - 6.0, size, bold)
+
+    # ── paginate detail rows (heights, not fixed counts) ──
+    CONTENT_H = PAGE_H - MT - MB
+    FIRST_HEAD_BLOCK = TITLE_H + FY_H + FILTER_H + TITLE_GAP
+    FIRST_CAP = CONTENT_H - FIRST_HEAD_BLOCK - HEADER_H
+    OTHER_CAP = CONTENT_H - HEADER_H
+    RESERVE_LAST = TOTALS_H + BLOCK_GAP + NOTE_H + BLOCK_GAP
+
+    pages_rows: list[list[list[str]]] = []
+    if not detail_rows:
+        pages_rows = [[]]
+    else:
+        current: list[list[str]] = []
+        remaining = FIRST_CAP
+        is_first_page = True
+        for crow in detail_rows:
+            if not current:
+                remaining = FIRST_CAP if is_first_page else OTHER_CAP
+            if current and DETAIL_H > remaining:
+                pages_rows.append(current)
+                current = []
+                is_first_page = False
+                remaining = OTHER_CAP
+            current.append(crow)
+            remaining -= DETAIL_H
+        if current:
+            pages_rows.append(current)
+        # Ensure the totals block fits on the last page.
+        last_used = len(pages_rows[-1]) * DETAIL_H if pages_rows else 0
+        last_cap = FIRST_CAP if len(pages_rows) == 1 else OTHER_CAP
+        if last_used + RESERVE_LAST > last_cap:
+            # Totals move to their own closing page with no detail rows.
+            pages_rows.append([])
+
+    total_pages = max(len(pages_rows), 1)
+    objects: list[bytes] = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
+    ]
+    page_ids: list[int] = []
+    for page_index, page_detail in enumerate(pages_rows, 1):
+        is_first = page_index == 1
+        is_last = page_index == total_pages
+        commands: list[str] = []
+        y_top = PAGE_H - MT
+        if is_first:
+            y = y_top
+            title = _companywise_fit("Purchase Report", CONTENT_W, TITLE_PT, True)
+            commands.append(
+                f"BT /F2 {TITLE_PT:.2f} Tf 1 0 0 1 {_centered_x(title, TITLE_PT, True):.2f} {y - 12.00:.2f} Tm ({_escape(title)}) Tj ET"
+            )
+            y -= TITLE_H
+            fy_txt = _companywise_fit(f"Financial Year: {financial_year}", CONTENT_W, FY_PT, False)
+            commands.append(
+                f"BT /F1 {FY_PT:.2f} Tf 1 0 0 1 {_centered_x(fy_txt, FY_PT, False):.2f} {y - 7.50:.2f} Tm ({_escape(fy_txt)}) Tj ET"
+            )
+            y -= FY_H
+            filt_raw = f"Filters: {filter_summary}"
+            filt_txt = _companywise_fit(filt_raw, CONTENT_W, FILTER_PT, False)
+            commands.append(
+                f"BT /F1 {FILTER_PT:.2f} Tf 1 0 0 1 {_centered_x(filt_txt, FILTER_PT, False):.2f} {y - 6.50:.2f} Tm ({_escape(filt_txt)}) Tj ET"
+            )
+            y -= FILTER_H
+            y -= TITLE_GAP
+            table_top = y
+        else:
+            table_top = y_top
+
+        # ── table frame for this page ──
+        n_detail = len(page_detail)
+        has_totals = is_last
+        table_h = HEADER_H + n_detail * DETAIL_H
+        if has_totals:
+            table_h += BLOCK_GAP + TOTALS_H
+            if note_line:
+                table_h += BLOCK_GAP + NOTE_H
+        table_bottom = table_top - table_h
+
+        def _h_line(yy: float, w: float = 0.5) -> None:
+            commands.append(f"{w:.2f} w {CONTENT_X0:.2f} {yy:.2f} m {CONTENT_X1:.2f} {yy:.2f} l S")
+
+        def _v_line(xx: float, y0: float, y1: float, w: float = 0.5) -> None:
+            commands.append(f"{w:.2f} w {xx:.2f} {y1:.2f} m {xx:.2f} {y0:.2f} l S")
+
+        # Horizontal rules: top, below header, after each detail row, around totals.
+        _h_line(table_top, 0.7)
+        _h_line(table_top - HEADER_H, 0.7)
+        cursor = table_top - HEADER_H
+        for _ in page_detail:
+            cursor -= DETAIL_H
+            _h_line(cursor, 0.4)
+        # Verticals through header + detail grid.
+        grid_bottom = cursor
+        for _cx in COL_X[1:] + [CONTENT_X1]:
+            _v_line(_cx, table_top, grid_bottom, 0.4)
+        _v_line(CONTENT_X0, table_top, grid_bottom, 0.7)
+
+        # ── column headings (bold, clearly distinct) ──
+        head_base = table_top - HEADER_H + 5.5
+        for col, head in enumerate(headings):
+            align = ALIGNS[col] if col < len(ALIGNS) else "left"
+            # Headings stay centered for date/batch groups? Keep alignment
+            # consistent with body for clean columns, except text heads left.
+            txt = _fitted(col, head, HEADER_PT, True)
+            commands.append(
+                f"BT /F2 {HEADER_PT:.2f} Tf 1 0 0 1 {_cell_x(col, txt, HEADER_PT, True, align):.2f} {head_base:.2f} Tm ({_escape(txt)}) Tj ET"
+            )
+        # ── body rows ──
+        for r_idx, cells in enumerate(page_detail):
+            row_top = table_top - HEADER_H - r_idx * DETAIL_H
+            row_bottom = row_top - DETAIL_H
+            base = row_bottom + 4.0
+            for col in range(len(headings)):
+                raw = cells[col] if col < len(cells) else ""
+                if raw == "":
+                    continue
+                align = ALIGNS[col] if col < len(ALIGNS) else "left"
+                bold = False
+                txt = _fitted(col, raw, BODY_PT, bold)
+                if not txt:
+                    continue
+                commands.append(
+                    f"BT /F1 {BODY_PT:.2f} Tf 1 0 0 1 {_cell_x(col, txt, BODY_PT, bold, align):.2f} {base:.2f} Tm ({_escape(txt)}) Tj ET"
+                )
+        if not page_detail:
+            # Empty-state row keeps the grid shape and preserves pagination.
+            empty_h = DETAIL_H
+            msg = _companywise_fit("No records found.", CONTENT_W - 12.0, BODY_PT, False)
+            commands.append(
+                f"BT /F1 {BODY_PT:.2f} Tf 1 0 0 1 {_centered_x(msg, BODY_PT, False):.2f} {cursor - empty_h + 4.0:.2f} Tm ({_escape(msg)}) Tj ET"
+            )
+        # ── totals box + disclaimer (last page only, info preserved) ──
+        if has_totals:
+            t_top = cursor - BLOCK_GAP
+            t_bottom = t_top - TOTALS_H
+            commands.append(
+                f"0.80 w {CONTENT_X0:.2f} {t_bottom:.2f} {CONTENT_W:.2f} {TOTALS_H:.2f} re S"
+            )
+            tot_txt = _companywise_fit(totals_line, CONTENT_W - 8.0, TOTALS_PT, True)
+            tot_w = _companywise_text_width_pt(tot_txt, TOTALS_PT, True)
+            # Totals are data: left-aligned with padding so long lines never
+            # touch the box edges; short lines still start at a fixed inset.
+            tot_x = CONTENT_X0 + 4.0
+            if tot_w > CONTENT_W - 8.0:
+                tot_x = CONTENT_X0 + 4.0
+            commands.append(
+                f"BT /F2 {TOTALS_PT:.2f} Tf 1 0 0 1 {tot_x:.2f} {t_bottom + 5.5:.2f} Tm ({_escape(tot_txt)}) Tj ET"
+            )
+            cursor = t_bottom
+            if note_line:
+                cursor -= BLOCK_GAP
+                n_bottom = cursor - NOTE_H
+                note_txt = _companywise_fit(note_line, CONTENT_W - 8.0, NOTE_PT, False)
+                commands.append(
+                    f"BT /F1 {NOTE_PT:.2f} Tf 1 0 0 1 {_centered_x(note_txt, NOTE_PT, False):.2f} {n_bottom + 3.5:.2f} Tm ({_escape(note_txt)}) Tj ET"
+                )
+                cursor = n_bottom
+        stamp = f"Page {page_index} of {total_pages}"
+        commands.append(
+            f"BT /F1 7.00 Tf 1 0 0 1 {_centered_x(stamp, 7.0, False):.2f} {(MB - 12.0):.2f} Tm ({_escape(stamp)}) Tj ET"
+        )
+        stream = "\n".join(commands).encode("latin-1", "replace")
+        page_id = len(objects) + 1
+        content_id = page_id + 1
+        page_ids.append(page_id)
+        objects.append(
+            f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {PAGE_W:.0f} {PAGE_H:.0f}] "
+            f"/Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents {content_id} 0 R >>".encode()
+        )
+        objects.append(b"<< /Length " + str(len(stream)).encode() + b" >>\nstream\n" + stream + b"\nendstream")
+    kids = " ".join(f"{pid} 0 R" for pid in page_ids)
+    objects[1] = f"<< /Type /Pages /Kids [{kids}] /Count {len(page_ids)} >>".encode()
+    output = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
+    offsets = [0]
+    for number, obj in enumerate(objects, 1):
+        offsets.append(len(output))
+        output.extend(f"{number} 0 obj\n".encode())
+        output.extend(obj)
+        output.extend(b"\nendobj\n")
+    xref = len(output)
+    output.extend(f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n".encode())
+    for offset in offsets[1:]:
+        output.extend(f"{offset:010d} 00000 n \n".encode())
+    output.extend(f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode())
+    return bytes(output)
 
 
 def _landscape_pdf_bytes(pages: list[list[str]], title: str) -> bytes:
