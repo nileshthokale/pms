@@ -82,7 +82,7 @@ class TestDailySalesReportPdf(unittest.TestCase):
              "mrp": 20.00, "sale_qty": 10, "discount_amount": 10.00,
              "amount": 200.00, "bill_discount": 0, "bill_net_amount": 457.00},
             {"invoice_id": 2, "bill_no": "2026-2027-2", "sale_date": "2026-09-18",
-             "customer_name": "WALKIN", "item_name": "FOLITRAX 10",
+             "customer_name": "WALKIN", "patient_name": "Alice", "item_name": "FOLITRAX 10",
              "company_name": "C", "batch_no": "AT-130725", "expiry": "12/27",
              "mrp": 70.98, "sale_qty": 2, "discount_amount": 0,
              "amount": 141.96, "bill_discount": 0, "bill_net_amount": 141.96},
@@ -120,17 +120,20 @@ class TestDailySalesReportPdf(unittest.TestCase):
         # Each bill appears once as its own section with actual bill data.
         self.assertEqual(content.count("Bill No: 2026-2027-1"), 1)
         self.assertEqual(content.count("Bill No: 2026-2027-2"), 1)
-        self.assertIn("Customer: WALKIN", content)
+        # Patient name when present, WALKIN fallback otherwise; the customer
+        # name is no longer printed.
+        self.assertIn("Patient: WALKIN", content)
+        self.assertIn("Patient: Alice", content)
+        self.assertNotIn("Customer:", content)
         self.assertIn("(L-CIN 250)", content)
         self.assertIn("(51.40)", content)
         self.assertIn("(257.00)", content)
         self.assertIn("(JB02668)", content)
-        # One Bill Total per bill plus the overall Grand Total.
+        # One Bill Total per bill plus the overall Grand Total at the right.
         self.assertEqual(content.count("(Bill Total)"), 2)
-        self.assertIn("(Grand Total)", content)
+        self.assertIn("(Grand Total: 598.96)", content)
         self.assertIn("457.00", content)
         self.assertIn("141.96", content)
-        self.assertIn("598.96", content)
         self.assertIn("Page 1 of 1", content)
 
     def test_daily_report_paginates_and_handles_empty(self):
@@ -155,7 +158,7 @@ class TestDailySalesReportPdf(unittest.TestCase):
                 directory, name="empty.pdf")
             self.assertIn("DAILY SALES REPORT", empty)
             self.assertIn("No records found", empty)
-            self.assertIn("(Grand Total)", empty)
+            self.assertIn("(Grand Total: 0.00)", empty)
 
 
 @unittest.skipUnless(HAS_QT, "PySide6 is required for daily report screen tests")
@@ -327,6 +330,74 @@ class TestDailySalesReportScreen(unittest.TestCase):
                 edit.setFocus()
                 QTest.keyClick(edit, Qt.Key_Return)
             self.assertGreaterEqual(gen.call_count, 4)
+
+    def test_table_merges_customer_and_patient_columns(self):
+        from unittest import mock
+
+        from screens import sales_report as sales_report_module
+        heads = [self.page._table.horizontalHeaderItem(col).text()
+                 for col in range(self.page._table.columnCount())]
+        self.assertEqual(heads, ["Bill No", "Sale Date", "Patient Name", "Doctor",
+                                 "Item Name", "Batch No", "Expiry", "MRP", "Qty",
+                                 "Discount", "Amount"])
+        rows = [
+            {"bill_no": "B1", "sale_date": "2026-09-18", "customer_name": "WALKIN",
+             "patient_name": "", "doctor_name": "", "item_name": "X",
+             "batch_no": "B", "expiry": "", "mrp": 10, "sale_qty": 1,
+             "discount_amount": 0, "amount": 10},
+            {"bill_no": "B2", "sale_date": "2026-09-18", "customer_name": "WALKIN",
+             "patient_name": "Alice", "doctor_name": "", "item_name": "Y",
+             "batch_no": "B", "expiry": "", "mrp": 10, "sale_qty": 1,
+             "discount_amount": 0, "amount": 10},
+        ]
+        summary = {"total_bills": 2, "total_lines": 2, "total_qty": 2,
+                   "total_gross": 20, "total_discount": 0, "total_net": 20}
+        with mock.patch.object(
+            sales_report_module.SalesReportDAO, "get_sales_report",
+            return_value={"rows": rows, "summary": summary},
+        ):
+            self.page._on_generate()
+            self.assertEqual(self.page._table.item(0, 2).text(), "WALKIN")
+            self.assertEqual(self.page._table.item(1, 2).text(), "Alice")
+
+    def test_typing_item_then_search_filters_by_typed_text(self):
+        from unittest import mock
+
+        from screens import sales_report as sales_report_module
+        empty = {"rows": [], "summary": {"total_bills": 0, "total_lines": 0,
+                 "total_qty": 0, "total_gross": 0, "total_discount": 0, "total_net": 0}}
+        options = {"customers": [], "items": [{"id": 7, "item_name": "PARA 650"}],
+                   "companies": [], "doctors": []}
+        with mock.patch(
+            "screens.sales_report.SalesReportDAO.get_filter_options", return_value=options), \
+            mock.patch.object(
+                sales_report_module.SalesReportDAO, "get_sales_report", return_value=empty,
+            ) as gen:
+            self.page._load_filter_options()
+            # Picking the suggestion with Enter searches at once.
+            self.page.item_edit.setFocus()
+            QTest.keyClicks(self.page.item_edit, "para")
+            QTest.keyClick(self.page.item_edit, Qt.Key_Enter)
+            self.assertEqual(self.page.item_edit.selected_id, 7)
+            self.assertTrue(gen.called)
+            self.assertEqual(gen.call_args.kwargs.get("item_id"), 7)
+            # Typing the exact name without picking also filters on Search.
+            gen.reset_mock()
+            self.page.item_edit._on_text_edited("PARA 650")
+            self.assertIsNone(self.page.item_edit.selected_id)
+            self.page._on_generate()
+            self.assertEqual(gen.call_args.kwargs.get("item_id"), 7)
+
+    def test_exact_id_for_text_matches_case_insensitively(self):
+        from ui.searchable_filter import SearchableFilterEdit
+
+        edit = SearchableFilterEdit("All items")
+        edit.set_options([{"id": 7, "item_name": "PARA 650"}], "id", "item_name")
+        self.assertEqual(edit.exact_id_for_text("para 650"), 7)
+        self.assertEqual(edit.exact_id_for_text("  PARA 650 "), 7)
+        self.assertIsNone(edit.exact_id_for_text("para"))
+        self.assertIsNone(edit.exact_id_for_text(""))
+        self.assertIsNone(edit.exact_id_for_text(None))
 
 
 if __name__ == "__main__":
