@@ -700,7 +700,11 @@ class AccountLedgerPage(QWidget):
             self._txn_table.setItem(i, 0, QTableWidgetItem(t.get("transaction_date", "")))
             self._txn_table.setItem(i, 1, QTableWidgetItem(t.get("transaction_time", "")))
             self._txn_table.setItem(i, 2, QTableWidgetItem(t.get("voucher_type", "")))
-            self._txn_table.setItem(i, 3, QTableWidgetItem(t.get("voucher_no", "")))
+            from core.doc_formatter import format_document_number
+            raw_vno = t.get("voucher_no", "")
+            vno_item = QTableWidgetItem(format_document_number(raw_vno))
+            vno_item.setToolTip(f"Full Voucher: {raw_vno}")
+            self._txn_table.setItem(i, 3, vno_item)
             self._txn_table.setItem(i, 4, QTableWidgetItem(t.get("description", "")))
 
             debit = t.get("debit", 0.0)

@@ -14,34 +14,21 @@ class SalesDAO:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def display_bill_no(bill_no: str, active_fy_name: str | None = None) -> str:
-        """Short display form for a stored bill number.
+    def display_bill_no(
+        bill_no: str,
+        active_fy_name: str | None = None,
+        patient_name: str | None = None,
+    ) -> str:
+        """Display form for a stored bill number.
 
-        Bills belonging to the active financial year that use the
-        ``<FY>-<digits>`` convention (e.g. ``2026-2027-1910``) display as
-        the simple sequential number (``1910``).  Every other stored value
-        — older FY-prefixed bills, legacy ``Cash-`` imports, ``CS-`` bills
-        and plain numbers — is returned unchanged so different financial
-        years stay distinguishable.  Stored database values are never
-        altered here; this is display only.
+        Returns only the numeric / sequence component (e.g. '1905', '0251', '1', '187')
+        when patient_name is present (or omitted). If patient_name is provided and is empty
+        or contains only whitespace, returns a blank string.
         """
-        text = (bill_no or "").strip()
-        if not text:
-            return text
-        if active_fy_name is None:
-            try:
-                from database import financial_year as _fy
-
-                _active = _fy.get_active_financial_year()
-                active_fy_name = (_active.get("name") if _active else "") or ""
-            except Exception:
-                active_fy_name = ""
-        active_fy_name = (active_fy_name or "").strip()
-        if active_fy_name and text.startswith(active_fy_name + "-"):
-            suffix = text[len(active_fy_name) + 1 :]
-            if suffix.isdigit():
-                return suffix
-        return text
+        if patient_name is not None and not str(patient_name).strip():
+            return ""
+        from core.doc_formatter import format_document_number
+        return format_document_number(bill_no)
 
     @staticmethod
     def generate_next_bill_no(cur: sqlite3.Cursor | None = None) -> str:
@@ -808,8 +795,44 @@ class SalesDAO:
                 clauses.append("c.customer_name LIKE ?")
                 params.append(f"%{customer_name.strip()}%")
             if bill_no and bill_no.strip():
-                clauses.append("si.bill_no LIKE ?")
-                params.append(f"%{bill_no.strip()}%")
+                clean_bno = bill_no.strip()
+                if clean_bno.isdigit():
+                    num_val = str(int(clean_bno))
+                    numeric_patterns = [clean_bno, num_val]
+                    like_patterns = [
+                        f"%-{clean_bno}",
+                        f"%-{clean_bno}#%",
+                        f"%-{clean_bno}-S%",
+                        f"%-{num_val}",
+                        f"%-{num_val}#%",
+                        f"%-{num_val}-S%",
+                    ]
+                    if len(num_val) < 4:
+                        for pad_len in range(len(num_val) + 1, 5):
+                            padded = num_val.zfill(pad_len)
+                            like_patterns.extend([
+                                f"%-{padded}",
+                                f"%-{padded}#%",
+                                f"%-{padded}-S%",
+                            ])
+                    exact_conds = []
+                    seen_exact = set()
+                    for p in numeric_patterns:
+                        if p not in seen_exact:
+                            seen_exact.add(p)
+                            exact_conds.append("si.bill_no = ?")
+                            params.append(p)
+                    like_conds = []
+                    seen_like = set()
+                    for p in like_patterns:
+                        if p not in seen_like:
+                            seen_like.add(p)
+                            like_conds.append("si.bill_no LIKE ?")
+                            params.append(p)
+                    clauses.append(f"({' OR '.join(exact_conds + like_conds)})")
+                else:
+                    clauses.append("si.bill_no LIKE ?")
+                    params.append(f"%{clean_bno}%")
             if start_date and start_date.strip():
                 clauses.append("si.sale_date >= ?")
                 params.append(start_date.strip())

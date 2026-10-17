@@ -440,7 +440,8 @@ def build_layout(record: dict[str, Any], items: list[dict[str, Any]],
     # ── Customer block: Name / Doctor on the left, Cash Memo / Date on the right ──
     customer = _text(record.get("patient_name")) or _text(record.get("customer_name"))
     doctor = _text(record.get("doctor_name"))
-    memo = _text(record.get("bill_no"))
+    from core.doc_formatter import format_document_number
+    memo = format_document_number(_text(record.get("bill_no")))
     sale_date = _text(record.get("sale_date"))
 
     # Two independent columns with a gutter between them, so a long name can

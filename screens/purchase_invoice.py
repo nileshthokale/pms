@@ -120,18 +120,11 @@ def _searchable_lineedit_style(p: dict | None = None) -> str:
 
 
 def _display_voucher_no(voucher_no: str) -> str:
-    """Return only the numeric / sequence tail of a voucher number for display.
+    """Return only the numeric / sequence part of a voucher number for display.
     e.g. '2026-2027-Credit-0251' -> '0251', preserving the full compound key in the database.
     """
-    if not voucher_no:
-        return ""
-    text = str(voucher_no).strip()
-    idx = text.rfind("-")
-    if idx >= 0:
-        tail = text[idx + 1:].strip()
-        if tail:
-            return tail
-    return text
+    from core.doc_formatter import format_document_number
+    return format_document_number(voucher_no)
 
 
 def _date_style(p: dict | None = None) -> str:
@@ -1599,7 +1592,10 @@ class PurchaseInvoicePage(QWidget):
         self._hist_table.setRowCount(len(invs))
         for i, inv in enumerate(invs):
             self._hist_table.setItem(i, 0, QTableWidgetItem(inv.get("purchase_type", "")))
-            self._hist_table.setItem(i, 1, QTableWidgetItem(inv.get("voucher_no", "")))
+            raw_vno = inv.get("voucher_no", "")
+            vno_item = QTableWidgetItem(_display_voucher_no(raw_vno))
+            vno_item.setToolTip(f"Full Voucher: {raw_vno}")
+            self._hist_table.setItem(i, 1, vno_item)
             self._hist_table.setItem(i, 2, QTableWidgetItem(inv.get("voucher_date", "")))
             self._hist_table.setItem(i, 3, QTableWidgetItem(inv.get("voucher_time", "")))
             self._hist_table.setItem(i, 4, QTableWidgetItem(inv.get("invoice_no", "")))

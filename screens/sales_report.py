@@ -407,9 +407,10 @@ class SalesReportPage(QWidget):
     def _render(self, report: dict):
         rows = report["rows"]
         self._table.setRowCount(len(rows))
+        from core.doc_formatter import format_sales_bill_number
         for i, r in enumerate(rows):
             values = [
-                r["bill_no"],
+                format_sales_bill_number(r["bill_no"], patient_name=r.get("patient_name")),
                 r["sale_date"],
                 str(r["patient_name"] or "").strip() or "WALKIN",
                 r["doctor_name"] or "",

@@ -357,7 +357,8 @@ class SalesHistoryAndNumberingTests(unittest.TestCase):
         self._pump()
 
         self.assertEqual(hist_page._table.rowCount(), 1)
-        self.assertEqual(hist_page._table.item(0, 0).text(), "CS-2025-01")
+        self.assertEqual(hist_page._table.item(0, 0).text(), "01")
+        self.assertIn("CS-2025-01", hist_page._table.item(0, 0).toolTip())
         self.assertEqual(hist_page._table.item(0, 2).text(), "Alice Wonderland")
 
         # Patient search must be partial: "bob" matches "Bob Builder"
@@ -367,7 +368,8 @@ class SalesHistoryAndNumberingTests(unittest.TestCase):
         self._pump()
 
         self.assertEqual(hist_page._table.rowCount(), 1)
-        self.assertEqual(hist_page._table.item(0, 0).text(), "CS-2026-01")
+        self.assertEqual(hist_page._table.item(0, 0).text(), "01")
+        self.assertIn("CS-2026-01", hist_page._table.item(0, 0).toolTip())
         self.assertEqual(hist_page._table.item(0, 2).text(), "Bob Builder")
 
         # Clearing patient search returns every bill across all years
@@ -627,8 +629,8 @@ class SalesHistoryAndNumberingTests(unittest.TestCase):
         self.assertGreaterEqual(fb_row_idx, 0)
         self.assertGreaterEqual(gen_row_idx, 0)
 
-        # Fallback bill displays '---' and 'WALKIN'
-        self.assertEqual(hist_page._table.item(fb_row_idx, 0).text(), "---")
+        # Fallback bill has empty patient name, so Bill No column is blank ''
+        self.assertEqual(hist_page._table.item(fb_row_idx, 0).text(), "")
         self.assertEqual(hist_page._table.item(fb_row_idx, 2).text(), "WALKIN")
 
         # Genuine bill displays '1905' and 'Real Patient'
@@ -648,7 +650,7 @@ class SalesHistoryAndNumberingTests(unittest.TestCase):
         self.assertEqual(customer_labels, [])
 
         grid_fb = dlg_fb._meta_group.layout()
-        self.assertEqual(grid_fb.itemAtPosition(0, 1).widget().text(), "---")
+        self.assertEqual(grid_fb.itemAtPosition(0, 1).widget().text(), "")
         self.assertIn("Patient", grid_fb.itemAtPosition(1, 0).widget().text())
         self.assertEqual(grid_fb.itemAtPosition(1, 1).widget().text(), "WALKIN")
         self.assertIn("Doctor", grid_fb.itemAtPosition(1, 2).widget().text())
