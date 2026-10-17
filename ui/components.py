@@ -25,6 +25,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QComboBox,
     QFrame,
     QHBoxLayout,
     QHeaderView,
@@ -606,6 +607,111 @@ class SearchBar(FilterBar):
         self.search_edit.setMinimumWidth(220)
         self.search_edit.setClearButtonEnabled(True)
         super().add_field("Search", self.search_edit)
+
+
+class ConstrainedComboBox(QComboBox):
+    """QComboBox with screen-aware popup sizing, alignment and item limits.
+
+    - Limits visible items to approximately 8-10 entries (~250-280px max height).
+    - Ensures a working vertical scrollbar is present when entries exceed the limit.
+    - Keeps the popup aligned with its input field.
+    - Matches field width by default while allowing moderate expansion up to
+      a configurable maximum width for long names without covering adjacent controls.
+    - Adapts to available screen space (opens upward if screen bottom is near).
+    - Preserves keyboard navigation (type-to-search, Up/Down, Enter, Escape).
+    - Also configures any attached QCompleter popup with the same height and item limits.
+    """
+
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        *,
+        max_visible_items: int = 9,
+        max_popup_height: int = 270,
+        min_popup_height: int = 100,
+        max_popup_width: int | None = None,
+        min_popup_width: int | None = None,
+        allow_width_expansion: bool = True,
+    ):
+        super().__init__(parent)
+        self._max_visible = max_visible_items
+        self._max_popup_height = max_popup_height
+        self._min_popup_height = min_popup_height
+        self._max_popup_width = max_popup_width
+        self._min_popup_width = min_popup_width
+        self._allow_width_expansion = allow_width_expansion
+
+        self.setMaxVisibleItems(max_visible_items)
+        view = self.view()
+        if view is not None:
+            view.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+            view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            popup = view.window()
+            if popup is not None:
+                popup.setMaximumHeight(max_popup_height)
+                if max_popup_width is not None:
+                    popup.setMaximumWidth(max_popup_width)
+
+    def setCompleter(self, completer):
+        super().setCompleter(completer)
+        if completer is not None:
+            completer.setMaxVisibleItems(self._max_visible)
+            popup = completer.popup()
+            if popup is not None:
+                popup.setMaximumHeight(self._max_popup_height)
+                popup.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+                popup.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+    def showPopup(self):
+        super().showPopup()
+        view = self.view()
+        if view is None:
+            return
+        popup = view.window()
+        if popup is None:
+            return
+
+        from PySide6.QtCore import QPoint, QRect
+        from PySide6.QtGui import QGuiApplication
+
+        screen = self.screen() or QGuiApplication.primaryScreen()
+        avail = screen.availableGeometry() if screen else QRect(0, 0, 1920, 1080)
+
+        g_pos = self.mapToGlobal(QPoint(0, 0))
+        combo_w = self.width()
+        combo_h = self.height()
+
+        target_w = combo_w
+        if self._allow_width_expansion:
+            model = view.model()
+            needed_w = view.sizeHintForColumn(0) + 26 if (model and model.rowCount() > 0) else combo_w
+            max_w = self._max_popup_width if self._max_popup_width is not None else (combo_w + 100)
+            target_w = max(combo_w, min(needed_w, max_w))
+        if self._max_popup_width is not None:
+            target_w = min(target_w, self._max_popup_width)
+        if self._min_popup_width is not None:
+            target_w = max(target_w, self._min_popup_width)
+
+        target_h = self._max_popup_height
+        space_below = avail.bottom() - (g_pos.y() + combo_h)
+        space_above = g_pos.y() - avail.top()
+
+        if space_below >= target_h or space_below >= space_above:
+            h = min(target_h, max(self._min_popup_height, space_below - 8))
+            y = g_pos.y() + combo_h
+        else:
+            h = min(target_h, max(self._min_popup_height, space_above - 8))
+            y = g_pos.y() - h
+
+        x = g_pos.x()
+        if x + target_w > avail.right() - 5:
+            x = max(avail.left() + 5, avail.right() - target_w - 5)
+        if x < avail.left() + 5:
+            x = avail.left() + 5
+
+        popup.setGeometry(QRect(x, y, target_w, h))
+        if popup.layout():
+            popup.layout().activate()
 
 
 # ── Small helpers used by screens ─────────────────────────────────────
@@ -1464,7 +1570,7 @@ def refresh_containers(root: QWidget) -> int:
 __all__ = [
     "FONT_FAMILY", "FONT_NAME", "CONTROL_HEIGHT", "ROW_HEIGHT", "HEADER_HEIGHT",
     "ActionButton", "PageHeader", "SummaryPanel", "StatusLabel",
-    "FormSection", "FilterBar", "SearchBar",
+    "FormSection", "FilterBar", "SearchBar", "ConstrainedComboBox",
     "label_style", "title_style", "section_title_style", "edit_style",
     "combo_style", "date_style", "spin_style", "checkbox_style",
     "group_box_style", "btn_primary_style", "btn_secondary_style",

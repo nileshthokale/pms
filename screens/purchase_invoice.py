@@ -36,6 +36,7 @@ from database import auth
 from database import financial_year
 from database.document_printing import DocumentPrintError, generate_purchase_invoice
 
+from ui.components import ConstrainedComboBox
 from ui.theme import date_subcontrols, palette
 _p = palette()
 _DARK_BG = _p["bg"]
@@ -47,21 +48,40 @@ _TEXT = _p["text"]
 _TEXT_DIM = _p["text_dim"]
 _ERROR = "#c0392b"
 
-_COMBO_STYLE = (
-    f"QComboBox {{"
-    f"  background-color: {_SURFACE}; color: {_TEXT};"
-    f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-    f"  padding: 6px; font-size: 15px; font-family: 'Segoe UI';"
-    f"}}"
-    f"QComboBox:hover {{ border: 1px solid {_ACCENT}; }}"
-    f"QComboBox::drop-down {{ border: none; width: 24px; }}"
-    f"QComboBox::down-arrow {{ image: none; border: none; }}"
-    f"QComboBox QAbstractItemView {{"
-    f"  background-color: {_SURFACE}; color: {_TEXT};"
-    f"  border: 1px solid {_BORDER}; selection-background-color: {_ACCENT};"
-    f"  font-size: 15px; font-family: 'Segoe UI';"
-    f"}}"
-)
+
+def _combo_style(p: dict | None = None) -> str:
+    p = p or palette()
+    surface = p["surface"]
+    text = p["text"]
+    border = p["border"]
+    accent = p["accent"]
+    selected_text = p.get("selected_text", "#ffffff")
+    return (
+        f"QComboBox {{"
+        f"  background-color: {surface}; color: {text};"
+        f"  border: 1px solid {border}; border-radius: 2px;"
+        f"  padding: 6px; font-size: 15px; font-family: 'Segoe UI';"
+        f"}}"
+        f"QComboBox:hover {{ border: 1px solid {accent}; }}"
+        f"QComboBox::drop-down {{ border: none; width: 24px; }}"
+        f"QComboBox::down-arrow {{ image: none; border: none; }}"
+        f"QComboBox QAbstractItemView {{"
+        f"  background-color: {surface}; color: {text};"
+        f"  border: 1px solid {border}; selection-background-color: {accent};"
+        f"  selection-color: {selected_text};"
+        f"  font-size: 15px; font-family: 'Segoe UI';"
+        f"  outline: none;"
+        f"}}"
+        f"QComboBox QAbstractItemView::item {{"
+        f"  min-height: 26px; padding: 2px 8px;"
+        f"}}"
+        f"QComboBox QAbstractItemView::item:selected {{"
+        f"  background-color: {accent}; color: {selected_text};"
+        f"}}"
+    )
+
+
+_COMBO_STYLE = _combo_style()
 
 _EDIT_STYLE = (
     f"QLineEdit {{"
@@ -139,9 +159,22 @@ def _make_edit(placeholder: str = "", width: int | None = None) -> QLineEdit:
     return e
 
 
-def _make_combo() -> QComboBox:
-    c = QComboBox()
-    c.setStyleSheet(_COMBO_STYLE)
+def _make_combo(
+    *,
+    max_visible: int = 9,
+    max_height: int = 270,
+    max_width: int | None = None,
+    min_width: int | None = None,
+    allow_width_expansion: bool = True,
+) -> ConstrainedComboBox:
+    c = ConstrainedComboBox(
+        max_visible_items=max_visible,
+        max_popup_height=max_height,
+        max_popup_width=max_width,
+        min_popup_width=min_width,
+        allow_width_expansion=allow_width_expansion,
+    )
+    c.setStyleSheet(_combo_style())
     return c
 
 
@@ -227,7 +260,13 @@ class _ItemEntryBar(QWidget):
 
         # Item selector
         layout.addWidget(self._label("Item"))
-        self.item_combo = _make_combo()
+        self.item_combo = _make_combo(
+            max_visible=9,
+            max_height=270,
+            max_width=320,
+            min_width=220,
+            allow_width_expansion=True,
+        )
         self.item_combo.setMinimumWidth(180)
         self.item_combo.setSizePolicy(__import__("PySide6.QtWidgets", fromlist=["QSizePolicy"]).QSizePolicy.Expanding, __import__("PySide6.QtWidgets", fromlist=["QSizePolicy"]).QSizePolicy.Fixed)
         layout.addWidget(self.item_combo)
@@ -444,7 +483,7 @@ class _InvoiceDialog(QDialog):
 
         # Type
         grid.addWidget(self._lbl("Type"), row, 6)
-        self.purchase_type_combo = _make_combo()
+        self.purchase_type_combo = _make_combo(max_visible=5, max_height=160)
         self.purchase_type_combo.addItems(["Credit", "Cash", "Credit Card"])
         self.purchase_type_combo.setMaximumWidth(110)
         grid.addWidget(self.purchase_type_combo, row, 7)
@@ -453,7 +492,12 @@ class _InvoiceDialog(QDialog):
 
         # Supplier
         grid.addWidget(self._lbl("Supplier *"), row, 0)
-        self.supplier_combo = _make_combo()
+        self.supplier_combo = _make_combo(
+            max_visible=9,
+            max_height=270,
+            max_width=540,
+            allow_width_expansion=True,
+        )
         self.supplier_combo.setMinimumWidth(200)
         grid.addWidget(self.supplier_combo, row, 1)
 
@@ -959,6 +1003,17 @@ class _InvoiceDialog(QDialog):
     def was_saved(self) -> bool:
         return self._saved
 
+    def refresh_theme(self):
+        p = palette()
+        style = _combo_style(p)
+        self.supplier_combo.setStyleSheet(style)
+        self.purchase_type_combo.setStyleSheet(style)
+        self._entry_bar.item_combo.setStyleSheet(style)
+        self.setStyleSheet(
+            f"QDialog {{ background-color: {p['bg']}; }}"
+            f"QLabel {{ color: {p['text']}; font-size: 15px; font-family: 'Segoe UI'; background: transparent; }}"
+        )
+
 
 # ======================================================================
 # Purchase Invoice PAGE  (stacked: History view | New/Edit view)
@@ -1062,7 +1117,7 @@ class PurchaseInvoicePage(QWidget):
         fl.addWidget(self._filter_to)
 
         fl.addWidget(self._flbl("Supplier"))
-        self._filter_supplier = _make_combo()
+        self._filter_supplier = _make_combo(max_visible=9, max_height=270, max_width=380)
         self._filter_supplier.setMinimumWidth(160)
         self._filter_supplier.addItem("All Suppliers", None)
         for s in SupplierDAO.get_all():
@@ -1241,3 +1296,10 @@ class PurchaseInvoicePage(QWidget):
         lbl.setAlignment(Qt.AlignCenter)
         layout.addWidget(lbl)
         return page
+
+    def refresh_theme(self):
+        p = palette()
+        self.setStyleSheet(f"background-color: {p['bg']};")
+        if hasattr(self, "_filter_supplier"):
+            self._filter_supplier.setStyleSheet(_combo_style(p))
+
