@@ -505,10 +505,9 @@ class _ItemEntryBar(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._entry_labels: list[QLabel] = []
-        grid = QGridLayout(self)
-        grid.setContentsMargins(8, 4, 8, 4)
-        grid.setHorizontalSpacing(10)
-        grid.setVerticalSpacing(8)
+        root_v = QVBoxLayout(self)
+        root_v.setContentsMargins(8, 4, 8, 4)
+        root_v.setSpacing(8)
 
         # Controls creation
         self.item_combo = SearchableComboBox(
@@ -516,41 +515,49 @@ class _ItemEntryBar(QWidget):
             max_visible=9,
             max_height=270,
             max_width=450,
-            min_width=240,
+            min_width=280,
             allow_width_expansion=True,
         )
-        self.item_combo.setFixedWidth(260)
+        self.item_combo.setFixedWidth(330)
         self.pack_edit = _make_edit("Pack", 70)
-        self.batch_edit = _make_edit("Batch No", 120)
+        self.batch_edit = _make_edit("Batch No", 130)
         self.expiry_edit = _make_edit("MM/YY", 95)
 
-        self.pay_qty_edit = _make_edit("0", 70)
-        self.free_qty_edit = _make_edit("0", 60)
-        self.rate_edit = _make_edit("0.00", 80)
-        self.mrp_edit = _make_edit("0.00", 80)
+        self.pay_qty_edit = _make_edit("0", 75)
+        self.free_qty_edit = _make_edit("0", 65)
+        self.rate_edit = _make_edit("0.00", 85)
+        self.mrp_edit = _make_edit("0.00", 85)
         self.discount_edit = _make_edit("0.00", 75)
         self.gst_edit = _make_edit("0.00", 75)
 
         self.add_btn = QPushButton("+ Add Item")
         self.add_btn.setStyleSheet(_BTN_GREEN_SM)
-        self.add_btn.setFixedSize(105, 32)
+        self.add_btn.setFixedSize(110, 32)
 
-        # Row 0: Item (spans cols 0-1) | Pack (col 2) | Batch (col 3) | Expiry (col 4)
-        grid.addWidget(self._field("Item *", self.item_combo, label_width=68), 0, 0, 1, 2)
-        grid.addWidget(self._field("Pack", self.pack_edit, label_width=50), 0, 2)
-        grid.addWidget(self._field("Batch *", self.batch_edit, label_width=58), 0, 3)
-        grid.addWidget(self._field("Expiry *", self.expiry_edit, label_width=80), 0, 4)
+        # Row 0: Item | Pack | Batch | Expiry
+        row0 = QHBoxLayout()
+        row0.setContentsMargins(0, 0, 0, 0)
+        row0.setSpacing(12)
+        row0.addWidget(self._field("Item *", self.item_combo, label_width=60))
+        row0.addWidget(self._field("Pack", self.pack_edit, label_width=45))
+        row0.addWidget(self._field("Batch *", self.batch_edit, label_width=60))
+        row0.addWidget(self._field("Expiry *", self.expiry_edit, label_width=65))
+        row0.addStretch(1)
+        root_v.addLayout(row0)
 
-        # Row 1: Pay Qty (col 0) | Free (col 1) | Rate (col 2) | MRP (col 3) | Discount (col 4) | GST (col 5) | Add Button (col 6)
-        grid.addWidget(self._field("Pay Qty *", self.pay_qty_edit, label_width=68), 1, 0)
-        grid.addWidget(self._field("Free", self.free_qty_edit), 1, 1)
-        grid.addWidget(self._field("Rate *", self.rate_edit, label_width=50), 1, 2)
-        grid.addWidget(self._field("MRP *", self.mrp_edit, label_width=58), 1, 3)
-        grid.addWidget(self._field("Discount %", self.discount_edit, label_width=80), 1, 4)
-        grid.addWidget(self._field("GST %", self.gst_edit), 1, 5)
-        grid.addWidget(self.add_btn, 1, 6)
-
-        grid.setColumnStretch(7, 1)
+        # Row 1: Pay Qty | Free | Rate | MRP | Discount % | GST % | Add Button
+        row1 = QHBoxLayout()
+        row1.setContentsMargins(0, 0, 0, 0)
+        row1.setSpacing(10)
+        row1.addWidget(self._field("Pay Qty *", self.pay_qty_edit, label_width=68))
+        row1.addWidget(self._field("Free", self.free_qty_edit, label_width=40))
+        row1.addWidget(self._field("Rate *", self.rate_edit, label_width=50))
+        row1.addWidget(self._field("MRP *", self.mrp_edit, label_width=50))
+        row1.addWidget(self._field("Discount %", self.discount_edit, label_width=78))
+        row1.addWidget(self._field("GST %", self.gst_edit, label_width=50))
+        row1.addWidget(self.add_btn)
+        row1.addStretch(1)
+        root_v.addLayout(row1)
 
         self._load_items()
 
@@ -636,6 +643,20 @@ class _InvoiceDialog(QDialog):
         self.setMinimumWidth(1200)
         self.setMinimumHeight(700)
         self.setModal(True)
+
+        # Screen-aware sizing: 90% width, 85% height, centered
+        from PySide6.QtWidgets import QApplication
+        screen = QApplication.primaryScreen()
+        if screen:
+            sg = screen.availableGeometry()
+            w = int(sg.width() * 0.90)
+            h = int(sg.height() * 0.85)
+            self.resize(max(w, 1200), max(h, 700))
+            self.move(
+                sg.x() + (sg.width() - self.width()) // 2,
+                sg.y() + (sg.height() - self.height()) // 2,
+            )
+
         self.setStyleSheet(
             f"QDialog {{ background-color: {_DARK_BG}; }}"
             f"QLabel {{ {_LABEL_STYLE} }}"
@@ -675,6 +696,7 @@ class _InvoiceDialog(QDialog):
         self._entry_bar.discount_edit.textChanged.connect(self._recalc_current_line)
         self._entry_bar.gst_edit.textChanged.connect(self._recalc_current_line)
         self._entry_bar.pay_qty_edit.textChanged.connect(self._recalc_current_line)
+        self._entry_bar.free_qty_edit.textChanged.connect(self._recalc_current_line)
 
         # Wire add button inside entry bar
         if hasattr(self._entry_bar, "add_btn"):
@@ -684,9 +706,13 @@ class _InvoiceDialog(QDialog):
                 if "+ Add" in child.text():
                     child.clicked.connect(self._on_add_item)
                     break
+        self._entry_bar.gst_edit.returnPressed.connect(self._on_add_item)
 
         self._set_voucher_no()
         self._set_current_datetime()
+
+        # Wire totals auto-recalc for all modes (new + edit)
+        self._wire_totals_recalc()
 
         if invoice:
             self._populate_invoice(invoice)
@@ -911,14 +937,33 @@ class _InvoiceDialog(QDialog):
         self._table.verticalHeader().setVisible(False)
         self._table.setShowGrid(True)
         self._table.setAlternatingRowColors(False)
-        self._table.horizontalHeader().setStretchLastSection(True)
 
         hv = self._table.horizontalHeader()
-        for i in range(17):
-            if i == 1:
-                hv.setSectionResizeMode(i, QHeaderView.Stretch)
-            else:
-                hv.setSectionResizeMode(i, QHeaderView.ResizeToContents)
+        hv.setStretchLastSection(False)
+        hv.setSectionResizeMode(1, QHeaderView.Stretch)
+
+        col_widths = {
+            0: 42,   # #
+            2: 60,   # Pack
+            3: 75,   # Pay Qty
+            4: 65,   # Free
+            5: 110,  # Batch
+            6: 75,   # Exp
+            7: 80,   # Rate
+            8: 80,   # MRP
+            9: 65,   # Disc
+            10: 95,  # Amount
+            11: 65,  # GST%
+            12: 85,  # GST Amt
+            13: 85,  # Pur Rate
+            14: 85,  # Net Rate
+            15: 95,  # PP
+            16: 55,  # Del
+        }
+        for col, width in col_widths.items():
+            hv.setSectionResizeMode(col, QHeaderView.Interactive)
+            self._table.setColumnWidth(col, width)
+
         hv.setStyleSheet(
             f"QHeaderView::section {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
@@ -1000,14 +1045,18 @@ class _InvoiceDialog(QDialog):
             return
 
         # Calculate amount and GST
-        qty_total = pay_qty + free_qty
-        amount = _round2(qty_total * rate)
+        # Amount is based on PAY QTY only — free goods are not charged.
+        disc_pct = _d(discount)
+        gross = _d(pay_qty) * _d(rate)
+        disc_amt = gross * disc_pct / _d(100) if disc_pct else _d(0)
+        amount = _round2(gross - disc_amt)
         gst_amount = _round2(amount * gst_pct / 100.0)
-        total_for_line = amount + gst_amount
+        total_for_line = _round2(_d(amount) + _d(gst_amount))
 
-        # Purchase rate, net rate, PP
-        purchase_rate = _round2(total_for_line / qty_total) if qty_total else 0.0
-        net_rate = _round2(rate)  # net rate = rate per unit after disc
+        # Purchase rate = cost-per-paid-pack (incl GST), net rate = cost-per-received-pack (incl GST)
+        qty_total = pay_qty + free_qty
+        purchase_rate = _round2(total_for_line / pay_qty) if pay_qty else 0.0
+        net_rate = _round2(total_for_line / qty_total) if qty_total else 0.0
         pp = _round2(total_for_line)  # PP = total price for this line
 
         row = _InvoiceItemRow(
@@ -1036,28 +1085,44 @@ class _InvoiceDialog(QDialog):
     def _refresh_table(self):
         self._table.setRowCount(len(self._item_rows))
         for i, r in enumerate(self._item_rows):
-            self._table.setItem(i, 0, QTableWidgetItem(str(i + 1)))
-            self._table.setItem(i, 1, QTableWidgetItem(r.item_name))
-            self._table.setItem(i, 2, QTableWidgetItem(r.pack_size))
-            self._table.setItem(i, 3, QTableWidgetItem(f"{r.pay_qty:.2f}"))
-            self._table.setItem(i, 4, QTableWidgetItem(f"{r.free_qty:.2f}"))
-            self._table.setItem(i, 5, QTableWidgetItem(r.batch_no))
-            self._table.setItem(i, 6, QTableWidgetItem(r.expiry))
-            self._table.setItem(i, 7, QTableWidgetItem(f"{r.rate:.2f}"))
-            self._table.setItem(i, 8, QTableWidgetItem(f"{r.mrp:.2f}"))
-            self._table.setItem(i, 9, QTableWidgetItem(f"{r.discount:.2f}"))
-            self._table.setItem(i, 10, QTableWidgetItem(f"{r.amount:.2f}"))
-            self._table.setItem(i, 11, QTableWidgetItem(f"{r.gst_percent:.2f}"))
-            self._table.setItem(i, 12, QTableWidgetItem(f"{r.gst_amount:.2f}"))
-            self._table.setItem(i, 13, QTableWidgetItem(f"{r.purchase_rate:.2f}"))
-            self._table.setItem(i, 14, QTableWidgetItem(f"{r.net_rate:.2f}"))
-            self._table.setItem(i, 15, QTableWidgetItem(f"{r.pp:.2f}"))
+            def _item(text: str, align: Qt.AlignmentFlag = Qt.AlignLeft | Qt.AlignVCenter) -> QTableWidgetItem:
+                it = QTableWidgetItem(text)
+                it.setTextAlignment(align)
+                return it
 
-            del_btn = QPushButton("Del")
+            self._table.setItem(i, 0, _item(str(i + 1), Qt.AlignCenter))
+            item_w = _item(r.item_name, Qt.AlignLeft | Qt.AlignVCenter)
+            item_w.setToolTip(r.item_name)
+            self._table.setItem(i, 1, item_w)
+            self._table.setItem(i, 2, _item(r.pack_size, Qt.AlignCenter))
+            self._table.setItem(i, 3, _item(f"{r.pay_qty:.2f}", Qt.AlignRight | Qt.AlignVCenter))
+            self._table.setItem(i, 4, _item(f"{r.free_qty:.2f}", Qt.AlignRight | Qt.AlignVCenter))
+            batch_w = _item(r.batch_no, Qt.AlignCenter)
+            batch_w.setToolTip(r.batch_no)
+            self._table.setItem(i, 5, batch_w)
+            self._table.setItem(i, 6, _item(r.expiry, Qt.AlignCenter))
+            self._table.setItem(i, 7, _item(f"{r.rate:.2f}", Qt.AlignRight | Qt.AlignVCenter))
+            self._table.setItem(i, 8, _item(f"{r.mrp:.2f}", Qt.AlignRight | Qt.AlignVCenter))
+            self._table.setItem(i, 9, _item(f"{r.discount:.2f}", Qt.AlignRight | Qt.AlignVCenter))
+            self._table.setItem(i, 10, _item(f"{r.amount:.2f}", Qt.AlignRight | Qt.AlignVCenter))
+            self._table.setItem(i, 11, _item(f"{r.gst_percent:.2f}", Qt.AlignRight | Qt.AlignVCenter))
+            self._table.setItem(i, 12, _item(f"{r.gst_amount:.2f}", Qt.AlignRight | Qt.AlignVCenter))
+            self._table.setItem(i, 13, _item(f"{r.purchase_rate:.2f}", Qt.AlignRight | Qt.AlignVCenter))
+            self._table.setItem(i, 14, _item(f"{r.net_rate:.2f}", Qt.AlignRight | Qt.AlignVCenter))
+            self._table.setItem(i, 15, _item(f"{r.pp:.2f}", Qt.AlignRight | Qt.AlignVCenter))
+
+            del_btn = QPushButton("×")
             del_btn.setStyleSheet(_BTN_DANGER)
-            del_btn.setFixedWidth(40)
+            del_btn.setFixedSize(28, 24)
+            del_btn.setToolTip("Remove item")
             del_btn.clicked.connect(lambda _, idx=i: self._delete_item(idx))
-            self._table.setCellWidget(i, 16, del_btn)
+
+            cell = QWidget()
+            cell_layout = QHBoxLayout(cell)
+            cell_layout.setContentsMargins(0, 0, 0, 0)
+            cell_layout.setAlignment(Qt.AlignCenter)
+            cell_layout.addWidget(del_btn)
+            self._table.setCellWidget(i, 16, cell)
 
     def _delete_item(self, idx: int):
         if 0 <= idx < len(self._item_rows):
@@ -1145,8 +1210,8 @@ class _InvoiceDialog(QDialog):
         layout.addLayout(container)
 
     def _recalc_totals(self):
-        total_amount = sum(r.amount for r in self._item_rows)
-        total_gst = sum(r.gst_amount for r in self._item_rows)
+        total_amount = _round2(sum(r.amount for r in self._item_rows))
+        total_gst = _round2(sum(r.gst_amount for r in self._item_rows))
 
         self.total_amount_label.setText(f"{total_amount:.2f}")
         self.gst_label.setText(f"{total_gst:.2f}")
@@ -1154,11 +1219,11 @@ class _InvoiceDialog(QDialog):
         bill_disc = _safe_float(self.bill_disc_edit.text())
         dn = _safe_float(self.dn_edit.text())
         other = _safe_float(self.other_edit.text())
-        paid = _safe_float(self.paid_edit.text())
 
-        net = total_amount + total_gst - bill_disc - dn + other
-        round_off = _round2(net) - net
-        net = _round2(net + round_off)
+        raw_net = _d(total_amount) + _d(total_gst) - _d(bill_disc) - _d(dn) + _d(other)
+        rounded_net = int(raw_net.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+        round_off = _round2(float(_d(rounded_net) - raw_net))
+        net = float(rounded_net)
 
         self.round_off_edit.setText(f"{round_off:.2f}")
         self.net_amt_label.setText(f"{net:.2f}")
@@ -1252,7 +1317,6 @@ class _InvoiceDialog(QDialog):
         self.paid_edit.setText(str(inv.get("paid_amount", 0.0)))
         self.round_off_edit.setText(str(inv.get("round_off", 0.0)))
 
-        self._wire_totals_recalc()
         self._recalc_totals()
 
     # ------------------------------------------------------------------
