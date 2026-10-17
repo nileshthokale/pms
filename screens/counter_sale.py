@@ -5210,7 +5210,7 @@ _HISTORY_COLUMNS = {
 
 _HISTORY_COLUMN_WIDTHS = {
     HISTORY_MODE_ITEM: (85, 55, 140, 96, 45, 80, 145, 70, 150, 110, 82, 75, 100),
-    HISTORY_MODE_BILL: (80, 56, 135, 100, 60, 64, 112, 80, 104, 125),
+    HISTORY_MODE_BILL: (85, 60, 185, 115, 95, 65, 112, 80, 105, 125),
 }
 
 # Stretch map (kept for backwards-compat imports; _apply_history_columns
@@ -5753,13 +5753,14 @@ class CounterSalePage(QWidget):
             hv.setSectionResizeMode(6, QHeaderView.Stretch)
             hv.setStretchLastSection(False)
         else:
-            # Bill mode restored exactly (previous behavior).
-            stretch_col = _HISTORY_STRETCH_COLUMN[self._history_mode]
+            # Bill mode: Patient is kept compact (~170-200 px) with ellipsis
+            # and full name in tooltip; Date (115 px) and Time (95 px) are fully
+            # visible and do not truncate. Columns are Interactive so they do
+            # not shrink below readable widths on resize, while stretching fills
+            # available window width without empty trailing space.
             hv.setSectionResizeMode(QHeaderView.Interactive)
-            for col, width in enumerate(_HISTORY_COLUMN_WIDTHS[self._history_mode]):
+            for col, width in enumerate(_HISTORY_COLUMN_WIDTHS[HISTORY_MODE_BILL]):
                 table.setColumnWidth(col, width)
-            for col in {stretch_col, len(labels) - 1}:
-                hv.setSectionResizeMode(col, QHeaderView.Stretch)
             hv.setStretchLastSection(True)
         table.setSortingEnabled(True)
 
@@ -6510,9 +6511,25 @@ class CounterSalePage(QWidget):
         cell.setToolTip(f"Full Bill No: {stored}" if stored else "")
         table.setItem(row_index, 0, cell)
         table.setItem(row_index, 1, QTableWidgetItem(row.get("sale_type") or ""))
-        table.setItem(row_index, 2, QTableWidgetItem(row.get("patient_name") or ""))
-        table.setItem(row_index, 3, QTableWidgetItem(row.get("sale_date") or ""))
-        table.setItem(row_index, 4, QTableWidgetItem(row.get("sale_time") or ""))
+
+        patient_name = row.get("patient_name") or ""
+        pat_cell = QTableWidgetItem(patient_name)
+        if patient_name:
+            pat_cell.setToolTip(patient_name)
+        table.setItem(row_index, 2, pat_cell)
+
+        sale_date = row.get("sale_date") or ""
+        date_cell = QTableWidgetItem(sale_date)
+        if sale_date:
+            date_cell.setToolTip(sale_date)
+        table.setItem(row_index, 3, date_cell)
+
+        sale_time = row.get("sale_time") or ""
+        time_cell = QTableWidgetItem(sale_time)
+        if sale_time:
+            time_cell.setToolTip(sale_time)
+        table.setItem(row_index, 4, time_cell)
+
         table.setItem(row_index, 5,
                       QTableWidgetItem(str(row.get("item_count") or 0)))
         table.setItem(row_index, 6, self._money_cell(row.get("total_amount")))
