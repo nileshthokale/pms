@@ -158,30 +158,35 @@ class SalesReportPage(QWidget):
         )
         fv = QVBoxLayout(filters)
         fv.setContentsMargins(16, 6, 16, 6)
-        fv.setSpacing(6)
+        fv.setSpacing(8)
 
-        # One compact row.  The navbar FY is the only period control; report
-        # filters below can never disable or override that date constraint.
+        # Two clean rows: filters first, then the actions.  The window may
+        # be as narrow as 1024px, while a single row of six filters plus
+        # four buttons demanded far more than that — squeezing everything
+        # into it pushed the labels into their neighbours.  Each caption
+        # now travels inside a small unit with its control, so a label can
+        # never drift away from its field, and the action buttons get a
+        # row of their own when they cannot fit beside the filters.
+        #
+        # The navbar FY is the only period control; report filters below
+        # can never disable or override that date constraint.
         row1 = QHBoxLayout()
-        row1.setSpacing(8)
+        row1.setSpacing(14)
 
-        row1.addWidget(self._label("Customer"))
         self.customer_edit = SearchableFilterEdit("All customers")
-        self.customer_edit.setMinimumWidth(150)
+        self.customer_edit.setMinimumWidth(130)
         self.customer_edit.returnPressed.connect(self._on_generate)
-        row1.addWidget(self.customer_edit)
+        row1.addWidget(self._filter_unit("Customer", self.customer_edit))
 
-        row1.addWidget(self._label("Company"))
         self.company_edit = SearchableFilterEdit("All companies")
-        self.company_edit.setMinimumWidth(135)
+        self.company_edit.setMinimumWidth(120)
         self.company_edit.returnPressed.connect(self._on_generate)
-        row1.addWidget(self.company_edit)
+        row1.addWidget(self._filter_unit("Company", self.company_edit))
 
-        row1.addWidget(self._label("Item"))
         self.item_edit = SearchableFilterEdit("All items")
-        self.item_edit.setMinimumWidth(155)
+        self.item_edit.setMinimumWidth(140)
         self.item_edit.returnPressed.connect(self._on_generate)
-        row1.addWidget(self.item_edit)
+        row1.addWidget(self._filter_unit("Item", self.item_edit))
 
         # Picking a suggestion (Enter key or mouse click) searches at once:
         # the widget records the selected ID first, then this refresh runs
@@ -189,52 +194,54 @@ class SalesReportPage(QWidget):
         for edit in (self.customer_edit, self.company_edit, self.item_edit):
             edit.picked.connect(self._on_generate)
 
-        row1.addWidget(self._label("Patient"))
         self.patient_edit = QLineEdit()
         self.patient_edit.setStyleSheet(_EDIT_STYLE)
         self.patient_edit.setPlaceholderText("patient name")
-        self.patient_edit.setFixedWidth(120)
+        self.patient_edit.setMinimumWidth(110)
         self.patient_edit.returnPressed.connect(self._on_generate)
-        row1.addWidget(self.patient_edit)
+        row1.addWidget(self._filter_unit("Patient", self.patient_edit))
+        row1.addStretch()
+        fv.addLayout(row1)
 
-        row1.addWidget(self._label("From Date"))
+        row2 = QHBoxLayout()
+        row2.setSpacing(10)
+
         self._from_date = QDateEdit()
         self._from_date.setCalendarPopup(True)
-        self._from_date.setFixedWidth(105)
+        self._from_date.setFixedWidth(120)
         self._from_date.setStyleSheet(_DATE_STYLE)
         self._from_date.dateChanged.connect(self._on_generate)
-        row1.addWidget(self._from_date)
+        row2.addWidget(self._filter_unit("From Date", self._from_date))
 
-        row1.addWidget(self._label("To Date"))
         self._to_date = QDateEdit()
         self._to_date.setCalendarPopup(True)
-        self._to_date.setFixedWidth(105)
+        self._to_date.setFixedWidth(120)
         self._to_date.setStyleSheet(_DATE_STYLE)
         self._to_date.dateChanged.connect(self._on_generate)
-        row1.addWidget(self._to_date)
+        row2.addWidget(self._filter_unit("To Date", self._to_date))
 
-        row1.addStretch()
+        row2.addStretch()
 
         search_btn = QPushButton("Search")
         search_btn.setStyleSheet(_BTN_PRIMARY)
         search_btn.clicked.connect(self._on_generate)
-        row1.addWidget(search_btn)
+        row2.addWidget(search_btn)
 
         clear_btn = QPushButton("Clear")
         clear_btn.setStyleSheet(_BTN_SECONDARY)
         clear_btn.clicked.connect(self._on_clear)
-        row1.addWidget(clear_btn)
+        row2.addWidget(clear_btn)
 
         refresh_btn = QPushButton("Refresh")
         refresh_btn.setStyleSheet(_BTN_SECONDARY)
         refresh_btn.clicked.connect(self._on_refresh)
-        row1.addWidget(refresh_btn)
+        row2.addWidget(refresh_btn)
 
         print_btn = QPushButton("Print")
         print_btn.setStyleSheet(_BTN_SECONDARY)
         print_btn.clicked.connect(self._on_print)
-        row1.addWidget(print_btn)
-        fv.addLayout(row1)
+        row2.addWidget(print_btn)
+        fv.addLayout(row2)
 
         root.addWidget(filters)
 
@@ -322,6 +329,21 @@ class SalesReportPage(QWidget):
         lbl = QLabel(text)
         lbl.setStyleSheet(_LABEL_STYLE)
         return lbl
+
+    def _filter_unit(self, text: str, control: QWidget) -> QWidget:
+        """A caption glued to its control at a fixed small gap.
+
+        Wrapping the pair in a tiny container is what keeps the label next
+        to the field it names at every window width; the toolbar rows then
+        space these units apart from each other.
+        """
+        unit = QWidget()
+        box = QHBoxLayout(unit)
+        box.setContentsMargins(0, 0, 0, 0)
+        box.setSpacing(8)
+        box.addWidget(self._label(text))
+        box.addWidget(control)
+        return unit
 
     def _load_filter_options(self):
         options = SalesReportDAO.get_filter_options()
