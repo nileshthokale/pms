@@ -1334,6 +1334,21 @@ class _KeyboardCombo(QComboBox):
             self.completionAccepted.emit()
         return accepted
 
+    def close_popup(self) -> None:
+        """Close any open completion popup or dropdown."""
+        try:
+            completer = self.completer()
+            if completer is not None:
+                popup = completer.popup()
+                if popup is not None and popup.isVisible():
+                    popup.hide()
+        except Exception:
+            pass
+        try:
+            self.hidePopup()
+        except Exception:
+            pass
+
     def refresh_theme(self) -> None:
         """Re-apply live Day/Night colours to the combo box + its popup.
 
@@ -2196,15 +2211,93 @@ class _ItemEntryBar(QWidget):
         if idx >= 0:
             self.batch_combo.setCurrentIndex(idx)
 
+    def close_popups(self):
+        """Close completion popups and combo popups on all entry combos."""
+        if hasattr(self, "_focus_batch_timer"):
+            self._focus_batch_timer.stop()
+        if hasattr(self, "_focus_quantity_timer"):
+            self._focus_quantity_timer.stop()
+        for combo in (getattr(self, "item_combo", None), getattr(self, "batch_combo", None)):
+            if combo is None:
+                continue
+            try:
+                if hasattr(combo, "close_popup"):
+                    combo.close_popup()
+                else:
+                    completer = combo.completer()
+                    if completer is not None:
+                        popup = completer.popup()
+                        if popup is not None and popup.isVisible():
+                            popup.hide()
+                    combo.hidePopup()
+            except Exception:
+                pass
+
+    def reset_batch(self):
+        """Reset the Batch input to empty without clearing items if already loaded,
+        clearing displayed text, resetting selection to none, and closing dropdown."""
+        if hasattr(self, "_focus_batch_timer"):
+            self._focus_batch_timer.stop()
+        if hasattr(self, "_focus_quantity_timer"):
+            self._focus_quantity_timer.stop()
+        if hasattr(self, "batch_combo"):
+            try:
+                if hasattr(self.batch_combo, "close_popup"):
+                    self.batch_combo.close_popup()
+                else:
+                    completer = self.batch_combo.completer()
+                    if completer is not None:
+                        popup = completer.popup()
+                        if popup is not None and popup.isVisible():
+                            popup.hide()
+                    self.batch_combo.hidePopup()
+            except Exception:
+                pass
+            self.batch_combo.blockSignals(True)
+            self.batch_combo.setCurrentIndex(-1)
+            line_edit = self.batch_combo.lineEdit()
+            if line_edit is not None:
+                line_edit.clear()
+            self.batch_combo.blockSignals(False)
+        self.pack_edit.clear()
+        self.expiry_edit.clear()
+        self.mrp_edit.clear()
+        self.stock_edit.clear()
+        self.stock_edit.setToolTip("")
+        self.amount_edit.clear()
+        item_id = self.item_combo.currentData() if hasattr(self, "item_combo") else None
+        if item_id is not None and hasattr(self, "_items_by_id"):
+            item = self._items_by_id.get(item_id, {})
+            self.location_edit.setText(item.get("location", "") or "")
+        else:
+            self.location_edit.clear()
+
     def clear(self):
+        if hasattr(self, "_focus_batch_timer"):
+            self._focus_batch_timer.stop()
+        if hasattr(self, "_focus_quantity_timer"):
+            self._focus_quantity_timer.stop()
+        self.close_popups()
+        self.item_combo.blockSignals(True)
         self.item_combo.setCurrentIndex(0)
-        self.item_combo.lineEdit().clear()
+        item_line = self.item_combo.lineEdit()
+        if item_line is not None:
+            item_line.clear()
+        self.item_combo.blockSignals(False)
+        self.reset_batch()
+        self.batch_combo.blockSignals(True)
         self.batch_combo.clear()
+        self.batch_combo.setCurrentIndex(-1)
+        b_line = self.batch_combo.lineEdit()
+        if b_line is not None:
+            b_line.clear()
+        self.batch_combo.blockSignals(False)
         self.pack_edit.clear()
         self.location_edit.clear()
         self.expiry_edit.clear()
         self.mrp_edit.clear()
         self.stock_edit.clear()
+        self.stock_edit.setToolTip("")
         self.amount_edit.clear()
         self.qty_edit.setText("1")
         self.discount_edit.setText("0.00")
@@ -3518,6 +3611,7 @@ class _SalePanel(QWidget):
         self._recalc_totals()
         self._refresh_draft_availability()
         self._entry_bar.clear()
+        self._entry_bar.reset_batch()
         self._entry_bar.item_combo.setFocus()
 
     def _refresh_table(self):
@@ -4084,6 +4178,7 @@ class _SalePanel(QWidget):
         and application-blocking for the user, but the call returns
         immediately so the save flow stays re-entrant and testable.
         """
+        self._entry_bar.close_popups()
         dialog = SalesBillReviewDialog(self, self)
         self._review_dialog = dialog
         dialog.finished.connect(self._release_review_dialog)
@@ -4096,6 +4191,7 @@ class _SalePanel(QWidget):
         """Drop the popup handle once it is gone (Close, Escape or Save)."""
         if getattr(self, "_review_dialog", None) is not None:
             del self._review_dialog
+        self._entry_bar.close_popups()
 
     def _validate_for_commit(self) -> bool:
         """Every business rule that must pass before a sale may be written.
@@ -4339,25 +4435,12 @@ class _SalePanel(QWidget):
         self._recalc_totals()
         self._refresh_draft_availability()
         self._entry_bar.set_cno(self.bill_no_edit.text())
-        self._focus_entry_on_first_row()
+        self._entry_bar.clear()
+        self._entry_bar.reset_batch()
 
     def _focus_entry_on_first_row(self):
-        """Show the first bill line's item/batch in the entry bar.
-
-        Display only: selecting in the entry bar fills the read-only Pack /
-        Location / Expiry / MRP / Batch-Stock boxes and loads the batch list,
-        so the entry area of a review step always shows live item data
-        instead of empty controls.  It reserves nothing and writes nothing.
-        """
-        if not self._item_rows:
-            return
-        first = self._item_rows[0]
-        item_index = self._entry_bar.item_combo.findData(first.item_id)
-        if item_index >= 0:
-            self._entry_bar.item_combo.setCurrentIndex(item_index)
-        batch_index = self._entry_bar.batch_combo.findData(first.stock_batch_id)
-        if batch_index >= 0:
-            self._entry_bar.batch_combo.setCurrentIndex(batch_index)
+        """No-op: entry bar stays clean with Batch input empty on review/load."""
+        pass
 
     @property
     def was_saved(self) -> bool:
@@ -4664,6 +4747,22 @@ class SalesBillReviewDialog(QDialog):
         # The popup's own width is only known now, so the Item Entry row is
         # measured and sized to fit exactly this window.
         self._panel.apply_popup_entry_widths(self.width() - _POPUP_BODY_CHROME)
+        self._panel._entry_bar.close_popups()
+        self._panel._entry_bar.reset_batch()
+        self._panel._entry_bar.clear()
+        if hasattr(self, "_final_save_btn"):
+            self._final_save_btn.setFocus()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        try:
+            if hasattr(self, "_panel") and hasattr(self._panel, "_entry_bar"):
+                self._panel._entry_bar.close_popups()
+                self._panel._entry_bar.reset_batch()
+            if hasattr(self, "_final_save_btn"):
+                self._final_save_btn.setFocus()
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # Construction helpers
