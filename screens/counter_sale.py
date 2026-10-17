@@ -5210,7 +5210,7 @@ _HISTORY_COLUMNS = {
 
 _HISTORY_COLUMN_WIDTHS = {
     HISTORY_MODE_ITEM: (85, 55, 140, 96, 45, 80, 145, 70, 150, 110, 82, 75, 100),
-    HISTORY_MODE_BILL: (85, 60, 185, 115, 95, 65, 112, 80, 105, 125),
+    HISTORY_MODE_BILL: (85, 60, 270, 115, 95, 65, 112, 80, 105, 140),
 }
 
 # Stretch map (kept for backwards-compat imports; _apply_history_columns
@@ -5753,15 +5753,16 @@ class CounterSalePage(QWidget):
             hv.setSectionResizeMode(6, QHeaderView.Stretch)
             hv.setStretchLastSection(False)
         else:
-            # Bill mode: Patient is kept compact (~170-200 px) with ellipsis
-            # and full name in tooltip; Date (115 px) and Time (95 px) are fully
-            # visible and do not truncate. Columns are Interactive so they do
-            # not shrink below readable widths on resize, while stretching fills
-            # available window width without empty trailing space.
+            # Bill mode: Patient base 270 px (250-280 px range) widens with the
+            # viewport so longer patient names are easier to read; Net Amount is
+            # compact (130-150 px range) and right-aligned; Date (115 px) and
+            # Time (95 px) stay fully visible. The table stretches across the
+            # window without trailing empty space.
             hv.setSectionResizeMode(QHeaderView.Interactive)
             for col, width in enumerate(_HISTORY_COLUMN_WIDTHS[HISTORY_MODE_BILL]):
                 table.setColumnWidth(col, width)
-            hv.setStretchLastSection(True)
+            hv.setSectionResizeMode(2, QHeaderView.Stretch)
+            hv.setStretchLastSection(False)
         table.setSortingEnabled(True)
 
     def _build_history_table(self) -> QTableWidget:
