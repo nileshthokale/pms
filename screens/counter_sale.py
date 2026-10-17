@@ -2937,7 +2937,7 @@ class _SalePanel(QWidget):
         left.addWidget(self._lbl("Cnt No"), 0, 0, Qt.AlignRight | Qt.AlignVCenter)
         self.cnt_no_edit = _make_edit()
         self.cnt_no_edit.setReadOnly(True)
-        _ItemEntryBar._fit(self.cnt_no_edit, 55, 90)  # Match original
+        _ItemEntryBar._fit(self.cnt_no_edit, 90, 125)
         left.addWidget(self.cnt_no_edit, 0, 1)
         left.addWidget(self._lbl("Type"), 1, 0, Qt.AlignRight | Qt.AlignVCenter)
         self.sale_type_combo.setMinimumWidth(110)
@@ -2960,6 +2960,8 @@ class _SalePanel(QWidget):
         plain_patient.setParent(None)
         plain_patient.deleteLater()
         centre.addWidget(patient, 1, 1)
+        if hasattr(patient, "lineEdit") and patient.lineEdit():
+            patient.lineEdit().textChanged.connect(self._on_patient_name_changed)
         centre.addWidget(self._lbl("Address"), 2, 0, Qt.AlignRight | Qt.AlignVCenter)
         self.address_edit = _DBLookupCombo(
             _address_options, placeholder="Search saved address", width=300,
@@ -3030,13 +3032,15 @@ class _SalePanel(QWidget):
                 short, full = "Draft", "Unsaved draft (number assigned on Save)"
             else:
                 try:
-                    short = _display_bill_no(self.bill_no_edit.text()) if self.bill_no_edit.text().strip() else "--"
+                    pat = self.patient_name_edit.text() if hasattr(self, 'patient_name_edit') else None
+                    raw_bno = getattr(self, "_full_bill_no", None) or self.bill_no_edit.text()
+                    short = _display_bill_no(raw_bno, patient_name=pat) if raw_bno.strip() else "--"
                 except Exception:
                     short = self.bill_no_edit.text() or "--"
-                full = self.bill_no_edit.text() or "--"
+                full = getattr(self, "_full_bill_no", None) or self.bill_no_edit.text() or "--"
             self.voucher_no_label.setText(short)
             try:
-                self.voucher_no_label.setToolTip(full)
+                self.voucher_no_label.setToolTip(f"Full Voucher: {full}" if full else "--")
             except Exception:
                 pass
         if hasattr(self, 'header_date_label'):
@@ -4076,6 +4080,9 @@ class _SalePanel(QWidget):
 
         self._recalc_totals()
         self._refresh_draft_availability()
+        if getattr(self, "_popup_mode", False):
+            self._refresh_customer_info()
+            self._update_header_labels()
 
     @staticmethod
     def _lbl(text: str) -> QLabel:
@@ -4692,32 +4699,37 @@ class SalesBillReviewDialog(QDialog):
     """Compact "Sales Bill" review/edit step for Counter Sale.
 
     Opened by the Counter Sale **Save Sale** button *after* the draft has
-    been validated.  It shows the bill and lets the user correct the
-    customer, patient, doctor, quantities, discounts and line items before
-    committing.
+    been validated, or by the History **Edit** action to edit an existing bill.
+    It shows the bill and lets the user correct the customer, patient,
+    doctor, quantities, discounts and line items before committing.
 
     Transaction contract
     --------------------
     * Opening this popup writes nothing: no invoice, no stock deduction,
-      no accounting entry.  It only takes a copy of the unsaved draft.
-    * **Save** runs the full validation again and then performs the one and
-      only commit (invoice + stock + posting) through the existing
-      ``SalesDAO`` workflow.
-    * **Close** / **Escape** discard the copy and return to Counter Sale
-      with the draft untouched.
-
-    The bill is edited through an embedded :class:`_SalePanel` set to
-    review mode, so every existing control â€” item autocomplete, batch
-    selection, draft stock reservation, add/delete line, keyboard
-    navigation â€” is the same one the Counter Sale screen uses.
+      no accounting entry.  It only takes a copy of the unsaved draft or
+      loads the existing invoice.
+    * **Save** runs the full validation again and then performs the commit
+      (insert new or update existing via ``SalesDAO.update_invoice``).
+    * **Close** / **Escape** discard the changes and leave the bill untouched.
     """
 
-    def __init__(self, panel: _SalePanel, parent: QWidget | None = None):
+    saved = Signal()
+
+    def __init__(
+        self,
+        panel: _SalePanel,
+        parent: QWidget | None = None,
+        *,
+        invoice: dict | None = None,
+        reservation_provider: object | None = None,
+    ):
         super().__init__(parent)
         _keep_alive(self)
         self._source_panel = panel
+        self._invoice_to_edit = invoice
+        self._is_editing = invoice is not None
         self.setObjectName("SalesBillDialog")
-        self.setWindowTitle("Sales Bill")
+        self.setWindowTitle("Edit Sales Bill" if self._is_editing else "Sales Bill")
         self.setModal(True)
         self.setStyleSheet(_BILL_DIALOG_STYLE)
 
@@ -4735,17 +4747,23 @@ class SalesBillReviewDialog(QDialog):
         body_layout.setContentsMargins(8, 6, 8, 6)
         body_layout.setSpacing(6)
 
-        # The editable copy of the draft.  Review mode makes its own
+        # The editable copy of the draft or invoice.  Review mode makes its own
         # "Save Sale" behave as the final commit instead of opening a
         # second popup.
         self._panel = _SalePanel(body, popup_mode=True)
         self._panel._in_review_popup = True
-        self._panel.load_draft_state(panel.draft_state())
+        if self._is_editing:
+            self._panel.load_invoice(invoice)
+        else:
+            self._panel.load_draft_state(panel.draft_state())
         # A review copy must honour reservations made by the other open
         # Counter Sale drafts just like the inline panel does.
-        self._panel.set_other_draft_reservation_provider(
-            panel._other_draft_reserved_qty
-        )
+        if reservation_provider is not None:
+            self._panel.set_other_draft_reservation_provider(reservation_provider)
+        else:
+            self._panel.set_other_draft_reservation_provider(
+                panel._other_draft_reserved_qty
+            )
         # Remove the duplicate upper totals summary: the panel's own
         # Total Amt / Round Off / NET AMT row would repeat the dialog's
         # single compact footer.  The hidden labels still exist so
@@ -4764,16 +4782,19 @@ class SalesBillReviewDialog(QDialog):
         # The popup's Remarks box is the bill's remarks source when the sale
         # is committed from here; an edited bill shows its stored remarks.
         self._panel.remarks_edit = self.remarks_edit
-        invoice = self._panel._invoice
-        if invoice:
-            self.remarks_edit.setText(invoice.get("remarks") or "")
+        inv_data = self._panel._invoice
+        if inv_data:
+            self.remarks_edit.setText(inv_data.get("remarks") or "")
 
         # A successful commit re-emits on the *source* panel so the Counter
         # Sale page performs its normal history refresh / form reset.
-        self._panel.saved.connect(self._source_panel.saved.emit)
-        # Hold stays a draft-only action: it is forwarded like Save so the
-        # page resets, but no stock or accounting is touched either way.
-        self._panel.held.connect(self._on_popup_held)
+        # In edit mode, do not forward to _source_panel (which resets the active draft).
+        # Instead, emit the dialog's own saved signal.
+        if not self._is_editing:
+            self._panel.saved.connect(self._source_panel.saved.emit)
+            self._panel.held.connect(self._on_popup_held)
+        else:
+            self._panel.saved.connect(self.saved.emit)
         # Cancel inside the popup means "discard", exactly like Close.
         self._panel.cancelled.connect(self.reject)
 
@@ -4922,7 +4943,7 @@ class SalesBillReviewDialog(QDialog):
         )
         main_layout = QVBoxLayout(bar)
         # Reduced vertical padding vs the old 12,8 layout.
-        main_layout.setContentsMargins(8, 4, 8, 4)
+        main_layout.setContentsMargins(12, 4, 12, 4)
         main_layout.setSpacing(4)
 
         # ---- Single horizontal totals row (wraps via small widths) ----
@@ -4930,7 +4951,7 @@ class SalesBillReviewDialog(QDialog):
         totals_row.setSpacing(6)
         totals_row.setContentsMargins(0, 0, 0, 0)
         self._compact_footer_block(totals_row, "Total Items", "_total_items_label",
-                                   str(len(self._panel._item_rows)), 62)
+                                   str(len(self._panel._item_rows)), 74)
         self._compact_footer_block(totals_row, "Total Amount", "_footer_total_amount",
                                    self._panel.total_amount_label.text(), 92)
         self._compact_footer_block(totals_row, "Bill Discount", "_footer_bill_discount",
@@ -5827,6 +5848,7 @@ class CounterSalePage(QWidget):
             + 2
         )
         table.setMinimumHeight(minimum_height)
+        table.doubleClicked.connect(lambda _idx: self._on_edit())
         return table
 
     def _build_bill_panel(self) -> QWidget:
@@ -6047,6 +6069,19 @@ class CounterSalePage(QWidget):
         for draft_id, state in self._open_bills.items():
             if draft_id == self._active_open_bill_id:
                 continue
+            original = state.get("original_batch_qty") or {}
+            qty = sum(
+                float(row.get("sale_qty", 0.0) or 0.0)
+                for row in state.get("rows") or []
+                if row.get("stock_batch_id") == batch_id
+            )
+            total += reserved_quantity(qty, original.get(batch_id, 0.0))
+        return total
+
+    def _reserved_by_all_open_bills(self, batch_id: int) -> float:
+        """Total unsaved reservation for *batch_id* across all open drafts."""
+        total = 0.0
+        for draft_id, state in self._open_bills.items():
             original = state.get("original_batch_qty") or {}
             qty = sum(
                 float(row.get("sale_qty", 0.0) or 0.0)
@@ -6400,9 +6435,13 @@ class CounterSalePage(QWidget):
             self._refresh_open_bill_cards()
         except Exception:
             pass
-        # Header strip + filter bar backgrounds.
         try:
             refresh_cs_tree(self)
+        except Exception:
+            pass
+        try:
+            if getattr(self, "_edit_dialog", None) is not None:
+                self._edit_dialog.refresh_theme()
         except Exception:
             pass
         try:
@@ -6583,46 +6622,49 @@ class CounterSalePage(QWidget):
         self._refresh_combined_summary()
         self._sale_panel.focus_item_name()
 
-    def _on_edit(self):
+    def _on_edit(self) -> SalesBillReviewDialog | None:
         try:
             auth.session.require(auth.PERM_EDIT_TRANSACTIONS)
         except auth.PermissionDenied as exc:
-            QMessageBox.warning(self, "Permission denied", str(exc)); return
+            QMessageBox.warning(self, "Permission denied", str(exc))
+            return None
         inv_id = self._selected_history_id()
         if not inv_id:
             QMessageBox.information(self, "Edit Sale", "Please select a bill to edit.")
-            return
+            return None
         inv = SalesDAO.get_by_id(inv_id)
         if not inv:
             QMessageBox.warning(self, "Edit Sale", "Could not load bill data.")
-            return
-        # Do not silently discard an unsaved multi-bill draft.
+            return None
+
+        # Snapshot current active draft so reservations stay up to date
         try:
-            if self._sale_panel.draft_state().get("rows"):
-                answer = QMessageBox.question(
-                    self, "Edit Sale",
-                    "Load the selected history bill into the active draft? "
-                    "Unsaved items in the active bill will be replaced. "
-                    "Other open bills are unchanged.",
-                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
-                )
-                if answer != QMessageBox.Yes:
-                    return
+            self._store_active_open_bill()
         except Exception:
             pass
-        self._editing_invoice_id = inv_id
-        self._sale_panel.load_invoice(inv)
-        # Keep the multi-bill workspace consistent: the edited invoice now
-        # owns the active slot (non-provisional), reservations recalculated.
-        try:
-            self._open_bills[self._active_open_bill_id] = self._sale_panel.draft_state()
-            self._sale_panel.set_other_draft_reservation_provider(
-                self._reserved_by_other_open_bills
-            )
-            self._refresh_open_bill_cards()
-        except Exception:
-            pass
-        self._sale_panel.focus_item_name()
+
+        dlg = SalesBillReviewDialog(
+            self._sale_panel,
+            parent=self,
+            invoice=inv,
+            reservation_provider=self._reserved_by_all_open_bills,
+        )
+        self._edit_dialog = dlg
+        dlg.saved.connect(self._on_edit_saved)
+        dlg.finished.connect(self._release_edit_dialog)
+        dlg.show()
+        dlg.raise_()
+        dlg.activateWindow()
+        return dlg
+
+    def _on_edit_saved(self):
+        """Refresh history and totals when an existing invoice was edited."""
+        self._refresh_history()
+        self._refresh_combined_summary()
+
+    def _release_edit_dialog(self, *_args):
+        if getattr(self, "_edit_dialog", None) is not None:
+            self._edit_dialog = None
 
     def _on_delete(self):
         try:
