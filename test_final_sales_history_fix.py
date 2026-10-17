@@ -98,11 +98,12 @@ def run_tests():
     # 1. Test helper formatting functions
     # -------------------------------------------------------------
     assert _is_synthetic_fallback_bill(fb_bill_no, fb_remarks, fb_id) is True
-    assert _fmt_bill_no(fb_bill_no, fb_remarks, fb_id) == "---"
-    print(f"[PASS] _fmt_bill_no for fallback bill returns '---'")
+    assert _fmt_bill_no(fb_bill_no, fb_remarks, fb_id, patient_name=fb_pat) == ""
+    assert _fmt_bill_no(fb_bill_no, fb_remarks, fb_id) == "187"
+    print(f"[PASS] _fmt_bill_no for fallback bill returns '' when patient empty, and '187' when patient present")
 
     assert _is_synthetic_fallback_bill(gen_bill_no, gen_remarks, gen_id) is False
-    assert _fmt_bill_no(gen_bill_no, gen_remarks, gen_id) == "1"
+    assert _fmt_bill_no(gen_bill_no, gen_remarks, gen_id, patient_name=gen_pat) == "1"
     print(f"[PASS] _fmt_bill_no for genuine bill returns '1'")
 
     # -------------------------------------------------------------
@@ -120,14 +121,14 @@ def run_tests():
     assert len(customer_labels) == 0, f"Customer label found in dialog: {customer_labels}"
     print(f"[PASS] No Customer label or row found in SalesBillDetailsDialog")
 
-    # Verify Bill / CNo value is '---'
+    # Verify Bill / CNo value is blank '' because patient name is empty
     grid_fb = dlg_fb._meta_group.layout()
     bno_lbl_item = grid_fb.itemAtPosition(0, 0)
     bno_val_item = grid_fb.itemAtPosition(0, 1)
     assert bno_lbl_item and "Bill / CNo" in bno_lbl_item.widget().text()
-    assert bno_val_item and bno_val_item.widget().text() == "---", \
-        f"Expected '---', got {bno_val_item.widget().text()}"
-    print(f"[PASS] Dialog Bill / CNo displays: '{bno_val_item.widget().text()}'")
+    assert bno_val_item and bno_val_item.widget().text() == "", \
+        f"Expected blank '', got {bno_val_item.widget().text()!r}"
+    print(f"[PASS] Dialog Bill / CNo displays blank: '{bno_val_item.widget().text()}'")
 
     # Verify Patient label and value at (1, 0) and (1, 1)
     pat_lbl_item = grid_fb.itemAtPosition(1, 0)
@@ -180,7 +181,7 @@ def run_tests():
     assert found_row >= 0, f"Fallback bill {fb_id} not found in search results"
     table_bno_text = page._table.item(found_row, 0).text()
     table_pat_text = page._table.item(found_row, 2).text()
-    assert table_bno_text == "---", f"Expected table Bill No / CNo '---', got '{table_bno_text}'"
+    assert table_bno_text == "", f"Expected table Bill No / CNo '', got '{table_bno_text}'"
     assert table_pat_text == "WALKIN", f"Expected table Patient 'WALKIN', got '{table_pat_text}'"
     print(f"[PASS] Sales History table row {found_row}: Bill No / CNo = '{table_bno_text}', Patient = '{table_pat_text}'")
 

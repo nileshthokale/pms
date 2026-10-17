@@ -38,28 +38,9 @@ def _money(value: Any) -> str:
 
 
 def _purchase_display_bill_no(value: Any) -> str:
-    """Display-only Bill/Voucher number without the financial-year prefix.
-
-    Purchase vouchers are stored with a financial-year prefix such as
-    ``2026-2027-Credit-250`` (or, in simplified form, ``2026-2027-123``).
-    This helper strips only the leading ``YYYY-YYYY-`` prefix and returns
-    the remainder (``Credit-250`` / ``123``) for the Purchase Report
-    printout.  Values without that prefix (``PV-0001``, ``INV-001``,
-    plain numbers) are returned unchanged.  Stored data is never altered.
-    """
-    import re
-
-    if value is None:
-        return ""
-    text = str(value).strip()
-    if not text:
-        return ""
-    match = re.match(r"^\d{4}-\d{4}-(.+)$", text)
-    if match:
-        remainder = match.group(1).strip()
-        if remainder:
-            return remainder
-    return text
+    """Display-only Bill/Voucher number formatted to numeric component only."""
+    from core.doc_formatter import format_document_number
+    return format_document_number(value)
 
 
 def _escape(value: Any) -> str:
@@ -107,7 +88,9 @@ def _payment_data(payment_id: int) -> tuple[dict, list[dict]]:
 
 
 def _header(title: str, record: dict) -> list[str]:
-    identifier = record.get("bill_no") or record.get("voucher_no") or ""
+    raw_identifier = record.get("bill_no") or record.get("voucher_no") or ""
+    from core.doc_formatter import format_document_number
+    identifier = format_document_number(raw_identifier) if raw_identifier else ""
     date = record.get("sale_date") or record.get("voucher_date") or record.get("receipt_date") or record.get("payment_date") or ""
     time = record.get("sale_time") or record.get("voucher_time") or record.get("receipt_time") or record.get("payment_time") or ""
     lines = [title, f"Document No: {identifier}", f"Date: {date}    Time: {time}"]
@@ -424,7 +407,8 @@ def _billwise_pdf_bytes(
     def _bill_head_text(bill_no: str, sale_date: str, patient: str) -> str:
         parts: list[str] = []
         if bill_no:
-            parts.append(f"Bill No: {bill_no}")
+            from core.doc_formatter import format_document_number
+            parts.append(f"Bill No: {format_document_number(bill_no)}")
         if sale_date:
             parts.append(f"Date: {_fmt_date(sale_date)}")
         if patient:
@@ -805,26 +789,8 @@ def _purchase_vh_type(row: dict) -> str:
 
 
 def _purchase_vh_no(row: dict) -> str:
-    """Voucher number for the companywise VhNo column (display only).
-
-    For stored ``YYYY-YYYY-Type-Seq`` vouchers (e.g.
-    ``2026-2027-Credit-250``) shows only the sequential part (``250``),
-    since the type already has its own VhType column.  Other values fall
-    back to the FY-prefix-stripped form, never touching stored data.
-    """
-    import re
-
-    voucher = str(row.get("voucher_no") or "").strip()
-    match = re.match(r"^\d{4}-\d{4}-(.+)$", voucher)
-    if match:
-        remainder = match.group(1).strip()
-        if "-" in remainder:
-            seq = remainder.rsplit("-", 1)[-1].strip()
-            if seq:
-                return seq
-        if remainder:
-            return remainder
-    return _purchase_display_bill_no(voucher)
+    """Voucher number for the companywise VhNo column (display only)."""
+    return _purchase_display_bill_no(row.get("voucher_no"))
 
 
 def _purchase_fmt_vhdate(iso: Any) -> str:

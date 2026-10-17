@@ -489,10 +489,12 @@ class _CreditNoteEntryDialog(QDialog):
             conn = None
             try:
                 from database.connection import get_connection
+                from core.doc_formatter import format_document_number
                 conn = get_connection()
-                self.voucher_no_edit.setText(
-                    CreditNoteDAO.generate_next_voucher_no(conn)
-                )
+                full = CreditNoteDAO.generate_next_voucher_no(conn)
+                self._full_voucher_no = full
+                self.voucher_no_edit.setText(format_document_number(full))
+                self.voucher_no_edit.setToolTip(f"Full Voucher: {full}")
             finally:
                 if conn:
                     conn.close()
@@ -685,7 +687,11 @@ class _CreditNoteEntryDialog(QDialog):
     # ------------------------------------------------------------------
 
     def _populate_cn(self, cn: dict):
-        self.voucher_no_edit.setText(cn.get("voucher_no", ""))
+        from core.doc_formatter import format_document_number
+        full = cn.get("voucher_no", "")
+        self._full_voucher_no = full
+        self.voucher_no_edit.setText(format_document_number(full))
+        self.voucher_no_edit.setToolTip(f"Full Voucher: {full}" if full else "")
 
         from PySide6.QtCore import QDate
         vd = cn.get("voucher_date", "")
@@ -987,7 +993,11 @@ class CreditNotePage(QWidget):
 
         self._hist_table.setRowCount(len(cns))
         for i, cn in enumerate(cns):
-            self._hist_table.setItem(i, 0, QTableWidgetItem(cn.get("voucher_no", "")))
+            from core.doc_formatter import format_document_number
+            raw_vno = cn.get("voucher_no", "")
+            vno_item = QTableWidgetItem(format_document_number(raw_vno))
+            vno_item.setToolTip(f"Full Voucher: {raw_vno}")
+            self._hist_table.setItem(i, 0, vno_item)
             self._hist_table.setItem(i, 1, QTableWidgetItem(cn.get("voucher_date", "")))
             self._hist_table.setItem(i, 2, QTableWidgetItem(cn.get("cn_date", "")))
             self._hist_table.setItem(i, 3, QTableWidgetItem(cn.get("cn_type", "")))

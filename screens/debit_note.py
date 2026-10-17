@@ -492,10 +492,12 @@ class _DebitNoteEntryDialog(QDialog):
             conn = None
             try:
                 from database.connection import get_connection
+                from core.doc_formatter import format_document_number
                 conn = get_connection()
-                self.voucher_no_edit.setText(
-                    DebitNoteDAO.generate_next_voucher_no(conn)
-                )
+                full = DebitNoteDAO.generate_next_voucher_no(conn)
+                self._full_voucher_no = full
+                self.voucher_no_edit.setText(format_document_number(full))
+                self.voucher_no_edit.setToolTip(f"Full Voucher: {full}")
             finally:
                 if conn:
                     conn.close()
@@ -700,7 +702,11 @@ class _DebitNoteEntryDialog(QDialog):
     # ------------------------------------------------------------------
 
     def _populate_dn(self, dn: dict):
-        self.voucher_no_edit.setText(dn.get("voucher_no", ""))
+        from core.doc_formatter import format_document_number
+        full = dn.get("voucher_no", "")
+        self._full_voucher_no = full
+        self.voucher_no_edit.setText(format_document_number(full))
+        self.voucher_no_edit.setToolTip(f"Full Voucher: {full}" if full else "")
 
         from PySide6.QtCore import QDate
         vd = dn.get("voucher_date", "")
@@ -1008,7 +1014,11 @@ class DebitNotePage(QWidget):
 
         self._hist_table.setRowCount(len(dns))
         for i, dn in enumerate(dns):
-            self._hist_table.setItem(i, 0, QTableWidgetItem(dn.get("voucher_no", "")))
+            from core.doc_formatter import format_document_number
+            raw_vno = dn.get("voucher_no", "")
+            vno_item = QTableWidgetItem(format_document_number(raw_vno))
+            vno_item.setToolTip(f"Full Voucher: {raw_vno}")
+            self._hist_table.setItem(i, 0, vno_item)
             self._hist_table.setItem(i, 1, QTableWidgetItem(dn.get("voucher_date", "")))
             self._hist_table.setItem(i, 2, QTableWidgetItem(dn.get("voucher_time", "")))
             self._hist_table.setItem(i, 3, QTableWidgetItem(dn.get("dn_date", "")))

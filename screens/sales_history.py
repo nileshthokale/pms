@@ -224,27 +224,17 @@ def _fmt_bill_no(
     bill_no: str | None,
     remarks: str | None = None,
     invoice_id: int | None = None,
+    patient_name: str | None = None,
 ) -> str:
-    """Return the display value for a bill number.
+    """Return the display value for a bill number using centralized formatting.
 
-    Synthetic fallback identifiers (missing/zero legacy BillNo, detected
-    via migration provenance in ``remarks`` and ``legacy_id_map``) display
-    as ``---`` so users never see technical placeholders.  Bill numbers may
-    otherwise carry a financial-year prefix like ``2025-2026-0123``; only the
-    exact pattern ``YYYY-YYYY-\\d+`` is stripped, while other formats (e.g.
-    hand-written ``CS-0001``, bare ``1911``, or genuine numbers with
-    prefixes/suffixes) are left untouched so existing numbers are never
-    corrupted.
+    If patient_name is provided and contains only whitespace or is empty,
+    returns a blank string.
     """
-    if _is_synthetic_fallback_bill(bill_no, remarks, invoice_id):
-        return "---"
-    if not bill_no or bill_no == "--":
-        return bill_no
-    import re
-    m = re.match(r"\d{4}-\d{4}-(\d+)$", bill_no)
-    if m:
-        return m.group(1)
-    return bill_no
+    if patient_name is not None and not str(patient_name).strip():
+        return ""
+    from core.doc_formatter import format_document_number
+    return format_document_number(bill_no, default="--")
 
 
 def _fmt_patient_name(patient_name: str | None) -> str:
@@ -391,7 +381,7 @@ class SalesBillDetailsDialog(QDialog):
         _meta_row(
             0,
             "Bill / CNo",
-            _fmt_bill_no(bill_no, remarks, self.invoice_id),
+            _fmt_bill_no(bill_no, remarks, self.invoice_id, patient_name=raw_pat),
             "Date & Time",
             dt_str,
             "Payment Type",
@@ -922,17 +912,19 @@ class SalesHistoryPage(QWidget):
     def _populate_table(self, rows: list[dict]):
         self._table.setRowCount(len(rows))
         for r_idx, row in enumerate(rows):
-            # 0: Bill No (synthetic migration fallbacks show as "---";
-            # the invoice id stays in UserRole so open/print still work).
+            # 0: Bill No (numeric sequence displayed when patient present, blank when empty)
+            raw_bno = row.get("bill_no") or "--"
             bno_item = QTableWidgetItem(
                 _fmt_bill_no(
-                    row.get("bill_no") or "--",
+                    raw_bno,
                     row.get("remarks"),
                     row.get("id"),
+                    patient_name=row.get("patient_name"),
                 )
             )
             bno_item.setData(Qt.UserRole, row.get("id"))
             bno_item.setTextAlignment(Qt.AlignCenter)
+            bno_item.setToolTip(f"Full Bill No: {raw_bno}")
             self._table.setItem(r_idx, 0, bno_item)
 
             # 1: Date & Time

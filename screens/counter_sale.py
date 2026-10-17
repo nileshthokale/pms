@@ -2435,17 +2435,19 @@ class _ItemEntryBar(QWidget):
 # share one permanent CNo.
 
 
-def _display_bill_no(bill_no: str) -> str:
+def _display_bill_no(bill_no: str, patient_name: str | None = None) -> str:
     """Short CNo for the billing UI (display only, never saved).
 
-    Active-FY bills stored as ``2026-2027-1910`` show as ``1910``; every
-    other stored value (historical FY bills, legacy imports, plain numbers)
-    shows unchanged so bills from different years stay distinguishable.
+    Returns numeric-only bill number when patient_name is present (or omitted).
+    If patient_name is provided and is empty or contains only whitespace, returns a blank string.
     """
+    if patient_name is not None and not str(patient_name).strip():
+        return ""
     try:
-        return SalesDAO.display_bill_no(bill_no)
+        return SalesDAO.display_bill_no(bill_no, patient_name=patient_name)
     except Exception:
-        return (bill_no or "").strip() or "--"
+        from core.doc_formatter import format_document_number
+        return format_document_number(bill_no)
 
 
 def _increment_bill_no(bill_no: str) -> str:
@@ -2739,9 +2741,11 @@ class _SalePanel(QWidget):
                 preview = SalesDAO.generate_next_bill_no()
         except Exception:
             preview = preview or ""
+        self._full_bill_no = preview
+        disp = _display_bill_no(preview)
         try:
             self.bill_no_edit.blockSignals(True)
-            self.bill_no_edit.setText(preview)
+            self.bill_no_edit.setText(disp)
         finally:
             try:
                 self.bill_no_edit.blockSignals(False)
@@ -2751,7 +2755,7 @@ class _SalePanel(QWidget):
             self.bill_no_edit.setToolTip(f"{preview} (preview, assigned on Save)" if preview else "Unsaved draft")
         except Exception:
             pass
-        self._entry_bar.set_cno(preview)
+        self._entry_bar.set_cno(disp)
 
     def _refresh_draft_availability(self):
         self._entry_bar.refresh_draft_availability()
@@ -3385,6 +3389,7 @@ class _SalePanel(QWidget):
         row2.addWidget(self._compact_lbl("Patient"))
         self.patient_name_edit = _make_compact_edit(height=_METADATA_CONTROL_HEIGHT)
         self.patient_name_edit.setMinimumWidth(150)
+        self.patient_name_edit.textChanged.connect(self._on_patient_name_changed)
         row2.addWidget(self.patient_name_edit, 3)
 
         row2.addWidget(self._compact_lbl("Doctor"))
@@ -3396,6 +3401,22 @@ class _SalePanel(QWidget):
 
         self._load_customers()
         self._load_doctors()
+
+    def _on_patient_name_changed(self, text: str):
+        full_bno = getattr(self, "_full_bill_no", None)
+        if not full_bno:
+            return
+        if getattr(self, "_invoice", None) is not None:
+            has_pat = bool(text and text.strip())
+            disp = _display_bill_no(full_bno) if has_pat else ""
+            self.bill_no_edit.blockSignals(True)
+            self.bill_no_edit.setText(disp)
+            self.bill_no_edit.blockSignals(False)
+            self._update_header_labels()
+            try:
+                self._entry_bar.set_cno(disp)
+            except Exception:
+                pass
 
     def _load_customers(self):
         customers = CustomerDAO.get_all()
@@ -3428,9 +3449,11 @@ class _SalePanel(QWidget):
                 preview = SalesDAO.generate_next_bill_no()
             except Exception:
                 preview = ""
+            self._full_bill_no = preview
+            disp = _display_bill_no(preview)
             try:
                 self.bill_no_edit.blockSignals(True)
-                self.bill_no_edit.setText(preview)
+                self.bill_no_edit.setText(disp)
             finally:
                 try:
                     self.bill_no_edit.blockSignals(False)
@@ -3992,7 +4015,12 @@ class _SalePanel(QWidget):
     # ------------------------------------------------------------------
 
     def _populate_invoice(self, inv: dict):
-        self.bill_no_edit.setText(inv.get("bill_no", ""))
+        full_bno = inv.get("bill_no", "")
+        self._full_bill_no = full_bno
+        pat = inv.get("patient_name", "")
+        self.patient_name_edit.setText(pat)
+        self.bill_no_edit.setText(_display_bill_no(full_bno, patient_name=pat))
+        self.bill_no_edit.setToolTip(f"Full Bill No: {full_bno}" if full_bno else "")
 
         from PySide6.QtCore import QDate
         sd = inv.get("sale_date", "")
@@ -4214,7 +4242,8 @@ class _SalePanel(QWidget):
 
         # Drafts carry no number until Save (assigned transactionally);
         # only edits of existing invoices require a bill number here.
-        if self._invoice and not self.bill_no_edit.text().strip():
+        existing_bno = getattr(self, "_full_bill_no", None) or (self._invoice.get("bill_no") if self._invoice else None)
+        if self._invoice and not (existing_bno or self.bill_no_edit.text().strip()):
             self.bill_no_edit.setFocus()
             QMessageBox.warning(self, "Validation", "Bill number is required.")
             return False
@@ -4300,9 +4329,9 @@ class _SalePanel(QWidget):
             # preserved (still Draft, not marked saved).
             displayed = self.bill_no_edit.text().strip()
             if self._invoice:
-                bill_no = displayed
+                bill_no = getattr(self, "_full_bill_no", None) or self._invoice.get("bill_no") or displayed
             else:
-                bill_no = SalesDAO.generate_next_bill_no()
+                bill_no = getattr(self, "_full_bill_no", None) or SalesDAO.generate_next_bill_no()
             remarks = self._remarks_text()
             items_data = [r.to_dict() for r in self._item_rows]
 
@@ -4347,7 +4376,7 @@ class _SalePanel(QWidget):
         this snapshot, which is what keeps the popup free of side effects.
         """
         return {
-            "bill_no": self.bill_no_edit.text(),
+            "bill_no": getattr(self, "_full_bill_no", None) or self.bill_no_edit.text(),
             "provisional_bill_no": self._provisional_bill_no,
             "sale_date": self.sale_date.date(),
             "sale_time": self.sale_time_edit.text(),
@@ -4389,7 +4418,12 @@ class _SalePanel(QWidget):
         self._saved = False
         self._held = False
         self._provisional_bill_no = bool(state.get("provisional_bill_no", False))
-        self.bill_no_edit.setText(state.get("bill_no", ""))
+        raw_bno = state.get("bill_no", "")
+        self._full_bill_no = raw_bno
+        self.bill_no_edit.setText(_display_bill_no(raw_bno))
+        self.bill_no_edit.setToolTip(
+            f"{raw_bno} (preview, assigned on Save)" if self._provisional_bill_no else (f"Full Bill No: {raw_bno}" if raw_bno else "")
+        )
 
         date_value = state.get("sale_date")
         if date_value is not None:
@@ -4820,7 +4854,10 @@ class SalesBillReviewDialog(QDialog):
                 self._header_time_label = val
 
         try:
-            _pair("Voucher No", panel.bill_no_edit.text() or "--", 140)
+            raw_bno = panel.bill_no_edit.text() or "--"
+            _pair("Voucher No", _display_bill_no(raw_bno), 140)
+            if hasattr(self, "_header_voucher_label"):
+                self._header_voucher_label.setToolTip(f"Full Voucher: {raw_bno}")
             _pair("Date", panel.sale_date.date().toString("dd-MM-yyyy"), 100)
             _pair("Time", panel.sale_time_edit.text() or "--", 70)
         except Exception:
@@ -6041,7 +6078,10 @@ class CounterSalePage(QWidget):
         else:
             try:
                 raw = str(state.get("bill_no") or invoice.get("bill_no") or "--").strip() or "--"
-                identity = _display_bill_no(raw) if raw != "--" else "--"
+                pat = state.get("patient_name") or invoice.get("patient_name") or ""
+                identity = _display_bill_no(raw, patient_name=pat) if raw != "--" else "--"
+                if not identity:
+                    identity = "Bill"
             except Exception:
                 identity = str(state.get("bill_no") or invoice.get("bill_no") or "--").strip() or "--"
         if state.get("saved_total") is not None:
@@ -6434,8 +6474,9 @@ class CounterSalePage(QWidget):
         stored number is kept in the tooltip.
         """
         stored = row.get("bill_no") or ""
-        cell = QTableWidgetItem(_display_bill_no(stored) or "")
-        cell.setToolTip(stored)
+        pat = row.get("patient_name")
+        cell = QTableWidgetItem(_display_bill_no(stored, patient_name=pat))
+        cell.setToolTip(f"Full Bill No: {stored}" if stored else "")
         table.setItem(row_index, 0, cell)
         table.setItem(row_index, 1, QTableWidgetItem(row.get("sale_type") or ""))
         table.setItem(row_index, 2, QTableWidgetItem(row.get("item_name") or ""))
@@ -6464,8 +6505,9 @@ class CounterSalePage(QWidget):
         stored number.  The full stored number is kept in the tooltip.
         """
         stored = row.get("bill_no") or ""
-        cell = QTableWidgetItem(_display_bill_no(stored) or "")
-        cell.setToolTip(stored)
+        pat = row.get("patient_name")
+        cell = QTableWidgetItem(_display_bill_no(stored, patient_name=pat))
+        cell.setToolTip(f"Full Bill No: {stored}" if stored else "")
         table.setItem(row_index, 0, cell)
         table.setItem(row_index, 1, QTableWidgetItem(row.get("sale_type") or ""))
         table.setItem(row_index, 2, QTableWidgetItem(row.get("patient_name") or ""))
