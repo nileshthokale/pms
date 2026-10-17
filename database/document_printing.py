@@ -89,10 +89,18 @@ def _payment_data(payment_id: int) -> tuple[dict, list[dict]]:
 
 def _header(title: str, record: dict) -> list[str]:
     raw_identifier = record.get("bill_no") or record.get("voucher_no") or ""
-    from core.doc_formatter import format_document_number
-    identifier = format_document_number(raw_identifier) if raw_identifier else ""
+    from core.doc_formatter import (
+        format_document_number,
+        format_purchase_voucher_number,
+        format_time_12hr,
+    )
+    if title == "Purchase Invoice":
+        identifier = format_purchase_voucher_number(raw_identifier) if raw_identifier else ""
+    else:
+        identifier = format_document_number(raw_identifier) if raw_identifier else ""
     date = record.get("sale_date") or record.get("voucher_date") or record.get("receipt_date") or record.get("payment_date") or ""
-    time = record.get("sale_time") or record.get("voucher_time") or record.get("receipt_time") or record.get("payment_time") or ""
+    raw_time = record.get("sale_time") or record.get("voucher_time") or record.get("receipt_time") or record.get("payment_time") or ""
+    time = format_time_12hr(raw_time)
     lines = [title, f"Document No: {identifier}", f"Date: {date}    Time: {time}"]
     party = record.get("customer_name") or record.get("supplier_name")
     if party is not None:

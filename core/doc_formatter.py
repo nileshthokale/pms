@@ -99,3 +99,50 @@ def match_document_query(stored_value: Any, query: str) -> bool:
         if q.lstrip('0') and formatted.lstrip('0') and q.lstrip('0') == formatted.lstrip('0'):
             return True
     return False
+
+
+def format_purchase_voucher_number(value: Any, default: str = "") -> str:
+    """Return only the numeric / sequence component of a purchase voucher for display,
+    stripping unnecessary leading zeros.
+    e.g. '2026-2027-Credit-0251' -> '251', '2026-2027-Credit-252' -> '252',
+    '2026-2027-Cash-0001' -> '1', '2026-2027-Cash-1' -> '1'.
+    """
+    val = format_document_number(value, default=default)
+    if val.isdigit():
+        return str(int(val))
+    return val
+
+
+def format_time_12hr(value: Any, default: str = "") -> str:
+    """Convert any time string (24-hour '19:56', '19:56:00', or 12-hour '07:56 PM', etc.)
+    consistently to 12-hour format with AM/PM without leading zero on hour,
+    e.g. '7:56 PM', '10:18 AM', '12:44 PM'.
+    """
+    if value is None:
+        return default
+    text = str(value).strip()
+    if not text or text in ("--", "---"):
+        return text or default
+    upper = text.upper()
+    from datetime import datetime
+    for fmt in ("%I:%M:%S %p", "%I:%M %p", "%I:%M:%S%p", "%I:%M%p",
+                "%H:%M:%S", "%H:%M"):
+        try:
+            dt = datetime.strptime(upper, fmt)
+            hour = dt.hour % 12
+            if hour == 0:
+                hour = 12
+            am_pm = "AM" if dt.hour < 12 else "PM"
+            return f"{hour}:{dt.minute:02d} {am_pm}"
+        except ValueError:
+            continue
+    return text
+
+
+__all__ = [
+    "format_document_number",
+    "format_purchase_voucher_number",
+    "format_sales_bill_number",
+    "format_time_12hr",
+    "match_document_query",
+]

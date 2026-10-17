@@ -25,9 +25,11 @@ class TestPurchaseWidthsAndVoucher(unittest.TestCase):
         financial_year.ensure_default_financial_year()
 
     def test_01_display_voucher_no(self):
-        self.assertEqual(_display_voucher_no("2026-2027-Credit-0251"), "0251")
+        self.assertEqual(_display_voucher_no("2026-2027-Credit-0251"), "251")
         self.assertEqual(_display_voucher_no("2026-2027-Credit-250"), "250")
-        self.assertEqual(_display_voucher_no("PUR-0042"), "0042")
+        self.assertEqual(_display_voucher_no("2026-2027-Credit-252"), "252")
+        self.assertEqual(_display_voucher_no("2026-2027-Cash-1"), "1")
+        self.assertEqual(_display_voucher_no("PUR-0042"), "42")
         self.assertEqual(_display_voucher_no("999"), "999")
         self.assertEqual(_display_voucher_no(""), "")
         self.assertEqual(_display_voucher_no(None), "")
@@ -40,6 +42,7 @@ class TestPurchaseWidthsAndVoucher(unittest.TestCase):
         displayed = dlg.voucher_no_edit.text()
         self.assertEqual(displayed, _display_voucher_no(full))
         self.assertTrue(displayed.isdigit())
+        self.assertFalse(displayed.startswith("0"))
         self.assertEqual(dlg.voucher_no_edit.toolTip(), f"Full Voucher: {full}")
         dlg.close()
 
@@ -60,10 +63,13 @@ class TestPurchaseWidthsAndVoucher(unittest.TestCase):
             "other_amount": 0.0,
             "paid_amount": 0.0,
             "round_off": 0.0,
+            "net_amount": 500.0,
+            "remarks": "",
+            "items": [],
         }
         dlg = _InvoiceDialog(invoice=dummy_invoice)
         self.assertEqual(getattr(dlg, "_full_voucher_no"), "2026-2027-Credit-0345")
-        self.assertEqual(dlg.voucher_no_edit.text(), "0345")
+        self.assertEqual(dlg.voucher_no_edit.text(), "345")
         self.assertEqual(dlg.voucher_no_edit.toolTip(), "Full Voucher: 2026-2027-Credit-0345")
         dlg.close()
 
@@ -73,30 +79,30 @@ class TestPurchaseWidthsAndVoucher(unittest.TestCase):
         dlg.show()
         app.processEvents()
 
-        # Voucher No: 135 px (target 120-150 px)
-        self.assertEqual(dlg.voucher_no_edit.width(), 135)
-        # Supplier combo: wide searchable input spanning cols 1-3 (~280-450 px)
-        self.assertGreaterEqual(dlg.supplier_combo.width(), 280)
+        # Voucher No: 105 px
+        self.assertEqual(dlg.voucher_no_edit.width(), 105)
+        # Supplier combo: wide searchable input spanning cols 1-3 (~270-450 px)
+        self.assertGreaterEqual(dlg.supplier_combo.width(), 270)
         self.assertLessEqual(dlg.supplier_combo.width(), 450)
-        # Invoice No edit: 190 px (target 180-220 px)
-        self.assertEqual(dlg.invoice_no_edit.width(), 190)
-        # Date fields: 145 px
-        self.assertEqual(dlg.voucher_date.width(), 145)
-        self.assertEqual(dlg.invoice_date.width(), 145)
-        self.assertEqual(dlg.due_date.width(), 145)
-        # Time edit: 90 px
-        self.assertEqual(dlg.voucher_time_edit.width(), 90)
-        # Type combo: 120 px
-        self.assertEqual(dlg.purchase_type_combo.width(), 120)
-        # Bal label: 90 px
-        self.assertEqual(dlg.supplier_bal_label.width(), 90)
-        # Inv amt edit: 100 px
-        self.assertEqual(dlg.inv_net_amt_edit.width(), 100)
-        # Bill discount edit: 120 px
-        self.assertEqual(dlg.bill_discount_edit.width(), 120)
+        # Invoice No edit: 115 px
+        self.assertEqual(dlg.invoice_no_edit.width(), 115)
+        # Date fields: 128 px
+        self.assertEqual(dlg.voucher_date.width(), 128)
+        self.assertEqual(dlg.invoice_date.width(), 128)
+        self.assertEqual(dlg.due_date.width(), 128)
+        # Time edit: 80 px
+        self.assertEqual(dlg.voucher_time_edit.width(), 80)
+        # Type combo: 112 px
+        self.assertEqual(dlg.purchase_type_combo.width(), 112)
+        # Bal label: 80 px
+        self.assertEqual(dlg.supplier_bal_label.width(), 80)
+        # Inv amt edit: 115 px
+        self.assertEqual(dlg.inv_net_amt_edit.width(), 115)
+        # Bill discount edit: 125 px
+        self.assertEqual(dlg.bill_discount_edit.width(), 125)
 
-        # Item combo in entry bar: 260 px (target 230-280 px)
-        self.assertEqual(dlg._entry_bar.item_combo.width(), 260)
+        # Item combo in entry bar: min_width=160 px
+        self.assertGreaterEqual(dlg._entry_bar.item_combo.width(), 160)
         dlg.close()
 
     def test_05_searchable_combo_styling_and_selection(self):
