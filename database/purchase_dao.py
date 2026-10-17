@@ -38,17 +38,41 @@ class PurchaseDAO:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def generate_next_voucher_no() -> str:
+    def generate_next_voucher_no(purchase_type: str = "Credit") -> str:
         conn = get_connection()
         try:
+            ptype = (purchase_type or "Credit").strip()
+            from database import financial_year
+            fy = financial_year.get_active_financial_year()
+            fy_name = fy["name"] if fy else None
+
+            if fy_name:
+                prefix = f"{fy_name}-{ptype}-"
+                cur = conn.execute(
+                    "SELECT voucher_no FROM purchase_invoices WHERE voucher_no LIKE ? ORDER BY id DESC",
+                    (f"{prefix}%",)
+                )
+                rows = cur.fetchall()
+                max_num = 0
+                for r in rows:
+                    vno = r["voucher_no"]
+                    tail = vno.rsplit("-", 1)[-1].strip()
+                    if "#" in tail:
+                        tail = tail.split("#")[0]
+                    if tail.isdigit():
+                        max_num = max(max_num, int(tail))
+                if max_num > 0:
+                    return f"{prefix}{max_num + 1}"
+                return f"{prefix}1"
+
+            # Fallback when no active financial year is configured
             cur = conn.execute(
                 "SELECT voucher_no FROM purchase_invoices ORDER BY id DESC LIMIT 1"
             )
             row = cur.fetchone()
             if row is None:
-                return "PV-0001"
+                return "PV-1"
             last = row["voucher_no"]
-            # Extract numeric part after the last '-'
             idx = last.rfind("-")
             if idx >= 0:
                 prefix = last[: idx + 1]
@@ -60,7 +84,7 @@ class PurchaseDAO:
                 num = int(num_part) + 1
             except ValueError:
                 num = 1
-            return f"{prefix}{num:04d}"
+            return f"{prefix}{num}"
         finally:
             conn.close()
 

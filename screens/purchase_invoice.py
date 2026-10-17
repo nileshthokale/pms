@@ -114,17 +114,17 @@ def _searchable_lineedit_style(p: dict | None = None) -> str:
         f"QLineEdit {{"
         f"  background: transparent; color: {text};"
         f"  border: none; padding: 1px 4px;"
-        f"  font-size: 15px; font-weight: bold; font-family: 'Segoe UI';"
+        f"  font-size: 14px; font-weight: bold; font-family: 'Segoe UI';"
         f"}}"
     )
 
 
 def _display_voucher_no(voucher_no: str) -> str:
     """Return only the numeric / sequence part of a voucher number for display.
-    e.g. '2026-2027-Credit-0251' -> '0251', preserving the full compound key in the database.
+    e.g. '2026-2027-Credit-0251' -> '251', preserving the full compound key in the database.
     """
-    from core.doc_formatter import format_document_number
-    return format_document_number(voucher_no)
+    from core.doc_formatter import format_purchase_voucher_number
+    return format_purchase_voucher_number(voucher_no)
 
 
 def _date_style(p: dict | None = None) -> str:
@@ -200,6 +200,46 @@ def _make_edit(placeholder: str = "", width: int | None = None) -> QLineEdit:
     if width:
         e.setFixedWidth(width)
     return e
+
+
+def _entry_edit_style(p: dict | None = None) -> str:
+    p = p or palette()
+    surface = p["surface"]
+    text = p["text"]
+    border = p["border"]
+    accent = p["accent"]
+    return (
+        f"QLineEdit {{"
+        f"  background-color: {surface}; color: {text};"
+        f"  border: 1px solid {border}; border-radius: 2px;"
+        f"  padding: 2px 4px; font-size: 14px; font-weight: bold; font-family: 'Segoe UI';"
+        f"  min-height: 24px;"
+        f"}}"
+        f"QLineEdit:focus {{ border: 1px solid {accent}; }}"
+    )
+
+
+def _make_entry_edit(placeholder: str = "", width: int | None = None, p: dict | None = None) -> QLineEdit:
+    e = QLineEdit()
+    e.setPlaceholderText(placeholder)
+    e.setStyleSheet(_entry_edit_style(p))
+    e.setFont(__import__("PySide6.QtGui", fromlist=["QFont"]).QFont("Segoe UI", 10))
+    e.setFixedHeight(32)
+    if width:
+        e.setFixedWidth(width)
+    return e
+
+
+def _btn_add_item_style(p: dict | None = None) -> str:
+    p = p or palette()
+    accent = p.get("accent", _ACCENT)
+    accent_hover = p.get("accent_hover", _ACCENT_HOVER)
+    return (
+        f"QPushButton {{ background-color: {accent}; color: white;"
+        f"  border: none; border-radius: 2px; padding: 4px 8px;"
+        f"  font-weight: bold; font-size: 14px; font-family: 'Segoe UI'; }}"
+        f"QPushButton:hover {{ background-color: {accent_hover}; }}"
+    )
 
 
 def _make_combo(
@@ -500,79 +540,77 @@ class _InvoiceItemRow:
 
 
 class _ItemEntryBar(QWidget):
-    """Entry bar for adding a single item to the invoice."""
+    """Entry bar for adding a single item to the invoice on a single horizontal row."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._entry_labels: list[QLabel] = []
-        root_v = QVBoxLayout(self)
-        root_v.setContentsMargins(8, 4, 8, 4)
-        root_v.setSpacing(8)
+        row = QHBoxLayout(self)
+        row.setContentsMargins(4, 2, 4, 2)
+        row.setSpacing(6)
 
-        # Controls creation
+        # Controls creation - Item combo width reduced ~30% (max 390px instead of stretching to 563px)
         self.item_combo = SearchableComboBox(
             placeholder="Type item name...",
             max_visible=9,
             max_height=270,
-            max_width=450,
-            min_width=280,
+            max_width=390,
+            min_width=150,
             allow_width_expansion=True,
         )
-        self.item_combo.setFixedWidth(330)
-        self.pack_edit = _make_edit("Pack", 70)
-        self.batch_edit = _make_edit("Batch No", 130)
-        self.expiry_edit = _make_edit("MM/YY", 95)
+        self.item_combo.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        self.item_combo.setMinimumWidth(150)
+        self.item_combo.setMaximumWidth(390)
 
-        self.pay_qty_edit = _make_edit("0", 75)
-        self.free_qty_edit = _make_edit("0", 65)
-        self.rate_edit = _make_edit("0.00", 85)
-        self.mrp_edit = _make_edit("0.00", 85)
-        self.discount_edit = _make_edit("0.00", 75)
-        self.gst_edit = _make_edit("0.00", 75)
+        self.pack_edit = _make_entry_edit("Pack", 48)
+        self.batch_edit = _make_entry_edit("Batch", 96)
+        self.batch_edit.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        self.batch_edit.textChanged.connect(
+            lambda t: self.batch_edit.setToolTip(f"Batch: {t}" if t else "Enter batch number")
+        )
+        self.expiry_edit = _make_entry_edit("MM/YY", 62)
+
+        self.pay_qty_edit = _make_entry_edit("0", 52)
+        self.free_qty_edit = _make_entry_edit("0", 46)
+        self.rate_edit = _make_entry_edit("0.00", 74)
+        self.mrp_edit = _make_entry_edit("0.00", 74)
+        self.discount_edit = _make_entry_edit("0.00", 50)
+        self.gst_edit = _make_entry_edit("0.00", 50)
 
         self.add_btn = QPushButton("+ Add Item")
-        self.add_btn.setStyleSheet(_BTN_GREEN_SM)
-        self.add_btn.setFixedSize(110, 32)
+        self.add_btn.setStyleSheet(_btn_add_item_style())
+        self.add_btn.setFixedSize(105, 32)
 
-        # Row 0: Item | Pack | Batch | Expiry
-        row0 = QHBoxLayout()
-        row0.setContentsMargins(0, 0, 0, 0)
-        row0.setSpacing(12)
-        row0.addWidget(self._field("Item *", self.item_combo, label_width=60))
-        row0.addWidget(self._field("Pack", self.pack_edit, label_width=45))
-        row0.addWidget(self._field("Batch *", self.batch_edit, label_width=60))
-        row0.addWidget(self._field("Expiry *", self.expiry_edit, label_width=65))
-        row0.addStretch(1)
-        root_v.addLayout(row0)
-
-        # Row 1: Pay Qty | Free | Rate | MRP | Discount % | GST % | Add Button
-        row1 = QHBoxLayout()
-        row1.setContentsMargins(0, 0, 0, 0)
-        row1.setSpacing(10)
-        row1.addWidget(self._field("Pay Qty *", self.pay_qty_edit, label_width=68))
-        row1.addWidget(self._field("Free", self.free_qty_edit, label_width=40))
-        row1.addWidget(self._field("Rate *", self.rate_edit, label_width=50))
-        row1.addWidget(self._field("MRP *", self.mrp_edit, label_width=50))
-        row1.addWidget(self._field("Discount %", self.discount_edit, label_width=78))
-        row1.addWidget(self._field("GST %", self.gst_edit, label_width=50))
-        row1.addWidget(self.add_btn)
-        row1.addStretch(1)
-        root_v.addLayout(row1)
+        # Single horizontal line:
+        # Item | Pack | Batch | Expiry | Pay Qty | Free Qty | Rate | MRP | Discount % | GST % | + Add Item
+        item_field = self._field("Item *", self.item_combo, stretch=1)
+        item_field.setMaximumWidth(440)
+        row.addWidget(item_field, 1)
+        row.addWidget(self._field("Pack", self.pack_edit))
+        row.addWidget(self._field("Batch *", self.batch_edit))
+        row.addWidget(self._field("Expiry *", self.expiry_edit))
+        row.addWidget(self._field("Pay Qty *", self.pay_qty_edit))
+        row.addWidget(self._field("Free Qty", self.free_qty_edit))
+        row.addWidget(self._field("Rate *", self.rate_edit))
+        row.addWidget(self._field("MRP *", self.mrp_edit))
+        row.addWidget(self._field("Discount %", self.discount_edit))
+        row.addWidget(self._field("GST %", self.gst_edit))
+        row.addWidget(self.add_btn)
 
         self._load_items()
 
-    def _field(self, label_text: str, widget: QWidget, label_width: int | None = None) -> QWidget:
+    def _field(self, label_text: str, widget: QWidget, label_width: int | None = None, stretch: int = 0) -> QWidget:
         container = QWidget()
         h = QHBoxLayout(container)
         h.setContentsMargins(0, 0, 0, 0)
-        h.setSpacing(6)
+        h.setSpacing(3)
         lbl = QLabel(label_text)
-        lbl.setStyleSheet(_LABEL_DIM)
+        lbl.setStyleSheet(f"color: {_TEXT}; font-size: 13px; font-weight: bold; font-family: 'Segoe UI'; background: transparent;")
         if label_width:
             lbl.setFixedWidth(label_width)
         self._entry_labels.append(lbl)
         h.addWidget(lbl)
-        h.addWidget(widget)
+        h.addWidget(widget, stretch)
         return container
 
     def _load_items(self):
@@ -597,12 +635,13 @@ class _ItemEntryBar(QWidget):
     def refresh_theme(self, p: dict | None = None):
         p = p or palette()
         self.item_combo.refresh_theme(p)
-        edit_st = _edit_style(p)
+        edit_st = _entry_edit_style(p)
         for w in (self.pack_edit, self.batch_edit, self.expiry_edit,
                   self.pay_qty_edit, self.free_qty_edit, self.rate_edit,
                   self.mrp_edit, self.discount_edit, self.gst_edit):
             w.setStyleSheet(edit_st)
-        lbl_st = f"color: {p['text']}; font-size: 15px; font-weight: bold; font-family: 'Segoe UI'; background: transparent;"
+        self.add_btn.setStyleSheet(_btn_add_item_style(p))
+        lbl_st = f"color: {p['text']}; font-size: 13px; font-weight: bold; font-family: 'Segoe UI'; background: transparent;"
         for lbl in self._entry_labels:
             lbl.setStyleSheet(lbl_st)
 
@@ -725,21 +764,23 @@ class _InvoiceDialog(QDialog):
         grp = QGroupBox("Invoice Header")
         grp.setStyleSheet(_GROUP_BOX)
         grid = QGridLayout(grp)
-        grid.setHorizontalSpacing(10)
+        grid.setHorizontalSpacing(6)
         grid.setVerticalSpacing(8)
-        grid.setContentsMargins(12, 18, 12, 10)
+        grid.setContentsMargins(10, 16, 10, 8)
 
         # Standard label widths across columns
-        LBL_COL0_W = 85
-        LBL_COL2_W = 68
-        LBL_COL4_W = 65
-        LBL_COL6_W = 70
+        LBL_COL0_W = 82   # Voucher No / Supplier *
+        LBL_COL2_W = 38   # Date
+        LBL_COL4_W = 40   # Time / Bal.
+        LBL_COL6_W = 70   # Type / Due Date
+        LBL_COL8_W = 78   # Invoice No / Inv. Amt
+        LBL_COL10_W = 92  # Invoice Date / Bill Disc.
 
-        # Row 0: Voucher No | Date | Time | Type
+        # Row 0: Voucher No | Date | Time | Type | Invoice No | Invoice Date
         lbl_v = self._lbl("Voucher No")
         lbl_v.setFixedWidth(LBL_COL0_W)
         grid.addWidget(lbl_v, 0, 0, Qt.AlignLeft | Qt.AlignVCenter)
-        self.voucher_no_edit = _make_edit(width=135)
+        self.voucher_no_edit = _make_edit(width=105)
         self.voucher_no_edit.setReadOnly(True)
         self.voucher_no_edit.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         grid.addWidget(self.voucher_no_edit, 0, 1)
@@ -748,13 +789,13 @@ class _InvoiceDialog(QDialog):
         lbl_date.setFixedWidth(LBL_COL2_W)
         grid.addWidget(lbl_date, 0, 2, Qt.AlignLeft | Qt.AlignVCenter)
         self.voucher_date = _make_date()
-        self.voucher_date.setFixedWidth(145)
+        self.voucher_date.setFixedWidth(128)
         grid.addWidget(self.voucher_date, 0, 3)
 
         lbl_time = self._lbl("Time")
         lbl_time.setFixedWidth(LBL_COL4_W)
         grid.addWidget(lbl_time, 0, 4, Qt.AlignLeft | Qt.AlignVCenter)
-        self.voucher_time_edit = _make_edit(width=90)
+        self.voucher_time_edit = _make_edit(width=80)
         self.voucher_time_edit.setAlignment(Qt.AlignCenter)
         grid.addWidget(self.voucher_time_edit, 0, 5)
 
@@ -763,10 +804,24 @@ class _InvoiceDialog(QDialog):
         grid.addWidget(lbl_type, 0, 6, Qt.AlignLeft | Qt.AlignVCenter)
         self.purchase_type_combo = _make_combo(max_visible=5, max_height=160)
         self.purchase_type_combo.addItems(["Credit", "Cash", "Credit Card"])
-        self.purchase_type_combo.setFixedWidth(120)
+        self.purchase_type_combo.setFixedWidth(112)
+        self.purchase_type_combo.currentTextChanged.connect(self._on_purchase_type_changed)
         grid.addWidget(self.purchase_type_combo, 0, 7)
 
-        # Row 1: Supplier * (spans cols 1-3) | Bal. | Due Date
+        lbl_inv = self._lbl("Invoice No")
+        lbl_inv.setFixedWidth(LBL_COL8_W)
+        grid.addWidget(lbl_inv, 0, 8, Qt.AlignLeft | Qt.AlignVCenter)
+        self.invoice_no_edit = _make_edit(width=115)
+        grid.addWidget(self.invoice_no_edit, 0, 9)
+
+        lbl_inv_date = self._lbl("Invoice Date")
+        lbl_inv_date.setFixedWidth(LBL_COL10_W)
+        grid.addWidget(lbl_inv_date, 0, 10, Qt.AlignLeft | Qt.AlignVCenter)
+        self.invoice_date = _make_date()
+        self.invoice_date.setFixedWidth(128)
+        grid.addWidget(self.invoice_date, 0, 11)
+
+        # Row 1: Supplier * (spans cols 1-3) | Bal. | Due Date | Inv. Amt | Bill Disc.
         lbl_sup = self._lbl("Supplier *")
         lbl_sup.setFixedWidth(LBL_COL0_W)
         grid.addWidget(lbl_sup, 1, 0, Qt.AlignLeft | Qt.AlignVCenter)
@@ -775,7 +830,7 @@ class _InvoiceDialog(QDialog):
             max_visible=9,
             max_height=270,
             max_width=450,
-            min_width=280,
+            min_width=270,
             allow_width_expansion=True,
         )
         grid.addWidget(self.supplier_combo, 1, 1, 1, 3)
@@ -784,7 +839,7 @@ class _InvoiceDialog(QDialog):
         lbl_bal.setFixedWidth(LBL_COL4_W)
         grid.addWidget(lbl_bal, 1, 4, Qt.AlignLeft | Qt.AlignVCenter)
         self.supplier_bal_label = QLabel("0.00")
-        self.supplier_bal_label.setFixedWidth(90)
+        self.supplier_bal_label.setFixedWidth(80)
         self.supplier_bal_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.supplier_bal_label.setStyleSheet(
             f"color: {_TEXT_DIM}; font-size: 15px; font-weight: bold; background: transparent;"
@@ -796,38 +851,24 @@ class _InvoiceDialog(QDialog):
         lbl_due.setFixedWidth(LBL_COL6_W)
         grid.addWidget(lbl_due, 1, 6, Qt.AlignLeft | Qt.AlignVCenter)
         self.due_date = _make_date()
-        self.due_date.setFixedWidth(145)
+        self.due_date.setFixedWidth(128)
         grid.addWidget(self.due_date, 1, 7)
 
-        # Row 2: Inv. No | Inv. Date | Inv. Amt | Bill Disc.
-        lbl_inv = self._lbl("Inv. No")
-        lbl_inv.setFixedWidth(LBL_COL0_W)
-        grid.addWidget(lbl_inv, 2, 0, Qt.AlignLeft | Qt.AlignVCenter)
-        self.invoice_no_edit = _make_edit(width=190)
-        grid.addWidget(self.invoice_no_edit, 2, 1)
-
-        lbl_inv_date = self._lbl("Inv. Date")
-        lbl_inv_date.setFixedWidth(LBL_COL2_W)
-        grid.addWidget(lbl_inv_date, 2, 2, Qt.AlignLeft | Qt.AlignVCenter)
-        self.invoice_date = _make_date()
-        self.invoice_date.setFixedWidth(145)
-        grid.addWidget(self.invoice_date, 2, 3)
-
         lbl_inv_amt = self._lbl("Inv. Amt")
-        lbl_inv_amt.setFixedWidth(LBL_COL4_W)
-        grid.addWidget(lbl_inv_amt, 2, 4, Qt.AlignLeft | Qt.AlignVCenter)
-        self.inv_net_amt_edit = _make_edit("0.00", width=100)
+        lbl_inv_amt.setFixedWidth(LBL_COL8_W)
+        grid.addWidget(lbl_inv_amt, 1, 8, Qt.AlignLeft | Qt.AlignVCenter)
+        self.inv_net_amt_edit = _make_edit("0.00", width=115)
         self.inv_net_amt_edit.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        grid.addWidget(self.inv_net_amt_edit, 2, 5)
+        grid.addWidget(self.inv_net_amt_edit, 1, 9)
 
         lbl_bill_disc = self._lbl("Bill Disc.")
-        lbl_bill_disc.setFixedWidth(LBL_COL6_W)
-        grid.addWidget(lbl_bill_disc, 2, 6, Qt.AlignLeft | Qt.AlignVCenter)
-        self.bill_discount_edit = _make_edit("0.00", width=120)
+        lbl_bill_disc.setFixedWidth(LBL_COL10_W)
+        grid.addWidget(lbl_bill_disc, 1, 10, Qt.AlignLeft | Qt.AlignVCenter)
+        self.bill_discount_edit = _make_edit("0.00", width=125)
         self.bill_discount_edit.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        grid.addWidget(self.bill_discount_edit, 2, 7)
+        grid.addWidget(self.bill_discount_edit, 1, 11)
 
-        grid.setColumnStretch(8, 1)
+        grid.setColumnStretch(12, 1)
 
         parent_layout.addWidget(grp)
 
@@ -897,9 +938,14 @@ class _InvoiceDialog(QDialog):
             self.bill_discount_edit.blockSignals(False)
             self._recalc_totals()
 
+    def _on_purchase_type_changed(self, new_type: str):
+        if not self._invoice:
+            self._set_voucher_no()
+
     def _set_voucher_no(self):
         if not self._invoice:
-            full = PurchaseDAO.generate_next_voucher_no()
+            ptype = self.purchase_type_combo.currentText() if hasattr(self, "purchase_type_combo") else "Credit"
+            full = PurchaseDAO.generate_next_voucher_no(purchase_type=ptype)
             self._full_voucher_no = full
             self.voucher_no_edit.setText(_display_voucher_no(full))
             self.voucher_no_edit.setToolTip(f"Full Voucher: {full}")
@@ -908,7 +954,8 @@ class _InvoiceDialog(QDialog):
         now = datetime.now()
         today = QDate(now.year, now.month, now.day)
         self.voucher_date.setDate(today)
-        self.voucher_time_edit.setText(now.strftime("%H:%M"))
+        from core.doc_formatter import format_time_12hr
+        self.voucher_time_edit.setText(format_time_12hr(now.strftime("%H:%M")))
         # Default invoice date to today for a new invoice.
         # Due date defaults to today + 30 days (or supplier term if selected).
         self.invoice_date.setDate(today)
@@ -945,19 +992,19 @@ class _InvoiceDialog(QDialog):
         col_widths = {
             0: 42,   # #
             2: 60,   # Pack
-            3: 75,   # Pay Qty
+            3: 85,   # Pay Qty
             4: 65,   # Free
-            5: 110,  # Batch
+            5: 135,  # Batch
             6: 75,   # Exp
-            7: 80,   # Rate
-            8: 80,   # MRP
+            7: 95,   # Rate
+            8: 95,   # MRP
             9: 65,   # Disc
-            10: 95,  # Amount
+            10: 120, # Amount
             11: 65,  # GST%
-            12: 85,  # GST Amt
-            13: 85,  # Pur Rate
-            14: 85,  # Net Rate
-            15: 95,  # PP
+            12: 100, # GST Amt
+            13: 100, # Pur Rate
+            14: 100, # Net Rate
+            15: 115, # PP
             16: 55,  # Del
         }
         for col, width in col_widths.items():
@@ -1253,7 +1300,8 @@ class _InvoiceDialog(QDialog):
             except Exception:
                 pass
 
-        self.voucher_time_edit.setText(inv.get("voucher_time", ""))
+        from core.doc_formatter import format_time_12hr
+        self.voucher_time_edit.setText(format_time_12hr(inv.get("voucher_time", "")))
         idx = self.purchase_type_combo.findText(inv.get("purchase_type", "Credit"))
         if idx >= 0:
             self.purchase_type_combo.setCurrentIndex(idx)
@@ -1474,8 +1522,28 @@ class PurchaseInvoicePage(QWidget):
     # History page
     # ------------------------------------------------------------------
 
+    def set_history_financial_year(self, year: dict | None) -> None:
+        """Apply the navbar's view-only financial-year selection to Purchase History."""
+        self._history_financial_year = dict(year) if year else None
+        if year and year.get("start_date") and year.get("end_date"):
+            start = str(year["start_date"])
+            end = str(year["end_date"])
+            self._current_fy_id = year.get("id")
+            from PySide6.QtCore import QDate
+            q_start = QDate.fromString(start, "yyyy-MM-dd")
+            q_end = QDate.fromString(end, "yyyy-MM-dd")
+            if q_start.isValid() and q_end.isValid():
+                self._filter_from.setDate(q_start)
+                self._filter_to.setDate(q_end)
+        else:
+            self._history_financial_year = None
+            self._init_filter_dates()
+        self._refresh_history()
+
     def showEvent(self, event):
         super().showEvent(event)
+        if getattr(self, "_history_financial_year", None):
+            return
         fy = financial_year.get_active_financial_year()
         fy_id = fy["id"] if fy else None
         if getattr(self, "_current_fy_id", None) != fy_id:
@@ -1494,15 +1562,14 @@ class PurchaseInvoicePage(QWidget):
             fy_start = financial_year.DEFAULT_START
             fy_end = financial_year.DEFAULT_END
             self._current_fy_id = None
-        parts_s = fy_start.split("-")
-        self._filter_from.setDate(QDate(int(parts_s[0]), int(parts_s[1]), int(parts_s[2])))
+        q_start = QDate.fromString(fy_start, "yyyy-MM-dd")
+        if q_start.isValid():
+            self._filter_from.setDate(q_start)
         now = datetime.now()
         today = QDate(now.year, now.month, now.day)
-        parts_e = fy_end.split("-")
-        fy_end_qdate = QDate(int(parts_e[0]), int(parts_e[1]), int(parts_e[2]))
-        # To = min(today, FY end) so if today is within FY, show up to today;
-        # otherwise show the entire FY range.
-        self._filter_to.setDate(min(today, fy_end_qdate) if today <= fy_end_qdate else fy_end_qdate)
+        q_end = QDate.fromString(fy_end, "yyyy-MM-dd")
+        if q_end.isValid():
+            self._filter_to.setDate(min(today, q_end) if today <= q_end else q_end)
 
     def _build_history_page(self) -> QWidget:
         page = QWidget()
@@ -1661,7 +1728,9 @@ class PurchaseInvoicePage(QWidget):
             vno_item.setToolTip(f"Full Voucher: {raw_vno}")
             self._hist_table.setItem(i, 1, vno_item)
             self._hist_table.setItem(i, 2, QTableWidgetItem(inv.get("voucher_date", "")))
-            self._hist_table.setItem(i, 3, QTableWidgetItem(inv.get("voucher_time", "")))
+            from core.doc_formatter import format_time_12hr
+            raw_time = inv.get("voucher_time", "")
+            self._hist_table.setItem(i, 3, QTableWidgetItem(format_time_12hr(raw_time)))
             self._hist_table.setItem(i, 4, QTableWidgetItem(inv.get("invoice_no", "")))
             self._hist_table.setItem(i, 5, QTableWidgetItem(inv.get("invoice_date", "")))
             self._hist_table.setItem(i, 6, QTableWidgetItem(inv.get("supplier_name", "") or ""))
