@@ -196,6 +196,90 @@ class TestDailySalesReportScreen(unittest.TestCase):
                      "_from_date", "_to_date"):
             self.assertTrue(hasattr(self.page, name), name)
 
+    def test_filter_toolbar_fits_the_window_in_two_clean_rows(self):
+        """Layout regression: one row demanded ~2041px, wider than any window.
+
+        The old toolbar put six filters and four buttons on a single line,
+        which could never fit inside the app's 1024px minimum window — the
+        controls were squeezed against, and on narrow screens over, each
+        other.  The toolbar now stays well below the window minimum, keeps
+        a real gap between neighbours, and lays the action buttons on a
+        second row of their own.
+        """
+        from PySide6.QtCore import QPoint
+        from PySide6.QtWidgets import QDateEdit, QLabel, QLineEdit, QPushButton
+
+        page = self.page
+        self.assertLessEqual(
+            page._filters.minimumSizeHint().width(), 1300,
+            "the filter toolbar must not demand a window wider than the app allows",
+        )
+
+        page.resize(1366, 700)
+        page.show()
+        self.app.processEvents()
+        filters = page._filters
+
+        def top_left(widget):
+            return widget.mapTo(filters, QPoint(0, 0))
+
+        controls = list(filters.findChildren(QLabel))
+        controls += [w for w in filters.findChildren(QLineEdit)
+                     if not isinstance(w.parent(), QDateEdit)]
+        controls += list(filters.findChildren(QDateEdit))
+        controls += list(filters.findChildren(QPushButton))
+
+        placed = []
+        for widget in controls:
+            pos = top_left(widget)
+            placed.append((pos.x(), pos.y(), widget.width(), widget.height(),
+                           widget))
+
+        # No control may overlap another.
+        for index in range(len(placed)):
+            ax, ay, aw, ah, a_widget = placed[index]
+            for other in placed[index + 1:]:
+                bx, by, bw, bh, b_widget = other
+                self.assertFalse(
+                    ax < bx + bw and bx < ax + aw
+                    and ay < by + bh and by < ay + ah,
+                    f"{a_widget.text()!r} overlaps {b_widget.text()!r}",
+                )
+
+        # Visual neighbours keep a readable gap.
+        rows: dict[int, list] = {}
+        for rect in placed:
+            rows.setdefault(rect[1] + rect[3] // 2, []).append(rect)
+        for row in rows.values():
+            ordered = sorted(row)
+            for previous, following in zip(ordered, ordered[1:]):
+                gap = following[0] - (previous[0] + previous[2])
+                self.assertGreaterEqual(
+                    gap, 4,
+                    f"no gap between {previous[4].text()!r} "
+                    f"and {following[4].text()!r}",
+                )
+
+        # A label must never be narrower than its own text.
+        for label in filters.findChildren(QLabel):
+            self.assertGreaterEqual(
+                label.width(), label.sizeHint().width(),
+                f"label {label.text()!r} is clipped",
+            )
+
+        # The action buttons sit on the second row, below the data filters.
+        customer_label = next(
+            w for w in filters.findChildren(QLabel) if w.text() == "Customer")
+        customer_y = top_left(customer_label).y()
+        buttons = {w.text(): w for w in filters.findChildren(QPushButton)}
+        for text in ("Search", "Clear", "Refresh", "Print"):
+            self.assertIn(text, buttons)
+            self.assertGreater(
+                top_left(buttons[text]).y(), customer_y,
+                f"{text} should be on the second toolbar row",
+            )
+        page.hide()
+
     def test_date_range_defaults_to_today(self):
         from PySide6.QtCore import QDate
 

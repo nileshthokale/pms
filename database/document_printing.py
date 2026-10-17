@@ -860,9 +860,13 @@ def generate_purchase_report_pdf(
     Print-only columns: Voucher Date, Discount, GST%, GST Amount,
     Purchase Rate and Net Rate are excluded from the printed PDF only.
     The on-screen report, DAO rows, filters, summary math and stored data
-    are unchanged.  When a Company is entered in the top filter info, the
-    Company column is also hidden from the print (it is already known
-    from the header), print-only.
+    are unchanged.  Any filter value entered in the top boxes is already
+    known from the header, so its column is hidden from the print only:
+    Supplier filter hides the Supplier column, Company filter hides the
+    Company column, Item filter hides the Item column, Invoice filter
+    hides the Invoice column, Voucher filter hides the Voucher column and
+    Batch filter hides the Batch column (one, two or more values hide all
+    matching columns).  Print-only.
 
     When only a Company Name is entered (other optional filters empty),
     the print becomes a Companywise Itemwise Purchase report grouped by
@@ -881,20 +885,25 @@ def generate_purchase_report_pdf(
         except OSError as exc:
             raise DocumentPrintError(f"Could not create PDF at {path}: {exc}") from exc
         return str(path)
-    # If a Company value was entered at the top (filter info), we already
-    # know the company, so hide the Company column from the print only.
+    # Print-only: hide any column whose filter value was entered at the top
+    # (it is already shown in the Filters header line).
     _filter_text = str(filter_summary or "")
-    _hide_company = "Company:" in _filter_text
-    if _hide_company:
-        headings = [
-            "Voucher", "Invoice", "I Date", "Supplier", "Item",
-            "Pack", "Batch", "Expiry", "Pay", "Free", "Rate", "MRP", "Amount",
-        ]
-    else:
-        headings = [
-            "Voucher", "Invoice", "I Date", "Supplier", "Item", "Company",
-            "Pack", "Batch", "Expiry", "Pay", "Free", "Rate", "MRP", "Amount",
-        ]
+    _filter_columns = (
+        ("Supplier:", "Supplier"),
+        ("Company:", "Company"),
+        ("Item:", "Item"),
+        ("Invoice:", "Invoice"),
+        ("Voucher:", "Voucher"),
+        ("Batch:", "Batch"),
+    )
+    _hidden: set[str] = {
+        column for key, column in _filter_columns if key in _filter_text
+    }
+    _full_headings = [
+        "Voucher", "Invoice", "I Date", "Supplier", "Item", "Company",
+        "Pack", "Batch", "Expiry", "Pay", "Free", "Rate", "MRP", "Amount",
+    ]
+    headings = [h for h in _full_headings if h not in _hidden]
 
     def _qty(value: Any) -> str:
         try:
@@ -914,25 +923,23 @@ def generate_purchase_report_pdf(
     detail_rows: list[list[str]] = []
     for row in rows:
         full = [
-            _purchase_display_bill_no(row.get("voucher_no")),
-            _purchase_display_bill_no(row.get("invoice_no")),
-            _plain(row.get("invoice_date")),
-            _plain(row.get("supplier_name")),
-            _plain(row.get("item_name")),
-            _plain(row.get("company_name")),
-            _plain(row.get("pack_size")),
-            _plain(row.get("batch_no")),
-            _plain(row.get("expiry")),
-            _qty(row.get("pay_qty")),
-            _qty(row.get("free_qty")),
-            _amt(row.get("rate")),
-            _amt(row.get("mrp")),
-            _amt(row.get("amount")),
+            ("Voucher", _purchase_display_bill_no(row.get("voucher_no"))),
+            ("Invoice", _purchase_display_bill_no(row.get("invoice_no"))),
+            ("I Date", _plain(row.get("invoice_date"))),
+            ("Supplier", _plain(row.get("supplier_name"))),
+            ("Item", _plain(row.get("item_name"))),
+            ("Company", _plain(row.get("company_name"))),
+            ("Pack", _plain(row.get("pack_size"))),
+            ("Batch", _plain(row.get("batch_no"))),
+            ("Expiry", _plain(row.get("expiry"))),
+            ("Pay", _qty(row.get("pay_qty"))),
+            ("Free", _qty(row.get("free_qty"))),
+            ("Rate", _amt(row.get("rate"))),
+            ("MRP", _amt(row.get("mrp"))),
+            ("Amount", _amt(row.get("amount"))),
         ]
-        if _hide_company:
-            # Drop the Company cell (index 5), print-only.
-            del full[5]
-        detail_rows.append(full)
+        # Drop print-hidden filter columns (print-only, stored data kept).
+        detail_rows.append([v for h, v in full if h not in _hidden])
 
     totals_line = "Totals: " + " | ".join([
         f"Bills: {summary.get('total_bills', 0)}",
@@ -1452,38 +1459,37 @@ def _purchase_report_pdf_bytes(
     CONTENT_X0 = ML
     CONTENT_W = PAGE_W - ML - MR
     CONTENT_X1 = CONTENT_X0 + CONTENT_W
-    # Column widths (points) sum to CONTENT_W (786).  Wider for Item /
-    # Supplier / Company, narrow for qty columns, with breathing room so
-    # values never touch adjacent borders.  When the Company column is
-    # hidden (company already known from the top filter), its width is
-    # redistributed to the remaining columns.
-    if "Company" not in headings:
-        COL_WIDTHS = [
-            64.0, 60.0, 64.0, 90.0, 120.0, 42.0, 56.0, 44.0,
-            34.0, 34.0, 56.0, 56.0, 66.0,
-        ]
-    else:
-        COL_WIDTHS = [
-            62.0, 58.0, 62.0, 78.0, 104.0, 76.0, 38.0, 52.0, 40.0,
-            32.0, 32.0, 48.0, 48.0, 56.0,
-        ]
+    # Column widths (points) sum to CONTENT_W (786).  Base widths keep the
+    # existing proportions; when filter columns are hidden from the print,
+    # the freed width is redistributed proportionally so values never touch
+    # adjacent borders.
+    _BASE_WIDTHS = {
+        "Voucher": 62.0, "Invoice": 58.0, "I Date": 62.0, "Supplier": 78.0,
+        "Item": 104.0, "Company": 76.0, "Pack": 38.0, "Batch": 52.0,
+        "Expiry": 40.0, "Pay": 32.0, "Free": 32.0, "Rate": 48.0,
+        "MRP": 48.0, "Amount": 56.0,
+    }
+    _BASE_ALIGNS = {
+        "Voucher": "left", "Invoice": "left", "I Date": "center",
+        "Supplier": "left", "Item": "left", "Company": "left",
+        "Pack": "center", "Batch": "center", "Expiry": "center",
+        "Pay": "right", "Free": "right", "Rate": "right",
+        "MRP": "right", "Amount": "right",
+    }
+    _raw_widths = [_BASE_WIDTHS.get(h, 50.0) for h in headings]
+    _total_raw = sum(_raw_widths) or 1.0
+    _scale = CONTENT_W / _total_raw
+    COL_WIDTHS = [w * _scale for w in _raw_widths]
+    # Fix float rounding so the columns sum to exactly CONTENT_W.
+    _drift = CONTENT_W - sum(COL_WIDTHS)
+    if COL_WIDTHS:
+        COL_WIDTHS[-1] += _drift
     COL_X: list[float] = []
     _x = CONTENT_X0
     for _w in COL_WIDTHS:
         COL_X.append(_x)
         _x += _w
-    if "Company" not in headings:
-        ALIGNS = [
-            "left", "left", "center", "left", "left",
-            "center", "center", "center",
-            "right", "right", "right", "right", "right",
-        ]
-    else:
-        ALIGNS = [
-            "left", "left", "center", "left", "left", "left",
-            "center", "center", "center",
-            "right", "right", "right", "right", "right",
-        ]
+    ALIGNS = [_BASE_ALIGNS.get(h, "left") for h in headings]
     TITLE_PT, FY_PT, FILTER_PT = 13.0, 8.5, 7.5
     HEADER_PT, BODY_PT = 7.0, 7.0
     TOTALS_PT, NOTE_PT = 7.5, 7.0
