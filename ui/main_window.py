@@ -115,6 +115,12 @@ class PharmacyMainWindow(QMainWindow):
                     page = screens.PartyWiseReportPage()
                 elif menu_name == "Reports" and item_name == "GST Report":
                     page = screens.GSTReportPage()
+                elif menu_name == "Reports" and item_name == "Supplier Ledger":
+                    page = screens.SupplierLedgerPage()
+                elif menu_name == "Reports" and item_name == "Customer Ledger":
+                    page = screens.CustomerLedgerPage()
+                elif menu_name == "Reports" and item_name == "Itemwise Ledger":
+                    page = screens.ItemwiseLedgerPage()
                 elif menu_name == "Sales" and item_name == "New Bill":
                     page = screens.CounterSalePage()
                 elif menu_name == "Sales" and item_name == "Hold Bill":
