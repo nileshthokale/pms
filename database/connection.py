@@ -411,6 +411,44 @@ def init_database():
         )
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS supplier_payment_allocations (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                supplier_payment_id INTEGER NOT NULL REFERENCES supplier_payments(id) ON DELETE CASCADE,
+                purchase_invoice_id INTEGER NOT NULL REFERENCES purchase_invoices(id) ON DELETE CASCADE,
+                allocated_amount    REAL    NOT NULL DEFAULT 0.0,
+                discount_amount     REAL    DEFAULT 0.0
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_spa_payment "
+            "ON supplier_payment_allocations(supplier_payment_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_spa_invoice "
+            "ON supplier_payment_allocations(purchase_invoice_id)"
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS customer_receipt_allocations (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                customer_receipt_id INTEGER NOT NULL REFERENCES customer_receipts(id) ON DELETE CASCADE,
+                sales_invoice_id    INTEGER NOT NULL REFERENCES sales_invoices(id) ON DELETE CASCADE,
+                allocated_amount    REAL    NOT NULL DEFAULT 0.0,
+                discount_amount     REAL    DEFAULT 0.0
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_cra_receipt "
+            "ON customer_receipt_allocations(customer_receipt_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_cra_invoice "
+            "ON customer_receipt_allocations(sales_invoice_id)"
+        )
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS account_ledgers (
                 id                      INTEGER PRIMARY KEY AUTOINCREMENT,
                 ledger_name             TEXT    NOT NULL UNIQUE,

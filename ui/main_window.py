@@ -66,13 +66,26 @@ class PharmacyMainWindow(QMainWindow):
         theme.theme_manager.on_changed(self._on_theme_changed)
         self._apply_theme()
 
+    @staticmethod
+    def _flatten_menu_items(items):
+        for item in items:
+            if isinstance(item, dict):
+                for sub_title, sub_items in item.items():
+                    for name in sub_items:
+                        yield name, sub_title
+            elif isinstance(item, tuple) and len(item) == 2 and isinstance(item[1], (list, tuple)):
+                for name in item[1]:
+                    yield name, item[0]
+            else:
+                yield item, None
+
     def _build_pages(self):
         # Pages are resolved through the screens package attributes so a
         # theme switch (which reloads the screen modules) provides fresh
         # classes on rebuild.
         page_index = 0
         for menu_name, items in MENUS.items():
-            for item_name in items:
+            for item_name, sub_title in self._flatten_menu_items(items):
                 if menu_name == "Master" and item_name == "Company Master":
                     page = screens.CompanyMasterPage()
                 elif menu_name == "Master" and item_name == "Unit Master":
@@ -143,7 +156,13 @@ class PharmacyMainWindow(QMainWindow):
                     page = screens.DebitNotePage()
                 elif menu_name == "Purchase" and item_name == "Supplier Payment":
                     page = screens.SupplierPaymentPage()
-                elif menu_name == "Account" and item_name == "Customer Receipt":
+                elif menu_name == "Account" and item_name in (
+                    "Supplier Payment Voucher", "Supplier Payment"
+                ):
+                    page = screens.SupplierPaymentPage()
+                elif menu_name == "Account" and item_name in (
+                    "Customer Receipt Voucher", "Customer Receipt"
+                ):
                     page = screens.CustomerReceiptPage()
                 elif menu_name == "Account" and item_name == "Cash Book":
                     page = screens.CashBookPage()
@@ -166,6 +185,8 @@ class PharmacyMainWindow(QMainWindow):
                 ui.polish_page(page)
                 self._stack.addWidget(page)
                 self._page_map[f"{menu_name}:{item_name}"] = page_index
+                if sub_title:
+                    self._page_map[f"{menu_name}:{sub_title}:{item_name}"] = page_index
                 page_index += 1
 
     def _on_menu_action(self, menu: str, action: str):
@@ -182,6 +203,10 @@ class PharmacyMainWindow(QMainWindow):
             self._stack.setCurrentIndex(self._page_map[key])
             self.setWindowTitle(f"{APP_TITLE}  -  {action}")
             self._nav.status_label.setText(f"{menu} / {action}")
+        elif f"Reports:{action}" in self._page_map:
+            self._stack.setCurrentIndex(self._page_map[f"Reports:{action}"])
+            self.setWindowTitle(f"{APP_TITLE}  -  {action}")
+            self._nav.status_label.setText(f"Reports / {action}")
 
     # ── financial-year viewing ──────────────────────────────────
     def _on_financial_year_view(self, year: dict):

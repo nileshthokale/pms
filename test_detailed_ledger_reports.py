@@ -682,14 +682,21 @@ class TestItemwiseLedgerDAO(_BaseLedgerTest):
 class TestLedgerScreensAndWiring(_BaseLedgerTest):
 
     def test_11_menu_data_has_all_three_ledger_reports(self):
-        """Reports menu must contain Supplier Ledger, Customer Ledger, Itemwise Ledger."""
+        """Reports menu must contain nested Ledger submenu with the 3 reports, not direct entries."""
         reports = MENUS["Reports"]
-        self.assertIn("Supplier Ledger", reports)
-        self.assertIn("Customer Ledger", reports)
-        self.assertIn("Itemwise Ledger", reports)
-        self.assertEqual(reports.count("Supplier Ledger"), 1)
-        self.assertEqual(reports.count("Customer Ledger"), 1)
-        self.assertEqual(reports.count("Itemwise Ledger"), 1)
+        self.assertNotIn("Supplier Ledger", reports)
+        self.assertNotIn("Customer Ledger", reports)
+        self.assertNotIn("Itemwise Ledger", reports)
+
+        ledger_entry = reports[-1]
+        self.assertIsInstance(ledger_entry, dict)
+        self.assertIn("Ledger", ledger_entry)
+        ledger_sub = ledger_entry["Ledger"]
+        self.assertEqual(ledger_sub, [
+            "Supplier Ledger",
+            "Customer Ledger",
+            "Itemwise Ledger",
+        ])
 
     def test_12_screens_package_exports_pages(self):
         """screens package must export the 3 ledger page classes."""

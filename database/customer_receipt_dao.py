@@ -139,10 +139,110 @@ class CustomerReceiptDAO:
         finally:
             conn.close()
 
-    # ── write (single transaction: source + accounting posting) ────────
+    # ── sales bill allocations & outstanding balance ──────────────────
     @staticmethod
-    def insert_receipt(header: dict) -> int:
-        amount = header.get("amount", 0.0)
+    def get_outstanding_bills(
+        customer_id: int,
+        exclude_receipt_id: Optional[int] = None,
+    ) -> List[dict]:
+        """Fetch all sales bills for customer with remaining unpaid balance.
+
+        Ordered by sale_date ASC, id ASC (FIFO order).
+        """
+        conn = get_connection()
+        try:
+            sql = """
+                SELECT si.id, si.bill_no, si.sale_date, si.sale_time,
+                       si.sale_type, si.net_amount, si.paid_amount,
+                       COALESCE((
+                           SELECT SUM(cra.allocated_amount)
+                           FROM customer_receipt_allocations cra
+                           WHERE cra.sales_invoice_id = si.id
+                             AND (cra.customer_receipt_id != ? OR ? IS NULL)
+                       ), 0.0) AS prior_allocated
+                FROM sales_invoices si
+                WHERE si.customer_id = ?
+                ORDER BY si.sale_date ASC, si.id ASC
+            """
+            cur = conn.execute(sql, (exclude_receipt_id, exclude_receipt_id, customer_id))
+            rows = cur.fetchall()
+            results: List[dict] = []
+            for r in rows:
+                net = float(r["net_amount"] or 0.0)
+                init_paid = float(r["paid_amount"] or 0.0)
+                prior = float(r["prior_allocated"] or 0.0)
+                outstanding = round(net - init_paid - prior, 2)
+
+                current_alloc = 0.0
+                if exclude_receipt_id is not None:
+                    row_alloc = conn.execute(
+                        "SELECT allocated_amount FROM customer_receipt_allocations "
+                        "WHERE customer_receipt_id = ? AND sales_invoice_id = ?",
+                        (exclude_receipt_id, r["id"]),
+                    ).fetchone()
+                    if row_alloc:
+                        current_alloc = float(row_alloc[0] or 0.0)
+
+                if outstanding > 0.0001 or current_alloc > 0.0001:
+                    results.append({
+                        "id": r["id"],
+                        "bill_no": r["bill_no"],
+                        "sale_date": r["sale_date"],
+                        "sale_time": r["sale_time"] or "",
+                        "sale_type": r["sale_type"] or "Credit",
+                        "bill_amount": net,
+                        "paid_initial": init_paid,
+                        "prior_allocated": prior,
+                        "outstanding_balance": outstanding,
+                        "current_allocated": current_alloc,
+                    })
+            return results
+        finally:
+            conn.close()
+
+    @staticmethod
+    def calculate_fifo_allocation(
+        bills: List[dict],
+        receipt_amount: float,
+    ) -> List[dict]:
+        """Allocate receipt_amount across bills in FIFO order."""
+        rem = round(max(0.0, receipt_amount), 2)
+        allocations: List[dict] = []
+        for bill in bills:
+            out = float(bill["outstanding_balance"])
+            alloc = min(out, rem)
+            alloc = round(alloc, 2)
+            rem = round(rem - alloc, 2)
+            remaining_bal = round(out - alloc, 2)
+            allocations.append({
+                "sales_invoice_id": bill["id"],
+                "allocated_amount": alloc,
+                "remaining_balance": remaining_bal,
+            })
+        return allocations
+
+    @staticmethod
+    def get_receipt_allocations(receipt_id: int) -> List[dict]:
+        conn = get_connection()
+        try:
+            sql = """
+                SELECT cra.id, cra.customer_receipt_id, cra.sales_invoice_id,
+                       cra.allocated_amount, cra.discount_amount,
+                       si.bill_no, si.sale_date, si.net_amount
+                FROM customer_receipt_allocations cra
+                JOIN sales_invoices si ON si.id = cra.sales_invoice_id
+                WHERE cra.customer_receipt_id = ?
+                ORDER BY cra.id ASC
+            """
+            rows = conn.execute(sql, (receipt_id,)).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    # ── write (single transaction: source + accounting posting + allocations) ────────
+    @staticmethod
+    def insert_receipt(header: dict, allocations: Optional[List[dict]] = None) -> int:
+        amount = float(header.get("amount", 0.0) or 0.0)
         if amount <= 0:
             raise ValueError("Amount must be greater than 0.")
         conn = get_connection()
@@ -165,12 +265,37 @@ class CustomerReceiptDAO:
                     header.get("receipt_time", ""),
                     header["customer_id"],
                     header.get("receipt_mode", "Cash"),
-                    header.get("amount", 0.0),
+                    amount,
                     header.get("reference_no", ""),
                     header.get("remarks", ""),
                 ),
             )
             receipt_id = cur.lastrowid
+
+            # If allocations not provided explicitly, auto-allocate FIFO if bills exist
+            effective_allocs = allocations
+            if effective_allocs is None:
+                outstanding_bills = CustomerReceiptDAO.get_outstanding_bills(header["customer_id"])
+                if outstanding_bills:
+                    effective_allocs = CustomerReceiptDAO.calculate_fifo_allocation(outstanding_bills, amount)
+
+            if effective_allocs:
+                for alloc in effective_allocs:
+                    alloc_amt = float(alloc.get("allocated_amount", 0.0) or 0.0)
+                    if alloc_amt > 0:
+                        cur.execute(
+                            """
+                            INSERT INTO customer_receipt_allocations
+                                (customer_receipt_id, sales_invoice_id, allocated_amount, discount_amount)
+                            VALUES (?, ?, ?, ?)
+                            """,
+                            (
+                                receipt_id,
+                                alloc["sales_invoice_id"],
+                                alloc_amt,
+                                float(alloc.get("discount_amount", 0.0) or 0.0),
+                            ),
+                        )
 
             # Accounting posting joins THIS transaction (atomic with save).
             posting_engine.post_customer_receipt(receipt_id, cur=cur)
@@ -184,7 +309,12 @@ class CustomerReceiptDAO:
             conn.close()
 
     @staticmethod
-    def update_receipt(receipt_id: int, header: dict) -> bool:
+    def update_receipt(
+        receipt_id: int, header: dict, allocations: Optional[List[dict]] = None
+    ) -> bool:
+        amount = float(header.get("amount", 0.0) or 0.0)
+        if amount <= 0:
+            raise ValueError("Amount must be greater than 0.")
         conn = get_connection()
         try:
             cur = conn.cursor()
@@ -202,7 +332,7 @@ class CustomerReceiptDAO:
                     header.get("receipt_time", ""),
                     header["customer_id"],
                     header.get("receipt_mode", "Cash"),
-                    header.get("amount", 0.0),
+                    amount,
                     header.get("reference_no", ""),
                     header.get("remarks", ""),
                     receipt_id,
@@ -212,6 +342,37 @@ class CustomerReceiptDAO:
             # Re-post inside THIS transaction: reverse previous posting,
             # post the updated receipt. Atomic with the edit.
             posting_engine.repost_customer_receipt(receipt_id, cur=cur)
+
+            cur.execute(
+                "DELETE FROM customer_receipt_allocations WHERE customer_receipt_id = ?",
+                (receipt_id,),
+            )
+
+            effective_allocs = allocations
+            if effective_allocs is None:
+                outstanding_bills = CustomerReceiptDAO.get_outstanding_bills(
+                    header["customer_id"], exclude_receipt_id=receipt_id
+                )
+                if outstanding_bills:
+                    effective_allocs = CustomerReceiptDAO.calculate_fifo_allocation(outstanding_bills, amount)
+
+            if effective_allocs:
+                for alloc in effective_allocs:
+                    alloc_amt = float(alloc.get("allocated_amount", 0.0) or 0.0)
+                    if alloc_amt > 0:
+                        cur.execute(
+                            """
+                            INSERT INTO customer_receipt_allocations
+                                (customer_receipt_id, sales_invoice_id, allocated_amount, discount_amount)
+                            VALUES (?, ?, ?, ?)
+                            """,
+                            (
+                                receipt_id,
+                                alloc["sales_invoice_id"],
+                                alloc_amt,
+                                float(alloc.get("discount_amount", 0.0) or 0.0),
+                            ),
+                        )
 
             conn.commit()
             return True
@@ -232,6 +393,10 @@ class CustomerReceiptDAO:
             # no active accounting effect survives the deletion.
             posting_engine.reverse(SOURCE_CUSTOMER_RECEIPT, receipt_id, cur=cur)
 
+            cur.execute(
+                "DELETE FROM customer_receipt_allocations WHERE customer_receipt_id = ?",
+                (receipt_id,),
+            )
             cur.execute("DELETE FROM customer_receipts WHERE id = ?", (receipt_id,))
 
             conn.commit()

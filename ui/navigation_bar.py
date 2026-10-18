@@ -181,11 +181,34 @@ class NavigationBar(QWidget):
             btn.setFlat(True)
 
             menu = QMenu(btn)
-            for item_text in items:
-                action = menu.addAction(item_text)
-                action.triggered.connect(
-                    lambda checked=False, m=label, a=item_text: self.menu_action_triggered.emit(m, a)
-                )
+            menu.setObjectName(f"NavMenu_{label}")
+            for item in items:
+                if isinstance(item, dict):
+                    for sub_title, sub_items in item.items():
+                        sub_menu = menu.addMenu(sub_title)
+                        sub_menu.setObjectName(f"NavSubMenu_{sub_title}")
+                        for sub_text in sub_items:
+                            sub_action = sub_menu.addAction(sub_text)
+                            sub_action.triggered.connect(
+                                lambda checked=False, m=label, a=sub_text: self.menu_action_triggered.emit(m, a)
+                            )
+                        self._menus.append(sub_menu)
+                elif isinstance(item, tuple) and len(item) == 2 and isinstance(item[1], (list, tuple)):
+                    sub_title, sub_items = item
+                    sub_menu = menu.addMenu(sub_title)
+                    sub_menu.setObjectName(f"NavSubMenu_{sub_title}")
+                    for sub_text in sub_items:
+                        sub_action = sub_menu.addAction(sub_text)
+                        sub_action.triggered.connect(
+                            lambda checked=False, m=label, a=sub_text: self.menu_action_triggered.emit(m, a)
+                        )
+                    self._menus.append(sub_menu)
+                else:
+                    item_text = item
+                    action = menu.addAction(item_text)
+                    action.triggered.connect(
+                        lambda checked=False, m=label, a=item_text: self.menu_action_triggered.emit(m, a)
+                    )
             btn.setMenu(menu)
             self._menus.append(menu)
             ml.addWidget(btn)
