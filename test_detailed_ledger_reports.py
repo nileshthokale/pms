@@ -884,6 +884,241 @@ class TestLedgerScreensAndWiring(_BaseLedgerTest):
             LedgerReportDAO.get_item_ledger(self.item_id, "2026-04-30", "2026-04-01")
 
 
+# ======================================================================
+# 4. Searchable Dropdown & Party Selection Regressions (Tests 22-30)
+# ======================================================================
+class TestLedgerSearchableDropdowns(_BaseLedgerTest):
+
+    def setUp(self):
+        super().setUp()
+        from PySide6.QtWidgets import QApplication
+        self.app = QApplication.instance() or QApplication([])
+
+        # Create two distinct suppliers with distinct opening balances
+        self.anand_id = SupplierDAO.insert(
+            supplier_name="ANAND PHARMA (KOPARGAON)",
+            city="Kopargaon",
+            contact_no="9800000001",
+            opening_balance=50000.0,
+        )
+        self.neha_id = SupplierDAO.insert(
+            supplier_name="NEHA AGENCIES",
+            city="Nashik",
+            contact_no="9800000002",
+            opening_balance=12000.0,
+        )
+
+        # Create two distinct customers
+        self.cust_rahul_id = CustomerDAO.insert(
+            customer_name="RAHUL MEDICAL",
+            city="Pune",
+            contact_no="9700000001",
+            opening_balance=3500.0,
+        )
+        self.cust_neha_id = CustomerDAO.insert(
+            customer_name="NEHA PATIENT",
+            city="Mumbai",
+            contact_no="9700000002",
+            opening_balance=800.0,
+        )
+
+        # Create two distinct items
+        self.item_dolo_id = ItemDAO.insert(
+            item_name="DOLO 650",
+            unit_id=self.unit_id,
+            company_id=self.company_id,
+            pack_size="15",
+        )
+        self.item_neha_herb_id = ItemDAO.insert(
+            item_name="NEHA HERBAL POWDER",
+            unit_id=self.unit_id,
+            company_id=self.company_id,
+            pack_size="1",
+        )
+
+    def test_22_supplier_dropdown_loads_master_data_and_db_ids(self):
+        """Dropdown loads supplier names and actual database IDs from saved master data."""
+        import screens
+        page = screens.SupplierLedgerPage()
+        sel = page._supplier_selector
+
+        # Must have loaded the suppliers
+        options = sel.options
+        self.assertGreaterEqual(len(options), 2)
+
+        # Confirm anand_id and neha_id exist in options with correct IDs
+        anand_opt = next((opt for opt in options if opt["id"] == self.anand_id), None)
+        neha_opt = next((opt for opt in options if opt["id"] == self.neha_id), None)
+        self.assertIsNotNone(anand_opt, "ANAND PHARMA should be in options")
+        self.assertIsNotNone(neha_opt, "NEHA AGENCIES should be in options")
+        self.assertIn("ANAND PHARMA", anand_opt["supplier_name"])
+        self.assertIn("NEHA AGENCIES", neha_opt["supplier_name"])
+
+        # Test selecting by DB ID sets the correct display text and selected_id
+        sel.set_selected_id(self.neha_id)
+        self.assertEqual(sel.selected_id, self.neha_id)
+        self.assertIn("NEHA AGENCIES", sel.lineEdit().text())
+
+    def test_23_typing_neha_shows_matching_saved_suppliers_case_insensitive(self):
+        """Typing 'neha' or 'NEHA' shows matching saved suppliers with case-insensitive partial match."""
+        import screens
+        page = screens.SupplierLedgerPage()
+        sel = page._supplier_selector
+
+        # Test case-insensitive resolution
+        for query in ["neha", "NEHA", "Neha Agencies"]:
+            sel.lineEdit().setText(query)
+            resolved = sel.resolve_text()
+            self.assertTrue(resolved, f"Failed to resolve query '{query}'")
+            self.assertEqual(sel.selected_id, self.neha_id)
+            self.assertIn("NEHA AGENCIES", sel.selected_name)
+
+    def test_24_selecting_suggestion_stores_correct_supplier_db_id(self):
+        """Selecting a suggestion stores the correct supplier DB ID (not index or displayed text)."""
+        import screens
+        page = screens.SupplierLedgerPage()
+        sel = page._supplier_selector
+
+        # Set selection to Neha
+        sel.set_selected_id(self.neha_id)
+        # Even if Anand is at index 0 or 1, selected_id MUST match self.neha_id
+        self.assertEqual(sel.selected_id, self.neha_id)
+        self.assertNotEqual(sel.selected_id, self.anand_id)
+        self.assertEqual(sel.currentData(), self.neha_id)
+
+    def test_25_searching_neha_loads_only_neha_and_never_anand_pharma_balance(self):
+        """Searching 'NEHA' loads only Neha's details and NEVER Anand Pharma's balance."""
+        import screens
+        page = screens.SupplierLedgerPage()
+
+        # Type 'NEHA' in the lineEdit
+        page._supplier_selector.lineEdit().setText("NEHA")
+        page._on_generate()
+
+        # Party header must be NEHA AGENCIES, not ANAND PHARMA
+        self.assertIn("NEHA AGENCIES", page._info_party.text())
+        self.assertNotIn("ANAND PHARMA", page._info_party.text())
+
+        # Opening balance must be 12,000.00 CR, NOT 50,000.00
+        ob_text = page._val_card_ob.text()
+        self.assertIn("12,000.00", ob_text)
+        self.assertNotIn("50,000.00", ob_text)
+
+        # Closing balance must also be 12,000.00 CR
+        cb_text = page._val_card_cb.text()
+        self.assertIn("12,000.00", cb_text)
+        self.assertNotIn("50,000.00", cb_text)
+
+    def test_26_unmatched_text_shows_warning_and_never_falls_back_to_previous_supplier(self):
+        """Typing unmatched text shows a clear warning and never silently falls back to another supplier."""
+        from unittest.mock import patch
+        import screens
+        page = screens.SupplierLedgerPage()
+
+        # First load Anand Pharma
+        page._supplier_selector.set_selected_id(self.anand_id)
+        page._on_generate()
+        self.assertIn("ANAND PHARMA", page._info_party.text())
+
+        # Now user types a non-existent supplier
+        page._supplier_selector.lineEdit().setText("XYZ PHARMA UNKNOWN")
+
+        with patch("PySide6.QtWidgets.QMessageBox.warning") as mock_warn:
+            page._on_generate()
+            mock_warn.assert_called_once()
+            # Check warning message mentions the typed text
+            warn_args = mock_warn.call_args[0]
+            self.assertIn("XYZ PHARMA UNKNOWN", warn_args[2])
+
+        # Selection MUST be None and Anand Pharma must not remain active
+        self.assertIsNone(page._supplier_selector.selected_id)
+        self.assertEqual(page._info_party.text(), "Party: -")
+        self.assertEqual(page._table.rowCount(), 0)
+
+    def test_27_empty_supplier_selection_shows_info_message(self):
+        """Generating with empty supplier shows clear info message and loads nothing."""
+        from unittest.mock import patch
+        import screens
+        page = screens.SupplierLedgerPage()
+        page._supplier_selector.clear_selection()
+
+        with patch("PySide6.QtWidgets.QMessageBox.information") as mock_info:
+            page._on_generate()
+            mock_info.assert_called_once()
+            info_args = mock_info.call_args[0]
+            self.assertIn("Please select a supplier", info_args[2])
+
+        self.assertEqual(page._table.rowCount(), 0)
+        self.assertEqual(page._info_party.text(), "Party: -")
+
+    def test_28_customer_ledger_search_selection_and_validation(self):
+        """Customer ledger correctly searches, selects, and validates party ID and balance."""
+        from unittest.mock import patch
+        import screens
+        page = screens.CustomerLedgerPage()
+
+        # Type 'neha' in the customer selector
+        page._customer_selector.lineEdit().setText("neha")
+        page._on_generate()
+
+        self.assertIn("NEHA PATIENT", page._info_party.text())
+        self.assertNotIn("RAHUL MEDICAL", page._info_party.text())
+        ob_text = page._val_card_ob.text()
+        self.assertIn("800.00", ob_text)
+        self.assertNotIn("3,500.00", ob_text)
+
+        # Unmatched text check
+        page._customer_selector.lineEdit().setText("GHOST CUSTOMER")
+        with patch("PySide6.QtWidgets.QMessageBox.warning") as mock_warn:
+            page._on_generate()
+            mock_warn.assert_called_once()
+        self.assertIsNone(page._customer_selector.selected_id)
+        self.assertEqual(page._info_party.text(), "Party: -")
+
+    def test_29_itemwise_ledger_search_selection_and_validation(self):
+        """Itemwise ledger correctly searches, selects, and validates item ID and stock."""
+        from unittest.mock import patch
+        import screens
+        page = screens.ItemwiseLedgerPage()
+
+        # Type 'neha' in the item selector
+        page._item_selector.lineEdit().setText("neha")
+        page._on_generate()
+
+        self.assertEqual(page._item_selector.selected_id, self.item_neha_herb_id)
+        self.assertIn("NEHA HERBAL POWDER", page._info_item.text())
+        self.assertNotIn("DOLO 650", page._info_item.text())
+
+        # Unmatched text check
+        page._item_selector.lineEdit().setText("UNKNOWN DRUG 999")
+        with patch("PySide6.QtWidgets.QMessageBox.warning") as mock_warn:
+            page._on_generate()
+            mock_warn.assert_called_once()
+        self.assertIsNone(page._item_selector.selected_id)
+        self.assertEqual(page._info_item.text(), "Item: -")
+
+    def test_30_reuse_existing_working_searchable_combo(self):
+        """SearchableSelector reuses SearchableComboBox from ui.components."""
+        from ui.components import SearchableComboBox
+        from screens.ledger_widgets import SearchableSelector
+        import screens.purchase_invoice as pi
+
+        # SearchableSelector subclasses SearchableComboBox
+        self.assertTrue(issubclass(SearchableSelector, SearchableComboBox))
+
+        # Purchase invoice reuses the same SearchableComboBox
+        self.assertIs(pi.SearchableComboBox, SearchableComboBox)
+
+        # Verify key methods and signals exist
+        sel = SearchableSelector()
+        self.assertTrue(hasattr(sel, "selection_changed"))
+        self.assertTrue(hasattr(sel, "selected_id"))
+        self.assertTrue(hasattr(sel, "selected_name"))
+        self.assertTrue(hasattr(sel, "set_options"))
+        self.assertTrue(hasattr(sel, "resolve_text"))
+
+
 if __name__ == "__main__":
     unittest.main()
+
 

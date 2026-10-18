@@ -278,12 +278,14 @@ class ItemwiseLedgerPage(QWidget):
     # ── Report Generation ────────────────────────────────────────────
 
     def _on_item_changed(self, item_id):
-        if item_id:
+        if item_id and not getattr(self, "_generating", False):
             self._on_generate()
 
     def _on_refresh(self):
+        curr_id = self._item_selector.selected_id
         self._load_options()
-        if self._item_selector.selected_id:
+        if curr_id:
+            self._item_selector.set_selected_id(curr_id)
             self._on_generate()
 
     def _on_clear(self):
@@ -299,34 +301,57 @@ class ItemwiseLedgerPage(QWidget):
         self._status_badge.setText("")
 
     def _on_generate(self):
-        item_id = self._item_selector.selected_id
-        if not item_id:
-            QMessageBox.information(
-                self, "Itemwise Ledger", "Please select a medicine / item from the list."
-            )
+        if getattr(self, "_generating", False):
             return
-
-        from_iso = self._from_date.date().toString("yyyy-MM-dd")
-        to_iso = self._to_date.date().toString("yyyy-MM-dd")
-
-        if from_iso > to_iso:
-            QMessageBox.warning(
-                self, "Date Error", "From Date cannot be later than To Date."
-            )
-            return
-
+        self._generating = True
         try:
-            report = LedgerReportDAO.get_item_ledger(
-                item_id=item_id,
-                from_date=from_iso,
-                to_date=to_iso,
-            )
-        except Exception as exc:
-            QMessageBox.critical(self, "Error", f"Failed to generate report:\n{exc}")
-            return
+            displayed_text = self._item_selector.currentText().strip()
+            self._item_selector.resolve_text()
+            item_id = self._item_selector.selected_id
+            if not item_id:
+                self._table.setRowCount(0)
+                self._info_item.setText("Item: -")
+                self._val_card_os.setText("0")
+                self._val_card_in.setText("0")
+                self._val_card_out.setText("0")
+                self._val_card_cs.setText("0")
+                self._val_card_hand.setText("0")
+                self._status_badge.setText("")
+                if displayed_text and displayed_text != getattr(self._item_selector, "_placeholder", ""):
+                    QMessageBox.warning(
+                        self,
+                        "Itemwise Ledger",
+                        f"No matching medicine / item found for '{displayed_text}'. Please select an item from the list.",
+                    )
+                else:
+                    QMessageBox.information(
+                        self, "Itemwise Ledger", "Please select a medicine / item from the list."
+                    )
+                return
 
-        self._last_report = report
-        self._render(report)
+            from_iso = self._from_date.date().toString("yyyy-MM-dd")
+            to_iso = self._to_date.date().toString("yyyy-MM-dd")
+
+            if from_iso > to_iso:
+                QMessageBox.warning(
+                    self, "Date Error", "From Date cannot be later than To Date."
+                )
+                return
+
+            try:
+                report = LedgerReportDAO.get_item_ledger(
+                    item_id=item_id,
+                    from_date=from_iso,
+                    to_date=to_iso,
+                )
+            except Exception as exc:
+                QMessageBox.critical(self, "Error", f"Failed to generate report:\n{exc}")
+                return
+
+            self._last_report = report
+            self._render(report)
+        finally:
+            self._generating = False
 
     # ── Rendering ────────────────────────────────────────────────────
 

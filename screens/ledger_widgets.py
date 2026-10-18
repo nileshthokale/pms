@@ -12,16 +12,14 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QCompleter,
     QDateEdit,
     QLineEdit,
     QWidget,
 )
 
-from ui.components import ConstrainedComboBox
+from ui.components import ConstrainedComboBox, SearchableComboBox
 from ui.theme import date_subcontrols, palette, TYPE_INPUT
 
 
@@ -132,14 +130,14 @@ def make_date_edit(parent: QWidget | None = None, p: dict | None = None) -> QDat
     return d
 
 
-class SearchableSelector(ConstrainedComboBox):
-    """Searchable dropdown combo with case-insensitive contains-match completer.
+class SearchableSelector(SearchableComboBox):
+    """Searchable dropdown combo with case-insensitive contains-match autocomplete
+    and master ID binding for Detailed Ledger reports.
 
-    Works both as an interactive dropdown (clicking arrow shows options)
-    and as an autocomplete field (typing filters the candidate list).
+    Inherits from the working SearchableComboBox implementation in ui.components,
+    providing contains-match autocomplete, keyboard navigation, master ID binding,
+    and text-to-ID validation.
     """
-
-    selection_changed = Signal(object)  # emits selected ID or None
 
     def __init__(
         self,
@@ -150,143 +148,13 @@ class SearchableSelector(ConstrainedComboBox):
     ):
         super().__init__(
             parent,
-            max_visible_items=max_visible,
-            max_popup_height=max_height,
+            placeholder=placeholder,
+            max_visible=max_visible,
+            max_height=max_height,
         )
-        self.setEditable(True)
-        self.setInsertPolicy(ConstrainedComboBox.NoInsert)
-        self.setFixedHeight(32)
-
-        self._placeholder = placeholder
-        self._id_map: dict[str, Any] = {}
-        self._reverse_map: dict[Any, int] = {}  # id -> combo index
-
-        line = self.lineEdit()
-        if line is not None:
-            line.setPlaceholderText(placeholder)
-            line.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-            line.editingFinished.connect(self._on_editing_finished)
-
-        self._completer = QCompleter(self)
-        self._completer.setCaseSensitivity(Qt.CaseInsensitive)
-        self._completer.setFilterMode(Qt.MatchContains)
-        self._completer.setCompletionMode(QCompleter.PopupCompletion)
-        self._completer.setMaxVisibleItems(max_visible)
-        popup = self._completer.popup()
-        if popup is not None:
-            popup.setMaximumHeight(max_height)
-            popup.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-            popup.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.setCompleter(self._completer)
-        self._completer.activated[str].connect(self._on_completer_activated)
-
-        self.currentIndexChanged.connect(self._on_index_changed)
-        self.refresh_theme()
-
-    def set_options(
-        self,
-        rows: list[dict],
-        id_key: str = "id",
-        name_key: str = "name",
-        subtitle_key: str | None = None,
-    ) -> None:
-        """Populate options with id, display name, and optional subtitle."""
-        self.blockSignals(True)
-        self.clear()
-        self._id_map.clear()
-        self._reverse_map.clear()
-
-        # Item 0 is empty placeholder
-        self.addItem(self._placeholder, None)
-        self._reverse_map[None] = 0
-
-        for idx, row in enumerate(rows, start=1):
-            name = str(row.get(name_key) or "").strip()
-            item_id = row.get(id_key)
-            if subtitle_key and row.get(subtitle_key):
-                display = f"{name}  [{row[subtitle_key]}]"
-            else:
-                display = name
-
-            self.addItem(display, item_id)
-            self._id_map[display.casefold()] = item_id
-            self._id_map[name.casefold()] = item_id
-            self._reverse_map[item_id] = idx
-
-        self.setCurrentIndex(0)
-        self.blockSignals(False)
-
-        line = self.lineEdit()
-        if line is not None:
-            line.clear()
-
-    @property
-    def selected_id(self) -> Any:
-        return self.currentData()
-
-    @property
-    def selected_name(self) -> str:
-        idx = self.currentIndex()
-        if idx <= 0:
-            return ""
-        return self.currentText()
-
-    def set_selected_id(self, item_id: Any) -> None:
-        if item_id in self._reverse_map:
-            idx = self._reverse_map[item_id]
-            self.setCurrentIndex(idx)
-        else:
-            self.setCurrentIndex(0)
-
-    def clear_selection(self) -> None:
-        self.setCurrentIndex(0)
-        line = self.lineEdit()
-        if line is not None:
-            line.clear()
-
-    def _on_completer_activated(self, text: str) -> None:
-        idx = self.findText(text)
-        if idx >= 0:
-            self.setCurrentIndex(idx)
-
-    def _on_editing_finished(self) -> None:
-        text = self.currentText().strip()
-        if not text or text == self._placeholder:
-            self.setCurrentIndex(0)
-            return
-        idx = self.findText(text, Qt.MatchFixedString | Qt.MatchCaseSensitive)
-        if idx < 0:
-            idx = self.findText(text, Qt.MatchContains)
-        if idx >= 0:
-            self.setCurrentIndex(idx)
-        else:
-            # Fall back to matched ID if known
-            folded = text.casefold()
-            if folded in self._id_map:
-                self.set_selected_id(self._id_map[folded])
-
-    def _on_index_changed(self, index: int) -> None:
-        self.selection_changed.emit(self.currentData())
 
     def refresh_theme(self, p: dict | None = None) -> None:
         p = p or palette()
+        super().refresh_theme(p)
         self.setStyleSheet(combo_style(p))
-        line = self.lineEdit()
-        if line is not None:
-            line.setStyleSheet(
-                f"QLineEdit {{"
-                f"  background-color: {p['surface']}; color: {p['text']};"
-                f"  border: none; padding: 2px 4px; font-size: 15px;"
-                f"  font-family: 'Segoe UI'; font-weight: bold;"
-                f"}}"
-            )
-        popup = self._completer.popup()
-        if popup is not None:
-            popup.setStyleSheet(
-                f"QAbstractItemView {{"
-                f"  background-color: {p['surface']}; color: {p['text']};"
-                f"  border: 1px solid {p['border']}; selection-background-color: {p['accent']};"
-                f"  selection-color: white; font-size: {TYPE_INPUT}px; font-family: 'Segoe UI';"
-                f"}}"
-                f"QAbstractItemView::item {{ min-height: 24px; padding: 2px 6px; }}"
-            )
+
