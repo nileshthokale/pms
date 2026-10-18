@@ -367,6 +367,7 @@ class TestDatabaseIntegration(unittest.TestCase):
         from database.item_dao import ItemDAO
         from database.supplier_dao import SupplierDAO
 
+        self._orig_db = os.environ.get("PHARMACY_DB")
         self.db_path = os.path.join(tempfile.gettempdir(), f"test_purchase_free_{os.getpid()}.db")
         if os.path.exists(self.db_path):
             os.remove(self.db_path)
@@ -393,6 +394,10 @@ class TestDatabaseIntegration(unittest.TestCase):
         )
 
     def tearDown(self):
+        if getattr(self, "_orig_db", None) is not None:
+            os.environ["PHARMACY_DB"] = self._orig_db
+        else:
+            os.environ.pop("PHARMACY_DB", None)
         if os.path.exists(self.db_path):
             try:
                 os.remove(self.db_path)
