@@ -788,7 +788,8 @@ def _fresh_button_for_text(text: str, p: dict) -> str | None:
         # Panel Delete (full-width) vs row Delete (56x22, 11 px) share the
         # caption; the caller distinguishes by size via cs_btn_kind.
         return None
-    if t in ("Cancel", "Edit", "Print", "Print / PDF", "All Dates", "Refresh"):
+    if t in ("Cancel", "Edit", "Print", "Print / PDF", "All Dates", "Refresh",
+             "Sales History"):
         return _fresh_btn_style(p["text_dim"], p)
     return None
 
@@ -5361,6 +5362,12 @@ class CounterSalePage(QWidget):
 
     HISTORY_PAGE_SIZE = 200
 
+    # Second entry point to the dedicated Sales History screen.  Emitted by
+    # the "Sales History" toolbar button next to Refresh; the main window
+    # routes it through the exact same "Sales > Sales History" action the
+    # top menu uses, so both entries open the same page/view.
+    sales_history_requested = Signal()
+
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         _keep_alive(self)
@@ -5590,6 +5597,19 @@ class CounterSalePage(QWidget):
         self._hist_refresh_btn.setStyleSheet(_BTN_SECONDARY)
         self._hist_refresh_btn.setToolTip("Reload the selected day's results")
 
+        # Second entry point to the dedicated Sales History screen, placed
+        # beside Refresh.  Navigation only: it reads and writes nothing
+        # here — the target screen owns all history loading/filters.
+        self._hist_sales_history_btn = QPushButton("Sales History")
+        self._hist_sales_history_btn.setStyleSheet(_BTN_SECONDARY)
+        self._hist_sales_history_btn.setFixedHeight(_METADATA_CONTROL_HEIGHT)
+        self._hist_sales_history_btn.setMinimumWidth(
+            max(96, self._hist_sales_history_btn.sizeHint().width() + 16)
+        )
+        self._hist_sales_history_btn.setToolTip(
+            "Open the dedicated Sales History screen"
+        )
+
         layout.addWidget(self._flbl("Daily Sales:"))
         layout.addWidget(self._flbl("Date"))
         layout.addWidget(self._hist_date)
@@ -5597,6 +5617,8 @@ class CounterSalePage(QWidget):
         layout.addWidget(self._hist_today_btn)
         layout.addSpacing(4)
         layout.addWidget(self._hist_refresh_btn)
+        layout.addSpacing(4)
+        layout.addWidget(self._hist_sales_history_btn)
         layout.addStretch()
         layout.addWidget(self._flbl("View"))
         layout.addWidget(self._hist_item_mode)
@@ -5609,6 +5631,9 @@ class CounterSalePage(QWidget):
         self._hist_item_mode.toggled.connect(self._on_history_mode_toggled)
         self._hist_bill_mode.toggled.connect(self._on_history_mode_toggled)
         self._hist_refresh_btn.clicked.connect(self._refresh_history)
+        self._hist_sales_history_btn.clicked.connect(
+            self._on_open_sales_history
+        )
         return bar
 
     def _on_show_today_history(self):
@@ -5625,6 +5650,16 @@ class CounterSalePage(QWidget):
         self._history_filter = HISTORY_FILTER_ALL
         self._history_financial_year = None
         self._refresh_history()
+
+    def _on_open_sales_history(self):
+        """Open the dedicated Sales History screen.
+
+        The toolbar button only requests navigation: the main window
+        receives ``sales_history_requested`` and runs the same
+        "Sales > Sales History" action as the top menu (same page lookup,
+        title and status text), so there is a single navigation path.
+        """
+        self.sales_history_requested.emit()
 
     # ------------------------------------------------------------------
     # History view filtering (date / financial year / all)
@@ -6398,7 +6433,8 @@ class CounterSalePage(QWidget):
             if hasattr(self, "_new_btn"):
                 self._new_btn.setStyleSheet(_fresh_btn_style(p["accent"], p))
             for attr in (
-                "_hist_all_btn", "_hist_today_btn", "_hist_refresh_btn"
+                "_hist_all_btn", "_hist_today_btn", "_hist_refresh_btn",
+                "_hist_sales_history_btn",
             ):
                 btn = getattr(self, attr, None)
                 if btn is not None:
