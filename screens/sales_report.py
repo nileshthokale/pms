@@ -483,6 +483,26 @@ class SalesReportPage(QWidget):
         parts.append(f"From: {_dmy(picked_from)} To: {_dmy(picked_to)}")
         return " | ".join(parts)
 
+    def _report_title(self, filters: dict | None = None) -> str:
+        """Print title matching the filters that are actually applied.
+
+        Company only → COMPANYWISE SALES REPORT; Customer/Patient only →
+        PATIENTWISE; Item only → ITEMWISE; no filter kind → DAILY.  When
+        several kinds are entered the title combines them, so no filter
+        is silently dropped and the title cannot mislead.
+        """
+        f = self._current_filters() if filters is None else filters
+        kinds: list[str] = []
+        if f.get("company_id") is not None:
+            kinds.append("COMPANYWISE")
+        if f.get("customer_id") is not None or f.get("patient"):
+            kinds.append("PATIENTWISE")
+        if f.get("item_id") is not None:
+            kinds.append("ITEMWISE")
+        if not kinds:
+            return "DAILY SALES REPORT"
+        return " & ".join(kinds) + " SALES REPORT"
+
     def _financial_year_name(self) -> str:
         year = self._history_financial_year or {}
         return str(year.get("name") or "FY " + "–".join(
@@ -494,8 +514,9 @@ class SalesReportPage(QWidget):
         if not self._range_valid():
             QMessageBox.warning(self, "Sales Report", "From Date cannot be later than To Date.")
             return
+        filters = self._current_filters()
         try:
-            report = SalesReportDAO.get_sales_report(**self._current_filters())
+            report = SalesReportDAO.get_sales_report(**filters)
         except Exception as exc:
             QMessageBox.warning(self, "Sales Report", f"Could not prepare report: {exc}")
             return
@@ -508,6 +529,9 @@ class SalesReportPage(QWidget):
             output = document_printing.generate_daily_sales_report_pdf(
                 report["rows"], report["summary"], self._financial_year_name(),
                 self._filter_summary(), path,
+                from_date=filters.get("from_date") or "",
+                to_date=filters.get("to_date") or "",
+                report_title=self._report_title(filters),
             )
         except document_printing.DocumentPrintError as exc:
             QMessageBox.warning(self, "Sales Report", str(exc))

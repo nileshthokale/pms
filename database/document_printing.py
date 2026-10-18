@@ -295,19 +295,53 @@ def _companywise_company_name(filter_summary: Any, rows: list[dict]) -> str:
     return "All Companies"
 
 
-def _companywise_period(rows: list[dict]) -> tuple[str | None, str | None]:
-    """Date range from the already-filtered rows (no re-query, no recalc)."""
-    dates = sorted({str(r.get("sale_date") or "").strip() for r in rows if str(r.get("sale_date") or "").strip()})
+def _companywise_period(
+    rows: list[dict], from_date: Any = "", to_date: Any = "",
+) -> tuple[str | None, str | None]:
+    """Header period for the sales report.
 
-    def _fmt(iso: str) -> str:
-        parts = iso.split("-")
+    The From/To dates selected on the report screen are used when the
+    caller passes them (ISO form, DD-MM-YYYY output).  A bound that is
+    not passed falls back to the sale dates of the already-filtered rows
+    (no re-query, no recalc), which is the previous behaviour.
+    """
+
+    def _fmt(iso: Any) -> str:
+        parts = str(iso).split("-")
         if len(parts) == 3 and all(p.isdigit() for p in parts):
             return f"{parts[2]}-{parts[1]}-{parts[0]}"
-        return iso
+        return str(iso)
 
+    picked_from = _fmt(from_date) if str(from_date or "").strip() else None
+    picked_to = _fmt(to_date) if str(to_date or "").strip() else None
+    if picked_from and picked_to:
+        return picked_from, picked_to
+    dates = sorted({str(r.get("sale_date") or "").strip() for r in rows if str(r.get("sale_date") or "").strip()})
     if not dates:
-        return None, None
-    return _fmt(dates[0]), _fmt(dates[-1])
+        return picked_from, picked_to
+    return picked_from or _fmt(dates[0]), picked_to or _fmt(dates[-1])
+
+
+def _sales_report_title(filter_summary: Any) -> str:
+    """Report title from the top filter info (print routing only).
+
+    Company only → COMPANYWISE SALES REPORT; Customer/Patient only →
+    PATIENTWISE; Item only → ITEMWISE; no such filter → DAILY.  When
+    several kinds are entered the title combines them so no filter is
+    silently dropped and the title cannot mislead.  Filtering itself
+    stays in the DAO/screen.
+    """
+    text = str(filter_summary or "")
+    kinds: list[str] = []
+    if "Company:" in text:
+        kinds.append("COMPANYWISE")
+    if "Customer:" in text or "Patient:" in text:
+        kinds.append("PATIENTWISE")
+    if "Item:" in text:
+        kinds.append("ITEMWISE")
+    if not kinds:
+        return "DAILY SALES REPORT"
+    return " & ".join(kinds) + " SALES REPORT"
 
 
 def _billwise_bills(rows: list[dict]) -> list[dict]:
@@ -372,8 +406,9 @@ def _billwise_pdf_bytes(
     period_to: str | None,
     financial_year: str,
     company_name: str,
+    report_title: str = "DAILY SALES REPORT",
 ) -> bytes:
-    """Minimal portrait-A4 writer for the Daily Sales Report table."""
+    """Minimal portrait-A4 writer for the Sales Report table."""
     PAGE_W, PAGE_H = 595.0, 842.0
     ML, MT, MB = 36.0, 36.0, 36.0
     CONTENT_X0 = ML
@@ -449,15 +484,15 @@ def _billwise_pdf_bytes(
                     f"BT /F1 8.50 Tf 1 0 0 1 {_centered_x(txt, 8.5, False):.2f} {y - 7.50:.2f} Tm ({_escape(txt)}) Tj ET"
                 )
                 y -= 11.0
-            title = "DAILY SALES REPORT"
+            title = str(report_title or "").strip() or "DAILY SALES REPORT"
             commands.append(
                 f"BT /F2 11.00 Tf 1 0 0 1 {_centered_x(title, 11.0, True):.2f} {y - 10.00:.2f} Tm ({_escape(title)}) Tj ET"
             )
             y -= 15.0
             if period_from and period_to:
-                period_txt = f"From : {period_from}    To : {period_to}"
+                period_txt = f"From: {period_from}    To: {period_to}"
             elif period_from:
-                period_txt = f"Date : {period_from}"
+                period_txt = f"Date: {period_from}"
             else:
                 period_txt = f"Financial Year : {_text(financial_year)}"
             period_txt = _companywise_fit(period_txt, CONTENT_W, 8.5, False)
@@ -617,13 +652,21 @@ def _billwise_pdf_bytes(
 def generate_daily_sales_report_pdf(
     rows: list[dict], summary: dict, financial_year: str, filter_summary: str,
     output_path: str | os.PathLike[str] | None = None,
+    from_date: str = "", to_date: str = "", report_title: str = "",
 ) -> str:
-    """Create a read-only, portrait Daily Sales Report PDF.
+    """Create a read-only, portrait Sales Report PDF.
 
     This deliberately receives already-filtered report rows rather than
     querying the database.  Every bill prints as its own section with its
     stored item lines and its own bill total, followed by a bordered grand
     total summed from the displayed stored values.
+
+    ``from_date`` / ``to_date`` are the From Date / To Date the user
+    selected on the Sales Report screen (ISO form); they are printed in
+    the header as DD-MM-YYYY exactly as selected.  When they are not
+    passed, the header falls back to the sale dates of the rows.
+    ``report_title`` is the title chosen from the active filters; when it
+    is not passed, it is derived from ``filter_summary``.
     """
     path = _output_path(output_path, "sales_report", str(financial_year).replace(" ", "_"))
     try:
@@ -633,7 +676,8 @@ def generate_daily_sales_report_pdf(
     store_name = str(profile.get("name") or "").strip()
     store_address = str(profile.get("address") or "").strip()
     company_name = _companywise_company_name(filter_summary, rows)
-    period_from, period_to = _companywise_period(rows)
+    period_from, period_to = _companywise_period(rows, from_date, to_date)
+    title = str(report_title or "").strip() or _sales_report_title(filter_summary)
     bills = _billwise_bills(rows)
     # ── build drawable rows (bill header + lines + bill total) ──
     bill_groups: list[list[dict]] = []
@@ -731,7 +775,7 @@ def generate_daily_sales_report_pdf(
     try:
         path.write_bytes(_billwise_pdf_bytes(
             pages, store_name, store_address, period_from, period_to,
-            str(financial_year), company_name,
+            str(financial_year), company_name, title,
         ))
     except OSError as exc:
         raise DocumentPrintError(f"Could not create PDF at {path}: {exc}") from exc
