@@ -1,3 +1,9 @@
+REPORT_LEDGER_SUBMENU = [
+    "Supplier Ledger",
+    "Customer Ledger",
+    "Itemwise Ledger",
+]
+
 MENUS = {
     "Sales": [
         "New Bill",
@@ -13,7 +19,8 @@ MENUS = {
         "Supplier Payment",
     ],
     "Account": [
-        "Customer Receipt",
+        "Supplier Payment Voucher",
+        "Customer Receipt Voucher",
         "Cash Book",
         "Bank Book",
         "Ledger",
@@ -30,9 +37,9 @@ MENUS = {
         "Expiry Report",
         "Party Wise Report",
         "GST Report",
-        "Supplier Ledger",
-        "Customer Ledger",
-        "Itemwise Ledger",
+        {
+            "Ledger": REPORT_LEDGER_SUBMENU,
+        },
     ],
     "Master": [
         "Item Master",
