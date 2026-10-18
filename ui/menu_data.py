@@ -30,6 +30,9 @@ MENUS = {
         "Expiry Report",
         "Party Wise Report",
         "GST Report",
+        "Supplier Ledger",
+        "Customer Ledger",
+        "Itemwise Ledger",
     ],
     "Master": [
         "Item Master",
