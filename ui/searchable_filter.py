@@ -164,11 +164,21 @@ class SearchableFilterEdit(QLineEdit):
             return
         if key in (Qt.Key_Return, Qt.Key_Enter) and popup.isVisible():
             current = popup.currentIndex()
-            if not current.isValid() and self._completer.completionCount():
+            if not current.isValid() and self._completer.completionCount() == 1:
+                # An unhighlighted but unambiguous single match keeps the
+                # long-standing "type a partial term, Enter takes it"
+                # convenience.
                 current = self._completer.completionModel().index(0, 0)
             if current.isValid():
+                # A suggestion is explicitly highlighted (mouse hover or
+                # Down/Up) — or it is the only candidate: Enter takes it.
                 self._on_completion_activated(current)
-            event.accept()
-            return
+                event.accept()
+                return
+            # Several candidates and nothing highlighted.  Never silently
+            # swap the operator's text for the first candidate: close the
+            # list and let the edit handle Enter normally so its owner
+            # (``returnPressed``) searches exactly what was typed.
+            popup.hide()
         super().keyPressEvent(event)
 

@@ -319,10 +319,12 @@ class _CustomerReceiptEntryDialog(QDialog):
             conn = None
             try:
                 from database.connection import get_connection
+                from core.doc_formatter import format_document_number
                 conn = get_connection()
-                self.voucher_no_edit.setText(
-                    CustomerReceiptDAO.generate_next_voucher_no(conn)
-                )
+                full = CustomerReceiptDAO.generate_next_voucher_no(conn)
+                self._full_voucher_no = full
+                self.voucher_no_edit.setText(format_document_number(full))
+                self.voucher_no_edit.setToolTip(f"Full Voucher: {full}")
             finally:
                 if conn:
                     conn.close()
@@ -339,7 +341,11 @@ class _CustomerReceiptEntryDialog(QDialog):
     # ------------------------------------------------------------------
 
     def _populate_receipt(self, rec: dict):
-        self.voucher_no_edit.setText(rec.get("voucher_no", ""))
+        from core.doc_formatter import format_document_number
+        full = rec.get("voucher_no", "")
+        self._full_voucher_no = full
+        self.voucher_no_edit.setText(format_document_number(full))
+        self.voucher_no_edit.setToolTip(f"Full Voucher: {full}" if full else "")
 
         from PySide6.QtCore import QDate
         rd = rec.get("receipt_date", "")
@@ -604,7 +610,11 @@ class CustomerReceiptPage(QWidget):
 
         self._hist_table.setRowCount(len(receipts))
         for i, r in enumerate(receipts):
-            self._hist_table.setItem(i, 0, QTableWidgetItem(r.get("voucher_no", "")))
+            from core.doc_formatter import format_document_number
+            raw_vno = r.get("voucher_no", "")
+            vno_item = QTableWidgetItem(format_document_number(raw_vno))
+            vno_item.setToolTip(f"Full Voucher: {raw_vno}")
+            self._hist_table.setItem(i, 0, vno_item)
             self._hist_table.setItem(i, 1, QTableWidgetItem(r.get("receipt_date", "")))
             self._hist_table.setItem(i, 2, QTableWidgetItem(r.get("receipt_time", "")))
             self._hist_table.setItem(i, 3, QTableWidgetItem(r.get("customer_name", "")))

@@ -357,7 +357,8 @@ class SalesHistoryAndNumberingTests(unittest.TestCase):
         self._pump()
 
         self.assertEqual(hist_page._table.rowCount(), 1)
-        self.assertEqual(hist_page._table.item(0, 0).text(), "CS-2025-01")
+        self.assertEqual(hist_page._table.item(0, 0).text(), "01")
+        self.assertIn("CS-2025-01", hist_page._table.item(0, 0).toolTip())
         self.assertEqual(hist_page._table.item(0, 2).text(), "Alice Wonderland")
 
         # Patient search must be partial: "bob" matches "Bob Builder"
@@ -367,7 +368,8 @@ class SalesHistoryAndNumberingTests(unittest.TestCase):
         self._pump()
 
         self.assertEqual(hist_page._table.rowCount(), 1)
-        self.assertEqual(hist_page._table.item(0, 0).text(), "CS-2026-01")
+        self.assertEqual(hist_page._table.item(0, 0).text(), "01")
+        self.assertIn("CS-2026-01", hist_page._table.item(0, 0).toolTip())
         self.assertEqual(hist_page._table.item(0, 2).text(), "Bob Builder")
 
         # Clearing patient search returns every bill across all years
@@ -420,14 +422,21 @@ class SalesHistoryAndNumberingTests(unittest.TestCase):
         self._pump()
         self.addCleanup(lambda: (hist_page.hide(), hist_page.deleteLater()))
 
-        # Select FY 2025-2026 in dropdown
-        idx = -1
-        for i in range(hist_page._fy_combo.count()):
-            if "2025-2026" in hist_page._fy_combo.itemText(i):
-                idx = i
-                break
-        self.assertGreater(idx, 0)
-        hist_page._fy_combo.setCurrentIndex(idx)
+        # FY dropdown is present on SalesHistoryPage
+        self.assertTrue(hasattr(hist_page, "_fy_combo"))
+        self.assertEqual(hist_page._fy_combo.itemText(0), "All Financial Years")
+
+        # By default (All Financial Years), bills from all years appear
+        all_bills = [hist_page._table.item(r, 0).text() for r in range(hist_page._table.rowCount())]
+        self.assertIn("CS-FY-START", all_bills)
+        self.assertIn("CS-FY-END", all_bills)
+        self.assertIn("CS-NEXT-FY", all_bills)
+
+        # Apply date filter for 2025-04-01 to 2026-03-31
+        hist_page._date_check.setChecked(True)
+        hist_page._from_date.setDate(QDate.fromString("2025-04-01", "yyyy-MM-dd"))
+        hist_page._to_date.setDate(QDate.fromString("2026-03-31", "yyyy-MM-dd"))
+        hist_page._on_search_clicked()
         self._pump()
 
         # Both 1 April 2025 and 31 March 2026 must be included; 1 April 2026 excluded
@@ -627,8 +636,8 @@ class SalesHistoryAndNumberingTests(unittest.TestCase):
         self.assertGreaterEqual(fb_row_idx, 0)
         self.assertGreaterEqual(gen_row_idx, 0)
 
-        # Fallback bill displays '---' and 'WALKIN'
-        self.assertEqual(hist_page._table.item(fb_row_idx, 0).text(), "---")
+        # Fallback bill has empty patient name, so Bill No column is blank ''
+        self.assertEqual(hist_page._table.item(fb_row_idx, 0).text(), "")
         self.assertEqual(hist_page._table.item(fb_row_idx, 2).text(), "WALKIN")
 
         # Genuine bill displays '1905' and 'Real Patient'
@@ -648,7 +657,7 @@ class SalesHistoryAndNumberingTests(unittest.TestCase):
         self.assertEqual(customer_labels, [])
 
         grid_fb = dlg_fb._meta_group.layout()
-        self.assertEqual(grid_fb.itemAtPosition(0, 1).widget().text(), "---")
+        self.assertEqual(grid_fb.itemAtPosition(0, 1).widget().text(), "")
         self.assertIn("Patient", grid_fb.itemAtPosition(1, 0).widget().text())
         self.assertEqual(grid_fb.itemAtPosition(1, 1).widget().text(), "WALKIN")
         self.assertIn("Doctor", grid_fb.itemAtPosition(1, 2).widget().text())
