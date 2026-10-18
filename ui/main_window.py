@@ -115,8 +115,22 @@ class PharmacyMainWindow(QMainWindow):
                     page = screens.PartyWiseReportPage()
                 elif menu_name == "Reports" and item_name == "GST Report":
                     page = screens.GSTReportPage()
+                elif menu_name == "Reports" and item_name == "Supplier Ledger":
+                    page = screens.SupplierLedgerPage()
+                elif menu_name == "Reports" and item_name == "Customer Ledger":
+                    page = screens.CustomerLedgerPage()
+                elif menu_name == "Reports" and item_name == "Itemwise Ledger":
+                    page = screens.ItemwiseLedgerPage()
                 elif menu_name == "Sales" and item_name == "New Bill":
                     page = screens.CounterSalePage()
+                    # The Counter Sale toolbar's "Sales History" button is
+                    # a second entry point: route it through the identical
+                    # menu action so both open the same page, view and
+                    # status text (one navigation path, no duplicate
+                    # handlers or routes).
+                    page.sales_history_requested.connect(
+                        lambda: self._on_menu_action("Sales", "Sales History")
+                    )
                 elif menu_name == "Sales" and item_name == "Hold Bill":
                     page = screens.HoldBillPage()
                 elif menu_name == "Sales" and item_name == "Day End":

@@ -38,28 +38,9 @@ def _money(value: Any) -> str:
 
 
 def _purchase_display_bill_no(value: Any) -> str:
-    """Display-only Bill/Voucher number without the financial-year prefix.
-
-    Purchase vouchers are stored with a financial-year prefix such as
-    ``2026-2027-Credit-250`` (or, in simplified form, ``2026-2027-123``).
-    This helper strips only the leading ``YYYY-YYYY-`` prefix and returns
-    the remainder (``Credit-250`` / ``123``) for the Purchase Report
-    printout.  Values without that prefix (``PV-0001``, ``INV-001``,
-    plain numbers) are returned unchanged.  Stored data is never altered.
-    """
-    import re
-
-    if value is None:
-        return ""
-    text = str(value).strip()
-    if not text:
-        return ""
-    match = re.match(r"^\d{4}-\d{4}-(.+)$", text)
-    if match:
-        remainder = match.group(1).strip()
-        if remainder:
-            return remainder
-    return text
+    """Display-only Bill/Voucher number formatted to numeric component only."""
+    from core.doc_formatter import format_document_number
+    return format_document_number(value)
 
 
 def _escape(value: Any) -> str:
@@ -107,9 +88,19 @@ def _payment_data(payment_id: int) -> tuple[dict, list[dict]]:
 
 
 def _header(title: str, record: dict) -> list[str]:
-    identifier = record.get("bill_no") or record.get("voucher_no") or ""
+    raw_identifier = record.get("bill_no") or record.get("voucher_no") or ""
+    from core.doc_formatter import (
+        format_document_number,
+        format_purchase_voucher_number,
+        format_time_12hr,
+    )
+    if title == "Purchase Invoice":
+        identifier = format_purchase_voucher_number(raw_identifier) if raw_identifier else ""
+    else:
+        identifier = format_document_number(raw_identifier) if raw_identifier else ""
     date = record.get("sale_date") or record.get("voucher_date") or record.get("receipt_date") or record.get("payment_date") or ""
-    time = record.get("sale_time") or record.get("voucher_time") or record.get("receipt_time") or record.get("payment_time") or ""
+    raw_time = record.get("sale_time") or record.get("voucher_time") or record.get("receipt_time") or record.get("payment_time") or ""
+    time = format_time_12hr(raw_time)
     lines = [title, f"Document No: {identifier}", f"Date: {date}    Time: {time}"]
     party = record.get("customer_name") or record.get("supplier_name")
     if party is not None:
@@ -304,19 +295,53 @@ def _companywise_company_name(filter_summary: Any, rows: list[dict]) -> str:
     return "All Companies"
 
 
-def _companywise_period(rows: list[dict]) -> tuple[str | None, str | None]:
-    """Date range from the already-filtered rows (no re-query, no recalc)."""
-    dates = sorted({str(r.get("sale_date") or "").strip() for r in rows if str(r.get("sale_date") or "").strip()})
+def _companywise_period(
+    rows: list[dict], from_date: Any = "", to_date: Any = "",
+) -> tuple[str | None, str | None]:
+    """Header period for the sales report.
 
-    def _fmt(iso: str) -> str:
-        parts = iso.split("-")
+    The From/To dates selected on the report screen are used when the
+    caller passes them (ISO form, DD-MM-YYYY output).  A bound that is
+    not passed falls back to the sale dates of the already-filtered rows
+    (no re-query, no recalc), which is the previous behaviour.
+    """
+
+    def _fmt(iso: Any) -> str:
+        parts = str(iso).split("-")
         if len(parts) == 3 and all(p.isdigit() for p in parts):
             return f"{parts[2]}-{parts[1]}-{parts[0]}"
-        return iso
+        return str(iso)
 
+    picked_from = _fmt(from_date) if str(from_date or "").strip() else None
+    picked_to = _fmt(to_date) if str(to_date or "").strip() else None
+    if picked_from and picked_to:
+        return picked_from, picked_to
+    dates = sorted({str(r.get("sale_date") or "").strip() for r in rows if str(r.get("sale_date") or "").strip()})
     if not dates:
-        return None, None
-    return _fmt(dates[0]), _fmt(dates[-1])
+        return picked_from, picked_to
+    return picked_from or _fmt(dates[0]), picked_to or _fmt(dates[-1])
+
+
+def _sales_report_title(filter_summary: Any) -> str:
+    """Report title from the top filter info (print routing only).
+
+    Company only → COMPANYWISE SALES REPORT; Customer/Patient only →
+    PATIENTWISE; Item only → ITEMWISE; no such filter → DAILY.  When
+    several kinds are entered the title combines them so no filter is
+    silently dropped and the title cannot mislead.  Filtering itself
+    stays in the DAO/screen.
+    """
+    text = str(filter_summary or "")
+    kinds: list[str] = []
+    if "Company:" in text:
+        kinds.append("COMPANYWISE")
+    if "Customer:" in text or "Patient:" in text:
+        kinds.append("PATIENTWISE")
+    if "Item:" in text:
+        kinds.append("ITEMWISE")
+    if not kinds:
+        return "DAILY SALES REPORT"
+    return " & ".join(kinds) + " SALES REPORT"
 
 
 def _billwise_bills(rows: list[dict]) -> list[dict]:
@@ -381,8 +406,9 @@ def _billwise_pdf_bytes(
     period_to: str | None,
     financial_year: str,
     company_name: str,
+    report_title: str = "DAILY SALES REPORT",
 ) -> bytes:
-    """Minimal portrait-A4 writer for the Daily Sales Report table."""
+    """Minimal portrait-A4 writer for the Sales Report table."""
     PAGE_W, PAGE_H = 595.0, 842.0
     ML, MT, MB = 36.0, 36.0, 36.0
     CONTENT_X0 = ML
@@ -424,7 +450,8 @@ def _billwise_pdf_bytes(
     def _bill_head_text(bill_no: str, sale_date: str, patient: str) -> str:
         parts: list[str] = []
         if bill_no:
-            parts.append(f"Bill No: {bill_no}")
+            from core.doc_formatter import format_document_number
+            parts.append(f"Bill No: {format_document_number(bill_no)}")
         if sale_date:
             parts.append(f"Date: {_fmt_date(sale_date)}")
         if patient:
@@ -457,15 +484,15 @@ def _billwise_pdf_bytes(
                     f"BT /F1 8.50 Tf 1 0 0 1 {_centered_x(txt, 8.5, False):.2f} {y - 7.50:.2f} Tm ({_escape(txt)}) Tj ET"
                 )
                 y -= 11.0
-            title = "DAILY SALES REPORT"
+            title = str(report_title or "").strip() or "DAILY SALES REPORT"
             commands.append(
                 f"BT /F2 11.00 Tf 1 0 0 1 {_centered_x(title, 11.0, True):.2f} {y - 10.00:.2f} Tm ({_escape(title)}) Tj ET"
             )
             y -= 15.0
             if period_from and period_to:
-                period_txt = f"From : {period_from}    To : {period_to}"
+                period_txt = f"From: {period_from}    To: {period_to}"
             elif period_from:
-                period_txt = f"Date : {period_from}"
+                period_txt = f"Date: {period_from}"
             else:
                 period_txt = f"Financial Year : {_text(financial_year)}"
             period_txt = _companywise_fit(period_txt, CONTENT_W, 8.5, False)
@@ -625,13 +652,21 @@ def _billwise_pdf_bytes(
 def generate_daily_sales_report_pdf(
     rows: list[dict], summary: dict, financial_year: str, filter_summary: str,
     output_path: str | os.PathLike[str] | None = None,
+    from_date: str = "", to_date: str = "", report_title: str = "",
 ) -> str:
-    """Create a read-only, portrait Daily Sales Report PDF.
+    """Create a read-only, portrait Sales Report PDF.
 
     This deliberately receives already-filtered report rows rather than
     querying the database.  Every bill prints as its own section with its
     stored item lines and its own bill total, followed by a bordered grand
     total summed from the displayed stored values.
+
+    ``from_date`` / ``to_date`` are the From Date / To Date the user
+    selected on the Sales Report screen (ISO form); they are printed in
+    the header as DD-MM-YYYY exactly as selected.  When they are not
+    passed, the header falls back to the sale dates of the rows.
+    ``report_title`` is the title chosen from the active filters; when it
+    is not passed, it is derived from ``filter_summary``.
     """
     path = _output_path(output_path, "sales_report", str(financial_year).replace(" ", "_"))
     try:
@@ -641,7 +676,8 @@ def generate_daily_sales_report_pdf(
     store_name = str(profile.get("name") or "").strip()
     store_address = str(profile.get("address") or "").strip()
     company_name = _companywise_company_name(filter_summary, rows)
-    period_from, period_to = _companywise_period(rows)
+    period_from, period_to = _companywise_period(rows, from_date, to_date)
+    title = str(report_title or "").strip() or _sales_report_title(filter_summary)
     bills = _billwise_bills(rows)
     # ── build drawable rows (bill header + lines + bill total) ──
     bill_groups: list[list[dict]] = []
@@ -739,7 +775,7 @@ def generate_daily_sales_report_pdf(
     try:
         path.write_bytes(_billwise_pdf_bytes(
             pages, store_name, store_address, period_from, period_to,
-            str(financial_year), company_name,
+            str(financial_year), company_name, title,
         ))
     except OSError as exc:
         raise DocumentPrintError(f"Could not create PDF at {path}: {exc}") from exc
@@ -805,26 +841,8 @@ def _purchase_vh_type(row: dict) -> str:
 
 
 def _purchase_vh_no(row: dict) -> str:
-    """Voucher number for the companywise VhNo column (display only).
-
-    For stored ``YYYY-YYYY-Type-Seq`` vouchers (e.g.
-    ``2026-2027-Credit-250``) shows only the sequential part (``250``),
-    since the type already has its own VhType column.  Other values fall
-    back to the FY-prefix-stripped form, never touching stored data.
-    """
-    import re
-
-    voucher = str(row.get("voucher_no") or "").strip()
-    match = re.match(r"^\d{4}-\d{4}-(.+)$", voucher)
-    if match:
-        remainder = match.group(1).strip()
-        if "-" in remainder:
-            seq = remainder.rsplit("-", 1)[-1].strip()
-            if seq:
-                return seq
-        if remainder:
-            return remainder
-    return _purchase_display_bill_no(voucher)
+    """Voucher number for the companywise VhNo column (display only)."""
+    return _purchase_display_bill_no(row.get("voucher_no"))
 
 
 def _purchase_fmt_vhdate(iso: Any) -> str:
@@ -860,9 +878,13 @@ def generate_purchase_report_pdf(
     Print-only columns: Voucher Date, Discount, GST%, GST Amount,
     Purchase Rate and Net Rate are excluded from the printed PDF only.
     The on-screen report, DAO rows, filters, summary math and stored data
-    are unchanged.  When a Company is entered in the top filter info, the
-    Company column is also hidden from the print (it is already known
-    from the header), print-only.
+    are unchanged.  Any filter value entered in the top boxes is already
+    known from the header, so its column is hidden from the print only:
+    Supplier filter hides the Supplier column, Company filter hides the
+    Company column, Item filter hides the Item column, Invoice filter
+    hides the Invoice column, Voucher filter hides the Voucher column and
+    Batch filter hides the Batch column (one, two or more values hide all
+    matching columns).  Print-only.
 
     When only a Company Name is entered (other optional filters empty),
     the print becomes a Companywise Itemwise Purchase report grouped by
@@ -881,20 +903,25 @@ def generate_purchase_report_pdf(
         except OSError as exc:
             raise DocumentPrintError(f"Could not create PDF at {path}: {exc}") from exc
         return str(path)
-    # If a Company value was entered at the top (filter info), we already
-    # know the company, so hide the Company column from the print only.
+    # Print-only: hide any column whose filter value was entered at the top
+    # (it is already shown in the Filters header line).
     _filter_text = str(filter_summary or "")
-    _hide_company = "Company:" in _filter_text
-    if _hide_company:
-        headings = [
-            "Voucher", "Invoice", "I Date", "Supplier", "Item",
-            "Pack", "Batch", "Expiry", "Pay", "Free", "Rate", "MRP", "Amount",
-        ]
-    else:
-        headings = [
-            "Voucher", "Invoice", "I Date", "Supplier", "Item", "Company",
-            "Pack", "Batch", "Expiry", "Pay", "Free", "Rate", "MRP", "Amount",
-        ]
+    _filter_columns = (
+        ("Supplier:", "Supplier"),
+        ("Company:", "Company"),
+        ("Item:", "Item"),
+        ("Invoice:", "Invoice"),
+        ("Voucher:", "Voucher"),
+        ("Batch:", "Batch"),
+    )
+    _hidden: set[str] = {
+        column for key, column in _filter_columns if key in _filter_text
+    }
+    _full_headings = [
+        "Voucher", "Invoice", "I Date", "Supplier", "Item", "Company",
+        "Pack", "Batch", "Expiry", "Pay", "Free", "Rate", "MRP", "Amount",
+    ]
+    headings = [h for h in _full_headings if h not in _hidden]
 
     def _qty(value: Any) -> str:
         try:
@@ -914,25 +941,23 @@ def generate_purchase_report_pdf(
     detail_rows: list[list[str]] = []
     for row in rows:
         full = [
-            _purchase_display_bill_no(row.get("voucher_no")),
-            _purchase_display_bill_no(row.get("invoice_no")),
-            _plain(row.get("invoice_date")),
-            _plain(row.get("supplier_name")),
-            _plain(row.get("item_name")),
-            _plain(row.get("company_name")),
-            _plain(row.get("pack_size")),
-            _plain(row.get("batch_no")),
-            _plain(row.get("expiry")),
-            _qty(row.get("pay_qty")),
-            _qty(row.get("free_qty")),
-            _amt(row.get("rate")),
-            _amt(row.get("mrp")),
-            _amt(row.get("amount")),
+            ("Voucher", _purchase_display_bill_no(row.get("voucher_no"))),
+            ("Invoice", _purchase_display_bill_no(row.get("invoice_no"))),
+            ("I Date", _plain(row.get("invoice_date"))),
+            ("Supplier", _plain(row.get("supplier_name"))),
+            ("Item", _plain(row.get("item_name"))),
+            ("Company", _plain(row.get("company_name"))),
+            ("Pack", _plain(row.get("pack_size"))),
+            ("Batch", _plain(row.get("batch_no"))),
+            ("Expiry", _plain(row.get("expiry"))),
+            ("Pay", _qty(row.get("pay_qty"))),
+            ("Free", _qty(row.get("free_qty"))),
+            ("Rate", _amt(row.get("rate"))),
+            ("MRP", _amt(row.get("mrp"))),
+            ("Amount", _amt(row.get("amount"))),
         ]
-        if _hide_company:
-            # Drop the Company cell (index 5), print-only.
-            del full[5]
-        detail_rows.append(full)
+        # Drop print-hidden filter columns (print-only, stored data kept).
+        detail_rows.append([v for h, v in full if h not in _hidden])
 
     totals_line = "Totals: " + " | ".join([
         f"Bills: {summary.get('total_bills', 0)}",
@@ -1452,38 +1477,37 @@ def _purchase_report_pdf_bytes(
     CONTENT_X0 = ML
     CONTENT_W = PAGE_W - ML - MR
     CONTENT_X1 = CONTENT_X0 + CONTENT_W
-    # Column widths (points) sum to CONTENT_W (786).  Wider for Item /
-    # Supplier / Company, narrow for qty columns, with breathing room so
-    # values never touch adjacent borders.  When the Company column is
-    # hidden (company already known from the top filter), its width is
-    # redistributed to the remaining columns.
-    if "Company" not in headings:
-        COL_WIDTHS = [
-            64.0, 60.0, 64.0, 90.0, 120.0, 42.0, 56.0, 44.0,
-            34.0, 34.0, 56.0, 56.0, 66.0,
-        ]
-    else:
-        COL_WIDTHS = [
-            62.0, 58.0, 62.0, 78.0, 104.0, 76.0, 38.0, 52.0, 40.0,
-            32.0, 32.0, 48.0, 48.0, 56.0,
-        ]
+    # Column widths (points) sum to CONTENT_W (786).  Base widths keep the
+    # existing proportions; when filter columns are hidden from the print,
+    # the freed width is redistributed proportionally so values never touch
+    # adjacent borders.
+    _BASE_WIDTHS = {
+        "Voucher": 62.0, "Invoice": 58.0, "I Date": 62.0, "Supplier": 78.0,
+        "Item": 104.0, "Company": 76.0, "Pack": 38.0, "Batch": 52.0,
+        "Expiry": 40.0, "Pay": 32.0, "Free": 32.0, "Rate": 48.0,
+        "MRP": 48.0, "Amount": 56.0,
+    }
+    _BASE_ALIGNS = {
+        "Voucher": "left", "Invoice": "left", "I Date": "center",
+        "Supplier": "left", "Item": "left", "Company": "left",
+        "Pack": "center", "Batch": "center", "Expiry": "center",
+        "Pay": "right", "Free": "right", "Rate": "right",
+        "MRP": "right", "Amount": "right",
+    }
+    _raw_widths = [_BASE_WIDTHS.get(h, 50.0) for h in headings]
+    _total_raw = sum(_raw_widths) or 1.0
+    _scale = CONTENT_W / _total_raw
+    COL_WIDTHS = [w * _scale for w in _raw_widths]
+    # Fix float rounding so the columns sum to exactly CONTENT_W.
+    _drift = CONTENT_W - sum(COL_WIDTHS)
+    if COL_WIDTHS:
+        COL_WIDTHS[-1] += _drift
     COL_X: list[float] = []
     _x = CONTENT_X0
     for _w in COL_WIDTHS:
         COL_X.append(_x)
         _x += _w
-    if "Company" not in headings:
-        ALIGNS = [
-            "left", "left", "center", "left", "left",
-            "center", "center", "center",
-            "right", "right", "right", "right", "right",
-        ]
-    else:
-        ALIGNS = [
-            "left", "left", "center", "left", "left", "left",
-            "center", "center", "center",
-            "right", "right", "right", "right", "right",
-        ]
+    ALIGNS = [_BASE_ALIGNS.get(h, "left") for h in headings]
     TITLE_PT, FY_PT, FILTER_PT = 13.0, 8.5, 7.5
     HEADER_PT, BODY_PT = 7.0, 7.0
     TOTALS_PT, NOTE_PT = 7.5, 7.0

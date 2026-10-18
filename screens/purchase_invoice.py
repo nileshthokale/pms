@@ -1,12 +1,17 @@
 from __future__ import annotations
 
-from datetime import datetime
+import calendar
+import re
+from datetime import datetime, date
 from decimal import Decimal, ROUND_HALF_UP
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QDate, QEvent, QStringListModel, Signal, QModelIndex, QPoint
+from PySide6.QtGui import QFont, QStandardItemModel, QStandardItem
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QCalendarWidget,
     QComboBox,
+    QCompleter,
     QDateEdit,
     QDialog,
     QFileDialog,
@@ -20,15 +25,18 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
     QTextEdit,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
 from database.supplier_dao import SupplierDAO
+from database.ledger_dao import LedgerDAO
 from database.item_dao import ItemDAO
 from database.tax_structures import rate_percent
 from database.purchase_dao import PurchaseDAO
@@ -36,6 +44,7 @@ from database import auth
 from database import financial_year
 from database.document_printing import DocumentPrintError, generate_purchase_invoice
 
+from ui.components import ConstrainedComboBox, SearchableComboBox
 from ui.theme import date_subcontrols, palette
 _p = palette()
 _DARK_BG = _p["bg"]
@@ -47,43 +56,103 @@ _TEXT = _p["text"]
 _TEXT_DIM = _p["text_dim"]
 _ERROR = "#c0392b"
 
-_COMBO_STYLE = (
-    f"QComboBox {{"
-    f"  background-color: {_SURFACE}; color: {_TEXT};"
-    f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-    f"  padding: 6px; font-size: 15px; font-family: 'Segoe UI';"
-    f"}}"
-    f"QComboBox:hover {{ border: 1px solid {_ACCENT}; }}"
-    f"QComboBox::drop-down {{ border: none; width: 24px; }}"
-    f"QComboBox::down-arrow {{ image: none; border: none; }}"
-    f"QComboBox QAbstractItemView {{"
-    f"  background-color: {_SURFACE}; color: {_TEXT};"
-    f"  border: 1px solid {_BORDER}; selection-background-color: {_ACCENT};"
-    f"  font-size: 15px; font-family: 'Segoe UI';"
-    f"}}"
-)
 
-_EDIT_STYLE = (
-    f"QLineEdit {{"
-    f"  background-color: {_SURFACE}; color: {_TEXT};"
-    f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-    f"  padding: 5px; font-size: 15px; font-family: 'Segoe UI';"
-    f"}}"
-    f"QLineEdit:focus {{ border: 1px solid {_ACCENT}; }}"
-)
+def _combo_style(p: dict | None = None) -> str:
+    p = p or palette()
+    surface = p["surface"]
+    text = p["text"]
+    border = p["border"]
+    accent = p["accent"]
+    selected_bg = p.get("selected", accent)
+    selected_text = p.get("selected_text", "#ffffff")
+    return (
+        f"QComboBox {{"
+        f"  background-color: {surface}; color: {text};"
+        f"  border: 1px solid {border}; border-radius: 2px;"
+        f"  padding: 2px 6px; font-size: 15px; font-weight: bold; font-family: 'Segoe UI';"
+        f"  min-height: 24px;"
+        f"}}"
+        f"QComboBox:hover {{ border: 1px solid {accent}; }}"
+        f"QComboBox::drop-down {{ border: none; width: 24px; }}"
+        f"QComboBox::down-arrow {{ image: none; border: none; }}"
+        f"QComboBox QAbstractItemView {{"
+        f"  background-color: {surface}; color: {text};"
+        f"  border: 1px solid {border}; selection-background-color: {selected_bg};"
+        f"  selection-color: {selected_text};"
+        f"  font-size: 15px; font-family: 'Segoe UI';"
+        f"  outline: none;"
+        f"}}"
+        f"QComboBox QAbstractItemView::item {{"
+        f"  min-height: 26px; padding: 2px 8px;"
+        f"}}"
+        f"QComboBox QAbstractItemView::item:selected {{"
+        f"  background-color: {selected_bg}; color: {selected_text};"
+        f"}}"
+    )
 
-_DATE_STYLE = (
-    f"QDateEdit {{"
-    f"  background-color: {_SURFACE}; color: {_TEXT};"
-    f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-    f"  padding: 5px; font-size: 15px; font-family: 'Segoe UI';"
-    f"}}"
-    f"QDateEdit:focus {{ border: 1px solid {_ACCENT}; }}"
-    # Shared calendar chevron (see ui.theme.date_subcontrols): a tinted,
-    # high-contrast drop-down button + arrow.  Never `image: none` here —
-    # that is what hid the icon on every date field.
-    + date_subcontrols(_p, width=24)
-)
+
+_COMBO_STYLE = _combo_style()
+
+
+def _edit_style(p: dict | None = None) -> str:
+    p = p or palette()
+    surface = p["surface"]
+    text = p["text"]
+    border = p["border"]
+    accent = p["accent"]
+    return (
+        f"QLineEdit {{"
+        f"  background-color: {surface}; color: {text};"
+        f"  border: 1px solid {border}; border-radius: 2px;"
+        f"  padding: 2px 6px; font-size: 15px; font-weight: bold; font-family: 'Segoe UI';"
+        f"  min-height: 24px;"
+        f"}}"
+        f"QLineEdit:focus {{ border: 1px solid {accent}; }}"
+    )
+
+
+_EDIT_STYLE = _edit_style()
+
+
+def _searchable_lineedit_style(p: dict | None = None) -> str:
+    p = p or palette()
+    text = p["text"]
+    return (
+        f"QLineEdit {{"
+        f"  background: transparent; color: {text};"
+        f"  border: none; padding: 1px 4px;"
+        f"  font-size: 14px; font-weight: bold; font-family: 'Segoe UI';"
+        f"}}"
+    )
+
+
+def _display_voucher_no(voucher_no: str) -> str:
+    """Return only the numeric / sequence part of a voucher number for display.
+    e.g. '2026-2027-Credit-0251' -> '251', preserving the full compound key in the database.
+    """
+    from core.doc_formatter import format_purchase_voucher_number
+    return format_purchase_voucher_number(voucher_no)
+
+
+def _date_style(p: dict | None = None) -> str:
+    p = p or palette()
+    surface = p["surface"]
+    text = p["text"]
+    border = p["border"]
+    accent = p["accent"]
+    return (
+        f"QDateEdit {{"
+        f"  background-color: {surface}; color: {text};"
+        f"  border: 1px solid {border}; border-radius: 2px;"
+        f"  padding: 2px 6px; font-size: 15px; font-weight: bold; font-family: 'Segoe UI';"
+        f"  min-height: 24px;"
+        f"}}"
+        f"QDateEdit:focus {{ border: 1px solid {accent}; }}"
+        + date_subcontrols(p, width=24)
+    )
+
+
+_DATE_STYLE = _date_style()
 
 _BTN_SAVE = (
     f"QPushButton {{ background-color: {_ACCENT}; color: white;"
@@ -133,23 +202,88 @@ def _make_edit(placeholder: str = "", width: int | None = None) -> QLineEdit:
     e = QLineEdit()
     e.setPlaceholderText(placeholder)
     e.setStyleSheet(_EDIT_STYLE)
-    e.setFont(__import__("PySide6.QtGui", fromlist=["QFont"]).QFont("Segoe UI", 12))
+    e.setFont(__import__("PySide6.QtGui", fromlist=["QFont"]).QFont("Segoe UI", 11))
+    e.setFixedHeight(32)
     if width:
-        e.setMaximumWidth(width)
+        e.setFixedWidth(width)
     return e
 
 
-def _make_combo() -> QComboBox:
-    c = QComboBox()
-    c.setStyleSheet(_COMBO_STYLE)
+def _entry_edit_style(p: dict | None = None) -> str:
+    p = p or palette()
+    surface = p["surface"]
+    text = p["text"]
+    border = p["border"]
+    accent = p["accent"]
+    disabled_bg = p.get("disabled_bg", surface)
+    return (
+        f"QLineEdit {{"
+        f"  background-color: {surface}; color: {text};"
+        f"  border: 1px solid {border}; border-radius: 2px;"
+        f"  padding: 2px 4px; font-size: 14px; font-weight: bold; font-family: 'Segoe UI';"
+        f"  min-height: 24px;"
+        f"}}"
+        f"QLineEdit:focus {{ border: 1px solid {accent}; }}"
+        f"QLineEdit:read-only {{"
+        f"  background-color: {disabled_bg}; color: {text};"
+        f"  border: 1px solid {border};"
+        f"}}"
+    )
+
+
+def _make_entry_edit(placeholder: str = "", width: int | None = None, p: dict | None = None) -> QLineEdit:
+    e = QLineEdit()
+    e.setPlaceholderText(placeholder)
+    e.setStyleSheet(_entry_edit_style(p))
+    e.setFont(__import__("PySide6.QtGui", fromlist=["QFont"]).QFont("Segoe UI", 10))
+    e.setFixedHeight(32)
+    if width:
+        e.setFixedWidth(width)
+    return e
+
+
+def _btn_add_item_style(p: dict | None = None) -> str:
+    p = p or palette()
+    accent = p.get("accent", _ACCENT)
+    accent_hover = p.get("accent_hover", _ACCENT_HOVER)
+    return (
+        f"QPushButton {{ background-color: {accent}; color: white;"
+        f"  border: none; border-radius: 2px; padding: 4px 8px;"
+        f"  font-weight: bold; font-size: 14px; font-family: 'Segoe UI'; }}"
+        f"QPushButton:hover {{ background-color: {accent_hover}; }}"
+    )
+
+
+def _make_combo(
+    *,
+    max_visible: int = 9,
+    max_height: int = 270,
+    max_width: int | None = None,
+    min_width: int | None = None,
+    allow_width_expansion: bool = True,
+) -> ConstrainedComboBox:
+    c = ConstrainedComboBox(
+        max_visible_items=max_visible,
+        max_popup_height=max_height,
+        max_popup_width=max_width,
+        min_popup_width=min_width,
+        allow_width_expansion=allow_width_expansion,
+    )
+    c.setStyleSheet(_combo_style())
+    c.setFixedHeight(32)
     return c
 
 
-def _make_date() -> QDateEdit:
-    d = QDateEdit()
+def _make_date(p: dict | None = None, parent: QWidget | None = None) -> QDateEdit:
+    d = QDateEdit(parent)
     d.setCalendarPopup(True)
-    d.setStyleSheet(_DATE_STYLE)
+    d.setDisplayFormat("dd-MM-yyyy")
+    d.setStyleSheet(_date_style(p))
+    d.setFixedHeight(32)
     return d
+
+
+# SearchableComboBox is defined in ui.components and imported above for use across all screens.
 
 
 def _safe_float(text: str, default: float = 0.0) -> float:
@@ -169,6 +303,459 @@ def _d(value) -> Decimal:
 def _round2(value) -> float:
     """Round to 2 decimal places using ROUND_HALF_UP."""
     return float(_d(value).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
+
+def parse_expiry_to_date(val: str | date | None) -> date | None:
+    """Parse any stored or entered expiry string into a datetime.date."""
+    if not val:
+        return None
+    if isinstance(val, date):
+        return val
+    s = str(val).strip()
+    if not s or s.upper() in ("DD-MM-YYYY", "MM/YY"):
+        return None
+    for fmt in (
+        "%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d",
+        "%d.%m.%Y", "%d-%m-%y", "%d/%m/%y", "%d.%m.%y",
+    ):
+        try:
+            return datetime.strptime(s, fmt).date()
+        except ValueError:
+            pass
+    parts = [p.strip() for p in re.split(r"[-/.]", s) if p.strip()]
+    if len(parts) == 2:
+        try:
+            if len(parts[0]) == 4:
+                y = int(parts[0])
+                m = int(parts[1])
+            else:
+                m = int(parts[0])
+                y = int(parts[1])
+                if y < 100:
+                    y += 2000
+            if 1 <= m <= 12:
+                last_day = calendar.monthrange(y, m)[1]
+                return date(y, m, last_day)
+        except Exception:
+            pass
+    if s.isdigit():
+        try:
+            if len(s) == 8:
+                d, m, y = int(s[:2]), int(s[2:4]), int(s[4:])
+                if 1 <= m <= 12 and 1 <= d <= 31 and 1900 <= y <= 2100:
+                    return date(y, m, d)
+                y, m, d = int(s[:4]), int(s[4:6]), int(s[6:])
+                if 1 <= m <= 12 and 1 <= d <= 31 and 1900 <= y <= 2100:
+                    return date(y, m, d)
+            elif len(s) == 6:
+                d, m, y = int(s[:2]), int(s[2:4]), int(s[4:]) + 2000
+                if 1 <= m <= 12 and 1 <= d <= 31:
+                    return date(y, m, d)
+            elif len(s) == 4:
+                m, y = int(s[:2]), int(s[2:]) + 2000
+                if 1 <= m <= 12:
+                    last_day = calendar.monthrange(y, m)[1]
+                    return date(y, m, last_day)
+        except Exception:
+            pass
+    return None
+
+
+def format_expiry_display(val: str | date | None) -> str:
+    """Format any expiry value to DD-MM-YYYY for UI display."""
+    d = parse_expiry_to_date(val)
+    return d.strftime("%d-%m-%Y") if d else (str(val).strip() if val else "")
+
+
+def normalize_expiry_db(val: str | date | None) -> str:
+    """Normalize any expiry value to YYYY-MM-DD for database storage."""
+    d = parse_expiry_to_date(val)
+    return d.strftime("%Y-%m-%d") if d else (str(val).strip() if val else "")
+
+
+class BatchCompleter(QCompleter):
+    """QCompleter that returns the batch number from UserRole data upon selection."""
+
+    def pathFromIndex(self, index: QModelIndex) -> str:
+        data = index.data(Qt.UserRole)
+        if isinstance(data, dict):
+            return data.get("batch_no", "")
+        return super().pathFromIndex(index)
+
+
+class BatchLineEdit(QLineEdit):
+    """Line edit for batch number with dynamic autocomplete for existing saved batches."""
+
+    batch_selected = Signal(dict)
+
+    def __init__(self, placeholder: str = "Batch", width: int = 96, p: dict | None = None, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setPlaceholderText(placeholder)
+        self.setFixedHeight(32)
+        if width:
+            self.setFixedWidth(width)
+        self.setFont(QFont("Segoe UI", 10))
+        self.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        self.textChanged.connect(
+            lambda t: self.setToolTip(f"Batch: {t}" if t else "Enter batch number")
+        )
+
+        self._model = QStandardItemModel(self)
+        self._completer = BatchCompleter(self._model, self)
+        self._completer.setCaseSensitivity(Qt.CaseInsensitive)
+        self._completer.setFilterMode(Qt.MatchContains)
+        self._completer.setCompletionRole(Qt.UserRole + 1)
+        self._completer.setCompletionMode(QCompleter.PopupCompletion)
+        self._completer.setMaxVisibleItems(8)
+
+        popup = self._completer.popup()
+        if popup is not None:
+            popup.setMinimumWidth(260)
+            popup.setMaximumHeight(240)
+            popup.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+            popup.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+        self.setCompleter(self._completer)
+        self._completer.activated[QModelIndex].connect(self._on_completer_activated)
+        self.textEdited.connect(self._on_text_edited)
+        self.installEventFilter(self)
+        self.refresh_theme(p)
+
+    def refresh_theme(self, p: dict | None = None):
+        p = p or palette()
+        surface = p["surface"]
+        text = p["text"]
+        border = p["border"]
+        accent = p["accent"]
+        selected_bg = p.get("selected", accent)
+        selected_fg = p.get("selected_text", "#ffffff")
+        self.setStyleSheet(_entry_edit_style(p))
+        popup = self._completer.popup()
+        if popup is not None:
+            popup.setStyleSheet(
+                f"QAbstractItemView {{"
+                f"  background-color: {surface}; color: {text};"
+                f"  border: 1px solid {border};"
+                f"  selection-background-color: {selected_bg}; selection-color: {selected_fg};"
+                f"  font-size: 14px; font-family: 'Segoe UI'; outline: 0;"
+                f"}}"
+                f"QAbstractItemView::item {{ min-height: 26px; padding: 2px 8px; }}"
+            )
+
+    def set_batches(self, batches: list[dict]):
+        """Populate the completer model with saved batches for the current item."""
+        self._model.clear()
+        for b in batches:
+            bno = (b.get("batch_no") or "").strip()
+            if not bno:
+                continue
+            exp = format_expiry_display(b.get("expiry", ""))
+            label = f"{bno} | {exp}" if exp else bno
+
+            item = QStandardItem(label)
+            item.setData(bno, Qt.UserRole + 1)
+            item.setData(b, Qt.UserRole)
+            self._model.appendRow(item)
+
+    def _on_text_edited(self, text: str):
+        if not self._model.rowCount():
+            return
+        prefix = text.strip()
+        if prefix:
+            self._completer.setCompletionPrefix(prefix)
+            if self._completer.completionCount() > 0:
+                self._completer.complete()
+            else:
+                popup = self._completer.popup()
+                if popup is not None and popup.isVisible():
+                    popup.hide()
+        else:
+            popup = self._completer.popup()
+            if popup is not None and popup.isVisible():
+                popup.hide()
+
+    def _on_completer_activated(self, index: QModelIndex):
+        data = index.data(Qt.UserRole)
+        if isinstance(data, dict):
+            self.setText(data.get("batch_no", ""))
+            self.batch_selected.emit(data)
+
+
+    def _resolve_typed_batch(self):
+        """If current text matches a saved batch exactly, emit batch_selected."""
+        typed = self.text().strip()
+        if not typed:
+            return
+        for r in range(self._model.rowCount()):
+            item = self._model.item(r)
+            bno = item.data(Qt.UserRole + 1)
+            if bno and str(bno).casefold() == typed.casefold():
+                data = item.data(Qt.UserRole)
+                if isinstance(data, dict):
+                    self.setText(data.get("batch_no", ""))
+                    self.batch_selected.emit(data)
+                break
+
+    def focusOutEvent(self, event):
+        popup = self._completer.popup()
+        if popup is not None and popup.isVisible():
+            popup.hide()
+        self._resolve_typed_batch()
+        super().focusOutEvent(event)
+
+    def eventFilter(self, obj, event):
+        if obj == self and event.type() == QEvent.KeyPress:
+            key = event.key()
+            popup = self._completer.popup()
+            if key == Qt.Key_Escape and popup is not None and popup.isVisible():
+                popup.hide()
+                return True
+            if key in (Qt.Key_Down, Qt.Key_Up):
+                if popup is not None and not popup.isVisible():
+                    self._completer.setCompletionPrefix(self.text().strip())
+                    self._completer.complete()
+                count = self._completer.completionCount()
+                if count and popup is not None:
+                    current = popup.currentIndex().row()
+                    if current < 0:
+                        current = 0 if key == Qt.Key_Down else count - 1
+                    elif key == Qt.Key_Down:
+                        current = min(current + 1, count - 1)
+                    else:
+                        current = max(current - 1, 0)
+                    self._completer.setCurrentRow(current)
+                    popup.setCurrentIndex(self._completer.completionModel().index(current, 0))
+                return True
+            if key in (Qt.Key_Return, Qt.Key_Enter):
+                if popup is not None and popup.isVisible():
+                    cur = popup.currentIndex()
+                    if cur.isValid():
+                        data = cur.data(Qt.UserRole)
+                        if isinstance(data, dict):
+                            self.setText(data.get("batch_no", ""))
+                            self.batch_selected.emit(data)
+                        popup.hide()
+                        return True
+                    else:
+                        popup.hide()
+                        self._resolve_typed_batch()
+                        return False
+                else:
+                    self._resolve_typed_batch()
+            if key == Qt.Key_Tab:
+                if popup is not None and popup.isVisible():
+                    popup.hide()
+                self._resolve_typed_batch()
+        return super().eventFilter(obj, event)
+
+
+class ExpiryDateEdit(QWidget):
+    """Date-picker / calendar control for Expiry Date with DD-MM-YYYY display,
+    clear text entry, and calendar popup.
+    """
+
+    dateChanged = Signal(QDate)
+
+    def __init__(self, parent: QWidget | None = None, width: int = 108, p: dict | None = None):
+        super().__init__(parent)
+        self.setObjectName("ExpiryDateEdit")
+        self._current_date: QDate | None = None
+        self._popup: QDialog | None = None
+        self._cal: QCalendarWidget | None = None
+        self._read_only: bool = False
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        self._line = QLineEdit(self)
+        self._line.setPlaceholderText("DD-MM-YYYY")
+        self._line.setAlignment(Qt.AlignCenter)
+        self._line.setFont(QFont("Segoe UI", 10))
+        self._line.editingFinished.connect(self._on_editing_finished)
+        layout.addWidget(self._line, 1)
+
+        self._btn = QToolButton(self)
+        self._btn.setFocusPolicy(Qt.NoFocus)
+        self._btn.setCursor(Qt.PointingHandCursor)
+        self._btn.clicked.connect(self.show_popup)
+        layout.addWidget(self._btn)
+
+        self.setFixedHeight(32)
+        if width:
+            self.setFixedWidth(width)
+
+        self._init_calendar()
+        self.refresh_theme(p)
+
+    def isReadOnly(self) -> bool:
+        return self._read_only
+
+    def setReadOnly(self, ro: bool):
+        self._read_only = bool(ro)
+        self._line.setReadOnly(self._read_only)
+        self._btn.setEnabled(not self._read_only)
+        self.refresh_theme()
+
+    def _init_calendar(self):
+        self._popup = QDialog(self, Qt.Popup | Qt.FramelessWindowHint)
+        self._popup.setAttribute(Qt.WA_DeleteOnClose, False)
+        pop_layout = QHBoxLayout(self._popup)
+        pop_layout.setContentsMargins(2, 2, 2, 2)
+        pop_layout.setSpacing(0)
+
+        self._cal = QCalendarWidget(self._popup)
+        self._cal.setGridVisible(True)
+        self._cal.setVerticalHeaderFormat(QCalendarWidget.NoVerticalHeader)
+        self._cal.clicked.connect(self._on_date_picked)
+        pop_layout.addWidget(self._cal)
+
+        today = QDate.currentDate()
+        self._cal.setCurrentPage(today.year() + 2, today.month())
+
+    def show_popup(self):
+        if self._read_only or not self._popup:
+            return
+        if self._current_date and self._current_date.isValid():
+            self._cal.setSelectedDate(self._current_date)
+            self._cal.setCurrentPage(self._current_date.year(), self._current_date.month())
+        else:
+            today = QDate.currentDate()
+            self._cal.setCurrentPage(today.year() + 2, today.month())
+        p = self.mapToGlobal(QPoint(0, self.height()))
+        self._popup.move(p)
+        self._popup.show()
+
+    def _on_date_picked(self, qdate: QDate):
+        if self._read_only:
+            return
+        self.setDate(qdate)
+        if self._popup:
+            self._popup.hide()
+        self._line.setFocus()
+
+    def _on_editing_finished(self):
+        if self._read_only:
+            return
+        raw = self._line.text().strip()
+        if not raw or raw.upper() == "DD-MM-YYYY":
+            self.clear()
+            return
+        d = parse_expiry_to_date(raw)
+        if d:
+            self.setDate(QDate(d.year, d.month, d.day))
+        else:
+            self._current_date = None
+
+    def text(self) -> str:
+        return self._line.text().strip()
+
+    def iso_date(self) -> str:
+        raw = self._line.text().strip()
+        d = parse_expiry_to_date(raw)
+        return d.strftime("%Y-%m-%d") if d else ""
+
+    def date(self) -> QDate:
+        return self._current_date if self._current_date else QDate(1900, 1, 1)
+
+    def setDate(self, qdate: QDate):
+        if qdate and qdate.isValid() and qdate > QDate(1900, 1, 1):
+            self._current_date = qdate
+            self._line.setText(qdate.toString("dd-MM-yyyy"))
+            self.dateChanged.emit(qdate)
+        else:
+            self.clear()
+
+    def setText(self, text: str):
+        if not text:
+            self.clear()
+            return
+        d = parse_expiry_to_date(text)
+        if d:
+            self.setDate(QDate(d.year, d.month, d.day))
+        else:
+            self._current_date = None
+            self._line.setText(str(text).strip())
+
+    def clear(self):
+        self._current_date = None
+        self._line.clear()
+        if self._cal:
+            today = QDate.currentDate()
+            self._cal.setCurrentPage(today.year() + 2, today.month())
+
+    def calendarPopup(self) -> bool:
+        return True
+
+    def setCalendarPopup(self, enable: bool):
+        pass
+
+    def displayFormat(self) -> str:
+        return "dd-MM-yyyy"
+
+    def setDisplayFormat(self, fmt: str):
+        pass
+
+    def setMinimumDate(self, min_date: QDate):
+        pass
+
+    def minimumDate(self) -> QDate:
+        return QDate(1900, 1, 1)
+
+    def setSpecialValueText(self, txt: str):
+        pass
+
+    def specialValueText(self) -> str:
+        return "DD-MM-YYYY"
+
+    def calendarWidget(self) -> QCalendarWidget | None:
+        return self._cal
+
+    def lineEdit(self) -> QLineEdit:
+        return self._line
+
+    def refresh_theme(self, p: dict | None = None):
+        p = p or palette()
+        surface = p["surface"]
+        text = p["text"]
+        border = p["border"]
+        accent = p["accent"]
+        disabled_bg = p.get("disabled_bg", surface)
+        disabled_text = p.get("disabled_text", "#9aa7b4")
+        header_bg = p.get("table_header", surface)
+        cal_bg = p.get("bg", "#ffffff")
+        self._line.setStyleSheet(
+            f"QLineEdit {{"
+            f"  background-color: {surface}; color: {text};"
+            f"  border: 1px solid {border}; border-right: none;"
+            f"  border-top-left-radius: 2px; border-bottom-left-radius: 2px;"
+            f"  padding: 2px 2px; font-size: 14px; font-weight: bold; font-family: 'Segoe UI';"
+            f"}}"
+            f"QLineEdit:focus {{ border: 1px solid {accent}; border-right: none; }}"
+            f"QLineEdit:read-only {{"
+            f"  background-color: {disabled_bg}; color: {text};"
+            f"  border: 1px solid {border}; border-right: none;"
+            f"}}"
+        )
+        btn_bg = disabled_bg if self._read_only else header_bg
+        self._btn.setStyleSheet(
+            f"QToolButton {{"
+            f"  background-color: {btn_bg}; color: {text};"
+            f"  border: 1px solid {border};"
+            f"  border-top-right-radius: 2px; border-bottom-right-radius: 2px;"
+            f"  width: 20px; font-size: 10px; font-weight: bold;"
+            f"}}"
+            f"QToolButton:hover {{ background-color: {accent}; color: white; }}"
+            f"QToolButton:disabled {{ background-color: {disabled_bg}; color: {disabled_text}; }}"
+        )
+        self._btn.setText("▼")
+        if self._cal:
+            self._cal.setStyleSheet(
+                f"QCalendarWidget QWidget {{ background-color: {cal_bg}; color: {text}; font-size: 13px; font-family: 'Segoe UI'; }}"
+                f"QCalendarWidget QTableView {{ alternate-background-color: {surface}; background-color: {cal_bg}; color: {text}; selection-background-color: {accent}; selection-color: white; }}"
+                f"QCalendarWidget QToolButton {{ background-color: {header_bg}; color: {text}; font-weight: bold; border: 1px solid {border}; border-radius: 2px; }}"
+                f"QCalendarWidget QSpinBox {{ background-color: {surface}; color: {text}; border: 1px solid {border}; }}"
+            )
 
 
 class _InvoiceItemRow:
@@ -203,7 +790,7 @@ class _InvoiceItemRow:
             "pay_qty": self.pay_qty,
             "free_qty": self.free_qty,
             "batch_no": self.batch_no,
-            "expiry": self.expiry,
+            "expiry": normalize_expiry_db(self.expiry) if self.expiry else "",
             "rate": self.rate,
             "mrp": self.mrp,
             "discount": self.discount,
@@ -217,117 +804,174 @@ class _InvoiceItemRow:
 
 
 class _ItemEntryBar(QWidget):
-    """Horizontal bar for adding a single item to the invoice."""
+    """Entry bar for adding a single item to the invoice on a single horizontal row."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(8, 4, 8, 4)
-        layout.setSpacing(6)
+        self._entry_labels: list[QLabel] = []
+        self._selected_batch_no: str = ""
+        row = QHBoxLayout(self)
+        row.setContentsMargins(2, 2, 2, 2)
+        row.setSpacing(4)
 
-        # Item selector
-        layout.addWidget(self._label("Item"))
-        self.item_combo = _make_combo()
-        self.item_combo.setMinimumWidth(180)
-        self.item_combo.setSizePolicy(__import__("PySide6.QtWidgets", fromlist=["QSizePolicy"]).QSizePolicy.Expanding, __import__("PySide6.QtWidgets", fromlist=["QSizePolicy"]).QSizePolicy.Fixed)
-        layout.addWidget(self.item_combo)
+        # Controls creation
+        self.item_combo = SearchableComboBox(
+            placeholder="Type item name...",
+            max_visible=9,
+            max_height=270,
+            max_width=420,
+            min_width=160,
+            allow_width_expansion=True,
+        )
+        self.item_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.item_combo.setMinimumWidth(160)
+        self.item_combo.setMaximumWidth(420)
 
-        # Pack size
-        layout.addWidget(self._label("Pack"))
-        self.pack_edit = _make_edit("Pack", 60)
-        layout.addWidget(self.pack_edit)
+        self.pack_edit = _make_entry_edit("Pack", 42)
+        self.pack_edit.setReadOnly(True)
+        self.pack_edit.setFocusPolicy(Qt.NoFocus)
 
-        # Pay Qty
-        layout.addWidget(self._label("Pay Qty"))
-        self.pay_qty_edit = _make_edit("0", 55)
-        layout.addWidget(self.pay_qty_edit)
+        self.pay_qty_edit = _make_entry_edit("0", 46)
+        self.free_qty_edit = _make_entry_edit("0", 42)
 
-        # Free Qty
-        layout.addWidget(self._label("Free"))
-        self.free_qty_edit = _make_edit("0", 50)
-        layout.addWidget(self.free_qty_edit)
+        self.batch_edit = BatchLineEdit("Batch", 90)
+        self.batch_edit.batch_selected.connect(self._on_saved_batch_selected)
+        self.batch_edit.textChanged.connect(self._on_batch_text_changed)
 
-        # Batch
-        layout.addWidget(self._label("Batch"))
-        self.batch_edit = _make_edit("Batch", 70)
-        layout.addWidget(self.batch_edit)
+        self.expiry_edit = ExpiryDateEdit(width=98)
 
-        # Expiry
-        layout.addWidget(self._label("Exp"))
-        self.expiry_edit = _make_edit("MM/YY", 55)
-        layout.addWidget(self.expiry_edit)
+        self.rate_edit = _make_entry_edit("0.00", 60)
+        self.mrp_edit = _make_entry_edit("0.00", 60)
+        self.discount_edit = _make_entry_edit("0.00", 44)
+        self.gst_edit = _make_entry_edit("0.00", 40)
+        self.gst_edit.setReadOnly(True)
+        self.gst_edit.setFocusPolicy(Qt.NoFocus)
 
-        # Rate
-        layout.addWidget(self._label("Rate"))
-        self.rate_edit = _make_edit("0.00", 65)
-        layout.addWidget(self.rate_edit)
+        self.add_btn = QPushButton("+ Add Item")
+        self.add_btn.setStyleSheet(_btn_add_item_style())
+        self.add_btn.setFixedSize(86, 32)
 
-        # MRP
-        layout.addWidget(self._label("MRP"))
-        self.mrp_edit = _make_edit("0.00", 65)
-        layout.addWidget(self.mrp_edit)
-
-        # Discount
-        layout.addWidget(self._label("Disc"))
-        self.discount_edit = _make_edit("0.00", 55)
-        layout.addWidget(self.discount_edit)
-
-        # GST %
-        layout.addWidget(self._label("GST%"))
-        self.gst_edit = _make_edit("0.00", 50)
-        layout.addWidget(self.gst_edit)
-
-        # Add button
-        add_btn = QPushButton("+ Add")
-        add_btn.setStyleSheet(_BTN_GREEN_SM)
-        add_btn.setFixedWidth(60)
-        layout.addWidget(add_btn)
+        # Single horizontal line:
+        # Item → Pack → Pay Qty → Free Qty → Batch → Expiry → Rate → MRP → Discount → GST → + Add Item
+        item_field = self._field("Item", self.item_combo, stretch=1)
+        item_field.setMinimumWidth(180)
+        item_field.setMaximumWidth(440)
+        row.addWidget(item_field, 1)
+        row.addWidget(self._field("Pack", self.pack_edit))
+        row.addWidget(self._field("Pay Qty", self.pay_qty_edit))
+        row.addWidget(self._field("Free Qty", self.free_qty_edit))
+        row.addWidget(self._field("Batch", self.batch_edit))
+        row.addWidget(self._field("Expiry", self.expiry_edit))
+        row.addWidget(self._field("Rate", self.rate_edit))
+        row.addWidget(self._field("MRP", self.mrp_edit))
+        row.addWidget(self._field("Discount", self.discount_edit))
+        row.addWidget(self._field("GST", self.gst_edit))
+        row.addWidget(self.add_btn)
 
         self._load_items()
 
+    def set_batch_fields_readonly(self, ro: bool):
+        self.expiry_edit.setReadOnly(ro)
+        self.rate_edit.setReadOnly(ro)
+        self.mrp_edit.setReadOnly(ro)
+
+    def _on_batch_text_changed(self, text: str):
+        curr_saved = getattr(self, "_selected_batch_no", "")
+        clean = text.strip()
+        if curr_saved and clean.casefold() != curr_saved.casefold():
+            self._selected_batch_no = ""
+            self.set_batch_fields_readonly(False)
+
+    def _field(self, label_text: str, widget: QWidget, label_width: int | None = None, stretch: int = 0) -> QWidget:
+        container = QWidget()
+        h = QHBoxLayout(container)
+        h.setContentsMargins(0, 0, 0, 0)
+        h.setSpacing(2)
+        lbl = QLabel(label_text)
+        lbl.setStyleSheet(f"color: {_TEXT}; font-size: 12px; font-weight: bold; font-family: 'Segoe UI'; background: transparent;")
+        if label_width:
+            lbl.setFixedWidth(label_width)
+        self._entry_labels.append(lbl)
+        h.addWidget(lbl)
+        h.addWidget(widget, stretch)
+        return container
+
+    def _on_saved_batch_selected(self, data: dict):
+        """Populate expiry, rate, and MRP from the selected saved batch and lock as read-only."""
+        if not data:
+            return
+        bno = (data.get("batch_no") or "").strip()
+        self._selected_batch_no = bno
+        if bno:
+            self.batch_edit.setText(bno)
+        if data.get("expiry"):
+            self.expiry_edit.setText(format_expiry_display(data["expiry"]))
+        else:
+            self.expiry_edit.clear()
+        if data.get("rate") is not None and float(data.get("rate") or 0.0) > 0:
+            self.rate_edit.setText(f"{float(data['rate']):.2f}")
+        if data.get("mrp") is not None and float(data.get("mrp") or 0.0) > 0:
+            self.mrp_edit.setText(f"{float(data['mrp']):.2f}")
+        self.set_batch_fields_readonly(True)
+
     def _load_items(self):
         items = ItemDAO.get_all()
-        self.item_combo.addItem("-- Select --", None)
+        list_items = []
         for it in items:
-            self.item_combo.addItem(it["item_name"], it["id"])
-
-    @staticmethod
-    def _label(text: str) -> QLabel:
-        lbl = QLabel(text)
-        lbl.setStyleSheet(_LABEL_DIM)
-        return lbl
+            list_items.append((it["item_name"], it["id"]))
+        self.item_combo.populate(list_items)
 
     def clear(self):
-        self.item_combo.setCurrentIndex(0)
+        self._selected_batch_no = ""
+        self.item_combo.clear_selection()
         self.pack_edit.clear()
         self.pay_qty_edit.clear()
         self.free_qty_edit.clear()
         self.batch_edit.clear()
+        self.batch_edit.set_batches([])
         self.expiry_edit.clear()
         self.rate_edit.clear()
         self.mrp_edit.clear()
         self.discount_edit.clear()
         self.gst_edit.clear()
+        self.set_batch_fields_readonly(False)
+
+    def refresh_theme(self, p: dict | None = None):
+        p = p or palette()
+        self.item_combo.refresh_theme(p)
+        self.batch_edit.refresh_theme(p)
+        self.expiry_edit.refresh_theme(p)
+        edit_st = _entry_edit_style(p)
+        for w in (self.pack_edit,
+                  self.pay_qty_edit, self.free_qty_edit, self.rate_edit,
+                  self.mrp_edit, self.discount_edit, self.gst_edit):
+            w.setStyleSheet(edit_st)
+        self.add_btn.setStyleSheet(_btn_add_item_style(p))
+        lbl_st = f"color: {p['text']}; font-size: 12px; font-weight: bold; font-family: 'Segoe UI'; background: transparent;"
+        for lbl in self._entry_labels:
+            lbl.setStyleSheet(lbl_st)
 
     def get_current_item_data(self) -> dict | None:
         item_id = self.item_combo.currentData()
         if item_id is None:
             return None
-        item_name = self.item_combo.currentText()
         item_full = ItemDAO.get_by_id(item_id)
+        if not item_full:
+            return None
+        item_name = item_full.get("item_name") or self.item_combo.currentText()
+        expiry_val = self.expiry_edit.iso_date() or self.expiry_edit.text().strip()
         return {
             "item_id": item_id,
             "item_name": item_name,
-            "pack_size": self.pack_edit.text().strip() or (item_full.get("pack_size", "") if item_full else ""),
+            "pack_size": self.pack_edit.text().strip() or item_full.get("pack_size", ""),
             "pay_qty": _safe_float(self.pay_qty_edit.text()),
             "free_qty": _safe_float(self.free_qty_edit.text()),
             "batch_no": self.batch_edit.text().strip(),
-            "expiry": self.expiry_edit.text().strip(),
+            "expiry": expiry_val,
             "rate": _safe_float(self.rate_edit.text()),
             "mrp": _safe_float(self.mrp_edit.text()),
             "discount": _safe_float(self.discount_edit.text()),
             "gst_percent": _safe_float(self.gst_edit.text()),
-            "item_name": item_name,
             "item_full": item_full,
         }
 
@@ -345,6 +989,20 @@ class _InvoiceDialog(QDialog):
         self.setMinimumWidth(1200)
         self.setMinimumHeight(700)
         self.setModal(True)
+
+        # Screen-aware sizing: 90% width, 85% height, centered
+        from PySide6.QtWidgets import QApplication
+        screen = QApplication.primaryScreen()
+        if screen:
+            sg = screen.availableGeometry()
+            w = int(sg.width() * 0.90)
+            h = int(sg.height() * 0.85)
+            self.resize(max(w, 1200), max(h, 700))
+            self.move(
+                sg.x() + (sg.width() - self.width()) // 2,
+                sg.y() + (sg.height() - self.height()) // 2,
+            )
+
         self.setStyleSheet(
             f"QDialog {{ background-color: {_DARK_BG}; }}"
             f"QLabel {{ {_LABEL_STYLE} }}"
@@ -373,23 +1031,9 @@ class _InvoiceDialog(QDialog):
         self._build_item_table()
         root.addWidget(self._table_group, 1)
 
-        # -- Totals row --
+        # -- Totals + action buttons (combined footer) --
         self._build_totals()
         root.addWidget(self._totals_widget)
-
-        # -- Button bar --
-        btn_bar = QHBoxLayout()
-        btn_bar.setContentsMargins(12, 6, 12, 8)
-        btn_bar.addStretch()
-        save_btn = QPushButton("Save Invoice")
-        save_btn.setStyleSheet(_BTN_SAVE)
-        save_btn.clicked.connect(self._on_save)
-        btn_bar.addWidget(save_btn)
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.setStyleSheet(_BTN_SECONDARY)
-        cancel_btn.clicked.connect(self.reject)
-        btn_bar.addWidget(cancel_btn)
-        root.addLayout(btn_bar)
 
         # Wire entry bar add button
         self._entry_bar.item_combo.currentIndexChanged.connect(self._on_item_changed)
@@ -398,15 +1042,24 @@ class _InvoiceDialog(QDialog):
         self._entry_bar.discount_edit.textChanged.connect(self._recalc_current_line)
         self._entry_bar.gst_edit.textChanged.connect(self._recalc_current_line)
         self._entry_bar.pay_qty_edit.textChanged.connect(self._recalc_current_line)
+        self._entry_bar.free_qty_edit.textChanged.connect(self._recalc_current_line)
 
-        # Find the add button inside entry bar
-        for child in self._entry_bar.findChildren(QPushButton):
-            if child.text() == "+ Add":
-                child.clicked.connect(self._on_add_item)
-                break
+        # Wire add button inside entry bar
+        if hasattr(self._entry_bar, "add_btn"):
+            self._entry_bar.add_btn.clicked.connect(self._on_add_item)
+        else:
+            for child in self._entry_bar.findChildren(QPushButton):
+                if "+ Add" in child.text():
+                    child.clicked.connect(self._on_add_item)
+                    break
+        self._entry_bar.discount_edit.returnPressed.connect(self._on_add_item)
+        self._entry_bar.gst_edit.returnPressed.connect(self._on_add_item)
 
         self._set_voucher_no()
         self._set_current_datetime()
+
+        # Wire totals auto-recalc for all modes (new + edit)
+        self._wire_totals_recalc()
 
         if invoice:
             self._populate_invoice(invoice)
@@ -419,117 +1072,274 @@ class _InvoiceDialog(QDialog):
         grp = QGroupBox("Invoice Header")
         grp.setStyleSheet(_GROUP_BOX)
         grid = QGridLayout(grp)
-        grid.setSpacing(6)
-        grid.setContentsMargins(10, 18, 10, 8)
+        grid.setHorizontalSpacing(6)
+        grid.setVerticalSpacing(8)
+        grid.setContentsMargins(10, 16, 10, 8)
 
-        row = 0
+        # Standard label widths across columns
+        LBL_COL0_W = 82   # Voucher No / Supplier *
+        LBL_COL2_W = 38   # Date
+        LBL_COL4_W = 40   # Time / Bal.
+        LBL_COL6_W = 70   # Type / Due Date
+        LBL_COL8_W = 78   # Invoice No / Inv. Amt
+        LBL_COL10_W = 92  # Invoice Date / Bill Disc.
 
-        # Voucher No
-        grid.addWidget(self._lbl("Voucher No"), row, 0)
-        self.voucher_no_edit = _make_edit()
+        # Row 0: Voucher No | Date | Time | Type | Invoice No | Invoice Date
+        lbl_v = self._lbl("Voucher No")
+        lbl_v.setFixedWidth(LBL_COL0_W)
+        grid.addWidget(lbl_v, 0, 0, Qt.AlignLeft | Qt.AlignVCenter)
+        self.voucher_no_edit = _make_edit(width=105)
         self.voucher_no_edit.setReadOnly(True)
-        grid.addWidget(self.voucher_no_edit, row, 1)
+        self.voucher_no_edit.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        grid.addWidget(self.voucher_no_edit, 0, 1)
 
-        # Date
-        grid.addWidget(self._lbl("Date"), row, 2)
+        lbl_date = self._lbl("Date")
+        lbl_date.setFixedWidth(LBL_COL2_W)
+        grid.addWidget(lbl_date, 0, 2, Qt.AlignLeft | Qt.AlignVCenter)
         self.voucher_date = _make_date()
-        self.voucher_date.setMaximumWidth(130)
-        grid.addWidget(self.voucher_date, row, 3)
+        self.voucher_date.setFixedWidth(128)
+        grid.addWidget(self.voucher_date, 0, 3)
 
-        # Time
-        grid.addWidget(self._lbl("Time"), row, 4)
-        self.voucher_time_edit = _make_edit()
-        self.voucher_time_edit.setMaximumWidth(80)
-        grid.addWidget(self.voucher_time_edit, row, 5)
+        lbl_time = self._lbl("Time")
+        lbl_time.setFixedWidth(LBL_COL4_W)
+        grid.addWidget(lbl_time, 0, 4, Qt.AlignLeft | Qt.AlignVCenter)
+        self.voucher_time_edit = _make_edit(width=80)
+        self.voucher_time_edit.setAlignment(Qt.AlignCenter)
+        grid.addWidget(self.voucher_time_edit, 0, 5)
 
-        # Type
-        grid.addWidget(self._lbl("Type"), row, 6)
-        self.purchase_type_combo = _make_combo()
+        lbl_type = self._lbl("Type")
+        lbl_type.setFixedWidth(LBL_COL6_W)
+        grid.addWidget(lbl_type, 0, 6, Qt.AlignLeft | Qt.AlignVCenter)
+        self.purchase_type_combo = _make_combo(max_visible=5, max_height=160)
         self.purchase_type_combo.addItems(["Credit", "Cash", "Credit Card"])
-        self.purchase_type_combo.setMaximumWidth(110)
-        grid.addWidget(self.purchase_type_combo, row, 7)
+        self.purchase_type_combo.setFixedWidth(112)
+        self.purchase_type_combo.currentTextChanged.connect(self._on_purchase_type_changed)
+        grid.addWidget(self.purchase_type_combo, 0, 7)
 
-        row += 1
+        lbl_inv = self._lbl("Invoice No")
+        lbl_inv.setFixedWidth(LBL_COL8_W)
+        grid.addWidget(lbl_inv, 0, 8, Qt.AlignLeft | Qt.AlignVCenter)
+        self.invoice_no_edit = _make_edit(width=115)
+        grid.addWidget(self.invoice_no_edit, 0, 9)
 
-        # Supplier
-        grid.addWidget(self._lbl("Supplier *"), row, 0)
-        self.supplier_combo = _make_combo()
-        self.supplier_combo.setMinimumWidth(200)
-        grid.addWidget(self.supplier_combo, row, 1)
+        lbl_inv_date = self._lbl("Invoice Date")
+        lbl_inv_date.setFixedWidth(LBL_COL10_W)
+        grid.addWidget(lbl_inv_date, 0, 10, Qt.AlignLeft | Qt.AlignVCenter)
+        self.invoice_date = _make_date()
+        self.invoice_date.setFixedWidth(128)
+        grid.addWidget(self.invoice_date, 0, 11)
 
-        # Supplier Balance
-        grid.addWidget(self._lbl("Bal."), row, 2)
+        # Row 1: Supplier * (spans cols 1-5) | Bal. | Inv. Amt | Bill Disc.
+        lbl_sup = self._lbl("Supplier *")
+        lbl_sup.setFixedWidth(LBL_COL0_W)
+        grid.addWidget(lbl_sup, 1, 0, Qt.AlignLeft | Qt.AlignVCenter)
+        self.supplier_combo = SearchableComboBox(
+            placeholder="Type supplier name...",
+            max_visible=9,
+            max_height=270,
+            max_width=450,
+            min_width=270,
+            allow_width_expansion=True,
+        )
+        grid.addWidget(self.supplier_combo, 1, 1, 1, 5)
+
+        lbl_bal = self._lbl("Bal.")
+        lbl_bal.setFixedWidth(LBL_COL6_W)
+        grid.addWidget(lbl_bal, 1, 6, Qt.AlignLeft | Qt.AlignVCenter)
         self.supplier_bal_label = QLabel("0.00")
+        self.supplier_bal_label.setFixedWidth(112)
+        self.supplier_bal_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.supplier_bal_label.setStyleSheet(
-            f"color: {_TEXT_DIM}; font-size: 15px; background: transparent;"
+            f"color: {_TEXT_DIM}; font-size: 15px; font-weight: bold; background: transparent;"
             f"font-family: 'Segoe UI'; padding: 4px;"
         )
-        grid.addWidget(self.supplier_bal_label, row, 3)
+        grid.addWidget(self.supplier_bal_label, 1, 7)
 
-        row += 1
+        # Due date is maintained internally for business logic and database persistence,
+        # but the UI label and picker control are removed from the invoice header.
+        self.due_date = _make_date(parent=self)
+        self.due_date.setFixedWidth(128)
+        self.due_date.hide()
 
-        # Invoice No
-        grid.addWidget(self._lbl("Inv. No"), row, 0)
-        self.invoice_no_edit = _make_edit()
-        grid.addWidget(self.invoice_no_edit, row, 1)
+        lbl_inv_amt = self._lbl("Inv. Amt")
+        lbl_inv_amt.setFixedWidth(LBL_COL8_W)
+        grid.addWidget(lbl_inv_amt, 1, 8, Qt.AlignLeft | Qt.AlignVCenter)
+        self.inv_net_amt_edit = _make_edit("0.00", width=115)
+        self.inv_net_amt_edit.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        grid.addWidget(self.inv_net_amt_edit, 1, 9)
 
-        # Invoice Date
-        grid.addWidget(self._lbl("Inv. Date"), row, 2)
-        self.invoice_date = _make_date()
-        self.invoice_date.setMaximumWidth(130)
-        grid.addWidget(self.invoice_date, row, 3)
+        lbl_bill_disc = self._lbl("Bill Disc.")
+        lbl_bill_disc.setFixedWidth(LBL_COL10_W)
+        grid.addWidget(lbl_bill_disc, 1, 10, Qt.AlignLeft | Qt.AlignVCenter)
+        self.bill_discount_edit = _make_edit("0.00", width=125)
+        self.bill_discount_edit.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        grid.addWidget(self.bill_discount_edit, 1, 11)
 
-        # Invoice Net Amount
-        grid.addWidget(self._lbl("Inv. Amt"), row, 4)
-        self.inv_net_amt_edit = _make_edit("0.00")
-        self.inv_net_amt_edit.setMaximumWidth(100)
-        grid.addWidget(self.inv_net_amt_edit, row, 5)
-
-        # Bill Discount
-        grid.addWidget(self._lbl("Bill Disc."), row, 6)
-        self.bill_discount_edit = _make_edit("0.00")
-        self.bill_discount_edit.setMaximumWidth(100)
-        grid.addWidget(self.bill_discount_edit, row, 7)
-
-        row += 1
-
-        # Due Date
-        grid.addWidget(self._lbl("Due Date"), row, 0)
-        self.due_date = _make_date()
-        self.due_date.setMaximumWidth(130)
-        grid.addWidget(self.due_date, row, 1)
+        grid.setColumnStretch(12, 1)
 
         parent_layout.addWidget(grp)
 
-        # Load suppliers
+        # Load suppliers and wire date/discount connections
         self._load_suppliers()
+        self.invoice_date.dateChanged.connect(self._on_invoice_date_changed)
+        self.bill_discount_edit.textChanged.connect(self._sync_header_to_footer_disc)
 
     def _load_suppliers(self):
         suppliers = SupplierDAO.get_all()
-        self.supplier_combo.addItem("-- Select Supplier --", None)
+        list_suppliers = []
         for s in suppliers:
-            self.supplier_combo.addItem(s["supplier_name"], s["id"])
+            list_suppliers.append((s["supplier_name"], s["id"]))
+        self.supplier_combo.populate(list_suppliers)
         self.supplier_combo.currentIndexChanged.connect(self._on_supplier_changed)
+        line = self.supplier_combo.lineEdit()
+        if line is not None:
+            line.textChanged.connect(self._on_supplier_text_changed)
 
-    def _on_supplier_changed(self, idx: int):
+    def _on_supplier_text_changed(self, text: str):
+        self._on_supplier_changed()
+
+    def _on_supplier_changed(self, idx: int = -1):
         sid = self.supplier_combo.currentData()
+        self._update_supplier_balance(sid)
         if sid:
             sup = SupplierDAO.get_by_id(sid)
-            if sup:
-                bal = sup.get("opening_balance", 0.0)
-                self.supplier_bal_label.setText(f"{bal:.2f}")
+            if sup and not self._invoice:
+                credit_days = sup.get("credit_period")
+                try:
+                    days = int(credit_days) if credit_days is not None else 0
+                except (ValueError, TypeError):
+                    days = 0
+                inv_date = self.invoice_date.date()
+                if days > 0:
+                    self.due_date.setDate(inv_date.addDays(days))
+                else:
+                    self.due_date.setDate(inv_date.addDays(30))
+
+    def _update_supplier_balance(self, sid: int | None):
+        """Fetch and display the supplier's actual ledger balance immediately.
+
+        Adheres to the existing ledger convention (Party Wise Report & Account Ledger):
+        - Sundry Creditors with a Credit balance have positive outstanding amount.
+        - Suppliers with a Debit balance (advance/excess return) have negative amount.
+        - Zero balance displays '0.00'.
+        - If ledger balance cannot be retrieved, displays a warning/error state
+          rather than silently defaulting to 0.00.
+        """
+        if not sid:
+            self.supplier_bal_label.setText("0.00")
+            self.supplier_bal_label.setToolTip("")
+            p = palette()
+            self.supplier_bal_label.setStyleSheet(
+                f"color: {p.get('text_dim', _TEXT_DIM)}; font-size: 15px; font-weight: bold; background: transparent;"
+                f"font-family: 'Segoe UI'; padding: 4px;"
+            )
+            return
+
+        try:
+            sup = SupplierDAO.get_by_id(sid)
+            if not sup:
+                self.supplier_bal_label.setText("Error")
+                self.supplier_bal_label.setToolTip("Supplier record not found in database")
+                p = palette()
+                self.supplier_bal_label.setStyleSheet(
+                    f"color: {p.get('danger', '#c62828')}; font-size: 15px; font-weight: bold; background: transparent;"
+                    f"font-family: 'Segoe UI'; padding: 4px;"
+                )
                 return
-        self.supplier_bal_label.setText("0.00")
+
+            ledger_id = sup.get("ledger_id")
+            if not ledger_id:
+                ledger_id = SupplierDAO.get_ledger_id(sid)
+
+            if not ledger_id:
+                self.supplier_bal_label.setText("N/A")
+                self.supplier_bal_label.setToolTip("No linked account ledger found for this supplier")
+                p = palette()
+                self.supplier_bal_label.setStyleSheet(
+                    f"color: {p.get('danger', '#c62828')}; font-size: 15px; font-weight: bold; background: transparent;"
+                    f"font-family: 'Segoe UI'; padding: 4px;"
+                )
+                return
+
+            bal = LedgerDAO.get_balance(ledger_id)
+            closing = float(bal.get("closing_balance", 0.0) or 0.0)
+            closing_type = bal.get("closing_balance_type", "Credit")
+
+            if abs(closing) < 1e-9:
+                self.supplier_bal_label.setText("0.00")
+            else:
+                sign = 1.0 if closing_type == "Credit" else -1.0
+                outstanding = closing * sign
+                self.supplier_bal_label.setText(f"{outstanding:,.2f}")
+
+            self.supplier_bal_label.setToolTip(f"Closing Balance: {closing:,.2f} ({closing_type})")
+            p = palette()
+            self.supplier_bal_label.setStyleSheet(
+                f"color: {p.get('text_dim', _TEXT_DIM)}; font-size: 15px; font-weight: bold; background: transparent;"
+                f"font-family: 'Segoe UI'; padding: 4px;"
+            )
+        except Exception as exc:
+            self.supplier_bal_label.setText("Error")
+            self.supplier_bal_label.setToolTip(f"Failed to retrieve ledger balance: {exc}")
+            p = palette()
+            self.supplier_bal_label.setStyleSheet(
+                f"color: {p.get('danger', '#c62828')}; font-size: 15px; font-weight: bold; background: transparent;"
+                f"font-family: 'Segoe UI'; padding: 4px;"
+            )
+
+    def _on_invoice_date_changed(self, new_date: QDate):
+        """When invoice date changes on a new invoice, update due date accordingly."""
+        if not self._invoice:
+            sid = self.supplier_combo.currentData()
+            days = 0
+            if sid:
+                sup = SupplierDAO.get_by_id(sid)
+                if sup:
+                    try:
+                        days = int(sup.get("credit_period") or 0)
+                    except (ValueError, TypeError):
+                        days = 0
+            if days > 0:
+                self.due_date.setDate(new_date.addDays(days))
+            else:
+                self.due_date.setDate(new_date.addDays(30))
+
+    def _sync_header_to_footer_disc(self, text: str):
+        if hasattr(self, "bill_disc_edit") and self.bill_disc_edit.text() != text:
+            self.bill_disc_edit.blockSignals(True)
+            self.bill_disc_edit.setText(text)
+            self.bill_disc_edit.blockSignals(False)
+            self._recalc_totals()
+
+    def _sync_footer_to_header_disc(self, text: str):
+        if hasattr(self, "bill_discount_edit") and self.bill_discount_edit.text() != text:
+            self.bill_discount_edit.blockSignals(True)
+            self.bill_discount_edit.setText(text)
+            self.bill_discount_edit.blockSignals(False)
+            self._recalc_totals()
+
+    def _on_purchase_type_changed(self, new_type: str):
+        if not self._invoice:
+            self._set_voucher_no()
 
     def _set_voucher_no(self):
         if not self._invoice:
-            self.voucher_no_edit.setText(PurchaseDAO.generate_next_voucher_no())
+            ptype = self.purchase_type_combo.currentText() if hasattr(self, "purchase_type_combo") else "Credit"
+            full = PurchaseDAO.generate_next_voucher_no(purchase_type=ptype)
+            self._full_voucher_no = full
+            self.voucher_no_edit.setText(_display_voucher_no(full))
+            self.voucher_no_edit.setToolTip(f"Full Voucher: {full}")
 
     def _set_current_datetime(self):
         now = datetime.now()
-        from PySide6.QtCore import QDate, QTime
-        self.voucher_date.setDate(QDate(now.year, now.month, now.day))
-        self.voucher_time_edit.setText(now.strftime("%H:%M"))
+        today = QDate(now.year, now.month, now.day)
+        self.voucher_date.setDate(today)
+        from core.doc_formatter import format_time_12hr
+        self.voucher_time_edit.setText(format_time_12hr(now.strftime("%H:%M")))
+        # Default invoice date to today for a new invoice.
+        # Due date defaults to today + 30 days (or supplier term if selected).
+        self.invoice_date.setDate(today)
+        self.due_date.setDate(today.addDays(30))
 
     # ------------------------------------------------------------------
     # Item entry + table
@@ -554,14 +1364,33 @@ class _InvoiceDialog(QDialog):
         self._table.verticalHeader().setVisible(False)
         self._table.setShowGrid(True)
         self._table.setAlternatingRowColors(False)
-        self._table.horizontalHeader().setStretchLastSection(True)
 
         hv = self._table.horizontalHeader()
-        for i in range(17):
-            if i == 1:
-                hv.setSectionResizeMode(i, QHeaderView.Stretch)
-            else:
-                hv.setSectionResizeMode(i, QHeaderView.ResizeToContents)
+        hv.setStretchLastSection(False)
+        hv.setSectionResizeMode(1, QHeaderView.Stretch)
+
+        col_widths = {
+            0: 42,   # #
+            2: 60,   # Pack
+            3: 85,   # Pay Qty
+            4: 65,   # Free
+            5: 135,  # Batch
+            6: 95,   # Exp
+            7: 95,   # Rate
+            8: 95,   # MRP
+            9: 65,   # Disc
+            10: 120, # Amount
+            11: 65,  # GST%
+            12: 100, # GST Amt
+            13: 100, # Pur Rate
+            14: 100, # Net Rate
+            15: 115, # PP
+            16: 55,  # Del
+        }
+        for col, width in col_widths.items():
+            hv.setSectionResizeMode(col, QHeaderView.Interactive)
+            self._table.setColumnWidth(col, width)
+
         hv.setStyleSheet(
             f"QHeaderView::section {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
@@ -585,25 +1414,58 @@ class _InvoiceDialog(QDialog):
     def _on_item_changed(self, idx: int):
         item_id = self._entry_bar.item_combo.currentData()
         if item_id is None:
+            self._entry_bar._selected_batch_no = ""
+            self._entry_bar.batch_edit.clear()
+            self._entry_bar.batch_edit.set_batches([])
+            self._entry_bar.expiry_edit.clear()
+            self._entry_bar.pack_edit.clear()
+            self._entry_bar.gst_edit.clear()
+            self._entry_bar.pay_qty_edit.clear()
+            self._entry_bar.free_qty_edit.clear()
+            self._entry_bar.rate_edit.clear()
+            self._entry_bar.mrp_edit.clear()
+            self._entry_bar.set_batch_fields_readonly(False)
             return
         item = ItemDAO.get_by_id(item_id)
         if item:
-            if not self._entry_bar.pack_edit.text():
-                self._entry_bar.pack_edit.setText(item.get("pack_size", ""))
-            if not self._entry_bar.mrp_edit.text():
-                self._entry_bar.mrp_edit.setText(str(item.get("mrp", 0.0)))
-            if not self._entry_bar.rate_edit.text():
-                self._entry_bar.rate_edit.setText(str(item.get("rate", 0.0)))
+            # 1. Update Pack and GST from Item Master (read-only)
+            self._entry_bar.pack_edit.setText(str(item.get("pack_size", "") or ""))
             tax = item.get("tax_structure", "")
-            # Read the stored GST rate through the shared tax module instead
-            # of parsing display text.  rate_percent returns None for a
-            # legacy tax code, so an imported item still gets no invented
-            # GST; a new GST item pre-fills the correct rate.  The box is
-            # still per-line and fully user-overridable.
             percent = rate_percent(tax)
-            if percent is not None and not self._entry_bar.gst_edit.text():
-                self._entry_bar.gst_edit.setText(
-                    f"{percent:g}" if percent else "0")
+            if percent is None and isinstance(tax, str):
+                m = re.search(r"GST\s*@?\s*(\d+(?:\.\d+)?)", tax, re.I) or re.search(r"(\d+(?:\.\d+)?)\s*%", tax)
+                if m:
+                    candidate = m.group(1)
+                    p = rate_percent(candidate)
+                    if p is not None:
+                        percent = p
+                    else:
+                        try:
+                            val = float(candidate)
+                            if str(int(val)) in ("0", "5", "12", "18", "28"):
+                                percent = val
+                        except ValueError:
+                            pass
+            self._entry_bar.gst_edit.setText(f"{percent:g}" if percent is not None else "0")
+
+            # 2. Reset entry bar fields for new item and populate Master Rate & MRP
+            self._entry_bar._selected_batch_no = ""
+            self._entry_bar.mrp_edit.setText(f"{float(item.get('mrp', 0.0) or 0.0):.2f}")
+            self._entry_bar.rate_edit.setText(f"{float(item.get('rate', 0.0) or 0.0):.2f}")
+            self._entry_bar.batch_edit.clear()
+            self._entry_bar.expiry_edit.clear()
+            self._entry_bar.pay_qty_edit.clear()
+            self._entry_bar.free_qty_edit.clear()
+            self._entry_bar.set_batch_fields_readonly(False)
+
+            # 3. Load saved batches for this item into the batch autocomplete
+            try:
+                batches = PurchaseDAO.get_saved_batches_for_item(item_id)
+                if not isinstance(batches, list):
+                    batches = []
+            except Exception:
+                batches = []
+            self._entry_bar.batch_edit.set_batches(batches)
 
     def _recalc_current_line(self):
         """Live recalculation placeholder (does not affect table)."""
@@ -612,7 +1474,7 @@ class _InvoiceDialog(QDialog):
     def _on_add_item(self):
         data = self._entry_bar.get_current_item_data()
         if data is None:
-            QMessageBox.warning(self, "Validation", "Please select an item.")
+            QMessageBox.warning(self, "Validation", "Please select a valid item from the list.")
             return
 
         pay_qty = data["pay_qty"]
@@ -643,14 +1505,18 @@ class _InvoiceDialog(QDialog):
             return
 
         # Calculate amount and GST
-        qty_total = pay_qty + free_qty
-        amount = _round2(qty_total * rate)
+        # Amount is based on PAY QTY only — free goods are not charged.
+        disc_pct = _d(discount)
+        gross = _d(pay_qty) * _d(rate)
+        disc_amt = gross * disc_pct / _d(100) if disc_pct else _d(0)
+        amount = _round2(gross - disc_amt)
         gst_amount = _round2(amount * gst_pct / 100.0)
-        total_for_line = amount + gst_amount
+        total_for_line = _round2(_d(amount) + _d(gst_amount))
 
-        # Purchase rate, net rate, PP
-        purchase_rate = _round2(total_for_line / qty_total) if qty_total else 0.0
-        net_rate = _round2(rate)  # net rate = rate per unit after disc
+        # Purchase rate = cost-per-paid-pack (incl GST), net rate = cost-per-received-pack (incl GST)
+        qty_total = pay_qty + free_qty
+        purchase_rate = _round2(total_for_line / pay_qty) if pay_qty else 0.0
+        net_rate = _round2(total_for_line / qty_total) if qty_total else 0.0
         pp = _round2(total_for_line)  # PP = total price for this line
 
         row = _InvoiceItemRow(
@@ -660,7 +1526,7 @@ class _InvoiceDialog(QDialog):
             pay_qty=pay_qty,
             free_qty=free_qty,
             batch_no=batch_no,
-            expiry=data["expiry"],
+            expiry=normalize_expiry_db(data["expiry"]) if data["expiry"] else "",
             rate=rate,
             mrp=data["mrp"],
             discount=discount,
@@ -679,28 +1545,44 @@ class _InvoiceDialog(QDialog):
     def _refresh_table(self):
         self._table.setRowCount(len(self._item_rows))
         for i, r in enumerate(self._item_rows):
-            self._table.setItem(i, 0, QTableWidgetItem(str(i + 1)))
-            self._table.setItem(i, 1, QTableWidgetItem(r.item_name))
-            self._table.setItem(i, 2, QTableWidgetItem(r.pack_size))
-            self._table.setItem(i, 3, QTableWidgetItem(f"{r.pay_qty:.2f}"))
-            self._table.setItem(i, 4, QTableWidgetItem(f"{r.free_qty:.2f}"))
-            self._table.setItem(i, 5, QTableWidgetItem(r.batch_no))
-            self._table.setItem(i, 6, QTableWidgetItem(r.expiry))
-            self._table.setItem(i, 7, QTableWidgetItem(f"{r.rate:.2f}"))
-            self._table.setItem(i, 8, QTableWidgetItem(f"{r.mrp:.2f}"))
-            self._table.setItem(i, 9, QTableWidgetItem(f"{r.discount:.2f}"))
-            self._table.setItem(i, 10, QTableWidgetItem(f"{r.amount:.2f}"))
-            self._table.setItem(i, 11, QTableWidgetItem(f"{r.gst_percent:.2f}"))
-            self._table.setItem(i, 12, QTableWidgetItem(f"{r.gst_amount:.2f}"))
-            self._table.setItem(i, 13, QTableWidgetItem(f"{r.purchase_rate:.2f}"))
-            self._table.setItem(i, 14, QTableWidgetItem(f"{r.net_rate:.2f}"))
-            self._table.setItem(i, 15, QTableWidgetItem(f"{r.pp:.2f}"))
+            def _item(text: str, align: Qt.AlignmentFlag = Qt.AlignLeft | Qt.AlignVCenter) -> QTableWidgetItem:
+                it = QTableWidgetItem(text)
+                it.setTextAlignment(align)
+                return it
 
-            del_btn = QPushButton("Del")
+            self._table.setItem(i, 0, _item(str(i + 1), Qt.AlignCenter))
+            item_w = _item(r.item_name, Qt.AlignLeft | Qt.AlignVCenter)
+            item_w.setToolTip(r.item_name)
+            self._table.setItem(i, 1, item_w)
+            self._table.setItem(i, 2, _item(r.pack_size, Qt.AlignCenter))
+            self._table.setItem(i, 3, _item(f"{r.pay_qty:.2f}", Qt.AlignRight | Qt.AlignVCenter))
+            self._table.setItem(i, 4, _item(f"{r.free_qty:.2f}", Qt.AlignRight | Qt.AlignVCenter))
+            batch_w = _item(r.batch_no, Qt.AlignCenter)
+            batch_w.setToolTip(r.batch_no)
+            self._table.setItem(i, 5, batch_w)
+            self._table.setItem(i, 6, _item(format_expiry_display(r.expiry), Qt.AlignCenter))
+            self._table.setItem(i, 7, _item(f"{r.rate:.2f}", Qt.AlignRight | Qt.AlignVCenter))
+            self._table.setItem(i, 8, _item(f"{r.mrp:.2f}", Qt.AlignRight | Qt.AlignVCenter))
+            self._table.setItem(i, 9, _item(f"{r.discount:.2f}", Qt.AlignRight | Qt.AlignVCenter))
+            self._table.setItem(i, 10, _item(f"{r.amount:.2f}", Qt.AlignRight | Qt.AlignVCenter))
+            self._table.setItem(i, 11, _item(f"{r.gst_percent:.2f}", Qt.AlignRight | Qt.AlignVCenter))
+            self._table.setItem(i, 12, _item(f"{r.gst_amount:.2f}", Qt.AlignRight | Qt.AlignVCenter))
+            self._table.setItem(i, 13, _item(f"{r.purchase_rate:.2f}", Qt.AlignRight | Qt.AlignVCenter))
+            self._table.setItem(i, 14, _item(f"{r.net_rate:.2f}", Qt.AlignRight | Qt.AlignVCenter))
+            self._table.setItem(i, 15, _item(f"{r.pp:.2f}", Qt.AlignRight | Qt.AlignVCenter))
+
+            del_btn = QPushButton("×")
             del_btn.setStyleSheet(_BTN_DANGER)
-            del_btn.setFixedWidth(40)
+            del_btn.setFixedSize(28, 24)
+            del_btn.setToolTip("Remove item")
             del_btn.clicked.connect(lambda _, idx=i: self._delete_item(idx))
-            self._table.setCellWidget(i, 16, del_btn)
+
+            cell = QWidget()
+            cell_layout = QHBoxLayout(cell)
+            cell_layout.setContentsMargins(0, 0, 0, 0)
+            cell_layout.setAlignment(Qt.AlignCenter)
+            cell_layout.addWidget(del_btn)
+            self._table.setCellWidget(i, 16, cell)
 
     def _delete_item(self, idx: int):
         if 0 <= idx < len(self._item_rows):
@@ -714,13 +1596,13 @@ class _InvoiceDialog(QDialog):
 
     def _build_totals(self):
         self._totals_widget = QWidget()
-        self._totals_widget.setFixedHeight(44)
+        self._totals_widget.setFixedHeight(70)
         self._totals_widget.setStyleSheet(
             f"background-color: {_SURFACE}; border-top: 1px solid {_BORDER};"
         )
         layout = QHBoxLayout(self._totals_widget)
         layout.setContentsMargins(12, 4, 12, 4)
-        layout.setSpacing(16)
+        layout.setSpacing(10)
 
         self._add_total_field(layout, "Total Amt", "total_amount_label")
         self._add_total_field(layout, "+ GST", "gst_label")
@@ -731,9 +1613,29 @@ class _InvoiceDialog(QDialog):
         self._add_total_field(layout, "Round Off", "round_off_edit")
         self._add_total_field(layout, "NET AMT", "net_amt_label")
 
+        # Stretch separates totals from action buttons without cramping
+        layout.addStretch(1)
+
+        # Action buttons integrated into footer
+        save_btn = QPushButton("Save Invoice")
+        save_btn.setStyleSheet(_BTN_SAVE)
+        save_btn.setFixedSize(125, 36)
+        save_btn.clicked.connect(self._on_save)
+        layout.addWidget(save_btn, 0, Qt.AlignVCenter)
+
+        layout.addSpacing(10)
+
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setStyleSheet(_BTN_SECONDARY)
+        cancel_btn.setFixedSize(95, 36)
+        cancel_btn.clicked.connect(self.reject)
+        layout.addWidget(cancel_btn, 0, Qt.AlignVCenter)
+
+        self.bill_disc_edit.textChanged.connect(self._sync_footer_to_header_disc)
+
     def _add_total_field(self, layout: QHBoxLayout, title: str, attr_name: str):
         container = QVBoxLayout()
-        container.setSpacing(1)
+        container.setSpacing(2)
         lbl = QLabel(title)
         lbl.setStyleSheet(_HEADER_LABEL)
         lbl.setAlignment(Qt.AlignCenter)
@@ -742,15 +1644,23 @@ class _InvoiceDialog(QDialog):
         if attr_name.endswith("_label"):
             val_lbl = QLabel("0.00")
             val_lbl.setAlignment(Qt.AlignCenter)
-            val_lbl.setStyleSheet(
-                f"color: {_TEXT}; font-size: 15px; font-weight: bold;"
-                f"background: transparent; font-family: 'Segoe UI'; padding: 2px;"
-            )
+            val_lbl.setMinimumWidth(80)
+            if attr_name == "net_amt_label":
+                val_lbl.setStyleSheet(
+                    f"color: {_ACCENT}; font-size: 16px; font-weight: bold;"
+                    f"background: transparent; font-family: 'Segoe UI'; padding: 2px;"
+                )
+            else:
+                val_lbl.setStyleSheet(
+                    f"color: {_TEXT}; font-size: 15px; font-weight: bold;"
+                    f"background: transparent; font-family: 'Segoe UI'; padding: 2px;"
+                )
             container.addWidget(val_lbl)
             setattr(self, attr_name, val_lbl)
         else:
             edit = _make_edit("0.00")
-            edit.setMaximumWidth(90)
+            edit.setMinimumWidth(75)
+            edit.setMaximumWidth(95)
             edit.setAlignment(Qt.AlignCenter)
             container.addWidget(edit)
             setattr(self, attr_name, edit)
@@ -760,8 +1670,8 @@ class _InvoiceDialog(QDialog):
         layout.addLayout(container)
 
     def _recalc_totals(self):
-        total_amount = sum(r.amount for r in self._item_rows)
-        total_gst = sum(r.gst_amount for r in self._item_rows)
+        total_amount = _round2(sum(r.amount for r in self._item_rows))
+        total_gst = _round2(sum(r.gst_amount for r in self._item_rows))
 
         self.total_amount_label.setText(f"{total_amount:.2f}")
         self.gst_label.setText(f"{total_gst:.2f}")
@@ -769,11 +1679,11 @@ class _InvoiceDialog(QDialog):
         bill_disc = _safe_float(self.bill_disc_edit.text())
         dn = _safe_float(self.dn_edit.text())
         other = _safe_float(self.other_edit.text())
-        paid = _safe_float(self.paid_edit.text())
 
-        net = total_amount + total_gst - bill_disc - dn + other
-        round_off = _round2(net) - net
-        net = _round2(net + round_off)
+        raw_net = _d(total_amount) + _d(total_gst) - _d(bill_disc) - _d(dn) + _d(other)
+        rounded_net = int(raw_net.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+        round_off = _round2(float(_d(rounded_net) - raw_net))
+        net = float(rounded_net)
 
         self.round_off_edit.setText(f"{round_off:.2f}")
         self.net_amt_label.setText(f"{net:.2f}")
@@ -789,7 +1699,10 @@ class _InvoiceDialog(QDialog):
     # ------------------------------------------------------------------
 
     def _populate_invoice(self, inv: dict):
-        self.voucher_no_edit.setText(inv.get("voucher_no", ""))
+        full = inv.get("voucher_no", "")
+        self._full_voucher_no = full
+        self.voucher_no_edit.setText(_display_voucher_no(full))
+        self.voucher_no_edit.setToolTip(f"Full Voucher: {full}")
 
         from PySide6.QtCore import QDate
         vd = inv.get("voucher_date", "")
@@ -800,7 +1713,8 @@ class _InvoiceDialog(QDialog):
             except Exception:
                 pass
 
-        self.voucher_time_edit.setText(inv.get("voucher_time", ""))
+        from core.doc_formatter import format_time_12hr
+        self.voucher_time_edit.setText(format_time_12hr(inv.get("voucher_time", "")))
         idx = self.purchase_type_combo.findText(inv.get("purchase_type", "Credit"))
         if idx >= 0:
             self.purchase_type_combo.setCurrentIndex(idx)
@@ -810,6 +1724,7 @@ class _InvoiceDialog(QDialog):
             idx = self.supplier_combo.findData(sid)
             if idx >= 0:
                 self.supplier_combo.setCurrentIndex(idx)
+            self._update_supplier_balance(sid)
 
         self.invoice_no_edit.setText(inv.get("invoice_no", ""))
 
@@ -822,7 +1737,9 @@ class _InvoiceDialog(QDialog):
                 pass
 
         self.inv_net_amt_edit.setText(str(inv.get("invoice_net_amount", 0.0)))
-        self.bill_discount_edit.setText(str(inv.get("bill_discount", 0.0)))
+        bd = str(inv.get("bill_discount", 0.0))
+        self.bill_discount_edit.setText(bd)
+        self.bill_disc_edit.setText(bd)
 
         dd = inv.get("due_date", "")
         if dd:
@@ -862,7 +1779,6 @@ class _InvoiceDialog(QDialog):
         self.paid_edit.setText(str(inv.get("paid_amount", 0.0)))
         self.round_off_edit.setText(str(inv.get("round_off", 0.0)))
 
-        self._wire_totals_recalc()
         self._recalc_totals()
 
     # ------------------------------------------------------------------
@@ -886,14 +1802,14 @@ class _InvoiceDialog(QDialog):
             QMessageBox.warning(self, "Financial Year", str(exc)); return
         sid = self.supplier_combo.currentData()
         if not sid:
-            QMessageBox.warning(self, "Validation", "Supplier is required.")
+            QMessageBox.warning(self, "Validation", "Please select a valid supplier from the list.")
             return
 
         if not self._item_rows:
             QMessageBox.warning(self, "Validation", "At least one item is required.")
             return
 
-        voucher_no = self.voucher_no_edit.text().strip()
+        voucher_no = getattr(self, "_full_voucher_no", None) or self.voucher_no_edit.text().strip()
         if not voucher_no:
             QMessageBox.warning(self, "Validation", "Voucher number is required.")
             return
@@ -959,6 +1875,36 @@ class _InvoiceDialog(QDialog):
     def was_saved(self) -> bool:
         return self._saved
 
+    def refresh_theme(self):
+        p = palette()
+        self.supplier_combo.refresh_theme(p)
+        self.purchase_type_combo.setStyleSheet(_combo_style(p))
+        self._entry_bar.refresh_theme(p)
+        date_st = _date_style(p)
+        self.voucher_date.setStyleSheet(date_st)
+        self.invoice_date.setStyleSheet(date_st)
+        self.due_date.setStyleSheet(date_st)
+        edit_st = _edit_style(p)
+        self.voucher_no_edit.setStyleSheet(edit_st)
+        self.voucher_time_edit.setStyleSheet(edit_st)
+        self.invoice_no_edit.setStyleSheet(edit_st)
+        self.inv_net_amt_edit.setStyleSheet(edit_st)
+        self.bill_discount_edit.setStyleSheet(edit_st)
+        if self.supplier_bal_label.text() not in ("Error", "N/A"):
+            self.supplier_bal_label.setStyleSheet(
+                f"color: {p.get('text_dim', _TEXT_DIM)}; font-size: 15px; font-weight: bold; background: transparent;"
+                f"font-family: 'Segoe UI'; padding: 4px;"
+            )
+        else:
+            self.supplier_bal_label.setStyleSheet(
+                f"color: {p.get('danger', '#c62828')}; font-size: 15px; font-weight: bold; background: transparent;"
+                f"font-family: 'Segoe UI'; padding: 4px;"
+            )
+        self.setStyleSheet(
+            f"QDialog {{ background-color: {p['bg']}; }}"
+            f"QLabel {{ color: {p['text']}; font-size: 15px; font-family: 'Segoe UI'; background: transparent; }}"
+        )
+
 
 # ======================================================================
 # Purchase Invoice PAGE  (stacked: History view | New/Edit view)
@@ -978,6 +1924,8 @@ class PurchaseInvoicePage(QWidget):
         self._stack = QStackedWidget()
         root.addWidget(self._stack)
 
+        self._current_fy_id: int | None = None
+
         # Page 0: History list
         self._history_page = self._build_history_page()
         self._stack.addWidget(self._history_page)
@@ -987,11 +1935,61 @@ class PurchaseInvoicePage(QWidget):
         self._stack.addWidget(self._invoice_page)
 
         self._editing_invoice_id: int | None = None
+        self._init_filter_dates()
         self._refresh_history()
 
     # ------------------------------------------------------------------
     # History page
     # ------------------------------------------------------------------
+
+    def set_history_financial_year(self, year: dict | None) -> None:
+        """Apply the navbar's view-only financial-year selection to Purchase History."""
+        self._history_financial_year = dict(year) if year else None
+        if year and year.get("start_date") and year.get("end_date"):
+            start = str(year["start_date"])
+            end = str(year["end_date"])
+            self._current_fy_id = year.get("id")
+            from PySide6.QtCore import QDate
+            q_start = QDate.fromString(start, "yyyy-MM-dd")
+            q_end = QDate.fromString(end, "yyyy-MM-dd")
+            if q_start.isValid() and q_end.isValid():
+                self._filter_from.setDate(q_start)
+                self._filter_to.setDate(q_end)
+        else:
+            self._history_financial_year = None
+            self._init_filter_dates()
+        self._refresh_history()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if getattr(self, "_history_financial_year", None):
+            return
+        fy = financial_year.get_active_financial_year()
+        fy_id = fy["id"] if fy else None
+        if getattr(self, "_current_fy_id", None) != fy_id:
+            self._init_filter_dates()
+            self._refresh_history()
+
+    def _init_filter_dates(self):
+        """Set From/To date filter defaults from the active financial year."""
+        from PySide6.QtCore import QDate
+        fy = financial_year.get_active_financial_year()
+        if fy:
+            fy_start = fy["start_date"]  # "YYYY-MM-DD"
+            fy_end = fy["end_date"]
+            self._current_fy_id = fy["id"]
+        else:
+            fy_start = financial_year.DEFAULT_START
+            fy_end = financial_year.DEFAULT_END
+            self._current_fy_id = None
+        q_start = QDate.fromString(fy_start, "yyyy-MM-dd")
+        if q_start.isValid():
+            self._filter_from.setDate(q_start)
+        now = datetime.now()
+        today = QDate(now.year, now.month, now.day)
+        q_end = QDate.fromString(fy_end, "yyyy-MM-dd")
+        if q_end.isValid():
+            self._filter_to.setDate(min(today, q_end) if today <= q_end else q_end)
 
     def _build_history_page(self) -> QWidget:
         page = QWidget()
@@ -1007,6 +2005,7 @@ class PurchaseInvoicePage(QWidget):
         )
         hl = QHBoxLayout(header)
         hl.setContentsMargins(16, 0, 16, 0)
+        hl.setSpacing(8)
         title = QLabel("Purchase History")
         title.setStyleSheet(
             f"color: {_TEXT}; font-size: 22px; font-weight: bold;"
@@ -1015,26 +2014,29 @@ class PurchaseInvoicePage(QWidget):
         hl.addWidget(title)
         hl.addStretch()
 
+        # Consistent button height for the toolbar row
+        _TOOLBAR_BTN_H = 36
+
         new_btn = QPushButton("New Purchase")
-        new_btn.setFixedWidth(120)
+        new_btn.setFixedSize(140, _TOOLBAR_BTN_H)
         new_btn.setStyleSheet(_BTN_SAVE)
         new_btn.clicked.connect(self._on_new)
         hl.addWidget(new_btn)
 
         edit_btn = QPushButton("Edit")
-        edit_btn.setFixedWidth(90)
+        edit_btn.setFixedSize(85, _TOOLBAR_BTN_H)
         edit_btn.setStyleSheet(_BTN_SECONDARY)
         edit_btn.clicked.connect(self._on_edit)
         hl.addWidget(edit_btn)
 
         delete_btn = QPushButton("Delete")
-        delete_btn.setFixedWidth(90)
+        delete_btn.setFixedSize(85, _TOOLBAR_BTN_H)
         delete_btn.setStyleSheet(_BTN_DANGER)
         delete_btn.clicked.connect(self._on_delete)
         hl.addWidget(delete_btn)
 
         print_btn = QPushButton("Print / PDF")
-        print_btn.setFixedWidth(110)
+        print_btn.setFixedSize(115, _TOOLBAR_BTN_H)
         print_btn.setStyleSheet(_BTN_SECONDARY)
         print_btn.clicked.connect(self._on_print)
         hl.addWidget(print_btn)
@@ -1053,16 +2055,16 @@ class PurchaseInvoicePage(QWidget):
 
         fl.addWidget(self._flbl("From"))
         self._filter_from = _make_date()
-        self._filter_from.setMaximumWidth(120)
+        self._filter_from.setFixedWidth(145)
         fl.addWidget(self._filter_from)
 
         fl.addWidget(self._flbl("To"))
         self._filter_to = _make_date()
-        self._filter_to.setMaximumWidth(120)
+        self._filter_to.setFixedWidth(145)
         fl.addWidget(self._filter_to)
 
         fl.addWidget(self._flbl("Supplier"))
-        self._filter_supplier = _make_combo()
+        self._filter_supplier = _make_combo(max_visible=9, max_height=270, max_width=380)
         self._filter_supplier.setMinimumWidth(160)
         self._filter_supplier.addItem("All Suppliers", None)
         for s in SupplierDAO.get_all():
@@ -1141,9 +2143,14 @@ class PurchaseInvoicePage(QWidget):
         self._hist_table.setRowCount(len(invs))
         for i, inv in enumerate(invs):
             self._hist_table.setItem(i, 0, QTableWidgetItem(inv.get("purchase_type", "")))
-            self._hist_table.setItem(i, 1, QTableWidgetItem(inv.get("voucher_no", "")))
+            raw_vno = inv.get("voucher_no", "")
+            vno_item = QTableWidgetItem(_display_voucher_no(raw_vno))
+            vno_item.setToolTip(f"Full Voucher: {raw_vno}")
+            self._hist_table.setItem(i, 1, vno_item)
             self._hist_table.setItem(i, 2, QTableWidgetItem(inv.get("voucher_date", "")))
-            self._hist_table.setItem(i, 3, QTableWidgetItem(inv.get("voucher_time", "")))
+            from core.doc_formatter import format_time_12hr
+            raw_time = inv.get("voucher_time", "")
+            self._hist_table.setItem(i, 3, QTableWidgetItem(format_time_12hr(raw_time)))
             self._hist_table.setItem(i, 4, QTableWidgetItem(inv.get("invoice_no", "")))
             self._hist_table.setItem(i, 5, QTableWidgetItem(inv.get("invoice_date", "")))
             self._hist_table.setItem(i, 6, QTableWidgetItem(inv.get("supplier_name", "") or ""))
@@ -1241,3 +2248,14 @@ class PurchaseInvoicePage(QWidget):
         lbl.setAlignment(Qt.AlignCenter)
         layout.addWidget(lbl)
         return page
+
+    def refresh_theme(self):
+        p = palette()
+        self.setStyleSheet(f"background-color: {p['bg']};")
+        if hasattr(self, "_filter_supplier"):
+            self._filter_supplier.setStyleSheet(_combo_style(p))
+        if hasattr(self, "_filter_from"):
+            self._filter_from.setStyleSheet(_date_style(p))
+        if hasattr(self, "_filter_to"):
+            self._filter_to.setStyleSheet(_date_style(p))
+

@@ -72,10 +72,26 @@ class _BaseTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        cls._ORIG_DB = os.environ.get("PHARMACY_DB")
         if os.path.exists(cls._DB_PATH):
-            os.remove(cls._DB_PATH)
+            try:
+                os.remove(cls._DB_PATH)
+            except Exception:
+                pass
         os.environ["PHARMACY_DB"] = cls._DB_PATH
         init_database()
+
+    @classmethod
+    def tearDownClass(cls):
+        if getattr(cls, "_ORIG_DB", None) is not None:
+            os.environ["PHARMACY_DB"] = cls._ORIG_DB
+        else:
+            os.environ.pop("PHARMACY_DB", None)
+        if os.path.exists(cls._DB_PATH):
+            try:
+                os.remove(cls._DB_PATH)
+            except Exception:
+                pass
 
     def setUp(self):
         conn = get_connection()

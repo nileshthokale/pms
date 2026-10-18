@@ -38,17 +38,41 @@ class PurchaseDAO:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def generate_next_voucher_no() -> str:
+    def generate_next_voucher_no(purchase_type: str = "Credit") -> str:
         conn = get_connection()
         try:
+            ptype = (purchase_type or "Credit").strip()
+            from database import financial_year
+            fy = financial_year.get_active_financial_year()
+            fy_name = fy["name"] if fy else None
+
+            if fy_name:
+                prefix = f"{fy_name}-{ptype}-"
+                cur = conn.execute(
+                    "SELECT voucher_no FROM purchase_invoices WHERE voucher_no LIKE ? ORDER BY id DESC",
+                    (f"{prefix}%",)
+                )
+                rows = cur.fetchall()
+                max_num = 0
+                for r in rows:
+                    vno = r["voucher_no"]
+                    tail = vno.rsplit("-", 1)[-1].strip()
+                    if "#" in tail:
+                        tail = tail.split("#")[0]
+                    if tail.isdigit():
+                        max_num = max(max_num, int(tail))
+                if max_num > 0:
+                    return f"{prefix}{max_num + 1}"
+                return f"{prefix}1"
+
+            # Fallback when no active financial year is configured
             cur = conn.execute(
                 "SELECT voucher_no FROM purchase_invoices ORDER BY id DESC LIMIT 1"
             )
             row = cur.fetchone()
             if row is None:
-                return "PV-0001"
+                return "PV-1"
             last = row["voucher_no"]
-            # Extract numeric part after the last '-'
             idx = last.rfind("-")
             if idx >= 0:
                 prefix = last[: idx + 1]
@@ -60,7 +84,7 @@ class PurchaseDAO:
                 num = int(num_part) + 1
             except ValueError:
                 num = 1
-            return f"{prefix}{num:04d}"
+            return f"{prefix}{num}"
         finally:
             conn.close()
 
@@ -491,5 +515,86 @@ class PurchaseDAO:
                 """
             )
             return [dict(r) for r in cur.fetchall()]
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_saved_batches_for_item(item_id: int) -> list[dict]:
+        """Return distinct saved batches for an item from purchase items and stock batches.
+
+        Includes batch_no, expiry, rate, mrp, and pack_size.
+        """
+        conn = get_connection()
+        try:
+            batches: dict[str, dict] = {}
+            # 1. Purchase invoice items (gives exact purchase rate, mrp, expiry)
+            cur = conn.execute(
+                """
+                SELECT batch_no, expiry, rate, mrp, pack_size
+                FROM purchase_invoice_items
+                WHERE item_id = ? AND batch_no IS NOT NULL AND TRIM(batch_no) != ''
+                ORDER BY id DESC
+                """,
+                (item_id,),
+            )
+            for r in cur.fetchall():
+                b = dict(r)
+                bno = (b.get("batch_no") or "").strip()
+                if not bno:
+                    continue
+                key = bno.upper()
+                if key not in batches:
+                    batches[key] = {
+                        "batch_no": bno,
+                        "expiry": (b.get("expiry") or "").strip(),
+                        "rate": float(b.get("rate") or 0.0),
+                        "mrp": float(b.get("mrp") or 0.0),
+                        "pack_size": str(b.get("pack_size") or ""),
+                    }
+                else:
+                    if not batches[key]["expiry"] and b.get("expiry"):
+                        batches[key]["expiry"] = str(b.get("expiry")).strip()
+                    if batches[key]["rate"] <= 0 and float(b.get("rate") or 0.0) > 0:
+                        batches[key]["rate"] = float(b.get("rate") or 0.0)
+                    if batches[key]["mrp"] <= 0 and float(b.get("mrp") or 0.0) > 0:
+                        batches[key]["mrp"] = float(b.get("mrp") or 0.0)
+                    if not batches[key]["pack_size"] and b.get("pack_size"):
+                        batches[key]["pack_size"] = str(b.get("pack_size") or "")
+
+            # 2. Stock batches (for batches that may not be in purchase_invoice_items)
+            cur = conn.execute(
+                """
+                SELECT batch_no, expiry, purchase_rate AS rate, mrp, pack_size
+                FROM stock_batches
+                WHERE item_id = ? AND batch_no IS NOT NULL AND TRIM(batch_no) != ''
+                ORDER BY id DESC
+                """,
+                (item_id,),
+            )
+            for r in cur.fetchall():
+                b = dict(r)
+                bno = (b.get("batch_no") or "").strip()
+                if not bno:
+                    continue
+                key = bno.upper()
+                if key not in batches:
+                    batches[key] = {
+                        "batch_no": bno,
+                        "expiry": (b.get("expiry") or "").strip(),
+                        "rate": float(b.get("rate") or 0.0),
+                        "mrp": float(b.get("mrp") or 0.0),
+                        "pack_size": str(b.get("pack_size") or ""),
+                    }
+                else:
+                    if not batches[key]["expiry"] and b.get("expiry"):
+                        batches[key]["expiry"] = str(b.get("expiry")).strip()
+                    if batches[key]["rate"] <= 0 and float(b.get("rate") or 0.0) > 0:
+                        batches[key]["rate"] = float(b.get("rate") or 0.0)
+                    if batches[key]["mrp"] <= 0 and float(b.get("mrp") or 0.0) > 0:
+                        batches[key]["mrp"] = float(b.get("mrp") or 0.0)
+                    if not batches[key]["pack_size"] and b.get("pack_size"):
+                        batches[key]["pack_size"] = str(b.get("pack_size") or "")
+
+            return list(batches.values())
         finally:
             conn.close()

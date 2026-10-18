@@ -92,9 +92,10 @@ class CashBookPage(QWidget):
             QMessageBox.warning(self, "Cash Book", str(exc)); return
         summary = report["summary"]
         self._summary.setText(f"Opening Balance: {report['opening_balance']:.2f} | Debit: {summary['total_debit']:.2f} | Credit: {summary['total_credit']:.2f} | Net Movement: {summary['net_movement']:.2f} | Closing Balance: {summary['closing_balance']:.2f}")
+        from core.doc_formatter import format_document_number
         self._table.setRowCount(len(report["rows"]))
         for index, row in enumerate(report["rows"]):
-            values = (row["transaction_date"], row["voucher_no"], row["reference_type"], row["description"], f"{row['debit'] or 0:.2f}", f"{row['credit'] or 0:.2f}", f"{row['balance']:.2f}")
+            values = (row["transaction_date"], format_document_number(row["voucher_no"]), row["reference_type"], row["description"], f"{row['debit'] or 0:.2f}", f"{row['credit'] or 0:.2f}", f"{row['balance']:.2f}")
             for column, value in enumerate(values): self._table.setItem(index, column, QTableWidgetItem(str(value)))
         if not report["rows"] and report["ledger"]:
             self._summary.setText(self._summary.text() + " | No cash transactions found for the selected period.")
@@ -104,8 +105,9 @@ class CashBookPage(QWidget):
     def _print(self):
         try: report = CashBookDAO.get_cash_book(*self._dates())
         except CashBookError as exc: QMessageBox.warning(self, "Cash Book", str(exc)); return
+        from core.doc_formatter import format_document_number
         lines = ["Cash Book", f"From: {self._dates()[0]}  To: {self._dates()[1]}", f"Opening Balance: {report['opening_balance']:.2f}", "Date | Reference | Particulars | Debit | Credit | Balance"]
-        for row in report["rows"]: lines.append(" | ".join((row["transaction_date"], row["voucher_no"], row["description"], f"{row['debit'] or 0:.2f}", f"{row['credit'] or 0:.2f}", f"{row['balance']:.2f}")))
+        for row in report["rows"]: lines.append(" | ".join((row["transaction_date"], format_document_number(row["voucher_no"]), row["description"], f"{row['debit'] or 0:.2f}", f"{row['credit'] or 0:.2f}", f"{row['balance']:.2f}")))
         summary = report["summary"]; lines.append(f"Closing Balance: {summary['closing_balance']:.2f}")
         path, _ = QFileDialog.getSaveFileName(self, "Save Cash Book PDF", "cash_book.pdf", "PDF (*.pdf)")
         if not path: return

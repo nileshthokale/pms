@@ -21,14 +21,17 @@ from __future__ import annotations
 
 import re
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, QStringListModel, Qt, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QComboBox,
+    QCompleter,
     QFrame,
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QLineEdit,
     QPushButton,
     QSizePolicy,
     QTableWidget,
@@ -606,6 +609,489 @@ class SearchBar(FilterBar):
         self.search_edit.setMinimumWidth(220)
         self.search_edit.setClearButtonEnabled(True)
         super().add_field("Search", self.search_edit)
+
+
+class ConstrainedComboBox(QComboBox):
+    """QComboBox with screen-aware popup sizing, alignment and item limits.
+
+    - Limits visible items to approximately 8-10 entries (~250-280px max height).
+    - Ensures a working vertical scrollbar is present when entries exceed the limit.
+    - Keeps the popup aligned with its input field.
+    - Matches field width by default while allowing moderate expansion up to
+      a configurable maximum width for long names without covering adjacent controls.
+    - Adapts to available screen space (opens upward if screen bottom is near).
+    - Preserves keyboard navigation (type-to-search, Up/Down, Enter, Escape).
+    - Also configures any attached QCompleter popup with the same height and item limits.
+    """
+
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        *,
+        max_visible_items: int = 9,
+        max_popup_height: int = 270,
+        min_popup_height: int = 100,
+        max_popup_width: int | None = None,
+        min_popup_width: int | None = None,
+        allow_width_expansion: bool = True,
+    ):
+        super().__init__(parent)
+        self._max_visible = max_visible_items
+        self._max_popup_height = max_popup_height
+        self._min_popup_height = min_popup_height
+        self._max_popup_width = max_popup_width
+        self._min_popup_width = min_popup_width
+        self._allow_width_expansion = allow_width_expansion
+
+        self.setMaxVisibleItems(max_visible_items)
+        view = self.view()
+        if view is not None:
+            view.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+            view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            popup = view.window()
+            if popup is not None:
+                popup.setMaximumHeight(max_popup_height)
+                if max_popup_width is not None:
+                    popup.setMaximumWidth(max_popup_width)
+
+    def setCompleter(self, completer):
+        super().setCompleter(completer)
+        if completer is not None:
+            completer.setMaxVisibleItems(self._max_visible)
+            popup = completer.popup()
+            if popup is not None:
+                popup.setMaximumHeight(self._max_popup_height)
+                popup.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+                popup.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+    def showPopup(self):
+        super().showPopup()
+        view = self.view()
+        if view is None:
+            return
+        popup = view.window()
+        if popup is None:
+            return
+
+        from PySide6.QtCore import QPoint, QRect
+        from PySide6.QtGui import QGuiApplication
+
+        screen = self.screen() or QGuiApplication.primaryScreen()
+        avail = screen.availableGeometry() if screen else QRect(0, 0, 1920, 1080)
+
+        g_pos = self.mapToGlobal(QPoint(0, 0))
+        combo_w = self.width()
+        combo_h = self.height()
+
+        target_w = combo_w
+        if self._allow_width_expansion:
+            model = view.model()
+            needed_w = view.sizeHintForColumn(0) + 26 if (model and model.rowCount() > 0) else combo_w
+            max_w = self._max_popup_width if self._max_popup_width is not None else (combo_w + 100)
+            target_w = max(combo_w, min(needed_w, max_w))
+        if self._max_popup_width is not None:
+            target_w = min(target_w, self._max_popup_width)
+        if self._min_popup_width is not None:
+            target_w = max(target_w, self._min_popup_width)
+
+        target_h = self._max_popup_height
+        space_below = avail.bottom() - (g_pos.y() + combo_h)
+        space_above = g_pos.y() - avail.top()
+
+        if space_below >= target_h or space_below >= space_above:
+            h = min(target_h, max(self._min_popup_height, space_below - 8))
+            y = g_pos.y() + combo_h
+        else:
+            h = min(target_h, max(self._min_popup_height, space_above - 8))
+            y = g_pos.y() - h
+
+        x = g_pos.x()
+        if x + target_w > avail.right() - 5:
+            x = max(avail.left() + 5, avail.right() - target_w - 5)
+        if x < avail.left() + 5:
+            x = avail.left() + 5
+
+        popup.setGeometry(QRect(x, y, target_w, h))
+        if popup.layout():
+            popup.layout().activate()
+
+
+class SearchableComboBox(ConstrainedComboBox):
+    """Editable, searchable combo box with case-insensitive partial matching.
+
+    - Compact dropdown (~8-10 visible entries) with vertical scrollbar.
+    - Uses case-insensitive contains matching for suggestions as user types.
+    - Keyboard navigation: Down/Up to highlight, Enter to select, Escape to dismiss.
+    - Prevents arbitrary text from being accepted (currentData returns None if text doesn't match).
+    - Preserves selection and updates associated fields.
+    """
+
+    selection_changed = Signal(object)  # emits selected ID or None
+
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        *,
+        placeholder: str = "",
+        max_visible: int = 9,
+        max_height: int = 270,
+        max_width: int | None = None,
+        min_width: int | None = None,
+        allow_width_expansion: bool = True,
+    ):
+        super().__init__(
+            parent,
+            max_visible_items=max_visible,
+            max_popup_height=max_height,
+            max_popup_width=max_width,
+            min_popup_width=min_width,
+            allow_width_expansion=allow_width_expansion,
+        )
+        self.setEditable(True)
+        self.setInsertPolicy(QComboBox.NoInsert)
+        self.setFixedHeight(32)
+
+        self._placeholder = placeholder
+        self._item_map: dict[str, int] = {}
+        self._id_to_index: dict[Any, int] = {}
+
+        line = self.lineEdit()
+        if line is not None:
+            line.setPlaceholderText(placeholder)
+            line.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            line.installEventFilter(self)
+            line.editingFinished.connect(self._resolve_current_text)
+
+        self._completer = QCompleter(self)
+        self._completer.setCaseSensitivity(Qt.CaseInsensitive)
+        self._completer.setFilterMode(Qt.MatchContains)
+        self._completer.setCompletionMode(QCompleter.PopupCompletion)
+        self._completer.setMaxVisibleItems(max_visible)
+        popup = self._completer.popup()
+        if popup is not None:
+            popup.setMaximumHeight(max_height)
+            popup.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+            popup.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setCompleter(self._completer)
+        self._completer.activated[str].connect(self._on_completion_str)
+
+        self.currentIndexChanged.connect(self._on_index_changed)
+        self.refresh_theme()
+
+    def _on_index_changed(self, index: int) -> None:
+        self.selection_changed.emit(self.currentData())
+
+    def refresh_theme(self, p: dict | None = None):
+        p = p or palette()
+        surface = p["surface"]
+        text = p["text"]
+        border = p["border"]
+        accent = p["accent"]
+        selected_bg = p.get("selected", accent)
+        selected_text = p.get("selected_text", "#ffffff")
+
+        self.setStyleSheet(
+            f"QComboBox {{"
+            f"  background-color: {surface}; color: {text};"
+            f"  border: 1px solid {border}; border-radius: 2px;"
+            f"  padding: 2px 6px; font-size: 15px; font-weight: bold; font-family: 'Segoe UI';"
+            f"  min-height: 24px;"
+            f"}}"
+            f"QComboBox:hover {{ border: 1px solid {accent}; }}"
+            f"QComboBox:focus {{ border: 1px solid {accent}; }}"
+            f"QComboBox::drop-down {{"
+            f"  subcontrol-origin: padding; subcontrol-position: top right;"
+            f"  width: 22px; border-left: 1px solid {border};"
+            f"}}"
+            f"QComboBox QAbstractItemView {{"
+            f"  background-color: {surface}; color: {text};"
+            f"  border: 1px solid {border}; selection-background-color: {accent};"
+            f"  selection-color: white; font-size: 15px; font-family: 'Segoe UI';"
+            f"}}"
+        )
+        line = self.lineEdit()
+        if line is not None:
+            line.setStyleSheet(
+                f"QLineEdit {{"
+                f"  background: transparent; color: {text};"
+                f"  border: none; padding: 1px 4px;"
+                f"  font-size: 14px; font-weight: bold; font-family: 'Segoe UI';"
+                f"}}"
+            )
+        popup = self._completer.popup()
+        if popup is not None:
+            popup.setStyleSheet(
+                f"QAbstractItemView {{"
+                f"  background-color: {surface}; color: {text};"
+                f"  border: 1px solid {border};"
+                f"  selection-background-color: {selected_bg}; selection-color: {selected_text};"
+                f"  font-size: 15px; font-family: 'Segoe UI'; outline: 0;"
+                f"}}"
+                f"QAbstractItemView::item {{ min-height: 26px; padding: 2px 8px; }}"
+            )
+
+    def populate(self, items: list[tuple[Any, ...]]):
+        """Populate items and update the completer model in a single fast batch.
+        Initializes the combo in an empty, unselected state.
+        Each item is either (text, data) or (display_text, data, raw_name).
+        """
+        self.blockSignals(True)
+        super().clear()
+        self._item_map.clear()
+        self._id_to_index.clear()
+
+        names = []
+        for idx, entry in enumerate(items):
+            if len(entry) >= 3:
+                text, data, raw_name = entry[0], entry[1], entry[2]
+            else:
+                text, data = entry[0], entry[1]
+                raw_name = text
+            text_str = str(text or "")
+            super().addItem(text_str, data)
+            self.setItemData(idx, raw_name, Qt.UserRole + 1)
+            names.append(text_str)
+            self._item_map[text_str.strip().casefold()] = idx
+            if raw_name:
+                self._item_map[str(raw_name).strip().casefold()] = idx
+            if data is not None:
+                self._id_to_index[data] = idx
+
+        super().setCurrentIndex(-1)
+        line = self.lineEdit()
+        if line is not None:
+            line.clear()
+            line.setToolTip("")
+        self.blockSignals(False)
+        self._completer.setModel(QStringListModel(names, self._completer))
+
+    def set_options(
+        self,
+        rows: list[dict],
+        id_key: str = "id",
+        name_key: str = "name",
+        subtitle_key: str | None = None,
+    ) -> None:
+        """Populate options from a list of master records."""
+        self._options = list(rows)
+        items = []
+        for row in rows:
+            name = str(row.get(name_key) or "").strip()
+            item_id = row.get(id_key)
+            if subtitle_key and row.get(subtitle_key):
+                sub = str(row[subtitle_key]).strip()
+                if sub and sub.casefold() not in name.casefold():
+                    display = f"{name}  [{sub}]"
+                else:
+                    display = name
+            else:
+                display = name
+            items.append((display, item_id, name))
+        self.populate(items)
+
+    @property
+    def options(self) -> list[dict]:
+        return getattr(self, "_options", [])
+
+    @property
+    def selected_id(self) -> Any:
+        return self.currentData()
+
+    @property
+    def selected_name(self) -> str:
+        if self.currentData() is None:
+            return ""
+        idx = self.currentIndex()
+        return self.itemText(idx) if idx >= 0 else ""
+
+    def set_selected_id(self, item_id: Any) -> None:
+        if item_id is None:
+            self.clear_selection()
+            return
+        if hasattr(self, "_id_to_index") and item_id in self._id_to_index:
+            self.setCurrentIndex(self._id_to_index[item_id])
+            return
+        for idx in range(self.count()):
+            if self.itemData(idx) == item_id:
+                self.setCurrentIndex(idx)
+                return
+        self.clear_selection()
+
+    def clear_selection(self):
+        """Reset combo to empty/unselected state and clear lineEdit text."""
+        self.setCurrentIndex(-1)
+        line = self.lineEdit()
+        if line is not None:
+            line.clear()
+            line.setToolTip("")
+
+    def setCurrentIndex(self, index: int):
+        super().setCurrentIndex(index)
+        line = self.lineEdit()
+        if line is not None:
+            if index >= 0:
+                txt = self.itemText(index)
+                line.setText(txt)
+                line.setCursorPosition(0)
+                line.setToolTip(txt)
+            else:
+                line.clear()
+                line.setToolTip("")
+
+    def currentText(self) -> str:
+        line = self.lineEdit()
+        if line is not None:
+            return line.text().strip()
+        idx = self.currentIndex()
+        if idx >= 0:
+            return self.itemText(idx)
+        return ""
+
+    def showPopup(self):
+        prefix = self.lineEdit().text().strip() if self.lineEdit() is not None else ""
+        self._completer.setCompletionPrefix(prefix)
+        self._completer.complete()
+
+    def _find_matching_index(self, text: str) -> int:
+        folded = text.strip().casefold()
+        if not folded:
+            return -1
+        if hasattr(self, "_item_map") and folded in self._item_map:
+            return self._item_map[folded]
+        idx = self.findText(text.strip(), Qt.MatchFixedString)
+        if idx >= 0:
+            return idx
+        for i in range(self.count()):
+            if self.itemText(i).strip().casefold() == folded:
+                return i
+            raw = self.itemData(i, Qt.UserRole + 1)
+            if raw and str(raw).strip().casefold() == folded:
+                return i
+        return -1
+
+    def _on_completion_str(self, text: str):
+        idx = self._find_matching_index(text)
+        if idx >= 0:
+            if self.currentIndex() == idx:
+                line = self.lineEdit()
+                if line is not None:
+                    txt = self.itemText(idx)
+                    line.setText(txt)
+                    line.setCursorPosition(0)
+                    line.setToolTip(txt)
+                self.currentIndexChanged.emit(idx)
+            else:
+                self.setCurrentIndex(idx)
+
+    def _resolve_current_text(self):
+        line = self.lineEdit()
+        if not line:
+            return
+        text = line.text().strip()
+        if not text or text == getattr(self, "_placeholder", ""):
+            self.setCurrentIndex(-1)
+            return
+
+        # 1. Exact match with display or raw name
+        match_idx = self._find_matching_index(text)
+        if match_idx >= 0 and self.itemData(match_idx) is not None:
+            if self.currentIndex() != match_idx:
+                self.setCurrentIndex(match_idx)
+            line.setText(self.itemText(match_idx))
+            return
+
+        # 2. Check if text uniquely matches a single completion suggestion
+        self._completer.setCompletionPrefix(text)
+        if self._completer.completionCount() == 1:
+            cand_text = self._completer.currentCompletion()
+            cand_idx = self._find_matching_index(cand_text)
+            if cand_idx >= 0 and self.itemData(cand_idx) is not None:
+                if self.currentIndex() != cand_idx:
+                    self.setCurrentIndex(cand_idx)
+                line.setText(self.itemText(cand_idx))
+                return
+
+        # 3. No match or ambiguous match: clear selection
+        self.setCurrentIndex(-1)
+
+    def resolve_text(self) -> bool:
+        """Resolve current lineEdit text against available items.
+        Returns True if a valid item is selected/resolved, False otherwise.
+        """
+        if self.currentData() is not None:
+            return True
+        self.blockSignals(True)
+        try:
+            self._resolve_current_text()
+        finally:
+            self.blockSignals(False)
+        return self.currentData() is not None
+
+    def currentData(self, role: int = Qt.UserRole) -> Any:
+        line = self.lineEdit()
+        typed = line.text().strip() if line is not None else ""
+        if not typed:
+            return None
+        idx = self.currentIndex()
+        if idx >= 0:
+            item_txt = self.itemText(idx).strip()
+            if typed.casefold() == item_txt.casefold():
+                return super().currentData(role)
+            raw_name = self.itemData(idx, Qt.UserRole + 1)
+            if raw_name and typed.casefold() == str(raw_name).strip().casefold():
+                return super().currentData(role)
+        # Attempt exact match with master record names or display names
+        match_idx = self._find_matching_index(typed)
+        if match_idx >= 0 and super().itemData(match_idx, role) is not None:
+            return super().itemData(match_idx, role)
+        return None
+
+    def eventFilter(self, obj, event):
+        if obj == self.lineEdit() and event.type() == QEvent.KeyPress:
+            key = event.key()
+            popup = self._completer.popup()
+            if key == Qt.Key_Escape and popup is not None and popup.isVisible():
+                popup.hide()
+                return True
+            if key in (Qt.Key_Down, Qt.Key_Up):
+                if popup is not None and not popup.isVisible():
+                    self._completer.setCompletionPrefix(self.lineEdit().text().strip())
+                    self._completer.complete()
+                count = self._completer.completionCount()
+                if count and popup is not None:
+                    current = popup.currentIndex().row()
+                    if current < 0:
+                        current = 0 if key == Qt.Key_Down else count - 1
+                    elif key == Qt.Key_Down:
+                        current = min(current + 1, count - 1)
+                    else:
+                        current = max(current - 1, 0)
+                    self._completer.setCurrentRow(current)
+                    popup.setCurrentIndex(self._completer.completionModel().index(current, 0))
+                return True
+            if key in (Qt.Key_Return, Qt.Key_Enter):
+                if popup is not None and popup.isVisible():
+                    current = popup.currentIndex()
+                    if not current.isValid() and self._completer.completionCount():
+                        current = self._completer.completionModel().index(0, 0)
+                    if current.isValid():
+                        text = current.data(Qt.DisplayRole)
+                        self._on_completion_str(str(text))
+                        popup.hide()
+                    return True
+                else:
+                    self._resolve_current_text()
+                    return False
+            if key in (Qt.Key_Tab, Qt.Key_Backtab):
+                if popup is not None and popup.isVisible():
+                    current = popup.currentIndex()
+                    if not current.isValid() and self._completer.completionCount():
+                        current = self._completer.completionModel().index(0, 0)
+                    if current.isValid():
+                        text = current.data(Qt.DisplayRole)
+                        self._on_completion_str(str(text))
+                        popup.hide()
+        return super().eventFilter(obj, event)
 
 
 # ── Small helpers used by screens ─────────────────────────────────────
@@ -1464,7 +1950,7 @@ def refresh_containers(root: QWidget) -> int:
 __all__ = [
     "FONT_FAMILY", "FONT_NAME", "CONTROL_HEIGHT", "ROW_HEIGHT", "HEADER_HEIGHT",
     "ActionButton", "PageHeader", "SummaryPanel", "StatusLabel",
-    "FormSection", "FilterBar", "SearchBar",
+    "FormSection", "FilterBar", "SearchBar", "ConstrainedComboBox",
     "label_style", "title_style", "section_title_style", "edit_style",
     "combo_style", "date_style", "spin_style", "checkbox_style",
     "group_box_style", "btn_primary_style", "btn_secondary_style",

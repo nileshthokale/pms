@@ -319,10 +319,12 @@ class _SupplierPaymentEntryDialog(QDialog):
             conn = None
             try:
                 from database.connection import get_connection
+                from core.doc_formatter import format_document_number
                 conn = get_connection()
-                self.voucher_no_edit.setText(
-                    SupplierPaymentDAO.generate_next_voucher_no(conn)
-                )
+                full = SupplierPaymentDAO.generate_next_voucher_no(conn)
+                self._full_voucher_no = full
+                self.voucher_no_edit.setText(format_document_number(full))
+                self.voucher_no_edit.setToolTip(f"Full Voucher: {full}")
             finally:
                 if conn:
                     conn.close()
@@ -339,7 +341,11 @@ class _SupplierPaymentEntryDialog(QDialog):
     # ------------------------------------------------------------------
 
     def _populate_payment(self, pay: dict):
-        self.voucher_no_edit.setText(pay.get("voucher_no", ""))
+        from core.doc_formatter import format_document_number
+        full = pay.get("voucher_no", "")
+        self._full_voucher_no = full
+        self.voucher_no_edit.setText(format_document_number(full))
+        self.voucher_no_edit.setToolTip(f"Full Voucher: {full}" if full else "")
 
         from PySide6.QtCore import QDate
         pd = pay.get("payment_date", "")
@@ -604,7 +610,11 @@ class SupplierPaymentPage(QWidget):
 
         self._hist_table.setRowCount(len(payments))
         for i, p in enumerate(payments):
-            self._hist_table.setItem(i, 0, QTableWidgetItem(p.get("voucher_no", "")))
+            from core.doc_formatter import format_document_number
+            raw_vno = p.get("voucher_no", "")
+            vno_item = QTableWidgetItem(format_document_number(raw_vno))
+            vno_item.setToolTip(f"Full Voucher: {raw_vno}")
+            self._hist_table.setItem(i, 0, vno_item)
             self._hist_table.setItem(i, 1, QTableWidgetItem(p.get("payment_date", "")))
             self._hist_table.setItem(i, 2, QTableWidgetItem(p.get("payment_time", "")))
             self._hist_table.setItem(i, 3, QTableWidgetItem(p.get("supplier_name", "")))

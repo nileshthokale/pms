@@ -788,7 +788,8 @@ def _fresh_button_for_text(text: str, p: dict) -> str | None:
         # Panel Delete (full-width) vs row Delete (56x22, 11 px) share the
         # caption; the caller distinguishes by size via cs_btn_kind.
         return None
-    if t in ("Cancel", "Edit", "Print", "Print / PDF", "All Dates", "Refresh"):
+    if t in ("Cancel", "Edit", "Print", "Print / PDF", "All Dates", "Refresh",
+             "Sales History"):
         return _fresh_btn_style(p["text_dim"], p)
     return None
 
@@ -1333,6 +1334,21 @@ class _KeyboardCombo(QComboBox):
         if accepted:
             self.completionAccepted.emit()
         return accepted
+
+    def close_popup(self) -> None:
+        """Close any open completion popup or dropdown."""
+        try:
+            completer = self.completer()
+            if completer is not None:
+                popup = completer.popup()
+                if popup is not None and popup.isVisible():
+                    popup.hide()
+        except Exception:
+            pass
+        try:
+            self.hidePopup()
+        except Exception:
+            pass
 
     def refresh_theme(self) -> None:
         """Re-apply live Day/Night colours to the combo box + its popup.
@@ -2196,15 +2212,93 @@ class _ItemEntryBar(QWidget):
         if idx >= 0:
             self.batch_combo.setCurrentIndex(idx)
 
+    def close_popups(self):
+        """Close completion popups and combo popups on all entry combos."""
+        if hasattr(self, "_focus_batch_timer"):
+            self._focus_batch_timer.stop()
+        if hasattr(self, "_focus_quantity_timer"):
+            self._focus_quantity_timer.stop()
+        for combo in (getattr(self, "item_combo", None), getattr(self, "batch_combo", None)):
+            if combo is None:
+                continue
+            try:
+                if hasattr(combo, "close_popup"):
+                    combo.close_popup()
+                else:
+                    completer = combo.completer()
+                    if completer is not None:
+                        popup = completer.popup()
+                        if popup is not None and popup.isVisible():
+                            popup.hide()
+                    combo.hidePopup()
+            except Exception:
+                pass
+
+    def reset_batch(self):
+        """Reset the Batch input to empty without clearing items if already loaded,
+        clearing displayed text, resetting selection to none, and closing dropdown."""
+        if hasattr(self, "_focus_batch_timer"):
+            self._focus_batch_timer.stop()
+        if hasattr(self, "_focus_quantity_timer"):
+            self._focus_quantity_timer.stop()
+        if hasattr(self, "batch_combo"):
+            try:
+                if hasattr(self.batch_combo, "close_popup"):
+                    self.batch_combo.close_popup()
+                else:
+                    completer = self.batch_combo.completer()
+                    if completer is not None:
+                        popup = completer.popup()
+                        if popup is not None and popup.isVisible():
+                            popup.hide()
+                    self.batch_combo.hidePopup()
+            except Exception:
+                pass
+            self.batch_combo.blockSignals(True)
+            self.batch_combo.setCurrentIndex(-1)
+            line_edit = self.batch_combo.lineEdit()
+            if line_edit is not None:
+                line_edit.clear()
+            self.batch_combo.blockSignals(False)
+        self.pack_edit.clear()
+        self.expiry_edit.clear()
+        self.mrp_edit.clear()
+        self.stock_edit.clear()
+        self.stock_edit.setToolTip("")
+        self.amount_edit.clear()
+        item_id = self.item_combo.currentData() if hasattr(self, "item_combo") else None
+        if item_id is not None and hasattr(self, "_items_by_id"):
+            item = self._items_by_id.get(item_id, {})
+            self.location_edit.setText(item.get("location", "") or "")
+        else:
+            self.location_edit.clear()
+
     def clear(self):
+        if hasattr(self, "_focus_batch_timer"):
+            self._focus_batch_timer.stop()
+        if hasattr(self, "_focus_quantity_timer"):
+            self._focus_quantity_timer.stop()
+        self.close_popups()
+        self.item_combo.blockSignals(True)
         self.item_combo.setCurrentIndex(0)
-        self.item_combo.lineEdit().clear()
+        item_line = self.item_combo.lineEdit()
+        if item_line is not None:
+            item_line.clear()
+        self.item_combo.blockSignals(False)
+        self.reset_batch()
+        self.batch_combo.blockSignals(True)
         self.batch_combo.clear()
+        self.batch_combo.setCurrentIndex(-1)
+        b_line = self.batch_combo.lineEdit()
+        if b_line is not None:
+            b_line.clear()
+        self.batch_combo.blockSignals(False)
         self.pack_edit.clear()
         self.location_edit.clear()
         self.expiry_edit.clear()
         self.mrp_edit.clear()
         self.stock_edit.clear()
+        self.stock_edit.setToolTip("")
         self.amount_edit.clear()
         self.qty_edit.setText("1")
         self.discount_edit.setText("0.00")
@@ -2342,17 +2436,19 @@ class _ItemEntryBar(QWidget):
 # share one permanent CNo.
 
 
-def _display_bill_no(bill_no: str) -> str:
+def _display_bill_no(bill_no: str, patient_name: str | None = None) -> str:
     """Short CNo for the billing UI (display only, never saved).
 
-    Active-FY bills stored as ``2026-2027-1910`` show as ``1910``; every
-    other stored value (historical FY bills, legacy imports, plain numbers)
-    shows unchanged so bills from different years stay distinguishable.
+    Returns numeric-only bill number when patient_name is present (or omitted).
+    If patient_name is provided and is empty or contains only whitespace, returns a blank string.
     """
+    if patient_name is not None and not str(patient_name).strip():
+        return ""
     try:
-        return SalesDAO.display_bill_no(bill_no)
+        return SalesDAO.display_bill_no(bill_no, patient_name=patient_name)
     except Exception:
-        return (bill_no or "").strip() or "--"
+        from core.doc_formatter import format_document_number
+        return format_document_number(bill_no)
 
 
 def _increment_bill_no(bill_no: str) -> str:
@@ -2646,9 +2742,11 @@ class _SalePanel(QWidget):
                 preview = SalesDAO.generate_next_bill_no()
         except Exception:
             preview = preview or ""
+        self._full_bill_no = preview
+        disp = _display_bill_no(preview)
         try:
             self.bill_no_edit.blockSignals(True)
-            self.bill_no_edit.setText(preview)
+            self.bill_no_edit.setText(disp)
         finally:
             try:
                 self.bill_no_edit.blockSignals(False)
@@ -2658,7 +2756,7 @@ class _SalePanel(QWidget):
             self.bill_no_edit.setToolTip(f"{preview} (preview, assigned on Save)" if preview else "Unsaved draft")
         except Exception:
             pass
-        self._entry_bar.set_cno(preview)
+        self._entry_bar.set_cno(disp)
 
     def _refresh_draft_availability(self):
         self._entry_bar.refresh_draft_availability()
@@ -2840,7 +2938,7 @@ class _SalePanel(QWidget):
         left.addWidget(self._lbl("Cnt No"), 0, 0, Qt.AlignRight | Qt.AlignVCenter)
         self.cnt_no_edit = _make_edit()
         self.cnt_no_edit.setReadOnly(True)
-        _ItemEntryBar._fit(self.cnt_no_edit, 55, 90)  # Match original
+        _ItemEntryBar._fit(self.cnt_no_edit, 90, 125)
         left.addWidget(self.cnt_no_edit, 0, 1)
         left.addWidget(self._lbl("Type"), 1, 0, Qt.AlignRight | Qt.AlignVCenter)
         self.sale_type_combo.setMinimumWidth(110)
@@ -2863,6 +2961,8 @@ class _SalePanel(QWidget):
         plain_patient.setParent(None)
         plain_patient.deleteLater()
         centre.addWidget(patient, 1, 1)
+        if hasattr(patient, "lineEdit") and patient.lineEdit():
+            patient.lineEdit().textChanged.connect(self._on_patient_name_changed)
         centre.addWidget(self._lbl("Address"), 2, 0, Qt.AlignRight | Qt.AlignVCenter)
         self.address_edit = _DBLookupCombo(
             _address_options, placeholder="Search saved address", width=300,
@@ -2933,13 +3033,15 @@ class _SalePanel(QWidget):
                 short, full = "Draft", "Unsaved draft (number assigned on Save)"
             else:
                 try:
-                    short = _display_bill_no(self.bill_no_edit.text()) if self.bill_no_edit.text().strip() else "--"
+                    pat = self.patient_name_edit.text() if hasattr(self, 'patient_name_edit') else None
+                    raw_bno = getattr(self, "_full_bill_no", None) or self.bill_no_edit.text()
+                    short = _display_bill_no(raw_bno, patient_name=pat) if raw_bno.strip() else "--"
                 except Exception:
                     short = self.bill_no_edit.text() or "--"
-                full = self.bill_no_edit.text() or "--"
+                full = getattr(self, "_full_bill_no", None) or self.bill_no_edit.text() or "--"
             self.voucher_no_label.setText(short)
             try:
-                self.voucher_no_label.setToolTip(full)
+                self.voucher_no_label.setToolTip(f"Full Voucher: {full}" if full else "--")
             except Exception:
                 pass
         if hasattr(self, 'header_date_label'):
@@ -3292,6 +3394,7 @@ class _SalePanel(QWidget):
         row2.addWidget(self._compact_lbl("Patient"))
         self.patient_name_edit = _make_compact_edit(height=_METADATA_CONTROL_HEIGHT)
         self.patient_name_edit.setMinimumWidth(150)
+        self.patient_name_edit.textChanged.connect(self._on_patient_name_changed)
         row2.addWidget(self.patient_name_edit, 3)
 
         row2.addWidget(self._compact_lbl("Doctor"))
@@ -3303,6 +3406,22 @@ class _SalePanel(QWidget):
 
         self._load_customers()
         self._load_doctors()
+
+    def _on_patient_name_changed(self, text: str):
+        full_bno = getattr(self, "_full_bill_no", None)
+        if not full_bno:
+            return
+        if getattr(self, "_invoice", None) is not None:
+            has_pat = bool(text and text.strip())
+            disp = _display_bill_no(full_bno) if has_pat else ""
+            self.bill_no_edit.blockSignals(True)
+            self.bill_no_edit.setText(disp)
+            self.bill_no_edit.blockSignals(False)
+            self._update_header_labels()
+            try:
+                self._entry_bar.set_cno(disp)
+            except Exception:
+                pass
 
     def _load_customers(self):
         customers = CustomerDAO.get_all()
@@ -3335,9 +3454,11 @@ class _SalePanel(QWidget):
                 preview = SalesDAO.generate_next_bill_no()
             except Exception:
                 preview = ""
+            self._full_bill_no = preview
+            disp = _display_bill_no(preview)
             try:
                 self.bill_no_edit.blockSignals(True)
-                self.bill_no_edit.setText(preview)
+                self.bill_no_edit.setText(disp)
             finally:
                 try:
                     self.bill_no_edit.blockSignals(False)
@@ -3518,6 +3639,7 @@ class _SalePanel(QWidget):
         self._recalc_totals()
         self._refresh_draft_availability()
         self._entry_bar.clear()
+        self._entry_bar.reset_batch()
         self._entry_bar.item_combo.setFocus()
 
     def _refresh_table(self):
@@ -3898,7 +4020,12 @@ class _SalePanel(QWidget):
     # ------------------------------------------------------------------
 
     def _populate_invoice(self, inv: dict):
-        self.bill_no_edit.setText(inv.get("bill_no", ""))
+        full_bno = inv.get("bill_no", "")
+        self._full_bill_no = full_bno
+        pat = inv.get("patient_name", "")
+        self.patient_name_edit.setText(pat)
+        self.bill_no_edit.setText(_display_bill_no(full_bno, patient_name=pat))
+        self.bill_no_edit.setToolTip(f"Full Bill No: {full_bno}" if full_bno else "")
 
         from PySide6.QtCore import QDate
         sd = inv.get("sale_date", "")
@@ -3954,6 +4081,9 @@ class _SalePanel(QWidget):
 
         self._recalc_totals()
         self._refresh_draft_availability()
+        if getattr(self, "_popup_mode", False):
+            self._refresh_customer_info()
+            self._update_header_labels()
 
     @staticmethod
     def _lbl(text: str) -> QLabel:
@@ -4084,6 +4214,7 @@ class _SalePanel(QWidget):
         and application-blocking for the user, but the call returns
         immediately so the save flow stays re-entrant and testable.
         """
+        self._entry_bar.close_popups()
         dialog = SalesBillReviewDialog(self, self)
         self._review_dialog = dialog
         dialog.finished.connect(self._release_review_dialog)
@@ -4096,6 +4227,7 @@ class _SalePanel(QWidget):
         """Drop the popup handle once it is gone (Close, Escape or Save)."""
         if getattr(self, "_review_dialog", None) is not None:
             del self._review_dialog
+        self._entry_bar.close_popups()
 
     def _validate_for_commit(self) -> bool:
         """Every business rule that must pass before a sale may be written.
@@ -4118,7 +4250,8 @@ class _SalePanel(QWidget):
 
         # Drafts carry no number until Save (assigned transactionally);
         # only edits of existing invoices require a bill number here.
-        if self._invoice and not self.bill_no_edit.text().strip():
+        existing_bno = getattr(self, "_full_bill_no", None) or (self._invoice.get("bill_no") if self._invoice else None)
+        if self._invoice and not (existing_bno or self.bill_no_edit.text().strip()):
             self.bill_no_edit.setFocus()
             QMessageBox.warning(self, "Validation", "Bill number is required.")
             return False
@@ -4204,9 +4337,9 @@ class _SalePanel(QWidget):
             # preserved (still Draft, not marked saved).
             displayed = self.bill_no_edit.text().strip()
             if self._invoice:
-                bill_no = displayed
+                bill_no = getattr(self, "_full_bill_no", None) or self._invoice.get("bill_no") or displayed
             else:
-                bill_no = SalesDAO.generate_next_bill_no()
+                bill_no = getattr(self, "_full_bill_no", None) or SalesDAO.generate_next_bill_no()
             remarks = self._remarks_text()
             items_data = [r.to_dict() for r in self._item_rows]
 
@@ -4251,7 +4384,7 @@ class _SalePanel(QWidget):
         this snapshot, which is what keeps the popup free of side effects.
         """
         return {
-            "bill_no": self.bill_no_edit.text(),
+            "bill_no": getattr(self, "_full_bill_no", None) or self.bill_no_edit.text(),
             "provisional_bill_no": self._provisional_bill_no,
             "sale_date": self.sale_date.date(),
             "sale_time": self.sale_time_edit.text(),
@@ -4293,7 +4426,12 @@ class _SalePanel(QWidget):
         self._saved = False
         self._held = False
         self._provisional_bill_no = bool(state.get("provisional_bill_no", False))
-        self.bill_no_edit.setText(state.get("bill_no", ""))
+        raw_bno = state.get("bill_no", "")
+        self._full_bill_no = raw_bno
+        self.bill_no_edit.setText(_display_bill_no(raw_bno))
+        self.bill_no_edit.setToolTip(
+            f"{raw_bno} (preview, assigned on Save)" if self._provisional_bill_no else (f"Full Bill No: {raw_bno}" if raw_bno else "")
+        )
 
         date_value = state.get("sale_date")
         if date_value is not None:
@@ -4339,25 +4477,12 @@ class _SalePanel(QWidget):
         self._recalc_totals()
         self._refresh_draft_availability()
         self._entry_bar.set_cno(self.bill_no_edit.text())
-        self._focus_entry_on_first_row()
+        self._entry_bar.clear()
+        self._entry_bar.reset_batch()
 
     def _focus_entry_on_first_row(self):
-        """Show the first bill line's item/batch in the entry bar.
-
-        Display only: selecting in the entry bar fills the read-only Pack /
-        Location / Expiry / MRP / Batch-Stock boxes and loads the batch list,
-        so the entry area of a review step always shows live item data
-        instead of empty controls.  It reserves nothing and writes nothing.
-        """
-        if not self._item_rows:
-            return
-        first = self._item_rows[0]
-        item_index = self._entry_bar.item_combo.findData(first.item_id)
-        if item_index >= 0:
-            self._entry_bar.item_combo.setCurrentIndex(item_index)
-        batch_index = self._entry_bar.batch_combo.findData(first.stock_batch_id)
-        if batch_index >= 0:
-            self._entry_bar.batch_combo.setCurrentIndex(batch_index)
+        """No-op: entry bar stays clean with Batch input empty on review/load."""
+        pass
 
     @property
     def was_saved(self) -> bool:
@@ -4575,32 +4700,37 @@ class SalesBillReviewDialog(QDialog):
     """Compact "Sales Bill" review/edit step for Counter Sale.
 
     Opened by the Counter Sale **Save Sale** button *after* the draft has
-    been validated.  It shows the bill and lets the user correct the
-    customer, patient, doctor, quantities, discounts and line items before
-    committing.
+    been validated, or by the History **Edit** action to edit an existing bill.
+    It shows the bill and lets the user correct the customer, patient,
+    doctor, quantities, discounts and line items before committing.
 
     Transaction contract
     --------------------
     * Opening this popup writes nothing: no invoice, no stock deduction,
-      no accounting entry.  It only takes a copy of the unsaved draft.
-    * **Save** runs the full validation again and then performs the one and
-      only commit (invoice + stock + posting) through the existing
-      ``SalesDAO`` workflow.
-    * **Close** / **Escape** discard the copy and return to Counter Sale
-      with the draft untouched.
-
-    The bill is edited through an embedded :class:`_SalePanel` set to
-    review mode, so every existing control â€” item autocomplete, batch
-    selection, draft stock reservation, add/delete line, keyboard
-    navigation â€” is the same one the Counter Sale screen uses.
+      no accounting entry.  It only takes a copy of the unsaved draft or
+      loads the existing invoice.
+    * **Save** runs the full validation again and then performs the commit
+      (insert new or update existing via ``SalesDAO.update_invoice``).
+    * **Close** / **Escape** discard the changes and leave the bill untouched.
     """
 
-    def __init__(self, panel: _SalePanel, parent: QWidget | None = None):
+    saved = Signal()
+
+    def __init__(
+        self,
+        panel: _SalePanel,
+        parent: QWidget | None = None,
+        *,
+        invoice: dict | None = None,
+        reservation_provider: object | None = None,
+    ):
         super().__init__(parent)
         _keep_alive(self)
         self._source_panel = panel
+        self._invoice_to_edit = invoice
+        self._is_editing = invoice is not None
         self.setObjectName("SalesBillDialog")
-        self.setWindowTitle("Sales Bill")
+        self.setWindowTitle("Edit Sales Bill" if self._is_editing else "Sales Bill")
         self.setModal(True)
         self.setStyleSheet(_BILL_DIALOG_STYLE)
 
@@ -4618,17 +4748,23 @@ class SalesBillReviewDialog(QDialog):
         body_layout.setContentsMargins(8, 6, 8, 6)
         body_layout.setSpacing(6)
 
-        # The editable copy of the draft.  Review mode makes its own
+        # The editable copy of the draft or invoice.  Review mode makes its own
         # "Save Sale" behave as the final commit instead of opening a
         # second popup.
         self._panel = _SalePanel(body, popup_mode=True)
         self._panel._in_review_popup = True
-        self._panel.load_draft_state(panel.draft_state())
+        if self._is_editing:
+            self._panel.load_invoice(invoice)
+        else:
+            self._panel.load_draft_state(panel.draft_state())
         # A review copy must honour reservations made by the other open
         # Counter Sale drafts just like the inline panel does.
-        self._panel.set_other_draft_reservation_provider(
-            panel._other_draft_reserved_qty
-        )
+        if reservation_provider is not None:
+            self._panel.set_other_draft_reservation_provider(reservation_provider)
+        else:
+            self._panel.set_other_draft_reservation_provider(
+                panel._other_draft_reserved_qty
+            )
         # Remove the duplicate upper totals summary: the panel's own
         # Total Amt / Round Off / NET AMT row would repeat the dialog's
         # single compact footer.  The hidden labels still exist so
@@ -4647,16 +4783,19 @@ class SalesBillReviewDialog(QDialog):
         # The popup's Remarks box is the bill's remarks source when the sale
         # is committed from here; an edited bill shows its stored remarks.
         self._panel.remarks_edit = self.remarks_edit
-        invoice = self._panel._invoice
-        if invoice:
-            self.remarks_edit.setText(invoice.get("remarks") or "")
+        inv_data = self._panel._invoice
+        if inv_data:
+            self.remarks_edit.setText(inv_data.get("remarks") or "")
 
         # A successful commit re-emits on the *source* panel so the Counter
         # Sale page performs its normal history refresh / form reset.
-        self._panel.saved.connect(self._source_panel.saved.emit)
-        # Hold stays a draft-only action: it is forwarded like Save so the
-        # page resets, but no stock or accounting is touched either way.
-        self._panel.held.connect(self._on_popup_held)
+        # In edit mode, do not forward to _source_panel (which resets the active draft).
+        # Instead, emit the dialog's own saved signal.
+        if not self._is_editing:
+            self._panel.saved.connect(self._source_panel.saved.emit)
+            self._panel.held.connect(self._on_popup_held)
+        else:
+            self._panel.saved.connect(self.saved.emit)
         # Cancel inside the popup means "discard", exactly like Close.
         self._panel.cancelled.connect(self.reject)
 
@@ -4664,6 +4803,22 @@ class SalesBillReviewDialog(QDialog):
         # The popup's own width is only known now, so the Item Entry row is
         # measured and sized to fit exactly this window.
         self._panel.apply_popup_entry_widths(self.width() - _POPUP_BODY_CHROME)
+        self._panel._entry_bar.close_popups()
+        self._panel._entry_bar.reset_batch()
+        self._panel._entry_bar.clear()
+        if hasattr(self, "_final_save_btn"):
+            self._final_save_btn.setFocus()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        try:
+            if hasattr(self, "_panel") and hasattr(self._panel, "_entry_bar"):
+                self._panel._entry_bar.close_popups()
+                self._panel._entry_bar.reset_batch()
+            if hasattr(self, "_final_save_btn"):
+                self._final_save_btn.setFocus()
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # Construction helpers
@@ -4721,7 +4876,10 @@ class SalesBillReviewDialog(QDialog):
                 self._header_time_label = val
 
         try:
-            _pair("Voucher No", panel.bill_no_edit.text() or "--", 140)
+            raw_bno = panel.bill_no_edit.text() or "--"
+            _pair("Voucher No", _display_bill_no(raw_bno), 140)
+            if hasattr(self, "_header_voucher_label"):
+                self._header_voucher_label.setToolTip(f"Full Voucher: {raw_bno}")
             _pair("Date", panel.sale_date.date().toString("dd-MM-yyyy"), 100)
             _pair("Time", panel.sale_time_edit.text() or "--", 70)
         except Exception:
@@ -4786,7 +4944,7 @@ class SalesBillReviewDialog(QDialog):
         )
         main_layout = QVBoxLayout(bar)
         # Reduced vertical padding vs the old 12,8 layout.
-        main_layout.setContentsMargins(8, 4, 8, 4)
+        main_layout.setContentsMargins(12, 4, 12, 4)
         main_layout.setSpacing(4)
 
         # ---- Single horizontal totals row (wraps via small widths) ----
@@ -4794,7 +4952,7 @@ class SalesBillReviewDialog(QDialog):
         totals_row.setSpacing(6)
         totals_row.setContentsMargins(0, 0, 0, 0)
         self._compact_footer_block(totals_row, "Total Items", "_total_items_label",
-                                   str(len(self._panel._item_rows)), 62)
+                                   str(len(self._panel._item_rows)), 74)
         self._compact_footer_block(totals_row, "Total Amount", "_footer_total_amount",
                                    self._panel.total_amount_label.text(), 92)
         self._compact_footer_block(totals_row, "Bill Discount", "_footer_bill_discount",
@@ -5074,7 +5232,7 @@ _HISTORY_COLUMNS = {
 
 _HISTORY_COLUMN_WIDTHS = {
     HISTORY_MODE_ITEM: (85, 55, 140, 96, 45, 80, 145, 70, 150, 110, 82, 75, 100),
-    HISTORY_MODE_BILL: (80, 56, 135, 100, 60, 64, 112, 80, 104, 125),
+    HISTORY_MODE_BILL: (85, 60, 270, 115, 95, 65, 112, 80, 105, 140),
 }
 
 # Stretch map (kept for backwards-compat imports; _apply_history_columns
@@ -5203,6 +5361,12 @@ class CounterSalePage(QWidget):
     """
 
     HISTORY_PAGE_SIZE = 200
+
+    # Second entry point to the dedicated Sales History screen.  Emitted by
+    # the "Sales History" toolbar button next to Refresh; the main window
+    # routes it through the exact same "Sales > Sales History" action the
+    # top menu uses, so both entries open the same page/view.
+    sales_history_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
@@ -5433,6 +5597,19 @@ class CounterSalePage(QWidget):
         self._hist_refresh_btn.setStyleSheet(_BTN_SECONDARY)
         self._hist_refresh_btn.setToolTip("Reload the selected day's results")
 
+        # Second entry point to the dedicated Sales History screen, placed
+        # beside Refresh.  Navigation only: it reads and writes nothing
+        # here — the target screen owns all history loading/filters.
+        self._hist_sales_history_btn = QPushButton("Sales History")
+        self._hist_sales_history_btn.setStyleSheet(_BTN_SECONDARY)
+        self._hist_sales_history_btn.setFixedHeight(_METADATA_CONTROL_HEIGHT)
+        self._hist_sales_history_btn.setMinimumWidth(
+            max(96, self._hist_sales_history_btn.sizeHint().width() + 16)
+        )
+        self._hist_sales_history_btn.setToolTip(
+            "Open the dedicated Sales History screen"
+        )
+
         layout.addWidget(self._flbl("Daily Sales:"))
         layout.addWidget(self._flbl("Date"))
         layout.addWidget(self._hist_date)
@@ -5440,6 +5617,8 @@ class CounterSalePage(QWidget):
         layout.addWidget(self._hist_today_btn)
         layout.addSpacing(4)
         layout.addWidget(self._hist_refresh_btn)
+        layout.addSpacing(4)
+        layout.addWidget(self._hist_sales_history_btn)
         layout.addStretch()
         layout.addWidget(self._flbl("View"))
         layout.addWidget(self._hist_item_mode)
@@ -5452,6 +5631,9 @@ class CounterSalePage(QWidget):
         self._hist_item_mode.toggled.connect(self._on_history_mode_toggled)
         self._hist_bill_mode.toggled.connect(self._on_history_mode_toggled)
         self._hist_refresh_btn.clicked.connect(self._refresh_history)
+        self._hist_sales_history_btn.clicked.connect(
+            self._on_open_sales_history
+        )
         return bar
 
     def _on_show_today_history(self):
@@ -5468,6 +5650,16 @@ class CounterSalePage(QWidget):
         self._history_filter = HISTORY_FILTER_ALL
         self._history_financial_year = None
         self._refresh_history()
+
+    def _on_open_sales_history(self):
+        """Open the dedicated Sales History screen.
+
+        The toolbar button only requests navigation: the main window
+        receives ``sales_history_requested`` and runs the same
+        "Sales > Sales History" action as the top menu (same page lookup,
+        title and status text), so there is a single navigation path.
+        """
+        self.sales_history_requested.emit()
 
     # ------------------------------------------------------------------
     # History view filtering (date / financial year / all)
@@ -5617,14 +5809,16 @@ class CounterSalePage(QWidget):
             hv.setSectionResizeMode(6, QHeaderView.Stretch)
             hv.setStretchLastSection(False)
         else:
-            # Bill mode restored exactly (previous behavior).
-            stretch_col = _HISTORY_STRETCH_COLUMN[self._history_mode]
+            # Bill mode: Patient base 270 px (250-280 px range) widens with the
+            # viewport so longer patient names are easier to read; Net Amount is
+            # compact (130-150 px range) and right-aligned; Date (115 px) and
+            # Time (95 px) stay fully visible. The table stretches across the
+            # window without trailing empty space.
             hv.setSectionResizeMode(QHeaderView.Interactive)
-            for col, width in enumerate(_HISTORY_COLUMN_WIDTHS[self._history_mode]):
+            for col, width in enumerate(_HISTORY_COLUMN_WIDTHS[HISTORY_MODE_BILL]):
                 table.setColumnWidth(col, width)
-            for col in {stretch_col, len(labels) - 1}:
-                hv.setSectionResizeMode(col, QHeaderView.Stretch)
-            hv.setStretchLastSection(True)
+            hv.setSectionResizeMode(2, QHeaderView.Stretch)
+            hv.setStretchLastSection(False)
         table.setSortingEnabled(True)
 
     def _build_history_table(self) -> QTableWidget:
@@ -5689,6 +5883,7 @@ class CounterSalePage(QWidget):
             + 2
         )
         table.setMinimumHeight(minimum_height)
+        table.doubleClicked.connect(lambda _idx: self._on_edit())
         return table
 
     def _build_bill_panel(self) -> QWidget:
@@ -5918,6 +6113,19 @@ class CounterSalePage(QWidget):
             total += reserved_quantity(qty, original.get(batch_id, 0.0))
         return total
 
+    def _reserved_by_all_open_bills(self, batch_id: int) -> float:
+        """Total unsaved reservation for *batch_id* across all open drafts."""
+        total = 0.0
+        for draft_id, state in self._open_bills.items():
+            original = state.get("original_batch_qty") or {}
+            qty = sum(
+                float(row.get("sale_qty", 0.0) or 0.0)
+                for row in state.get("rows") or []
+                if row.get("stock_batch_id") == batch_id
+            )
+            total += reserved_quantity(qty, original.get(batch_id, 0.0))
+        return total
+
     def _open_bill_net_total(self, state: dict) -> str:
         """Net (Bill Total) for a stored draft snapshot, matching _recalc."""
         try:
@@ -5942,7 +6150,10 @@ class CounterSalePage(QWidget):
         else:
             try:
                 raw = str(state.get("bill_no") or invoice.get("bill_no") or "--").strip() or "--"
-                identity = _display_bill_no(raw) if raw != "--" else "--"
+                pat = state.get("patient_name") or invoice.get("patient_name") or ""
+                identity = _display_bill_no(raw, patient_name=pat) if raw != "--" else "--"
+                if not identity:
+                    identity = "Bill"
             except Exception:
                 identity = str(state.get("bill_no") or invoice.get("bill_no") or "--").strip() or "--"
         if state.get("saved_total") is not None:
@@ -6222,7 +6433,8 @@ class CounterSalePage(QWidget):
             if hasattr(self, "_new_btn"):
                 self._new_btn.setStyleSheet(_fresh_btn_style(p["accent"], p))
             for attr in (
-                "_hist_all_btn", "_hist_today_btn", "_hist_refresh_btn"
+                "_hist_all_btn", "_hist_today_btn", "_hist_refresh_btn",
+                "_hist_sales_history_btn",
             ):
                 btn = getattr(self, attr, None)
                 if btn is not None:
@@ -6259,9 +6471,13 @@ class CounterSalePage(QWidget):
             self._refresh_open_bill_cards()
         except Exception:
             pass
-        # Header strip + filter bar backgrounds.
         try:
             refresh_cs_tree(self)
+        except Exception:
+            pass
+        try:
+            if getattr(self, "_edit_dialog", None) is not None:
+                self._edit_dialog.refresh_theme()
         except Exception:
             pass
         try:
@@ -6335,8 +6551,9 @@ class CounterSalePage(QWidget):
         stored number is kept in the tooltip.
         """
         stored = row.get("bill_no") or ""
-        cell = QTableWidgetItem(_display_bill_no(stored) or "")
-        cell.setToolTip(stored)
+        pat = row.get("patient_name")
+        cell = QTableWidgetItem(_display_bill_no(stored, patient_name=pat))
+        cell.setToolTip(f"Full Bill No: {stored}" if stored else "")
         table.setItem(row_index, 0, cell)
         table.setItem(row_index, 1, QTableWidgetItem(row.get("sale_type") or ""))
         table.setItem(row_index, 2, QTableWidgetItem(row.get("item_name") or ""))
@@ -6365,13 +6582,30 @@ class CounterSalePage(QWidget):
         stored number.  The full stored number is kept in the tooltip.
         """
         stored = row.get("bill_no") or ""
-        cell = QTableWidgetItem(_display_bill_no(stored) or "")
-        cell.setToolTip(stored)
+        pat = row.get("patient_name")
+        cell = QTableWidgetItem(_display_bill_no(stored, patient_name=pat))
+        cell.setToolTip(f"Full Bill No: {stored}" if stored else "")
         table.setItem(row_index, 0, cell)
         table.setItem(row_index, 1, QTableWidgetItem(row.get("sale_type") or ""))
-        table.setItem(row_index, 2, QTableWidgetItem(row.get("patient_name") or ""))
-        table.setItem(row_index, 3, QTableWidgetItem(row.get("sale_date") or ""))
-        table.setItem(row_index, 4, QTableWidgetItem(row.get("sale_time") or ""))
+
+        patient_name = row.get("patient_name") or ""
+        pat_cell = QTableWidgetItem(patient_name)
+        if patient_name:
+            pat_cell.setToolTip(patient_name)
+        table.setItem(row_index, 2, pat_cell)
+
+        sale_date = row.get("sale_date") or ""
+        date_cell = QTableWidgetItem(sale_date)
+        if sale_date:
+            date_cell.setToolTip(sale_date)
+        table.setItem(row_index, 3, date_cell)
+
+        sale_time = row.get("sale_time") or ""
+        time_cell = QTableWidgetItem(sale_time)
+        if sale_time:
+            time_cell.setToolTip(sale_time)
+        table.setItem(row_index, 4, time_cell)
+
         table.setItem(row_index, 5,
                       QTableWidgetItem(str(row.get("item_count") or 0)))
         table.setItem(row_index, 6, self._money_cell(row.get("total_amount")))
@@ -6424,46 +6658,49 @@ class CounterSalePage(QWidget):
         self._refresh_combined_summary()
         self._sale_panel.focus_item_name()
 
-    def _on_edit(self):
+    def _on_edit(self) -> SalesBillReviewDialog | None:
         try:
             auth.session.require(auth.PERM_EDIT_TRANSACTIONS)
         except auth.PermissionDenied as exc:
-            QMessageBox.warning(self, "Permission denied", str(exc)); return
+            QMessageBox.warning(self, "Permission denied", str(exc))
+            return None
         inv_id = self._selected_history_id()
         if not inv_id:
             QMessageBox.information(self, "Edit Sale", "Please select a bill to edit.")
-            return
+            return None
         inv = SalesDAO.get_by_id(inv_id)
         if not inv:
             QMessageBox.warning(self, "Edit Sale", "Could not load bill data.")
-            return
-        # Do not silently discard an unsaved multi-bill draft.
+            return None
+
+        # Snapshot current active draft so reservations stay up to date
         try:
-            if self._sale_panel.draft_state().get("rows"):
-                answer = QMessageBox.question(
-                    self, "Edit Sale",
-                    "Load the selected history bill into the active draft? "
-                    "Unsaved items in the active bill will be replaced. "
-                    "Other open bills are unchanged.",
-                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
-                )
-                if answer != QMessageBox.Yes:
-                    return
+            self._store_active_open_bill()
         except Exception:
             pass
-        self._editing_invoice_id = inv_id
-        self._sale_panel.load_invoice(inv)
-        # Keep the multi-bill workspace consistent: the edited invoice now
-        # owns the active slot (non-provisional), reservations recalculated.
-        try:
-            self._open_bills[self._active_open_bill_id] = self._sale_panel.draft_state()
-            self._sale_panel.set_other_draft_reservation_provider(
-                self._reserved_by_other_open_bills
-            )
-            self._refresh_open_bill_cards()
-        except Exception:
-            pass
-        self._sale_panel.focus_item_name()
+
+        dlg = SalesBillReviewDialog(
+            self._sale_panel,
+            parent=self,
+            invoice=inv,
+            reservation_provider=self._reserved_by_all_open_bills,
+        )
+        self._edit_dialog = dlg
+        dlg.saved.connect(self._on_edit_saved)
+        dlg.finished.connect(self._release_edit_dialog)
+        dlg.show()
+        dlg.raise_()
+        dlg.activateWindow()
+        return dlg
+
+    def _on_edit_saved(self):
+        """Refresh history and totals when an existing invoice was edited."""
+        self._refresh_history()
+        self._refresh_combined_summary()
+
+    def _release_edit_dialog(self, *_args):
+        if getattr(self, "_edit_dialog", None) is not None:
+            self._edit_dialog = None
 
     def _on_delete(self):
         try:

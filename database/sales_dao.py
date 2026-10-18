@@ -14,34 +14,21 @@ class SalesDAO:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def display_bill_no(bill_no: str, active_fy_name: str | None = None) -> str:
-        """Short display form for a stored bill number.
+    def display_bill_no(
+        bill_no: str,
+        active_fy_name: str | None = None,
+        patient_name: str | None = None,
+    ) -> str:
+        """Display form for a stored bill number.
 
-        Bills belonging to the active financial year that use the
-        ``<FY>-<digits>`` convention (e.g. ``2026-2027-1910``) display as
-        the simple sequential number (``1910``).  Every other stored value
-        — older FY-prefixed bills, legacy ``Cash-`` imports, ``CS-`` bills
-        and plain numbers — is returned unchanged so different financial
-        years stay distinguishable.  Stored database values are never
-        altered here; this is display only.
+        Returns only the numeric / sequence component (e.g. '1905', '0251', '1', '187')
+        when patient_name is present (or omitted). If patient_name is provided and is empty
+        or contains only whitespace, returns a blank string.
         """
-        text = (bill_no or "").strip()
-        if not text:
-            return text
-        if active_fy_name is None:
-            try:
-                from database import financial_year as _fy
-
-                _active = _fy.get_active_financial_year()
-                active_fy_name = (_active.get("name") if _active else "") or ""
-            except Exception:
-                active_fy_name = ""
-        active_fy_name = (active_fy_name or "").strip()
-        if active_fy_name and text.startswith(active_fy_name + "-"):
-            suffix = text[len(active_fy_name) + 1 :]
-            if suffix.isdigit():
-                return suffix
-        return text
+        if patient_name is not None and not str(patient_name).strip():
+            return ""
+        from core.doc_formatter import format_document_number
+        return format_document_number(bill_no)
 
     @staticmethod
     def generate_next_bill_no(cur: sqlite3.Cursor | None = None) -> str:
@@ -792,6 +779,11 @@ class SalesDAO:
     ) -> tuple[list[dict], int]:
         """Search sales history across financial years with pagination.
 
+        The patient-name filter matches every word the operator types,
+        anywhere in the stored name and in any order, so a full name works
+        even when entered last-name-first (e.g. "GHADGE MIRA" finds
+        "MRS MIRA GHADGE").
+
         Returns (rows, total_count).
         """
         conn = get_connection()
@@ -799,8 +791,13 @@ class SalesDAO:
             clauses: list[str] = []
             params: list = []
             if patient_name and patient_name.strip():
-                clauses.append("si.patient_name LIKE ?")
-                params.append(f"%{patient_name.strip()}%")
+                # One LIKE per typed word (AND): each word must appear in
+                # the patient name, but the words need not be adjacent or
+                # in the stored order.  A single word behaves exactly as
+                # the old whole-string substring match.
+                for word in patient_name.split():
+                    clauses.append("si.patient_name LIKE ?")
+                    params.append(f"%{word}%")
             if customer_id is not None:
                 clauses.append("si.customer_id = ?")
                 params.append(customer_id)
@@ -808,13 +805,49 @@ class SalesDAO:
                 clauses.append("c.customer_name LIKE ?")
                 params.append(f"%{customer_name.strip()}%")
             if bill_no and bill_no.strip():
-                clauses.append("si.bill_no LIKE ?")
-                params.append(f"%{bill_no.strip()}%")
+                clean_bno = bill_no.strip()
+                if clean_bno.isdigit():
+                    num_val = str(int(clean_bno))
+                    numeric_patterns = [clean_bno, num_val]
+                    like_patterns = [
+                        f"%-{clean_bno}",
+                        f"%-{clean_bno}#%",
+                        f"%-{clean_bno}-S%",
+                        f"%-{num_val}",
+                        f"%-{num_val}#%",
+                        f"%-{num_val}-S%",
+                    ]
+                    if len(num_val) < 4:
+                        for pad_len in range(len(num_val) + 1, 5):
+                            padded = num_val.zfill(pad_len)
+                            like_patterns.extend([
+                                f"%-{padded}",
+                                f"%-{padded}#%",
+                                f"%-{padded}-S%",
+                            ])
+                    exact_conds = []
+                    seen_exact = set()
+                    for p in numeric_patterns:
+                        if p not in seen_exact:
+                            seen_exact.add(p)
+                            exact_conds.append("si.bill_no = ?")
+                            params.append(p)
+                    like_conds = []
+                    seen_like = set()
+                    for p in like_patterns:
+                        if p not in seen_like:
+                            seen_like.add(p)
+                            like_conds.append("si.bill_no LIKE ?")
+                            params.append(p)
+                    clauses.append(f"({' OR '.join(exact_conds + like_conds)})")
+                else:
+                    clauses.append("si.bill_no LIKE ?")
+                    params.append(f"%{clean_bno}%")
             if start_date and start_date.strip():
-                clauses.append("si.sale_date >= ?")
+                clauses.append("substr(si.sale_date, 1, 10) >= ?")
                 params.append(start_date.strip())
             if end_date and end_date.strip():
-                clauses.append("si.sale_date <= ?")
+                clauses.append("substr(si.sale_date, 1, 10) <= ?")
                 params.append(end_date.strip())
             if doctor_id is not None:
                 clauses.append("si.doctor_id = ?")
@@ -855,29 +888,52 @@ class SalesDAO:
             conn.close()
 
     @staticmethod
-    def get_distinct_patient_names(search: str = "", limit: int = 50) -> list[str]:
-        """Return distinct non-empty patient names for compact autocomplete."""
+    def get_matching_patient_names(search: str, limit: int = 25) -> list[str]:
+        """Return distinct patient names matching the search text for autocomplete."""
+        if not search or not search.strip():
+            return []
         conn = get_connection()
         try:
-            if search and search.strip():
-                cur = conn.execute(
-                    """
-                    SELECT DISTINCT patient_name FROM sales_invoices
-                    WHERE patient_name IS NOT NULL AND patient_name != ''
-                      AND patient_name LIKE ?
-                    ORDER BY patient_name LIMIT ?
-                    """,
-                    (f"%{search.strip()}%", limit),
-                )
-            else:
-                cur = conn.execute(
-                    """
-                    SELECT DISTINCT patient_name FROM sales_invoices
-                    WHERE patient_name IS NOT NULL AND patient_name != ''
-                    ORDER BY patient_name LIMIT ?
-                    """,
-                    (limit,),
-                )
+            clean = search.strip()
+            words = clean.split()
+            clauses = ["patient_name IS NOT NULL", "patient_name != ''"]
+            params = []
+            for word in words:
+                clauses.append("patient_name LIKE ?")
+                params.append(f"%{word}%")
+            where_sql = " AND ".join(clauses)
+            sql = f"""
+                SELECT DISTINCT patient_name
+                FROM sales_invoices
+                WHERE {where_sql}
+                ORDER BY
+                    CASE WHEN patient_name LIKE ? THEN 1
+                         WHEN patient_name LIKE ? THEN 2
+                         ELSE 3 END,
+                    patient_name ASC
+                LIMIT ?
+            """
+            params.extend([f"{clean}%", f"%{clean}%", limit])
+            cur = conn.execute(sql, params)
+            return [r[0] for r in cur.fetchall() if r[0]]
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_distinct_patient_names(search: str = "", limit: int = 50) -> list[str]:
+        """Return distinct non-empty patient names for compact autocomplete."""
+        if search and search.strip():
+            return SalesDAO.get_matching_patient_names(search, limit=limit)
+        conn = get_connection()
+        try:
+            cur = conn.execute(
+                """
+                SELECT DISTINCT patient_name FROM sales_invoices
+                WHERE patient_name IS NOT NULL AND patient_name != ''
+                ORDER BY patient_name LIMIT ?
+                """,
+                (limit,),
+            )
             return [r[0] for r in cur.fetchall() if r[0]]
         finally:
             conn.close()

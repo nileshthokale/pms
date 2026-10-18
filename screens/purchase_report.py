@@ -319,9 +319,10 @@ class PurchaseReportPage(QWidget):
     def _render(self, report: dict):
         rows = report["rows"]
         self._table.setRowCount(len(rows))
+        from core.doc_formatter import format_purchase_voucher_number
         for i, r in enumerate(rows):
             values = [
-                r["voucher_no"],
+                format_purchase_voucher_number(r["voucher_no"]),
                 r["voucher_date"],
                 r["invoice_no"] or "",
                 r["invoice_date"] or "",
