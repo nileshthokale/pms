@@ -92,9 +92,10 @@ class TestDailySalesReportPdf(unittest.TestCase):
         return {"total_bills": 2, "total_lines": 3, "total_qty": 17,
                 "total_gross": 608.96, "total_discount": 10.00, "total_net": 598.96}
 
-    def _render(self, rows, summary, directory, name="sales.pdf"):
+    def _render(self, rows, summary, directory, name="sales.pdf",
+                filter_summary="Financial year: 2026-2027"):
         path = generate_daily_sales_report_pdf(
-            rows, summary, "2026-2027", "Financial year: 2026-2027",
+            rows, summary, "2026-2027", filter_summary,
             os.path.join(directory, name),
         )
         with open(path, "rb") as pdf:
@@ -110,7 +111,7 @@ class TestDailySalesReportPdf(unittest.TestCase):
         self.assertIn("DAILY SALES REPORT", content)
         self.assertNotIn("Billwise", content)
         self.assertNotIn("Companywise", content)
-        self.assertIn("From : 18-09-2026", content)
+        self.assertIn("From: 18-09-2026", content)
         # Billwise table columns in reference order.
         heads = ["SrNo", "Item Name", "Batch No", "MRP", "Qty", "Discount", "Amount"]
         for head in heads:
@@ -159,6 +160,56 @@ class TestDailySalesReportPdf(unittest.TestCase):
             self.assertIn("DAILY SALES REPORT", empty)
             self.assertIn("No records found", empty)
             self.assertIn("(Grand Total: 0.00)", empty)
+
+    def test_title_follows_the_entered_filter(self):
+        cases = [
+            ("Financial year: FY | Company: ABBOTT LTD",
+             "COMPANYWISE SALES REPORT"),
+            ("Financial year: FY | Patient: Alice",
+             "PATIENTWISE SALES REPORT"),
+            ("Financial year: FY | Customer: CustomerA",
+             "PATIENTWISE SALES REPORT"),
+            ("Financial year: FY | Item: L-CIN 250",
+             "ITEMWISE SALES REPORT"),
+            ("Financial year: FY", "DAILY SALES REPORT"),
+            ("Financial year: FY | Company: ABBOTT LTD | Item: L-CIN 250",
+             "COMPANYWISE & ITEMWISE SALES REPORT"),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            for index, (summary_text, expected) in enumerate(cases):
+                content = self._render(
+                    self._fixture_rows(), self._fixture_summary(), directory,
+                    name=f"title{index}.pdf", filter_summary=summary_text,
+                )
+                self.assertIn(expected, content)
+
+    def test_selected_dates_are_printed_exactly_as_selected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = generate_daily_sales_report_pdf(
+                self._fixture_rows(), self._fixture_summary(), "2026-2027",
+                "Financial year: 2026-2027 | Company: ABBOTT LTD",
+                os.path.join(directory, "companywise.pdf"),
+                from_date="2026-04-01", to_date="2026-10-17",
+                report_title="COMPANYWISE SALES REPORT",
+            )
+            with open(path, "rb") as pdf:
+                first = pdf.read().decode("latin-1")
+            path = generate_daily_sales_report_pdf(
+                self._fixture_rows(), self._fixture_summary(), "2026-2027",
+                "Financial year: 2026-2027 | Company: ABBOTT LTD",
+                os.path.join(directory, "companywise2.pdf"),
+                from_date="2026-05-02", to_date="2026-05-09",
+                report_title="COMPANYWISE SALES REPORT",
+            )
+            with open(path, "rb") as pdf:
+                second = pdf.read().decode("latin-1")
+        # ISO dates from the screen become DD-MM-YYYY in the header, in
+        # order, and never the row dates or the system date.
+        self.assertIn("From: 01-04-2026    To: 17-10-2026", first)
+        self.assertNotIn("From: 18-09-2026", first)
+        # Changing the dates and printing again replaces them immediately.
+        self.assertIn("From: 02-05-2026    To: 09-05-2026", second)
+        self.assertNotIn("01-04-2026", second)
 
 
 @unittest.skipUnless(HAS_QT, "PySide6 is required for daily report screen tests")
@@ -378,6 +429,63 @@ class TestDailySalesReportScreen(unittest.TestCase):
             args, _kwargs = gen.call_args
             self.assertEqual(args[4], "/tmp/daily_sales_report.pdf")
             self.assertEqual(dialog.call_args.args[1], "Save Daily Sales Report PDF")
+
+    def test_report_title_matches_the_entered_filter(self):
+        self.page.set_history_financial_year(
+            {"name": "FY 2026-2027", "start_date": "2026-04-01",
+             "end_date": "2027-03-31"})
+        # Only the date range → Daily.
+        self.assertEqual(self.page._report_title(), "DAILY SALES REPORT")
+        # Patient text only → Patientwise.
+        self.page.patient_edit.setText("Alice")
+        self.assertEqual(self.page._report_title(), "PATIENTWISE SALES REPORT")
+        self.page.patient_edit.clear()
+        # Item only → Itemwise.
+        self.page.item_edit.set_options(
+            [{"id": 7, "item_name": "PARA 650"}], "id", "item_name")
+        self.page.item_edit.setText("PARA 650")
+        self.assertEqual(self.page._report_title(), "ITEMWISE SALES REPORT")
+        self.page.item_edit.clear_filter()
+        # Company only → Companywise.
+        self.page.company_edit.set_options(
+            [{"id": 9, "company_name": "ABBOTT LTD"}], "id", "company_name")
+        self.page.company_edit.setText("ABBOTT LTD")
+        self.assertEqual(self.page._report_title(), "COMPANYWISE SALES REPORT")
+        # Several filters combine instead of dropping one.
+        self.page.item_edit.setText("PARA 650")
+        self.assertEqual(
+            self.page._report_title(), "COMPANYWISE & ITEMWISE SALES REPORT")
+
+    def test_print_passes_selected_dates_and_title(self):
+        from unittest import mock
+
+        from PySide6.QtCore import QDate
+
+        from screens import sales_report as sales_report_module
+
+        self.page.set_history_financial_year(
+            {"name": "FY 2026-2027", "start_date": "2026-04-01",
+             "end_date": "2027-03-31"})
+        self.page.company_edit.set_options(
+            [{"id": 9, "company_name": "ABBOTT LTD"}], "id", "company_name")
+        self.page.company_edit.setText("ABBOTT LTD")
+        self.page._from_date.setDate(QDate(2026, 4, 1))
+        self.page._to_date.setDate(QDate(2026, 10, 17))
+        with mock.patch.object(
+            sales_report_module.QFileDialog, "getSaveFileName",
+            return_value=("/tmp/companywise.pdf", "PDF (*.pdf)"),
+        ), mock.patch.object(
+            sales_report_module.QMessageBox, "information",
+        ), mock.patch.object(
+            sales_report_module.document_printing,
+            "generate_daily_sales_report_pdf",
+            return_value="/tmp/companywise.pdf",
+        ) as gen:
+            self.page._on_print()
+        kwargs = gen.call_args.kwargs
+        self.assertEqual(kwargs["from_date"], "2026-04-01")
+        self.assertEqual(kwargs["to_date"], "2026-10-17")
+        self.assertEqual(kwargs["report_title"], "COMPANYWISE SALES REPORT")
 
     def test_print_with_reversed_range_warns_and_aborts(self):
         from unittest import mock
