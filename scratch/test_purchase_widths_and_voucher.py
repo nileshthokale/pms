@@ -81,21 +81,22 @@ class TestPurchaseWidthsAndVoucher(unittest.TestCase):
 
         # Voucher No: 105 px
         self.assertEqual(dlg.voucher_no_edit.width(), 105)
-        # Supplier combo: wide searchable input spanning cols 1-3 (~270-450 px)
+        # Supplier combo: wide searchable input spanning cols 1-5 (~270-500 px)
         self.assertGreaterEqual(dlg.supplier_combo.width(), 270)
-        self.assertLessEqual(dlg.supplier_combo.width(), 450)
+        self.assertLessEqual(dlg.supplier_combo.width(), 500)
         # Invoice No edit: 115 px
         self.assertEqual(dlg.invoice_no_edit.width(), 115)
         # Date fields: 128 px
         self.assertEqual(dlg.voucher_date.width(), 128)
         self.assertEqual(dlg.invoice_date.width(), 128)
         self.assertEqual(dlg.due_date.width(), 128)
+        self.assertFalse(dlg.due_date.isVisible())
         # Time edit: 80 px
         self.assertEqual(dlg.voucher_time_edit.width(), 80)
         # Type combo: 112 px
         self.assertEqual(dlg.purchase_type_combo.width(), 112)
-        # Bal label: 80 px
-        self.assertEqual(dlg.supplier_bal_label.width(), 80)
+        # Bal label: 112 px (expanded from 80 px using space from removed Due Date)
+        self.assertEqual(dlg.supplier_bal_label.width(), 112)
         # Inv amt edit: 115 px
         self.assertEqual(dlg.inv_net_amt_edit.width(), 115)
         # Bill discount edit: 125 px

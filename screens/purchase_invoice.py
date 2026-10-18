@@ -36,6 +36,7 @@ from PySide6.QtWidgets import (
 )
 
 from database.supplier_dao import SupplierDAO
+from database.ledger_dao import LedgerDAO
 from database.item_dao import ItemDAO
 from database.tax_structures import rate_percent
 from database.purchase_dao import PurchaseDAO
@@ -273,8 +274,8 @@ def _make_combo(
     return c
 
 
-def _make_date(p: dict | None = None) -> QDateEdit:
-    d = QDateEdit()
+def _make_date(p: dict | None = None, parent: QWidget | None = None) -> QDateEdit:
+    d = QDateEdit(parent)
     d.setCalendarPopup(True)
     d.setDisplayFormat("dd-MM-yyyy")
     d.setStyleSheet(_date_style(p))
@@ -414,7 +415,16 @@ class SearchableComboBox(ConstrainedComboBox):
     def _on_completion_str(self, text: str):
         idx = self.findText(text, Qt.MatchFixedString)
         if idx >= 0:
-            self.setCurrentIndex(idx)
+            if self.currentIndex() == idx:
+                line = self.lineEdit()
+                if line is not None:
+                    txt = self.itemText(idx)
+                    line.setText(txt)
+                    line.setCursorPosition(0)
+                    line.setToolTip(txt)
+                self.currentIndexChanged.emit(idx)
+            else:
+                self.setCurrentIndex(idx)
 
     def _resolve_current_text(self):
         line = self.lineEdit()
@@ -426,9 +436,20 @@ class SearchableComboBox(ConstrainedComboBox):
             return
         # Only resolve if it's an exact case-insensitive match for an existing item
         idx = self.findText(text, Qt.MatchFixedString)
+        if idx < 0:
+            # Check if text uniquely matches a single completion suggestion
+            self._completer.setCompletionPrefix(text)
+            if self._completer.completionCount() == 1:
+                cand_text = self._completer.currentCompletion()
+                idx = self.findText(cand_text, Qt.MatchFixedString)
+
         if idx >= 0 and self.itemData(idx) is not None:
-            self.setCurrentIndex(idx)
-            line.setText(self.itemText(idx))
+            if self.currentIndex() == idx:
+                line.setText(self.itemText(idx))
+                self.currentIndexChanged.emit(idx)
+            else:
+                self.setCurrentIndex(idx)
+                line.setText(self.itemText(idx))
         else:
             self.setCurrentIndex(-1)
 
@@ -484,6 +505,15 @@ class SearchableComboBox(ConstrainedComboBox):
                 else:
                     self._resolve_current_text()
                     return False
+            if key in (Qt.Key_Tab, Qt.Key_Backtab):
+                if popup is not None and popup.isVisible():
+                    current = popup.currentIndex()
+                    if not current.isValid() and self._completer.completionCount():
+                        current = self._completer.completionModel().index(0, 0)
+                    if current.isValid():
+                        text = current.data(Qt.DisplayRole)
+                        self._on_completion_str(str(text))
+                        popup.hide()
         return super().eventFilter(obj, event)
 
 
@@ -1330,7 +1360,7 @@ class _InvoiceDialog(QDialog):
         self.invoice_date.setFixedWidth(128)
         grid.addWidget(self.invoice_date, 0, 11)
 
-        # Row 1: Supplier * (spans cols 1-3) | Bal. | Due Date | Inv. Amt | Bill Disc.
+        # Row 1: Supplier * (spans cols 1-5) | Bal. | Inv. Amt | Bill Disc.
         lbl_sup = self._lbl("Supplier *")
         lbl_sup.setFixedWidth(LBL_COL0_W)
         grid.addWidget(lbl_sup, 1, 0, Qt.AlignLeft | Qt.AlignVCenter)
@@ -1342,26 +1372,25 @@ class _InvoiceDialog(QDialog):
             min_width=270,
             allow_width_expansion=True,
         )
-        grid.addWidget(self.supplier_combo, 1, 1, 1, 3)
+        grid.addWidget(self.supplier_combo, 1, 1, 1, 5)
 
         lbl_bal = self._lbl("Bal.")
-        lbl_bal.setFixedWidth(LBL_COL4_W)
-        grid.addWidget(lbl_bal, 1, 4, Qt.AlignLeft | Qt.AlignVCenter)
+        lbl_bal.setFixedWidth(LBL_COL6_W)
+        grid.addWidget(lbl_bal, 1, 6, Qt.AlignLeft | Qt.AlignVCenter)
         self.supplier_bal_label = QLabel("0.00")
-        self.supplier_bal_label.setFixedWidth(80)
+        self.supplier_bal_label.setFixedWidth(112)
         self.supplier_bal_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.supplier_bal_label.setStyleSheet(
             f"color: {_TEXT_DIM}; font-size: 15px; font-weight: bold; background: transparent;"
             f"font-family: 'Segoe UI'; padding: 4px;"
         )
-        grid.addWidget(self.supplier_bal_label, 1, 5)
+        grid.addWidget(self.supplier_bal_label, 1, 7)
 
-        lbl_due = self._lbl("Due Date")
-        lbl_due.setFixedWidth(LBL_COL6_W)
-        grid.addWidget(lbl_due, 1, 6, Qt.AlignLeft | Qt.AlignVCenter)
-        self.due_date = _make_date()
+        # Due date is maintained internally for business logic and database persistence,
+        # but the UI label and picker control are removed from the invoice header.
+        self.due_date = _make_date(parent=self)
         self.due_date.setFixedWidth(128)
-        grid.addWidget(self.due_date, 1, 7)
+        self.due_date.hide()
 
         lbl_inv_amt = self._lbl("Inv. Amt")
         lbl_inv_amt.setFixedWidth(LBL_COL8_W)
@@ -1393,28 +1422,101 @@ class _InvoiceDialog(QDialog):
             list_suppliers.append((s["supplier_name"], s["id"]))
         self.supplier_combo.populate(list_suppliers)
         self.supplier_combo.currentIndexChanged.connect(self._on_supplier_changed)
+        line = self.supplier_combo.lineEdit()
+        if line is not None:
+            line.textChanged.connect(self._on_supplier_text_changed)
 
-    def _on_supplier_changed(self, idx: int):
+    def _on_supplier_text_changed(self, text: str):
+        self._on_supplier_changed()
+
+    def _on_supplier_changed(self, idx: int = -1):
         sid = self.supplier_combo.currentData()
+        self._update_supplier_balance(sid)
         if sid:
             sup = SupplierDAO.get_by_id(sid)
-            if sup:
-                bal = sup.get("opening_balance", 0.0)
-                self.supplier_bal_label.setText(f"{bal:.2f}")
-                # For new purchases, apply supplier payment term (credit_period)
-                if not self._invoice:
-                    credit_days = sup.get("credit_period")
-                    try:
-                        days = int(credit_days) if credit_days is not None else 0
-                    except (ValueError, TypeError):
-                        days = 0
-                    inv_date = self.invoice_date.date()
-                    if days > 0:
-                        self.due_date.setDate(inv_date.addDays(days))
-                    else:
-                        self.due_date.setDate(inv_date.addDays(30))
+            if sup and not self._invoice:
+                credit_days = sup.get("credit_period")
+                try:
+                    days = int(credit_days) if credit_days is not None else 0
+                except (ValueError, TypeError):
+                    days = 0
+                inv_date = self.invoice_date.date()
+                if days > 0:
+                    self.due_date.setDate(inv_date.addDays(days))
+                else:
+                    self.due_date.setDate(inv_date.addDays(30))
+
+    def _update_supplier_balance(self, sid: int | None):
+        """Fetch and display the supplier's actual ledger balance immediately.
+
+        Adheres to the existing ledger convention (Party Wise Report & Account Ledger):
+        - Sundry Creditors with a Credit balance have positive outstanding amount.
+        - Suppliers with a Debit balance (advance/excess return) have negative amount.
+        - Zero balance displays '0.00'.
+        - If ledger balance cannot be retrieved, displays a warning/error state
+          rather than silently defaulting to 0.00.
+        """
+        if not sid:
+            self.supplier_bal_label.setText("0.00")
+            self.supplier_bal_label.setToolTip("")
+            p = palette()
+            self.supplier_bal_label.setStyleSheet(
+                f"color: {p.get('text_dim', _TEXT_DIM)}; font-size: 15px; font-weight: bold; background: transparent;"
+                f"font-family: 'Segoe UI'; padding: 4px;"
+            )
+            return
+
+        try:
+            sup = SupplierDAO.get_by_id(sid)
+            if not sup:
+                self.supplier_bal_label.setText("Error")
+                self.supplier_bal_label.setToolTip("Supplier record not found in database")
+                p = palette()
+                self.supplier_bal_label.setStyleSheet(
+                    f"color: {p.get('danger', '#c62828')}; font-size: 15px; font-weight: bold; background: transparent;"
+                    f"font-family: 'Segoe UI'; padding: 4px;"
+                )
                 return
-        self.supplier_bal_label.setText("0.00")
+
+            ledger_id = sup.get("ledger_id")
+            if not ledger_id:
+                ledger_id = SupplierDAO.get_ledger_id(sid)
+
+            if not ledger_id:
+                self.supplier_bal_label.setText("N/A")
+                self.supplier_bal_label.setToolTip("No linked account ledger found for this supplier")
+                p = palette()
+                self.supplier_bal_label.setStyleSheet(
+                    f"color: {p.get('danger', '#c62828')}; font-size: 15px; font-weight: bold; background: transparent;"
+                    f"font-family: 'Segoe UI'; padding: 4px;"
+                )
+                return
+
+            bal = LedgerDAO.get_balance(ledger_id)
+            closing = float(bal.get("closing_balance", 0.0) or 0.0)
+            closing_type = bal.get("closing_balance_type", "Credit")
+
+            if abs(closing) < 1e-9:
+                self.supplier_bal_label.setText("0.00")
+            else:
+                sign = 1.0 if closing_type == "Credit" else -1.0
+                outstanding = closing * sign
+                self.supplier_bal_label.setText(f"{outstanding:,.2f}")
+
+            self.supplier_bal_label.setToolTip(f"Closing Balance: {closing:,.2f} ({closing_type})")
+            p = palette()
+            self.supplier_bal_label.setStyleSheet(
+                f"color: {p.get('text_dim', _TEXT_DIM)}; font-size: 15px; font-weight: bold; background: transparent;"
+                f"font-family: 'Segoe UI'; padding: 4px;"
+            )
+        except Exception as exc:
+            self.supplier_bal_label.setText("Error")
+            self.supplier_bal_label.setToolTip(f"Failed to retrieve ledger balance: {exc}")
+            p = palette()
+            self.supplier_bal_label.setStyleSheet(
+                f"color: {p.get('danger', '#c62828')}; font-size: 15px; font-weight: bold; background: transparent;"
+                f"font-family: 'Segoe UI'; padding: 4px;"
+            )
 
     def _on_invoice_date_changed(self, new_date: QDate):
         """When invoice date changes on a new invoice, update due date accordingly."""
@@ -1853,6 +1955,7 @@ class _InvoiceDialog(QDialog):
             idx = self.supplier_combo.findData(sid)
             if idx >= 0:
                 self.supplier_combo.setCurrentIndex(idx)
+            self._update_supplier_balance(sid)
 
         self.invoice_no_edit.setText(inv.get("invoice_no", ""))
 
@@ -2018,10 +2121,16 @@ class _InvoiceDialog(QDialog):
         self.invoice_no_edit.setStyleSheet(edit_st)
         self.inv_net_amt_edit.setStyleSheet(edit_st)
         self.bill_discount_edit.setStyleSheet(edit_st)
-        self.supplier_bal_label.setStyleSheet(
-            f"color: {p.get('text_dim', _TEXT_DIM)}; font-size: 15px; font-weight: bold; background: transparent;"
-            f"font-family: 'Segoe UI'; padding: 4px;"
-        )
+        if self.supplier_bal_label.text() not in ("Error", "N/A"):
+            self.supplier_bal_label.setStyleSheet(
+                f"color: {p.get('text_dim', _TEXT_DIM)}; font-size: 15px; font-weight: bold; background: transparent;"
+                f"font-family: 'Segoe UI'; padding: 4px;"
+            )
+        else:
+            self.supplier_bal_label.setStyleSheet(
+                f"color: {p.get('danger', '#c62828')}; font-size: 15px; font-weight: bold; background: transparent;"
+                f"font-family: 'Segoe UI'; padding: 4px;"
+            )
         self.setStyleSheet(
             f"QDialog {{ background-color: {p['bg']}; }}"
             f"QLabel {{ color: {p['text']}; font-size: 15px; font-family: 'Segoe UI'; background: transparent; }}"
