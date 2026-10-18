@@ -422,14 +422,21 @@ class SalesHistoryAndNumberingTests(unittest.TestCase):
         self._pump()
         self.addCleanup(lambda: (hist_page.hide(), hist_page.deleteLater()))
 
-        # Select FY 2025-2026 in dropdown
-        idx = -1
-        for i in range(hist_page._fy_combo.count()):
-            if "2025-2026" in hist_page._fy_combo.itemText(i):
-                idx = i
-                break
-        self.assertGreater(idx, 0)
-        hist_page._fy_combo.setCurrentIndex(idx)
+        # FY dropdown is present on SalesHistoryPage
+        self.assertTrue(hasattr(hist_page, "_fy_combo"))
+        self.assertEqual(hist_page._fy_combo.itemText(0), "All Financial Years")
+
+        # By default (All Financial Years), bills from all years appear
+        all_bills = [hist_page._table.item(r, 0).text() for r in range(hist_page._table.rowCount())]
+        self.assertIn("CS-FY-START", all_bills)
+        self.assertIn("CS-FY-END", all_bills)
+        self.assertIn("CS-NEXT-FY", all_bills)
+
+        # Apply date filter for 2025-04-01 to 2026-03-31
+        hist_page._date_check.setChecked(True)
+        hist_page._from_date.setDate(QDate.fromString("2025-04-01", "yyyy-MM-dd"))
+        hist_page._to_date.setDate(QDate.fromString("2026-03-31", "yyyy-MM-dd"))
+        hist_page._on_search_clicked()
         self._pump()
 
         # Both 1 April 2025 and 31 March 2026 must be included; 1 April 2026 excluded

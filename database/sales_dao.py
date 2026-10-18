@@ -779,6 +779,11 @@ class SalesDAO:
     ) -> tuple[list[dict], int]:
         """Search sales history across financial years with pagination.
 
+        The patient-name filter matches every word the operator types,
+        anywhere in the stored name and in any order, so a full name works
+        even when entered last-name-first (e.g. "GHADGE MIRA" finds
+        "MRS MIRA GHADGE").
+
         Returns (rows, total_count).
         """
         conn = get_connection()
@@ -786,8 +791,13 @@ class SalesDAO:
             clauses: list[str] = []
             params: list = []
             if patient_name and patient_name.strip():
-                clauses.append("si.patient_name LIKE ?")
-                params.append(f"%{patient_name.strip()}%")
+                # One LIKE per typed word (AND): each word must appear in
+                # the patient name, but the words need not be adjacent or
+                # in the stored order.  A single word behaves exactly as
+                # the old whole-string substring match.
+                for word in patient_name.split():
+                    clauses.append("si.patient_name LIKE ?")
+                    params.append(f"%{word}%")
             if customer_id is not None:
                 clauses.append("si.customer_id = ?")
                 params.append(customer_id)
@@ -834,10 +844,10 @@ class SalesDAO:
                     clauses.append("si.bill_no LIKE ?")
                     params.append(f"%{clean_bno}%")
             if start_date and start_date.strip():
-                clauses.append("si.sale_date >= ?")
+                clauses.append("substr(si.sale_date, 1, 10) >= ?")
                 params.append(start_date.strip())
             if end_date and end_date.strip():
-                clauses.append("si.sale_date <= ?")
+                clauses.append("substr(si.sale_date, 1, 10) <= ?")
                 params.append(end_date.strip())
             if doctor_id is not None:
                 clauses.append("si.doctor_id = ?")
@@ -878,29 +888,52 @@ class SalesDAO:
             conn.close()
 
     @staticmethod
-    def get_distinct_patient_names(search: str = "", limit: int = 50) -> list[str]:
-        """Return distinct non-empty patient names for compact autocomplete."""
+    def get_matching_patient_names(search: str, limit: int = 25) -> list[str]:
+        """Return distinct patient names matching the search text for autocomplete."""
+        if not search or not search.strip():
+            return []
         conn = get_connection()
         try:
-            if search and search.strip():
-                cur = conn.execute(
-                    """
-                    SELECT DISTINCT patient_name FROM sales_invoices
-                    WHERE patient_name IS NOT NULL AND patient_name != ''
-                      AND patient_name LIKE ?
-                    ORDER BY patient_name LIMIT ?
-                    """,
-                    (f"%{search.strip()}%", limit),
-                )
-            else:
-                cur = conn.execute(
-                    """
-                    SELECT DISTINCT patient_name FROM sales_invoices
-                    WHERE patient_name IS NOT NULL AND patient_name != ''
-                    ORDER BY patient_name LIMIT ?
-                    """,
-                    (limit,),
-                )
+            clean = search.strip()
+            words = clean.split()
+            clauses = ["patient_name IS NOT NULL", "patient_name != ''"]
+            params = []
+            for word in words:
+                clauses.append("patient_name LIKE ?")
+                params.append(f"%{word}%")
+            where_sql = " AND ".join(clauses)
+            sql = f"""
+                SELECT DISTINCT patient_name
+                FROM sales_invoices
+                WHERE {where_sql}
+                ORDER BY
+                    CASE WHEN patient_name LIKE ? THEN 1
+                         WHEN patient_name LIKE ? THEN 2
+                         ELSE 3 END,
+                    patient_name ASC
+                LIMIT ?
+            """
+            params.extend([f"{clean}%", f"%{clean}%", limit])
+            cur = conn.execute(sql, params)
+            return [r[0] for r in cur.fetchall() if r[0]]
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_distinct_patient_names(search: str = "", limit: int = 50) -> list[str]:
+        """Return distinct non-empty patient names for compact autocomplete."""
+        if search and search.strip():
+            return SalesDAO.get_matching_patient_names(search, limit=limit)
+        conn = get_connection()
+        try:
+            cur = conn.execute(
+                """
+                SELECT DISTINCT patient_name FROM sales_invoices
+                WHERE patient_name IS NOT NULL AND patient_name != ''
+                ORDER BY patient_name LIMIT ?
+                """,
+                (limit,),
+            )
             return [r[0] for r in cur.fetchall() if r[0]]
         finally:
             conn.close()

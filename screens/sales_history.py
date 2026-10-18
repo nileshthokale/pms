@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from PySide6.QtCore import QDate, QRect, QSize, Qt
+from PySide6.QtCore import QDate, QPoint, QRect, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -15,6 +15,8 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QLineEdit,
+    QListWidget,
     QMessageBox,
     QPushButton,
     QTableWidget,
@@ -26,7 +28,7 @@ from PySide6.QtWidgets import (
 from database import document_printing, financial_year
 from database.sales_dao import SalesDAO
 from ui.components import FONT_FAMILY
-from ui.searchable_filter import SearchableFilterEdit
+from ui.input_rules import attach_uppercase
 from ui.theme import (
     TYPE_BUTTON,
     TYPE_FORM_LABEL,
@@ -551,6 +553,154 @@ class SalesBillDetailsDialog(QDialog):
         self._close_btn.setStyleSheet(_fresh_btn_style(p))
 
 
+class PatientSearchEdit(QLineEdit):
+    """Patient search input with dynamic database autocomplete dropdown."""
+
+    # Emitted when an available patient name is picked from the dropdown
+    # or confirmed with Enter.
+    picked = Signal()
+
+    def __init__(self, placeholder: str = "Search patient name...", parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setPlaceholderText(placeholder)
+        self.setClearButtonEnabled(True)
+        attach_uppercase(self)
+
+        self._popup = QListWidget()
+        self._popup.setWindowFlags(Qt.Tool | Qt.FramelessWindowHint)
+        self._popup.setFocusPolicy(Qt.NoFocus)
+        self._popup.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._popup.itemClicked.connect(self._on_item_clicked)
+
+        self._debounce_timer = QTimer(self)
+        self._debounce_timer.setSingleShot(True)
+        self._debounce_timer.setInterval(120)
+        self._debounce_timer.timeout.connect(self._fetch_suggestions)
+
+        self.textEdited.connect(self._on_text_edited)
+        self.textChanged.connect(self._on_text_changed)
+        self.destroyed.connect(self._cleanup_popup)
+        self.refresh_theme()
+
+    def _cleanup_popup(self):
+        if hasattr(self, "_popup") and self._popup:
+            self._popup.deleteLater()
+
+    def refresh_theme(self):
+        p = palette()
+        self.setStyleSheet(_fresh_edit_style(p))
+        self._popup.setStyleSheet(
+            f"QListWidget {{"
+            f"  background-color: {p['surface']}; color: {p['text']};"
+            f"  border: 1px solid {p['accent']}; border-radius: 2px;"
+            f"  font-size: {TYPE_INPUT}px; font-family: {FONT_FAMILY}; font-weight: bold;"
+            f"  outline: 0;"
+            f"}}"
+            f"QListWidget::item {{"
+            f"  padding: 4px 8px; min-height: 24px;"
+            f"}}"
+            f"QListWidget::item:selected {{"
+            f"  background-color: {p['accent']}; color: #ffffff;"
+            f"}}"
+            f"QListWidget::item:hover {{"
+            f"  background-color: {p['accent']}; color: #ffffff;"
+            f"}}"
+        )
+
+    def _on_text_edited(self, text: str):
+        clean = text.strip()
+        if not clean:
+            self.hide_suggestions()
+            return
+        self._debounce_timer.start(120)
+
+    def _on_text_changed(self, text: str):
+        if not text.strip():
+            self._debounce_timer.stop()
+            self.hide_suggestions()
+
+    def _fetch_suggestions(self):
+        text = self.text().strip()
+        if not text:
+            self._popup.hide()
+            return
+        names = SalesDAO.get_matching_patient_names(text, limit=15)
+        if not names:
+            self._popup.hide()
+            return
+        self._popup.clear()
+        for name in names:
+            self._popup.addItem(name)
+
+        try:
+            global_pos = self.mapToGlobal(QPoint(0, self.height()))
+            popup_w = max(self.width(), 340)
+            item_h = 28
+            popup_h = min(len(names) * item_h + 4, 250)
+            self._popup.setGeometry(global_pos.x(), global_pos.y() + 1, popup_w, popup_h)
+        except Exception:
+            pass
+
+        self._popup.setCurrentRow(-1)
+        self._popup.show()
+
+    def _on_item_clicked(self, item):
+        self.setText(item.text())
+        self._popup.hide()
+        self.picked.emit()
+
+    def hide_suggestions(self):
+        if hasattr(self, "_popup"):
+            self._popup.hide()
+
+    def clear_filter(self):
+        self.clear()
+        self.hide_suggestions()
+
+    def set_options(self, *args, **kwargs):
+        pass
+
+    def keyPressEvent(self, event):
+        key = event.key()
+        if self._popup.isVisible():
+            if key == Qt.Key_Down:
+                row = self._popup.currentRow()
+                new_row = 0 if row < 0 else min(row + 1, self._popup.count() - 1)
+                self._popup.setCurrentRow(new_row)
+                item = self._popup.item(new_row)
+                if item:
+                    self._popup.scrollToItem(item)
+                return
+            elif key == Qt.Key_Up:
+                row = self._popup.currentRow()
+                new_row = max(row - 1, 0)
+                self._popup.setCurrentRow(new_row)
+                item = self._popup.item(new_row)
+                if item:
+                    self._popup.scrollToItem(item)
+                return
+            elif key in (Qt.Key_Return, Qt.Key_Enter):
+                current = self._popup.currentItem()
+                if current and self._popup.currentRow() >= 0:
+                    self.setText(current.text())
+                self._popup.hide()
+                self.picked.emit()
+                return
+            elif key == Qt.Key_Escape:
+                self._popup.hide()
+                return
+        super().keyPressEvent(event)
+
+    def focusOutEvent(self, event):
+        # Hide dropdown shortly after losing focus
+        QTimer.singleShot(150, self._popup.hide)
+        super().focusOutEvent(event)
+
+    def hideEvent(self, event):
+        self.hide_suggestions()
+        super().hideEvent(event)
+
+
 class SalesHistoryPage(QWidget):
     """Dedicated Sales History screen (Sales → Sales History).
 
@@ -598,23 +748,21 @@ class SalesHistoryPage(QWidget):
         filter_layout.setContentsMargins(8, 12, 8, 8)
         filter_layout.setSpacing(6)
 
-        # Single-row filter bar: Patient | Financial Year | Filter by Date |
-        # From | To | Search | Reset.  All controls stay on ONE line at the
-        # default window width; Patient and Financial Year absorb the spare
-        # width so nothing is clipped at narrower sizes.
+        # Single-row filter bar: Patient | Financial Year | Search | Reset.
         row = QHBoxLayout()
         row.setSpacing(10)
 
-        # Patient autocomplete edit (widest input — must stay readable)
+        # Patient search edit with dynamic dropdown
         p_box = QHBoxLayout()
         p_box.setSpacing(6)
         p_lbl = QLabel("Patient:")
         p_lbl.setStyleSheet(f"font-size: {TYPE_FORM_LABEL}px; font-weight: bold;")
         p_box.addWidget(p_lbl)
-        self._patient_edit = SearchableFilterEdit("Search patient name...")
+        self._patient_edit = PatientSearchEdit("Search patient name...")
         self._patient_edit.returnPressed.connect(self._on_search_clicked)
+        self._patient_edit.picked.connect(self._on_search_clicked)
         p_box.addWidget(self._patient_edit)
-        row.addLayout(p_box, 2)
+        row.addLayout(p_box, 3)
 
         # FY Dropdown
         fy_box = QHBoxLayout()
@@ -628,32 +776,6 @@ class SalesHistoryPage(QWidget):
         fy_box.addWidget(self._fy_combo)
         row.addLayout(fy_box, 2)
 
-        # Date Range filter
-        self._date_check = QCheckBox("Filter by Date:")
-        self._date_check.setChecked(False)
-        self._date_check.toggled.connect(self._on_date_check_toggled)
-        row.addWidget(self._date_check)
-
-        from_lbl = QLabel("From:")
-        from_lbl.setStyleSheet(f"font-size: {TYPE_FORM_LABEL}px;")
-        row.addWidget(from_lbl)
-        self._from_date = QDateEdit()
-        self._from_date.setCalendarPopup(True)
-        self._from_date.setDate(QDate.currentDate())
-        self._from_date.setEnabled(False)
-        self._from_date.setFixedWidth(115)
-        row.addWidget(self._from_date)
-
-        to_lbl = QLabel("To:")
-        to_lbl.setStyleSheet(f"font-size: {TYPE_FORM_LABEL}px;")
-        row.addWidget(to_lbl)
-        self._to_date = QDateEdit()
-        self._to_date.setCalendarPopup(True)
-        self._to_date.setDate(QDate.currentDate())
-        self._to_date.setEnabled(False)
-        self._to_date.setFixedWidth(115)
-        row.addWidget(self._to_date)
-
         # Search & Reset buttons
         self._search_btn = QPushButton("Search")
         self._search_btn.clicked.connect(self._on_search_clicked)
@@ -665,6 +787,14 @@ class SalesHistoryPage(QWidget):
 
         filter_layout.addLayout(row)
         layout.addWidget(self._filter_box)
+
+        # Retained as internal attributes for backwards compatibility
+        self._date_check = QCheckBox("Filter by Date:")
+        self._date_check.setChecked(False)
+        self._from_date = QDateEdit()
+        self._from_date.setDate(QDate.currentDate())
+        self._to_date = QDateEdit()
+        self._to_date.setDate(QDate.currentDate())
 
         # ── 3. Results Table ─────────────────────────────────────────
         self._table = QTableWidget()
@@ -750,14 +880,12 @@ class SalesHistoryPage(QWidget):
 
         layout.addLayout(footer_layout)
 
-    def _load_master_data(self):
-        """Populate patient and financial year candidates."""
-        # Patients
-        patients = SalesDAO.get_distinct_patient_names()
-        pat_rows = [{"id": p, "name": p} for p in patients]
-        self._patient_edit.set_options(pat_rows, id_key="id", text_key="name")
+    def _on_patient_text_changed(self, _text: str = ""):
+        """Preserved for compatibility."""
+        pass
 
-        # Financial Years
+    def _load_master_data(self):
+        """Populate financial year candidates."""
         self._fy_combo.blockSignals(True)
         try:
             self._fy_combo.clear()
@@ -771,10 +899,11 @@ class SalesHistoryPage(QWidget):
     def set_history_financial_year(self, year: dict | None) -> None:
         """Called by the main-window navigation bar when viewing a different FY."""
         self._history_financial_year = dict(year) if year else None
+        if not hasattr(self, "_fy_combo"):
+            return
         if not year:
             self._fy_combo.setCurrentIndex(0)
             return
-        # Find index for year
         for idx in range(1, self._fy_combo.count()):
             y = self._fy_combo.itemData(idx)
             if y and y.get("name") == year.get("name"):
@@ -782,14 +911,6 @@ class SalesHistoryPage(QWidget):
                 break
 
     def _on_fy_changed(self, index: int):
-        fy = self._fy_combo.itemData(index)
-        if fy:
-            # Set inclusive boundaries: 1 April - 31 March
-            self._date_check.setChecked(True)
-            self._from_date.setDate(QDate.fromString(fy["start_date"], "yyyy-MM-dd"))
-            self._to_date.setDate(QDate.fromString(fy["end_date"], "yyyy-MM-dd"))
-        else:
-            self._date_check.setChecked(False)
         self._current_page = 1
         self._perform_search()
 
@@ -798,12 +919,14 @@ class SalesHistoryPage(QWidget):
         self._to_date.setEnabled(checked)
 
     def _on_search_clicked(self):
+        self._patient_edit.hide_suggestions()
         self._current_page = 1
         self._perform_search()
 
     def _on_reset_clicked(self):
         self._patient_edit.clear_filter()
-        self._fy_combo.setCurrentIndex(0)
+        if hasattr(self, "_fy_combo"):
+            self._fy_combo.setCurrentIndex(0)
         self._date_check.setChecked(False)
         self._from_date.setDate(QDate.currentDate())
         self._to_date.setDate(QDate.currentDate())
@@ -880,7 +1003,18 @@ class SalesHistoryPage(QWidget):
 
         start_date = ""
         end_date = ""
-        if self._date_check.isChecked():
+        fy = self._fy_combo.currentData() if hasattr(self, "_fy_combo") else None
+        if fy:
+            start_date = fy.get("start_date") or ""
+            end_date = fy.get("end_date") or ""
+        elif self._date_check.isChecked():
+            if self._from_date.date() > self._to_date.date():
+                QMessageBox.warning(
+                    self,
+                    "Sales History",
+                    "From Date cannot be later than To Date.",
+                )
+                return
             start_date = self._from_date.date().toString("yyyy-MM-dd")
             end_date = self._to_date.date().toString("yyyy-MM-dd")
 
@@ -981,8 +1115,9 @@ class SalesHistoryPage(QWidget):
         self._table.horizontalHeader().setStyleSheet(_fresh_header_style(p))
 
         # Inputs
-        self._patient_edit.setStyleSheet(_fresh_edit_style(p))
-        self._fy_combo.setStyleSheet(_fresh_combo_style(p))
+        self._patient_edit.refresh_theme()
+        if hasattr(self, "_fy_combo"):
+            self._fy_combo.setStyleSheet(_fresh_combo_style(p))
         self._page_size_combo.setStyleSheet(_fresh_combo_style(p))
         self._from_date.setStyleSheet(_fresh_date_style(p))
         self._to_date.setStyleSheet(_fresh_date_style(p))
