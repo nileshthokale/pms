@@ -266,12 +266,14 @@ class SupplierLedgerPage(QWidget):
     # ── Report Generation ────────────────────────────────────────────
 
     def _on_supplier_changed(self, supplier_id):
-        if supplier_id:
+        if supplier_id and not getattr(self, "_generating", False):
             self._on_generate()
 
     def _on_refresh(self):
+        curr_id = self._supplier_selector.selected_id
         self._load_options()
-        if self._supplier_selector.selected_id:
+        if curr_id:
+            self._supplier_selector.set_selected_id(curr_id)
             self._on_generate()
 
     def _on_clear(self):
@@ -286,34 +288,56 @@ class SupplierLedgerPage(QWidget):
         self._status_badge.setText("")
 
     def _on_generate(self):
-        supplier_id = self._supplier_selector.selected_id
-        if not supplier_id:
-            QMessageBox.information(
-                self, "Supplier Ledger", "Please select a supplier from the list."
-            )
+        if getattr(self, "_generating", False):
             return
-
-        from_iso = self._from_date.date().toString("yyyy-MM-dd")
-        to_iso = self._to_date.date().toString("yyyy-MM-dd")
-
-        if from_iso > to_iso:
-            QMessageBox.warning(
-                self, "Date Error", "From Date cannot be later than To Date."
-            )
-            return
-
+        self._generating = True
         try:
-            report = LedgerReportDAO.get_supplier_ledger(
-                supplier_id=supplier_id,
-                from_date=from_iso,
-                to_date=to_iso,
-            )
-        except Exception as exc:
-            QMessageBox.critical(self, "Error", f"Failed to generate report:\n{exc}")
-            return
+            displayed_text = self._supplier_selector.currentText().strip()
+            self._supplier_selector.resolve_text()
+            supplier_id = self._supplier_selector.selected_id
+            if not supplier_id:
+                self._table.setRowCount(0)
+                self._info_party.setText("Party: -")
+                self._val_card_ob.setText("0.00 CR")
+                self._val_card_dr.setText("0.00")
+                self._val_card_cr.setText("0.00")
+                self._val_card_cb.setText("0.00 CR")
+                self._status_badge.setText("")
+                if displayed_text and displayed_text != getattr(self._supplier_selector, "_placeholder", ""):
+                    QMessageBox.warning(
+                        self,
+                        "Supplier Ledger",
+                        f"No matching supplier found for '{displayed_text}'. Please select a supplier from the list.",
+                    )
+                else:
+                    QMessageBox.information(
+                        self, "Supplier Ledger", "Please select a supplier from the list."
+                    )
+                return
 
-        self._last_report = report
-        self._render(report)
+            from_iso = self._from_date.date().toString("yyyy-MM-dd")
+            to_iso = self._to_date.date().toString("yyyy-MM-dd")
+
+            if from_iso > to_iso:
+                QMessageBox.warning(
+                    self, "Date Error", "From Date cannot be later than To Date."
+                )
+                return
+
+            try:
+                report = LedgerReportDAO.get_supplier_ledger(
+                    supplier_id=supplier_id,
+                    from_date=from_iso,
+                    to_date=to_iso,
+                )
+            except Exception as exc:
+                QMessageBox.critical(self, "Error", f"Failed to generate report:\n{exc}")
+                return
+
+            self._last_report = report
+            self._render(report)
+        finally:
+            self._generating = False
 
     # ── Rendering ────────────────────────────────────────────────────
 
