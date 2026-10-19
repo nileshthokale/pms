@@ -188,6 +188,13 @@ def fmt_date_dash(iso_str: Any) -> str:
 def draw_report_page(painter: QPainter, page: ReportPage):
     """Render a single ReportPage onto any QPainter (screen canvas or QPrinter)."""
     painter.save()
+    try:
+        _draw_report_page_content(painter, page)
+    finally:
+        painter.restore()
+
+
+def _draw_report_page_content(painter: QPainter, page: ReportPage):
     painter.setRenderHint(QPainter.Antialiasing, False)
     painter.setRenderHint(QPainter.TextAntialiasing, True)
 
@@ -346,112 +353,101 @@ def draw_report_page(painter: QPainter, page: ReportPage):
             if "custom_cells" in block.data:
                 painter.setFont(QFont("Segoe UI", 8, QFont.Bold))
                 x = MARGIN_LEFT
-                for cell_w, cell_txt, cell_align in block.data["custom_cells"]:
+                for cell in block.data["custom_cells"]:
+                    if isinstance(cell, dict):
+                        cell_w = cell.get("width", 0.0)
+                        cell_txt = cell.get("text", "")
+                        cell_align = cell.get("align", "left")
+                    else:
+                        cell_w, cell_txt, cell_align = cell[0], cell[1], cell[2]
                     painter.setPen(pen_grid)
                     painter.drawRect(QRectF(x, curr_y, cell_w, h))
                     painter.setPen(QColor("#000000"))
-                    align_flag = Qt.AlignRight | Qt.AlignVCenter if cell_align == "right" else (Qt.AlignCenter if cell_align == "center" else (Qt.AlignLeft | Qt.AlignVCenter))
+                    align_flag = (
+                        Qt.AlignRight | Qt.AlignVCenter if cell_align == "right"
+                        else (Qt.AlignCenter if cell_align == "center" else (Qt.AlignLeft | Qt.AlignVCenter))
+                    )
                     if cell_txt:
                         painter.drawText(QRectF(x + 4, curr_y, cell_w - 8, h), align_flag, str(cell_txt))
                     x += cell_w
             else:
                 widths = block.data.get("widths", [])
+                batch_no = block.data.get("batch_no", "")
+                label_text = f"{batch_no}   Total :" if batch_no else block.data.get("label", "Total :")
                 pay_str = block.data.get("pay_str", "0")
                 free_str = block.data.get("free_str", "0")
                 amt_str = block.data.get("amt_str", "0.00")
 
                 painter.setFont(QFont("Segoe UI", 8, QFont.Bold))
-                # Sum columns are typically the last 3 columns (Pay, Free, Amount)
-                sum_prefix_w = sum(widths[:-3])
-                pay_w = widths[-3]
-                free_w = widths[-2]
-                amt_w = widths[-1]
+                if len(widths) >= 3:
+                    sum_prefix_w = sum(widths[:-3])
+                    pay_w = widths[-3]
+                    free_w = widths[-2]
+                    amt_w = widths[-1]
+                elif len(widths) == 2:
+                    sum_prefix_w = widths[0]
+                    pay_w = 0.0
+                    free_w = 0.0
+                    amt_w = widths[1]
+                elif len(widths) == 1:
+                    amt_w = widths[0]
+                    pay_w = 0.0
+                    free_w = 0.0
+                    sum_prefix_w = max(0.0, content_w - amt_w)
+                else:
+                    pay_w = 60.0
+                    free_w = 50.0
+                    amt_w = 80.0
+                    sum_prefix_w = max(0.0, content_w - (pay_w + free_w + amt_w))
 
-            # Label box: "Total :"
-            painter.setPen(pen_grid)
-            painter.drawRect(QRectF(MARGIN_LEFT, curr_y, sum_prefix_w, h))
-            painter.setPen(QColor("#000000"))
-            painter.drawText(
-                QRectF(MARGIN_LEFT + 4, curr_y, sum_prefix_w - 8, h),
-                Qt.AlignRight | Qt.AlignVCenter,
-                "Total :",
-            )
+                # Label box: "Total :" or "<BATCHNO>   Total :"
+                painter.setPen(pen_grid)
+                painter.drawRect(QRectF(MARGIN_LEFT, curr_y, sum_prefix_w, h))
+                painter.setPen(QColor("#000000"))
+                painter.drawText(
+                    QRectF(MARGIN_LEFT + 4, curr_y, sum_prefix_w - 8, h),
+                    Qt.AlignRight | Qt.AlignVCenter,
+                    label_text,
+                )
 
-            # Pay Qty box
-            x = MARGIN_LEFT + sum_prefix_w
-            painter.setPen(pen_grid)
-            painter.drawRect(QRectF(x, curr_y, pay_w, h))
-            painter.setPen(QColor("#000000"))
-            painter.drawText(QRectF(x + 4, curr_y, pay_w - 8, h), Qt.AlignRight | Qt.AlignVCenter, pay_str)
+                x = MARGIN_LEFT + sum_prefix_w
+                if pay_w > 0:
+                    painter.setPen(pen_grid)
+                    painter.drawRect(QRectF(x, curr_y, pay_w, h))
+                    painter.setPen(QColor("#000000"))
+                    painter.drawText(QRectF(x + 4, curr_y, pay_w - 8, h), Qt.AlignRight | Qt.AlignVCenter, pay_str)
+                    x += pay_w
 
-            # Free box
-            x += pay_w
-            painter.setPen(pen_grid)
-            painter.drawRect(QRectF(x, curr_y, free_w, h))
-            painter.setPen(QColor("#000000"))
-            painter.drawText(QRectF(x + 4, curr_y, free_w - 8, h), Qt.AlignRight | Qt.AlignVCenter, free_str)
+                if free_w > 0:
+                    painter.setPen(pen_grid)
+                    painter.drawRect(QRectF(x, curr_y, free_w, h))
+                    painter.setPen(QColor("#000000"))
+                    painter.drawText(QRectF(x + 4, curr_y, free_w - 8, h), Qt.AlignRight | Qt.AlignVCenter, free_str)
+                    x += free_w
 
-            # Amount box
-            x += free_w
-            painter.setPen(pen_grid)
-            painter.drawRect(QRectF(x, curr_y, amt_w, h))
-            painter.setPen(QColor("#000000"))
-            painter.drawText(QRectF(x + 4, curr_y, amt_w - 8, h), Qt.AlignRight | Qt.AlignVCenter, amt_str)
-
-        elif kind == BlockKind.BATCH_SUBTOTAL:
-            widths = block.data.get("widths", [])
-            batch_no = block.data.get("batch_no", "")
-            pay_str = block.data.get("pay_str", "0")
-            free_str = block.data.get("free_str", "0")
-            amt_str = block.data.get("amt_str", "0.00")
-
-            painter.setFont(QFont("Segoe UI", 8, QFont.Bold))
-            sum_prefix_w = sum(widths[:-3])
-            pay_w = widths[-3]
-            free_w = widths[-2]
-            amt_w = widths[-1]
-
-            # Right-aligned label: "<BATCHNO>   Total :" (or "Total :" if batch_no is blank)
-            label_text = f"{batch_no}   Total :" if batch_no else "Total :"
-            painter.setPen(pen_grid)
-            painter.drawRect(QRectF(MARGIN_LEFT, curr_y, sum_prefix_w, h))
-            painter.setPen(QColor("#000000"))
-            painter.drawText(
-                QRectF(MARGIN_LEFT + 4, curr_y, sum_prefix_w - 8, h),
-                Qt.AlignRight | Qt.AlignVCenter,
-                label_text,
-            )
-
-            # Pay Qty box
-            x = MARGIN_LEFT + sum_prefix_w
-            painter.setPen(pen_grid)
-            painter.drawRect(QRectF(x, curr_y, pay_w, h))
-            painter.setPen(QColor("#000000"))
-            painter.drawText(QRectF(x + 4, curr_y, pay_w - 8, h), Qt.AlignRight | Qt.AlignVCenter, pay_str)
-
-            # Free box
-            x += pay_w
-            painter.setPen(pen_grid)
-            painter.drawRect(QRectF(x, curr_y, free_w, h))
-            painter.setPen(QColor("#000000"))
-            painter.drawText(QRectF(x + 4, curr_y, free_w - 8, h), Qt.AlignRight | Qt.AlignVCenter, free_str)
-
-            # Amount box
-            x += free_w
-            painter.setPen(pen_grid)
-            painter.drawRect(QRectF(x, curr_y, amt_w, h))
-            painter.setPen(QColor("#000000"))
-            painter.drawText(QRectF(x + 4, curr_y, amt_w - 8, h), Qt.AlignRight | Qt.AlignVCenter, amt_str)
+                painter.setPen(pen_grid)
+                painter.drawRect(QRectF(x, curr_y, amt_w, h))
+                painter.setPen(QColor("#000000"))
+                painter.drawText(QRectF(x + 4, curr_y, amt_w - 8, h), Qt.AlignRight | Qt.AlignVCenter, amt_str)
 
         elif kind == BlockKind.GRAND_TOTAL:
             if "custom_cells" in block.data:
                 painter.setFont(QFont("Segoe UI", 8, QFont.Bold))
                 x = MARGIN_LEFT
-                for cell_w, cell_txt, cell_align in block.data["custom_cells"]:
+                for cell in block.data["custom_cells"]:
+                    if isinstance(cell, dict):
+                        cell_w = cell.get("width", 0.0)
+                        cell_txt = cell.get("text", "")
+                        cell_align = cell.get("align", "left")
+                    else:
+                        cell_w, cell_txt, cell_align = cell[0], cell[1], cell[2]
                     painter.setPen(pen_grid)
                     painter.drawRect(QRectF(x, curr_y, cell_w, h))
                     painter.setPen(QColor("#000000"))
-                    align_flag = Qt.AlignRight | Qt.AlignVCenter if cell_align == "right" else (Qt.AlignCenter if cell_align == "center" else (Qt.AlignLeft | Qt.AlignVCenter))
+                    align_flag = (
+                        Qt.AlignRight | Qt.AlignVCenter if cell_align == "right"
+                        else (Qt.AlignCenter if cell_align == "center" else (Qt.AlignLeft | Qt.AlignVCenter))
+                    )
                     if cell_txt:
                         painter.drawText(QRectF(x + 4, curr_y, cell_w - 8, h), align_flag, str(cell_txt))
                     x += cell_w
@@ -465,58 +461,68 @@ def draw_report_page(painter: QPainter, page: ReportPage):
                 amt_str = block.data.get("amt_str", "0.00")
 
                 painter.setFont(QFont("Segoe UI", 8, QFont.Bold))
-            if qty_str is not None and disc_str is not None:
-                # 3-column total (Pay/Qty, Free/Disc, Amount)
-                sum_prefix_w = sum(widths[:-3])
-                c1_w = widths[-3]
-                c2_w = widths[-2]
-                c3_w = widths[-1]
+                if qty_str is not None and disc_str is not None:
+                    # 3-column total (Pay/Qty, Free/Disc, Amount)
+                    if len(widths) >= 3:
+                        sum_prefix_w = sum(widths[:-3])
+                        c1_w = widths[-3]
+                        c2_w = widths[-2]
+                        c3_w = widths[-1]
+                    else:
+                        c1_w = 60.0
+                        c2_w = 60.0
+                        c3_w = 80.0
+                        sum_prefix_w = max(0.0, content_w - (c1_w + c2_w + c3_w))
 
-                painter.setPen(pen_grid)
-                painter.drawRect(QRectF(MARGIN_LEFT, curr_y, sum_prefix_w, h))
-                painter.setPen(QColor("#000000"))
-                painter.drawText(
-                    QRectF(MARGIN_LEFT + 4, curr_y, sum_prefix_w - 8, h),
-                    Qt.AlignRight | Qt.AlignVCenter,
-                    label,
-                )
+                    painter.setPen(pen_grid)
+                    painter.drawRect(QRectF(MARGIN_LEFT, curr_y, sum_prefix_w, h))
+                    painter.setPen(QColor("#000000"))
+                    painter.drawText(
+                        QRectF(MARGIN_LEFT + 4, curr_y, sum_prefix_w - 8, h),
+                        Qt.AlignRight | Qt.AlignVCenter,
+                        label,
+                    )
 
-                x = MARGIN_LEFT + sum_prefix_w
-                painter.setPen(pen_grid)
-                painter.drawRect(QRectF(x, curr_y, c1_w, h))
-                painter.setPen(QColor("#000000"))
-                painter.drawText(QRectF(x + 4, curr_y, c1_w - 8, h), Qt.AlignRight | Qt.AlignVCenter, str(qty_str))
+                    x = MARGIN_LEFT + sum_prefix_w
+                    painter.setPen(pen_grid)
+                    painter.drawRect(QRectF(x, curr_y, c1_w, h))
+                    painter.setPen(QColor("#000000"))
+                    painter.drawText(QRectF(x + 4, curr_y, c1_w - 8, h), Qt.AlignRight | Qt.AlignVCenter, str(qty_str))
 
-                x += c1_w
-                painter.setPen(pen_grid)
-                painter.drawRect(QRectF(x, curr_y, c2_w, h))
-                painter.setPen(QColor("#000000"))
-                painter.drawText(QRectF(x + 4, curr_y, c2_w - 8, h), Qt.AlignRight | Qt.AlignVCenter, str(disc_str))
+                    x += c1_w
+                    painter.setPen(pen_grid)
+                    painter.drawRect(QRectF(x, curr_y, c2_w, h))
+                    painter.setPen(QColor("#000000"))
+                    painter.drawText(QRectF(x + 4, curr_y, c2_w - 8, h), Qt.AlignRight | Qt.AlignVCenter, str(disc_str))
 
-                x += c2_w
-                painter.setPen(pen_grid)
-                painter.drawRect(QRectF(x, curr_y, c3_w, h))
-                painter.setPen(QColor("#000000"))
-                painter.drawText(QRectF(x + 4, curr_y, c3_w - 8, h), Qt.AlignRight | Qt.AlignVCenter, str(amt_str))
-            else:
-                # 1-column total (Amount only, e.g. Report 2)
-                prefix_w = sum(widths[:-1])
-                amt_w = widths[-1]
+                    x += c2_w
+                    painter.setPen(pen_grid)
+                    painter.drawRect(QRectF(x, curr_y, c3_w, h))
+                    painter.setPen(QColor("#000000"))
+                    painter.drawText(QRectF(x + 4, curr_y, c3_w - 8, h), Qt.AlignRight | Qt.AlignVCenter, str(amt_str))
+                else:
+                    # 1-column total (Amount only, e.g. Report 2)
+                    if len(widths) >= 1:
+                        prefix_w = sum(widths[:-1])
+                        amt_w = widths[-1]
+                    else:
+                        amt_w = 100.0
+                        prefix_w = max(0.0, content_w - amt_w)
 
-                painter.setPen(pen_grid)
-                painter.drawRect(QRectF(MARGIN_LEFT, curr_y, prefix_w, h))
-                painter.setPen(QColor("#000000"))
-                painter.drawText(
-                    QRectF(MARGIN_LEFT + 4, curr_y, prefix_w - 8, h),
-                    Qt.AlignRight | Qt.AlignVCenter,
-                    label,
-                )
+                    painter.setPen(pen_grid)
+                    painter.drawRect(QRectF(MARGIN_LEFT, curr_y, prefix_w, h))
+                    painter.setPen(QColor("#000000"))
+                    painter.drawText(
+                        QRectF(MARGIN_LEFT + 4, curr_y, prefix_w - 8, h),
+                        Qt.AlignRight | Qt.AlignVCenter,
+                        label,
+                    )
 
-                x = MARGIN_LEFT + prefix_w
-                painter.setPen(pen_grid)
-                painter.drawRect(QRectF(x, curr_y, amt_w, h))
-                painter.setPen(QColor("#000000"))
-                painter.drawText(QRectF(x + 4, curr_y, amt_w - 8, h), Qt.AlignRight | Qt.AlignVCenter, str(amt_str))
+                    x = MARGIN_LEFT + prefix_w
+                    painter.setPen(pen_grid)
+                    painter.drawRect(QRectF(x, curr_y, amt_w, h))
+                    painter.setPen(QColor("#000000"))
+                    painter.drawText(QRectF(x + 4, curr_y, amt_w - 8, h), Qt.AlignRight | Qt.AlignVCenter, str(amt_str))
 
         elif kind in (BlockKind.SUMMARY_BOX, "summary_box"):
             box_w = block.data.get("width", content_w)
@@ -555,8 +561,6 @@ def draw_report_page(painter: QPainter, page: ReportPage):
         page_txt,
     )
 
-    painter.restore()
-
 
 # ── Screen Canvas Widget ──────────────────────────────────────────────
 
@@ -568,9 +572,11 @@ class ReportPageCanvas(QWidget):
         self._page: Optional[ReportPage] = None
         self._zoom: float = 1.0
         self._bg_color: QColor = QColor("#808080")
+        self._last_paint_error: Optional[str] = None
         self._update_geometry()
 
     def set_page(self, page: Optional[ReportPage]):
+        self._last_paint_error = None
         self._page = page
         self._update_geometry()
         self.update()
@@ -592,32 +598,68 @@ class ReportPageCanvas(QWidget):
         self.setFixedSize(w, h)
 
     def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.fillRect(self.rect(), self._bg_color)  # Workspace background
-
-        if self._page is None:
-            painter.setFont(QFont("Segoe UI", 12))
-            painter.setPen(QColor("#FFFFFF"))
-            painter.drawText(self.rect(), Qt.AlignCenter, "No report loaded. Select filters and click Show Report.")
+        painter = QPainter()
+        if not painter.begin(self):
             return
 
-        painter.save()
-        # Center the page in the canvas area
-        offset_x = 20 * self._zoom
-        offset_y = 20 * self._zoom
-        painter.translate(offset_x, offset_y)
-        painter.scale(self._zoom, self._zoom)
+        try:
+            painter.fillRect(self.rect(), self._bg_color)  # Workspace background
 
-        page_w = getattr(self._page, "page_width", PAGE_WIDTH)
-        page_h = getattr(self._page, "page_height", PAGE_HEIGHT)
+            if self._page is None:
+                painter.setFont(QFont("Segoe UI", 12))
+                painter.setPen(QColor("#FFFFFF"))
+                painter.drawText(self.rect(), Qt.AlignCenter, "No report loaded. Select filters and click Show Report.")
+                return
 
-        # Drop shadow on right and bottom
-        shadow_rect = QRectF(4, 4, page_w, page_h)
-        painter.fillRect(shadow_rect, QColor(0, 0, 0, 70))
+            page_w = getattr(self._page, "page_width", PAGE_WIDTH)
+            page_h = getattr(self._page, "page_height", PAGE_HEIGHT)
 
-        # Render the page
-        draw_report_page(painter, self._page)
-        painter.restore()
+            painter.save()
+            try:
+                # Center the page in the canvas area
+                offset_x = 20 * self._zoom
+                offset_y = 20 * self._zoom
+                painter.translate(offset_x, offset_y)
+                painter.scale(self._zoom, self._zoom)
+
+                # Drop shadow on right and bottom
+                shadow_rect = QRectF(4, 4, page_w, page_h)
+                painter.fillRect(shadow_rect, QColor(0, 0, 0, 70))
+
+                # Render the page
+                draw_report_page(painter, self._page)
+            finally:
+                painter.restore()
+
+        except Exception as exc:
+            err_msg = str(exc)
+            if getattr(self, "_last_paint_error", None) != err_msg:
+                self._last_paint_error = err_msg
+                import sys, traceback
+                print(f"[CrystalReportViewer] Error rendering report page: {err_msg}", file=sys.stderr)
+                traceback.print_exc()
+
+            try:
+                painter.save()
+                try:
+                    painter.setPen(QPen(QColor("#D9534F"), 2))
+                    painter.setBrush(QColor("#FFF0F0"))
+                    err_rect = QRectF(30, 30, min(float(self.width() - 60), 600.0), 90.0)
+                    painter.drawRect(err_rect)
+                    painter.setPen(QColor("#D9534F"))
+                    painter.setFont(QFont("Segoe UI", 10, QFont.Bold))
+                    painter.drawText(
+                        err_rect.adjusted(12, 10, -12, -10),
+                        Qt.AlignLeft | Qt.AlignTop | Qt.TextWordWrap,
+                        f"Report Rendering Error:\n{err_msg}",
+                    )
+                finally:
+                    painter.restore()
+            except Exception:
+                pass
+        finally:
+            if painter.isActive():
+                painter.end()
 
 
 # ── Crystal Reports Viewer (Left 80% Component) ───────────────────────

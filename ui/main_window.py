@@ -147,8 +147,39 @@ class PharmacyMainWindow(QMainWindow):
                     page.close_requested.connect(
                         lambda: self._on_menu_action("Sales", "New Bill")
                     )
+                elif menu_name == "Reports" and item_name == "Daily Billwise Sales":
+                    page = screens.DailyBillwiseSalesPage()
+                    page.close_requested.connect(
+                        lambda: self._on_menu_action("Sales", "New Bill")
+                    )
+                elif menu_name == "Reports" and item_name == "Daily Itemwise Sales":
+                    page = screens.DailyItemwiseSalesPage()
+                    page.close_requested.connect(
+                        lambda: self._on_menu_action("Sales", "New Bill")
+                    )
+                elif menu_name == "Reports" and item_name == "Companywise Sales":
+                    page = screens.CompanywiseSalesPage()
+                    page.close_requested.connect(
+                        lambda: self._on_menu_action("Sales", "New Bill")
+                    )
+                elif menu_name == "Reports" and item_name == "Itemwise Sales":
+                    page = screens.ItemwiseSalesPage()
+                    page.close_requested.connect(
+                        lambda: self._on_menu_action("Sales", "New Bill")
+                    )
+                elif menu_name == "Reports" and item_name == "Daily Profit Calculation":
+                    page = screens.DailyProfitCalculationPage()
+                    page.close_requested.connect(
+                        lambda: self._on_menu_action("Sales", "New Bill")
+                    )
+                elif menu_name == "Reports" and item_name == "Daily Profit Itemwise":
+                    page = screens.DailyProfitItemwisePage()
+                    page.close_requested.connect(
+                        lambda: self._on_menu_action("Sales", "New Bill")
+                    )
                 elif menu_name == "Reports" and item_name in ("Sales Report", "Daily Sales Report"):
                     page = screens.SalesReportPage()
+
                 elif menu_name == "Reports" and item_name == "Purchase Report":
                     page = screens.PurchaseReportPage()
                 elif menu_name == "Reports" and item_name == "Companywise Itemwise Purchase":

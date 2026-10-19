@@ -52,6 +52,16 @@ from screens.stock_reports import (
     ExpiredItemListPage,
     ItemListPage,
 )
+from screens.sales_reports import (
+    DailyBillwiseSalesPage,
+    DailyItemwiseSalesPage,
+    CompanywiseSalesPage,
+    ItemwiseSalesPage,
+    DailyProfitCalculationPage,
+    DailyProfitCalculationDialog,
+    DailyProfitItemwisePage,
+    DailyProfitItemwiseDialog,
+)
 
 __all__ = [
     "CompanyMasterPage", "UnitMasterPage", "DrugMasterPage", "SupplierMasterPage",
@@ -68,4 +78,8 @@ __all__ = [
     "SupplierwiseItemwiseInvoicePurchasePage", "SupplierwiseItemwiseChallanPurchasePage",
     "ItemwisePurchasePage", "ItemwiseBatchwisePurchasePage",
     "ItemsAllStockPage", "CompanywiseItemStockPage", "ExpiredItemListPage", "ItemListPage",
+    "DailyBillwiseSalesPage", "DailyItemwiseSalesPage", "CompanywiseSalesPage",
+    "ItemwiseSalesPage", "DailyProfitCalculationPage", "DailyProfitCalculationDialog",
+    "DailyProfitItemwisePage", "DailyProfitItemwiseDialog",
 ]
+
