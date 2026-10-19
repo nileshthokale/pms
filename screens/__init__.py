@@ -46,5 +46,26 @@ from screens.purchase_reports import (
     ItemwisePurchasePage,
     ItemwiseBatchwisePurchasePage,
 )
+from screens.stock_reports import (
+    ItemsAllStockPage,
+    CompanywiseItemStockPage,
+    ExpiredItemListPage,
+    ItemListPage,
+)
 
-__all__ = ["CompanyMasterPage", "UnitMasterPage", "DrugMasterPage", "SupplierMasterPage", "CustomerMasterPage", "DoctorMasterPage", "ItemMasterPage", "PurchaseInvoicePage", "StockMasterPage", "CounterSalePage", "CreditNotePage", "DebitNotePage", "SupplierPaymentPage", "CustomerReceiptPage", "AccountLedgerPage", "AccountRolesPage", "JournalEntryPage", "TrialBalancePage", "ProfitLossPage", "BalanceSheetPage", "SalesReportPage", "PurchaseReportPage", "ExpiryReportPage", "PartyWiseReportPage", "GSTReportPage", "BackupRestorePage", "ImportDataPage", "LoginDialog", "UserManagementPage", "FinancialYearPage", "AccountGroupMasterPage", "CashBookPage", "BankBookPage", "DayEndPage", "HoldBillPage", "CategoryMasterPage", "SalesHistoryPage", "SupplierLedgerPage", "CustomerLedgerPage", "ItemwiseLedgerPage", "CompanywiseItemwisePurchasePage", "CompanywiseSupplierwisePurchasePage", "SupplierwiseItemwiseInvoicePurchasePage", "SupplierwiseItemwiseChallanPurchasePage", "ItemwisePurchasePage", "ItemwiseBatchwisePurchasePage"]
+__all__ = [
+    "CompanyMasterPage", "UnitMasterPage", "DrugMasterPage", "SupplierMasterPage",
+    "CustomerMasterPage", "DoctorMasterPage", "ItemMasterPage", "PurchaseInvoicePage",
+    "StockMasterPage", "CounterSalePage", "CreditNotePage", "DebitNotePage",
+    "SupplierPaymentPage", "CustomerReceiptPage", "AccountLedgerPage", "AccountRolesPage",
+    "JournalEntryPage", "TrialBalancePage", "ProfitLossPage", "BalanceSheetPage",
+    "SalesReportPage", "PurchaseReportPage", "ExpiryReportPage", "PartyWiseReportPage",
+    "GSTReportPage", "BackupRestorePage", "ImportDataPage", "LoginDialog",
+    "UserManagementPage", "FinancialYearPage", "AccountGroupMasterPage", "CashBookPage",
+    "BankBookPage", "DayEndPage", "HoldBillPage", "CategoryMasterPage",
+    "SalesHistoryPage", "SupplierLedgerPage", "CustomerLedgerPage", "ItemwiseLedgerPage",
+    "CompanywiseItemwisePurchasePage", "CompanywiseSupplierwisePurchasePage",
+    "SupplierwiseItemwiseInvoicePurchasePage", "SupplierwiseItemwiseChallanPurchasePage",
+    "ItemwisePurchasePage", "ItemwiseBatchwisePurchasePage",
+    "ItemsAllStockPage", "CompanywiseItemStockPage", "ExpiredItemListPage", "ItemListPage",
+]
