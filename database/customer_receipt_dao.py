@@ -148,6 +148,17 @@ class CustomerReceiptDAO:
         """Fetch all sales bills for customer with remaining unpaid balance.
 
         Ordered by sale_date ASC, id ASC (FIFO order).
+
+        Legacy handling: customer_receipts imported from Pharma-WINNER may have
+        no rows in customer_receipt_allocations even though they were posted to
+        the ledger.  To keep the displayed outstanding consistent with the
+        authoritative ledger balance we:
+          1. Compute per-bill outstanding = net_amount - paid_amount - SUM(allocations).
+          2. Compute total_unallocated_receipts = SUM(customer_receipts.amount) - SUM(all_allocations).
+          3. Distribute total_unallocated_receipts in FIFO order across
+             bills that still show outstanding, reducing each to 0 when
+             the unallocated amount covers it.
+        This makes Total Outstanding == customer ledger balance (debit balance).
         """
         conn = get_connection()
         try:
@@ -166,12 +177,55 @@ class CustomerReceiptDAO:
             """
             cur = conn.execute(sql, (exclude_receipt_id, exclude_receipt_id, customer_id))
             rows = cur.fetchall()
+
+            # ------------------------------------------------------------------
+            # Compute total unallocated receipt amount for this customer.
+            # Receipts posted to the ledger but without allocation table rows
+            # (legacy imports) still reduce the outstanding balance.  We must
+            # distribute their sum in FIFO order so the total outstanding shown
+            # in the dialog matches the authoritative customer ledger balance.
+            # ------------------------------------------------------------------
+            if exclude_receipt_id is not None:
+                total_receipts = float(conn.execute(
+                    "SELECT COALESCE(SUM(amount), 0.0) FROM customer_receipts "
+                    "WHERE customer_id = ? AND id != ?",
+                    (customer_id, exclude_receipt_id),
+                ).fetchone()[0] or 0.0)
+                total_allocated_in_table = float(conn.execute(
+                    """SELECT COALESCE(SUM(cra.allocated_amount), 0.0)
+                       FROM customer_receipt_allocations cra
+                       JOIN customer_receipts cr ON cr.id = cra.customer_receipt_id
+                       WHERE cr.customer_id = ? AND cr.id != ?""",
+                    (customer_id, exclude_receipt_id),
+                ).fetchone()[0] or 0.0)
+            else:
+                total_receipts = float(conn.execute(
+                    "SELECT COALESCE(SUM(amount), 0.0) FROM customer_receipts WHERE customer_id = ?",
+                    (customer_id,),
+                ).fetchone()[0] or 0.0)
+                total_allocated_in_table = float(conn.execute(
+                    """SELECT COALESCE(SUM(cra.allocated_amount), 0.0)
+                       FROM customer_receipt_allocations cra
+                       JOIN customer_receipts cr ON cr.id = cra.customer_receipt_id
+                       WHERE cr.customer_id = ?""",
+                    (customer_id,),
+                ).fetchone()[0] or 0.0)
+
+            # Unallocated = receipts posted to ledger with no matching allocation rows
+            unallocated_pool = round(max(0.0, total_receipts - total_allocated_in_table), 2)
+
             results: List[dict] = []
             for r in rows:
                 net = float(r["net_amount"] or 0.0)
                 init_paid = float(r["paid_amount"] or 0.0)
                 prior = float(r["prior_allocated"] or 0.0)
                 outstanding = round(net - init_paid - prior, 2)
+
+                # Distribute unallocated legacy receipts FIFO
+                if outstanding > 0.0001 and unallocated_pool > 0.0001:
+                    reduction = round(min(outstanding, unallocated_pool), 2)
+                    outstanding = round(outstanding - reduction, 2)
+                    unallocated_pool = round(unallocated_pool - reduction, 2)
 
                 current_alloc = 0.0
                 if exclude_receipt_id is not None:
