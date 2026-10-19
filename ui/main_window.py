@@ -224,6 +224,16 @@ class PharmacyMainWindow(QMainWindow):
                     page = screens.CustomerLedgerPage()
                 elif menu_name == "Reports" and item_name == "Itemwise Ledger":
                     page = screens.ItemwiseLedgerPage()
+                elif menu_name == "Reports" and item_name == "Doctorwise Item Sale":
+                    page = screens.DoctorwiseItemSalePage()
+                    page.close_requested.connect(
+                        lambda: self._on_menu_action("Sales", "New Bill")
+                    )
+                elif menu_name == "Reports" and item_name == "Doctorwise Item Sale Details":
+                    page = screens.DoctorwiseItemSaleDetailsPage()
+                    page.close_requested.connect(
+                        lambda: self._on_menu_action("Sales", "New Bill")
+                    )
                 elif menu_name == "Sales" and item_name == "New Bill":
                     page = screens.CounterSalePage()
                     # The Counter Sale toolbar's "Sales History" button is
@@ -294,6 +304,8 @@ class PharmacyMainWindow(QMainWindow):
             page_index += 1
         if "Reports:Stock Report" not in self._page_map and "Reports:Items (All) Stock" in self._page_map:
             self._page_map["Reports:Stock Report"] = self._page_map["Reports:Items (All) Stock"]
+        if "Reports:Doctor's Reports" not in self._page_map and "Reports:Doctorwise Item Sale" in self._page_map:
+            self._page_map["Reports:Doctor's Reports"] = self._page_map["Reports:Doctorwise Item Sale"]
 
     def _on_menu_action(self, menu: str, action: str):
         permission = auth.MENU_PERMISSIONS.get(action)
