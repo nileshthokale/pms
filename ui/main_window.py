@@ -122,9 +122,32 @@ class PharmacyMainWindow(QMainWindow):
                     page = screens.PurchaseInvoicePage()
                 elif menu_name == "Purchase" and item_name == "Purchase History":
                     page = screens.PurchaseInvoicePage()
+                elif menu_name == "Reports" and item_name == "Items (All) Stock":
+                    page = screens.ItemsAllStockPage()
+                    page.close_requested.connect(
+                        lambda: self._on_menu_action("Sales", "New Bill")
+                    )
+                elif menu_name == "Reports" and item_name == "Companywise Item Stock":
+                    page = screens.CompanywiseItemStockPage()
+                    page.close_requested.connect(
+                        lambda: self._on_menu_action("Sales", "New Bill")
+                    )
+                elif menu_name == "Reports" and item_name == "Expired Item List":
+                    page = screens.ExpiredItemListPage()
+                    page.close_requested.connect(
+                        lambda: self._on_menu_action("Sales", "New Bill")
+                    )
+                elif menu_name == "Reports" and item_name == "Item List":
+                    page = screens.ItemListPage()
+                    page.close_requested.connect(
+                        lambda: self._on_menu_action("Sales", "New Bill")
+                    )
                 elif menu_name == "Reports" and item_name == "Stock Report":
-                    page = screens.StockMasterPage()
-                elif menu_name == "Reports" and item_name == "Sales Report":
+                    page = screens.ItemsAllStockPage()
+                    page.close_requested.connect(
+                        lambda: self._on_menu_action("Sales", "New Bill")
+                    )
+                elif menu_name == "Reports" and item_name in ("Sales Report", "Daily Sales Report"):
                     page = screens.SalesReportPage()
                 elif menu_name == "Reports" and item_name == "Purchase Report":
                     page = screens.PurchaseReportPage()
@@ -224,12 +247,22 @@ class PharmacyMainWindow(QMainWindow):
                 if sub_title:
                     self._page_map[f"{menu_name}:{sub_title}:{item_name}"] = page_index
                 page_index += 1
+        if "Reports:Sales Report" not in self._page_map:
+            page = screens.SalesReportPage()
+            ui.polish_page(page)
+            self._stack.addWidget(page)
+            self._page_map["Reports:Sales Report"] = page_index
+            page_index += 1
+        if "Reports:Daily Sales Report" not in self._page_map and "Reports:Sales Report" in self._page_map:
+            self._page_map["Reports:Daily Sales Report"] = self._page_map["Reports:Sales Report"]
         if "Reports:Purchase Report" not in self._page_map:
             page = screens.PurchaseReportPage()
             ui.polish_page(page)
             self._stack.addWidget(page)
             self._page_map["Reports:Purchase Report"] = page_index
             page_index += 1
+        if "Reports:Stock Report" not in self._page_map and "Reports:Items (All) Stock" in self._page_map:
+            self._page_map["Reports:Stock Report"] = self._page_map["Reports:Items (All) Stock"]
 
     def _on_menu_action(self, menu: str, action: str):
         permission = auth.MENU_PERMISSIONS.get(action)

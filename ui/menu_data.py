@@ -4,6 +4,10 @@ REPORT_LEDGER_SUBMENU = [
     "Itemwise Ledger",
 ]
 
+REPORT_SALES_SUBMENU = [
+    "Sales Report",
+]
+
 REPORT_PURCHASE_SUBMENU = [
     "Companywise Itemwise Purchase",
     "Companywise Supplierwise Purchase",
@@ -13,6 +17,14 @@ REPORT_PURCHASE_SUBMENU = [
     "---",
     "Itemwise Purchase",
     "Itemwise Batchwise Purchase",
+]
+
+
+REPORT_STOCK_SUBMENU = [
+    "Items (All) Stock",
+    "Companywise Item Stock",
+    "Expired Item List",
+    "Item List",
 ]
 
 
@@ -52,11 +64,15 @@ MENUS = {
         "Balance Sheet",
     ],
     "Reports": [
-        "Sales Report",
+        SubmenuDict({
+            "Sales Report": REPORT_SALES_SUBMENU,
+        }),
         SubmenuDict({
             "Purchase Report": REPORT_PURCHASE_SUBMENU,
         }),
-        "Stock Report",
+        SubmenuDict({
+            "Stock Report": REPORT_STOCK_SUBMENU,
+        }),
         "Expiry Report",
         "Party Wise Report",
         "GST Report",
