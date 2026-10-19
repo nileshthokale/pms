@@ -188,27 +188,36 @@ class NavigationBar(QWidget):
                         sub_menu = menu.addMenu(sub_title)
                         sub_menu.setObjectName(f"NavSubMenu_{sub_title}")
                         for sub_text in sub_items:
-                            sub_action = sub_menu.addAction(sub_text)
-                            sub_action.triggered.connect(
-                                lambda checked=False, m=label, a=sub_text: self.menu_action_triggered.emit(m, a)
-                            )
+                            if sub_text == "---" or (isinstance(sub_text, str) and sub_text.startswith("---")):
+                                sub_menu.addSeparator()
+                            else:
+                                sub_action = sub_menu.addAction(sub_text)
+                                sub_action.triggered.connect(
+                                    lambda checked=False, m=label, a=sub_text: self.menu_action_triggered.emit(m, a)
+                                )
                         self._menus.append(sub_menu)
                 elif isinstance(item, tuple) and len(item) == 2 and isinstance(item[1], (list, tuple)):
                     sub_title, sub_items = item
                     sub_menu = menu.addMenu(sub_title)
                     sub_menu.setObjectName(f"NavSubMenu_{sub_title}")
                     for sub_text in sub_items:
-                        sub_action = sub_menu.addAction(sub_text)
-                        sub_action.triggered.connect(
-                            lambda checked=False, m=label, a=sub_text: self.menu_action_triggered.emit(m, a)
-                        )
+                        if sub_text == "---" or (isinstance(sub_text, str) and sub_text.startswith("---")):
+                            sub_menu.addSeparator()
+                        else:
+                            sub_action = sub_menu.addAction(sub_text)
+                            sub_action.triggered.connect(
+                                lambda checked=False, m=label, a=sub_text: self.menu_action_triggered.emit(m, a)
+                            )
                     self._menus.append(sub_menu)
                 else:
                     item_text = item
-                    action = menu.addAction(item_text)
-                    action.triggered.connect(
-                        lambda checked=False, m=label, a=item_text: self.menu_action_triggered.emit(m, a)
-                    )
+                    if item_text == "---" or (isinstance(item_text, str) and item_text.startswith("---")):
+                        menu.addSeparator()
+                    else:
+                        action = menu.addAction(item_text)
+                        action.triggered.connect(
+                            lambda checked=False, m=label, a=item_text: self.menu_action_triggered.emit(m, a)
+                        )
             btn.setMenu(menu)
             self._menus.append(menu)
             ml.addWidget(btn)

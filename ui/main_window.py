@@ -72,11 +72,17 @@ class PharmacyMainWindow(QMainWindow):
             if isinstance(item, dict):
                 for sub_title, sub_items in item.items():
                     for name in sub_items:
+                        if name == "---" or (isinstance(name, str) and name.startswith("---")):
+                            continue
                         yield name, sub_title
             elif isinstance(item, tuple) and len(item) == 2 and isinstance(item[1], (list, tuple)):
                 for name in item[1]:
+                    if name == "---" or (isinstance(name, str) and name.startswith("---")):
+                        continue
                     yield name, item[0]
             else:
+                if item == "---" or (isinstance(item, str) and item.startswith("---")):
+                    continue
                 yield item, None
 
     def _build_pages(self):
@@ -122,6 +128,36 @@ class PharmacyMainWindow(QMainWindow):
                     page = screens.SalesReportPage()
                 elif menu_name == "Reports" and item_name == "Purchase Report":
                     page = screens.PurchaseReportPage()
+                elif menu_name == "Reports" and item_name == "Companywise Itemwise Purchase":
+                    page = screens.CompanywiseItemwisePurchasePage()
+                    page.close_requested.connect(
+                        lambda: self._on_menu_action("Sales", "New Bill")
+                    )
+                elif menu_name == "Reports" and item_name == "Companywise Supplierwise Purchase":
+                    page = screens.CompanywiseSupplierwisePurchasePage()
+                    page.close_requested.connect(
+                        lambda: self._on_menu_action("Sales", "New Bill")
+                    )
+                elif menu_name == "Reports" and item_name == "Supplierwise Itemwise Purchase (Invoice)":
+                    page = screens.SupplierwiseItemwiseInvoicePurchasePage()
+                    page.close_requested.connect(
+                        lambda: self._on_menu_action("Sales", "New Bill")
+                    )
+                elif menu_name == "Reports" and item_name == "Supplierwise Itemwise Purchase (Challan)":
+                    page = screens.SupplierwiseItemwiseChallanPurchasePage()
+                    page.close_requested.connect(
+                        lambda: self._on_menu_action("Sales", "New Bill")
+                    )
+                elif menu_name == "Reports" and item_name == "Itemwise Purchase":
+                    page = screens.ItemwisePurchasePage()
+                    page.close_requested.connect(
+                        lambda: self._on_menu_action("Sales", "New Bill")
+                    )
+                elif menu_name == "Reports" and item_name == "Itemwise Batchwise Purchase":
+                    page = screens.ItemwiseBatchwisePurchasePage()
+                    page.close_requested.connect(
+                        lambda: self._on_menu_action("Sales", "New Bill")
+                    )
                 elif menu_name == "Reports" and item_name == "Expiry Report":
                     page = screens.ExpiryReportPage()
                 elif menu_name == "Reports" and item_name == "Party Wise Report":
@@ -188,6 +224,12 @@ class PharmacyMainWindow(QMainWindow):
                 if sub_title:
                     self._page_map[f"{menu_name}:{sub_title}:{item_name}"] = page_index
                 page_index += 1
+        if "Reports:Purchase Report" not in self._page_map:
+            page = screens.PurchaseReportPage()
+            ui.polish_page(page)
+            self._stack.addWidget(page)
+            self._page_map["Reports:Purchase Report"] = page_index
+            page_index += 1
 
     def _on_menu_action(self, menu: str, action: str):
         permission = auth.MENU_PERMISSIONS.get(action)
