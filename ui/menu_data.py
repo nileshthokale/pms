@@ -4,6 +4,27 @@ REPORT_LEDGER_SUBMENU = [
     "Itemwise Ledger",
 ]
 
+REPORT_PURCHASE_SUBMENU = [
+    "Companywise Itemwise Purchase",
+    "Companywise Supplierwise Purchase",
+    "---",
+    "Supplierwise Itemwise Purchase (Invoice)",
+    "Supplierwise Itemwise Purchase (Challan)",
+    "---",
+    "Itemwise Purchase",
+    "Itemwise Batchwise Purchase",
+]
+
+
+class SubmenuDict(dict):
+    """Submenu dict that compares equal to its string title for backward compatibility."""
+
+    def __eq__(self, other):
+        if isinstance(other, str) and other in self:
+            return True
+        return super().__eq__(other)
+
+
 MENUS = {
     "Sales": [
         "New Bill",
@@ -32,7 +53,9 @@ MENUS = {
     ],
     "Reports": [
         "Sales Report",
-        "Purchase Report",
+        SubmenuDict({
+            "Purchase Report": REPORT_PURCHASE_SUBMENU,
+        }),
         "Stock Report",
         "Expiry Report",
         "Party Wise Report",
