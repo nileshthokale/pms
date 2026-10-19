@@ -15,6 +15,12 @@ modified.
 """
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QKeySequence
+
+MENU_SHORTCUTS = {
+    "Daily Itemwise Sales": "Ctrl+T",
+    "Daily Profit Calculation": "Ctrl+O",
+}
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -192,6 +198,8 @@ class NavigationBar(QWidget):
                                 sub_menu.addSeparator()
                             else:
                                 sub_action = sub_menu.addAction(sub_text)
+                                if sub_text in MENU_SHORTCUTS:
+                                    sub_action.setShortcut(QKeySequence(MENU_SHORTCUTS[sub_text]))
                                 sub_action.triggered.connect(
                                     lambda checked=False, m=label, a=sub_text: self.menu_action_triggered.emit(m, a)
                                 )
@@ -205,6 +213,8 @@ class NavigationBar(QWidget):
                             sub_menu.addSeparator()
                         else:
                             sub_action = sub_menu.addAction(sub_text)
+                            if sub_text in MENU_SHORTCUTS:
+                                sub_action.setShortcut(QKeySequence(MENU_SHORTCUTS[sub_text]))
                             sub_action.triggered.connect(
                                 lambda checked=False, m=label, a=sub_text: self.menu_action_triggered.emit(m, a)
                             )

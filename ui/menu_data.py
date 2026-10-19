@@ -5,7 +5,12 @@ REPORT_LEDGER_SUBMENU = [
 ]
 
 REPORT_SALES_SUBMENU = [
-    "Sales Report",
+    "Daily Billwise Sales",
+    "Daily Itemwise Sales",
+    "Companywise Sales",
+    "Itemwise Sales",
+    "Daily Profit Calculation",
+    "Daily Profit Itemwise",
 ]
 
 REPORT_PURCHASE_SUBMENU = [
