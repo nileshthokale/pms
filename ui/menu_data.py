@@ -33,6 +33,12 @@ REPORT_STOCK_SUBMENU = [
 ]
 
 
+REPORT_DOCTOR_SUBMENU = [
+    "Doctorwise Item Sale",
+    "Doctorwise Item Sale Details",
+]
+
+
 class SubmenuDict(dict):
     """Submenu dict that compares equal to its string title for backward compatibility."""
 
@@ -77,6 +83,9 @@ MENUS = {
         }),
         SubmenuDict({
             "Stock Report": REPORT_STOCK_SUBMENU,
+        }),
+        SubmenuDict({
+            "Doctor's Reports": REPORT_DOCTOR_SUBMENU,
         }),
         "Expiry Report",
         "Party Wise Report",

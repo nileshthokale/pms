@@ -16,5 +16,6 @@ from database.supplier_payment_dao import SupplierPaymentDAO
 from database.customer_receipt_dao import CustomerReceiptDAO
 from database.ledger_dao import LedgerDAO
 from database.journal_dao import JournalDAO
+from database.doctor_reports_dao import DoctorReportsDAO
 
-__all__ = ["get_connection", "init_database", "CompanyDAO", "UnitDAO", "DrugDAO", "SupplierDAO", "CustomerDAO", "DoctorDAO", "ItemDAO", "CategoryDAO", "PurchaseDAO", "StockDAO", "SalesDAO", "CreditNoteDAO", "DebitNoteDAO", "SupplierPaymentDAO", "CustomerReceiptDAO", "LedgerDAO", "JournalDAO"]
+__all__ = ["get_connection", "init_database", "CompanyDAO", "UnitDAO", "DrugDAO", "SupplierDAO", "CustomerDAO", "DoctorDAO", "ItemDAO", "CategoryDAO", "PurchaseDAO", "StockDAO", "SalesDAO", "CreditNoteDAO", "DebitNoteDAO", "SupplierPaymentDAO", "CustomerReceiptDAO", "LedgerDAO", "JournalDAO", "DoctorReportsDAO"]

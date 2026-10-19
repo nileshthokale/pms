@@ -62,6 +62,10 @@ from screens.sales_reports import (
     DailyProfitItemwisePage,
     DailyProfitItemwiseDialog,
 )
+from screens.doctor_reports import (
+    DoctorwiseItemSalePage,
+    DoctorwiseItemSaleDetailsPage,
+)
 
 __all__ = [
     "CompanyMasterPage", "UnitMasterPage", "DrugMasterPage", "SupplierMasterPage",
@@ -81,5 +85,6 @@ __all__ = [
     "DailyBillwiseSalesPage", "DailyItemwiseSalesPage", "CompanywiseSalesPage",
     "ItemwiseSalesPage", "DailyProfitCalculationPage", "DailyProfitCalculationDialog",
     "DailyProfitItemwisePage", "DailyProfitItemwiseDialog",
+    "DoctorwiseItemSalePage", "DoctorwiseItemSaleDetailsPage",
 ]
 
