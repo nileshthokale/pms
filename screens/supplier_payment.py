@@ -92,9 +92,20 @@ class _SupplierPaymentEntryDialog(QDialog):
         self._updating_allocations = False
 
         self.setWindowTitle("Supplier Payment Voucher")
-        self.setMinimumWidth(920)
-        self.setMinimumHeight(560)
+        self.setMinimumWidth(1000)
+        self.setMinimumHeight(640)
+        self.resize(1100, 740)
         self.setModal(True)
+
+        # Center the dialog on the available screen
+        from PySide6.QtWidgets import QApplication
+        screen = QApplication.primaryScreen()
+        if screen:
+            sg = screen.availableGeometry()
+            self.move(
+                sg.x() + max(0, (sg.width() - 1100) // 2),
+                sg.y() + max(0, (sg.height() - 740) // 2),
+            )
 
         self._build_ui()
         self._set_voucher_no()
@@ -227,15 +238,23 @@ class _SupplierPaymentEntryDialog(QDialog):
 
         hv = self._inv_table.horizontalHeader()
         hv.setStretchLastSection(False)
-        hv.setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        hv.setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        hv.setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        hv.setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        hv.setSectionResizeMode(4, QHeaderView.ResizeToContents)
-        hv.setSectionResizeMode(5, QHeaderView.Stretch)
-        hv.setSectionResizeMode(6, QHeaderView.Stretch)
-        hv.setSectionResizeMode(7, QHeaderView.Stretch)
-        hv.setSectionResizeMode(8, QHeaderView.Stretch)
+        # Fixed/content columns
+        hv.setSectionResizeMode(0, QHeaderView.ResizeToContents)   # Voucher Type
+        hv.setSectionResizeMode(1, QHeaderView.ResizeToContents)   # Bill/Inv No
+        hv.setSectionResizeMode(2, QHeaderView.ResizeToContents)   # Bill Date
+        hv.setSectionResizeMode(3, QHeaderView.ResizeToContents)   # Voucher No
+        hv.setSectionResizeMode(4, QHeaderView.ResizeToContents)   # Voucher Date
+        # Amount columns share remaining space equally
+        hv.setSectionResizeMode(5, QHeaderView.Stretch)            # Invoice Amt
+        hv.setSectionResizeMode(6, QHeaderView.Stretch)            # Outstanding
+        hv.setSectionResizeMode(7, QHeaderView.Stretch)            # Paid/Alloc
+        hv.setSectionResizeMode(8, QHeaderView.Stretch)            # Remaining
+        # Set reasonable minimum widths for amount columns
+        self._inv_table.setColumnWidth(5, 130)
+        self._inv_table.setColumnWidth(6, 130)
+        self._inv_table.setColumnWidth(7, 130)
+        self._inv_table.setColumnWidth(8, 130)
+        self._inv_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
 
         inv_layout.addWidget(self._inv_table, 1)
 

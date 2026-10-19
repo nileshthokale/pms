@@ -148,6 +148,17 @@ class SupplierPaymentDAO:
         """Fetch all purchase invoices for supplier with remaining unpaid balance.
 
         Ordered by voucher_date ASC, id ASC (FIFO order).
+
+        Legacy handling: supplier_payments imported from Pharma-WINNER may have
+        no rows in supplier_payment_allocations even though they were posted to
+        the ledger.  To keep the displayed outstanding consistent with the
+        authoritative ledger balance we:
+          1. Compute per-invoice outstanding = net_amount - paid_amount - SUM(allocations).
+          2. Compute total_unallocated_payments = SUM(supplier_payments.amount) - SUM(all_allocations).
+          3. Distribute total_unallocated_payments in FIFO order across
+             invoices that still show outstanding, reducing each to 0 when
+             the unallocated amount covers it.
+        This makes Total Outstanding == supplier ledger balance (credit balance).
         """
         conn = get_connection()
         try:
@@ -167,12 +178,55 @@ class SupplierPaymentDAO:
             """
             cur = conn.execute(sql, (exclude_payment_id, exclude_payment_id, supplier_id))
             rows = cur.fetchall()
+
+            # ------------------------------------------------------------------
+            # Compute total unallocated payment amount for this supplier.
+            # Payments posted to the ledger but without allocation table rows
+            # (legacy imports) still reduce the outstanding balance.  We must
+            # distribute their sum in FIFO order so the total outstanding shown
+            # in the dialog matches the authoritative supplier ledger balance.
+            # ------------------------------------------------------------------
+            if exclude_payment_id is not None:
+                total_payments = float(conn.execute(
+                    "SELECT COALESCE(SUM(amount), 0.0) FROM supplier_payments "
+                    "WHERE supplier_id = ? AND id != ?",
+                    (supplier_id, exclude_payment_id),
+                ).fetchone()[0] or 0.0)
+                total_allocated_in_table = float(conn.execute(
+                    """SELECT COALESCE(SUM(spa.allocated_amount), 0.0)
+                       FROM supplier_payment_allocations spa
+                       JOIN supplier_payments sp ON sp.id = spa.supplier_payment_id
+                       WHERE sp.supplier_id = ? AND sp.id != ?""",
+                    (supplier_id, exclude_payment_id),
+                ).fetchone()[0] or 0.0)
+            else:
+                total_payments = float(conn.execute(
+                    "SELECT COALESCE(SUM(amount), 0.0) FROM supplier_payments WHERE supplier_id = ?",
+                    (supplier_id,),
+                ).fetchone()[0] or 0.0)
+                total_allocated_in_table = float(conn.execute(
+                    """SELECT COALESCE(SUM(spa.allocated_amount), 0.0)
+                       FROM supplier_payment_allocations spa
+                       JOIN supplier_payments sp ON sp.id = spa.supplier_payment_id
+                       WHERE sp.supplier_id = ?""",
+                    (supplier_id,),
+                ).fetchone()[0] or 0.0)
+
+            # Unallocated = payments posted to ledger with no matching allocation rows
+            unallocated_pool = round(max(0.0, total_payments - total_allocated_in_table), 2)
+
             results: List[dict] = []
             for r in rows:
                 net = float(r["net_amount"] or 0.0)
                 init_paid = float(r["paid_amount"] or 0.0)
                 prior = float(r["prior_allocated"] or 0.0)
                 outstanding = round(net - init_paid - prior, 2)
+
+                # Distribute unallocated legacy payments FIFO
+                if outstanding > 0.0001 and unallocated_pool > 0.0001:
+                    reduction = round(min(outstanding, unallocated_pool), 2)
+                    outstanding = round(outstanding - reduction, 2)
+                    unallocated_pool = round(unallocated_pool - reduction, 2)
 
                 current_alloc = 0.0
                 if exclude_payment_id is not None:
@@ -202,6 +256,7 @@ class SupplierPaymentDAO:
             return results
         finally:
             conn.close()
+
 
     @staticmethod
     def calculate_fifo_allocation(
