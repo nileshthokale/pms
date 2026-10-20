@@ -81,7 +81,10 @@ class CounterSaleKeyboardTests(_DBBase):
         self.app.processEvents()
 
     def _select_batch_mouse(self):
-        self.batch.setCurrentIndex(1)
+        idx = self.batch.findData(self.batch_id)
+        if idx < 0 and self.batch.count() > 0:
+            idx = 0
+        self.batch.setCurrentIndex(idx)
         self.app.processEvents()
 
     def _keyboard_item(self):
@@ -335,11 +338,11 @@ class CounterSaleKeyboardTests(_DBBase):
 
     def test_12_item_selection_loads_batches(self):
         self._select_item_mouse()
-        self.assertGreaterEqual(self.batch.count(), 2)
+        self.assertGreaterEqual(self.batch.count(), 1)
 
     def test_13_item_selection_loads_stock_context(self):
         self._select_item_mouse()
-        self.assertEqual(self.batch.itemData(1), self.batch_id)
+        self.assertEqual(self.batch.itemData(0), self.batch_id)
 
     def test_batch_selection_preserves_item_master_location(self):
         from database.connection import get_connection

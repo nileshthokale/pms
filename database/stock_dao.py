@@ -225,3 +225,57 @@ class StockDAO:
             return exp_date < datetime.now()
         except (ValueError, IndexError):
             return False
+
+    @staticmethod
+    def get_demand_order_items() -> list[dict]:
+        """Identify items whose current stock is at or below their configured reorder level.
+
+        Returns items where reorder_stock_level > 0 and current_stock <= reorder_stock_level,
+        with associated suppliers and contact numbers from purchase history.
+        Each associated supplier is listed without duplicating item stock quantities.
+        """
+        conn = get_connection()
+        try:
+            cur = conn.execute(
+                """
+                WITH item_stocks AS (
+                    SELECT
+                        i.id AS item_id,
+                        i.item_name,
+                        COALESCE(u.unit_name, '') AS unit_name,
+                        COALESCE(SUM(sb.stock_qty), 0) AS current_stock,
+                        i.reorder_stock_level
+                    FROM items i
+                    LEFT JOIN units u ON u.id = i.unit_id
+                    LEFT JOIN stock_batches sb ON sb.item_id = i.id
+                    WHERE i.reorder_stock_level > 0
+                    GROUP BY i.id
+                    HAVING current_stock <= i.reorder_stock_level
+                ),
+                item_suppliers AS (
+                    SELECT DISTINCT
+                        pii.item_id,
+                        s.id AS supplier_id,
+                        s.supplier_name,
+                        COALESCE(s.contact_no, '') AS contact_no
+                    FROM purchase_invoice_items pii
+                    JOIN purchase_invoices pi ON pi.id = pii.purchase_invoice_id
+                    JOIN suppliers s ON s.id = pi.supplier_id
+                )
+                SELECT
+                    s_item.item_id,
+                    s_item.item_name,
+                    s_item.unit_name,
+                    s_item.current_stock,
+                    s_item.reorder_stock_level,
+                    COALESCE(s_sup.supplier_name, '-') AS supplier_name,
+                    COALESCE(s_sup.contact_no, '-') AS contact_no
+                FROM item_stocks s_item
+                LEFT JOIN item_suppliers s_sup ON s_sup.item_id = s_item.item_id
+                ORDER BY s_item.item_name, s_sup.supplier_name
+                """
+            )
+            return [dict(r) for r in cur.fetchall()]
+        finally:
+            conn.close()
+
