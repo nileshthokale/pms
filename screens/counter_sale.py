@@ -64,6 +64,13 @@ from database.hold_bill_dao import (
     STATUS_RESUMED,
 )
 
+from screens.counter_sale_actions import (
+    DrugSubstituteDialog,
+    DemandOrderDialog,
+    CustomerBalanceDialog,
+    SupplierBalanceDialog,
+)
+
 from ui.theme import date_subcontrols, palette
 from ui.theme import indicator_style
 from ui.components import FONT_FAMILY, readable_font, refresh_containers
@@ -1194,6 +1201,14 @@ class _KeyboardCombo(QComboBox):
             if popup.isVisible():
                 self._accept_popup_selection()
                 return True
+            text = self.currentText().strip()
+            if text and self.currentData() is None:
+                for idx in range(self.count()):
+                    item_text = self.itemText(idx)
+                    b_no = item_text.split(" | ")[0].strip()
+                    if text.upper() == b_no.upper() or text.upper() == item_text.upper():
+                        self.setCurrentIndex(idx)
+                        break
             if self.currentData() is not None:
                 self.completionAccepted.emit()
             # Always consumed: falling through would let QComboBox swallow
@@ -2150,7 +2165,6 @@ class _ItemEntryBar(QWidget):
         batches = SalesDAO.get_stock_batches_for_item(item_id)
         # A real batch number must never be elided by its own field.
         self._reserve_batch_number_width(b.get("batch_no", "") for b in batches)
-        self.batch_combo.addItem("-- Select Batch --", None)
         for b in batches:
             exp = b.get("expiry", "")
             reserved, available = self._availability(b)
@@ -2160,13 +2174,17 @@ class _ItemEntryBar(QWidget):
                 f"| Avail: {available:.0f}{suffix}"
             )
             self.batch_combo.addItem(label, b["id"])
+        self.batch_combo.setCurrentIndex(-1)
+        line_edit = self.batch_combo.lineEdit()
+        if line_edit is not None:
+            line_edit.clear()
         self.batch_combo.blockSignals(False)
         if item_id is not None and focus_batch:
             self._focus_batch_timer.start(0)
 
     def _focus_batch(self):
         self.batch_combo.lineEdit().setFocus()
-        if self.batch_combo.count() > 2:
+        if self.batch_combo.count() > 1:
             self.batch_combo._show_completion_popup()
 
     def _focus_quantity(self):
@@ -2359,7 +2377,21 @@ class _ItemEntryBar(QWidget):
         batch_id = self.batch_combo.currentData()
         if (batch_id is None or batch_index < 0 or
                 self.batch_combo.currentText() != self.batch_combo.itemText(batch_index)):
-            return None
+            current_text = self.batch_combo.currentText().strip()
+            resolved = False
+            if current_text:
+                for idx in range(self.batch_combo.count()):
+                    item_text = self.batch_combo.itemText(idx)
+                    b_no = item_text.split(" | ")[0].strip()
+                    if current_text.upper() == b_no.upper() or current_text.upper() == item_text.upper():
+                        self.batch_combo.setCurrentIndex(idx)
+                        batch_index = idx
+                        batch_id = self.batch_combo.itemData(idx)
+                        resolved = True
+                        break
+            if not resolved and (batch_id is None or batch_index < 0 or
+                    self.batch_combo.currentText() != self.batch_combo.itemText(batch_index)):
+                return None
         batch = SalesDAO.get_batch_by_id(batch_id)
         if not batch:
             return None
@@ -5492,6 +5524,34 @@ class CounterSalePage(QWidget):
         )
         hl.addWidget(self._current_bill_no_label)
 
+        # Quick action buttons in top-right area (matching Pharma-WINNER reference)
+        p_now = palette()
+        self._btn_supplier_balance = QPushButton("Supplier Balance")
+        self._btn_customer_balance = QPushButton("Customer Balance")
+        self._btn_demand_order = QPushButton("Demand Order")
+        self._btn_drug_substitute = QPushButton("Drug Substitute")
+
+        for btn in (
+            self._btn_supplier_balance,
+            self._btn_customer_balance,
+            self._btn_demand_order,
+            self._btn_drug_substitute,
+        ):
+            btn.setFixedHeight(28)
+            btn.setStyleSheet(_fresh_btn_style(p_now["text_dim"], p_now))
+            btn.setCursor(Qt.PointingHandCursor)
+            hl.addWidget(btn)
+
+        self._btn_supplier_balance.setToolTip("View supplier balances and sundry creditors")
+        self._btn_customer_balance.setToolTip("View customer balances and sundry debtors")
+        self._btn_demand_order.setToolTip("View items requiring reorder with supplier contacts")
+        self._btn_drug_substitute.setToolTip("Find alternative products matching drug / ingredient")
+
+        self._btn_supplier_balance.clicked.connect(self._open_supplier_balance)
+        self._btn_customer_balance.clicked.connect(self._open_customer_balance)
+        self._btn_demand_order.clicked.connect(self._open_demand_order)
+        self._btn_drug_substitute.clicked.connect(self._open_drug_substitute)
+
         self._new_btn = QPushButton("New Sale")
         self._new_btn.setFixedWidth(110)
         self._new_btn.setStyleSheet(_BTN_SAVE)
@@ -5660,6 +5720,46 @@ class CounterSalePage(QWidget):
         title and status text), so there is a single navigation path.
         """
         self.sales_history_requested.emit()
+
+    def _open_drug_substitute(self) -> None:
+        """Open the Drug Substitute dialog to find database alternatives."""
+        current_item_id = None
+        try:
+            if hasattr(self, "_sale_panel") and hasattr(self._sale_panel, "_entry_bar"):
+                current_item_id = self._sale_panel._entry_bar.item_combo.currentData()
+        except Exception:
+            pass
+        dlg = DrugSubstituteDialog(self, initial_item_id=current_item_id)
+        if dlg.exec() == QDialog.Accepted and dlg.selected_item_id:
+            self._select_substitute_item(dlg.selected_item_id)
+
+    def _select_substitute_item(self, item_id: int) -> None:
+        """Select the substitute item in Counter Sale without disturbing current sale items."""
+        try:
+            if hasattr(self, "_sale_panel") and hasattr(self._sale_panel, "_entry_bar"):
+                bar = self._sale_panel._entry_bar
+                idx = bar.item_combo.findData(item_id)
+                if idx >= 0:
+                    bar.item_combo.setCurrentIndex(idx)
+                    bar._on_item_changed(idx)
+                    bar.qty_edit.setFocus()
+        except Exception:
+            pass
+
+    def _open_demand_order(self) -> None:
+        """Open the Demand Order dialog showing items at or below reorder level."""
+        dlg = DemandOrderDialog(self)
+        dlg.exec()
+
+    def _open_customer_balance(self) -> None:
+        """Open the Customer Balance report dialog."""
+        dlg = CustomerBalanceDialog(self)
+        dlg.exec()
+
+    def _open_supplier_balance(self) -> None:
+        """Open the Supplier Balance report dialog."""
+        dlg = SupplierBalanceDialog(self)
+        dlg.exec()
 
     # ------------------------------------------------------------------
     # History view filtering (date / financial year / all)
@@ -6435,6 +6535,8 @@ class CounterSalePage(QWidget):
             for attr in (
                 "_hist_all_btn", "_hist_today_btn", "_hist_refresh_btn",
                 "_hist_sales_history_btn",
+                "_btn_supplier_balance", "_btn_customer_balance",
+                "_btn_demand_order", "_btn_drug_substitute",
             ):
                 btn = getattr(self, attr, None)
                 if btn is not None:

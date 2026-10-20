@@ -401,7 +401,10 @@ class TestItemSelectionBatches(_DBBase):
         bar = self._bar()
         bar.item_combo.setCurrentIndex(bar.item_combo.findData(self.item_id))
         QApplication.processEvents()
-        self.assertEqual(bar.batch_combo.itemText(0), "-- Select Batch --")
+        texts = [bar.batch_combo.itemText(i) for i in range(bar.batch_combo.count())]
+        self.assertNotIn("-- Select Batch --", texts)
+        self.assertEqual(bar.batch_combo.currentIndex(), -1)
+        self.assertEqual(bar.batch_combo.lineEdit().text(), "")
 
     def test_24_placeholder_clears(self):
         bar = self._bar()
@@ -437,20 +440,20 @@ class TestBatchDetails(_DBBase):
 
     def test_25_mrp(self):
         bar = self._bar()
-        bar.batch_combo.setCurrentIndex(1)
+        bar.batch_combo.setCurrentIndex(0)
         QApplication.processEvents()
         self.assertNotEqual(bar.mrp_edit.text(), "")
         self.assertNotEqual(bar.mrp_edit.text(), "0.00")
 
     def test_26_expiry(self):
         bar = self._bar()
-        bar.batch_combo.setCurrentIndex(1)
+        bar.batch_combo.setCurrentIndex(0)
         QApplication.processEvents()
         self.assertEqual(bar.expiry_edit.text(), "12/27")
 
     def test_27_stock(self):
         bar = self._bar()
-        bar.batch_combo.setCurrentIndex(1)
+        bar.batch_combo.setCurrentIndex(0)
         QApplication.processEvents()
         self.assertNotEqual(bar.stock_edit.text(), "0")
 
@@ -487,7 +490,7 @@ class TestAddWorkflow(_DBBase):
         self.entry.item_combo.setCurrentIndex(
             self.entry.item_combo.findData(self.item_id))
         QApplication.processEvents()
-        self.entry.batch_combo.setCurrentIndex(1)
+        self.entry.batch_combo.setCurrentIndex(0)
         QApplication.processEvents()
 
     def test_28_add_button_exists(self):
@@ -784,7 +787,7 @@ class TestEndToEndFlow(_DBBase):
         self.entry.item_combo.setCurrentIndex(
             self.entry.item_combo.findData(self.item_id))
         QApplication.processEvents()
-        self.entry.batch_combo.setCurrentIndex(1)
+        self.entry.batch_combo.setCurrentIndex(0)
         QApplication.processEvents()
         self.entry.qty_edit.setText(qty)
         self.entry.discount_edit.setText("0.00")
@@ -879,7 +882,7 @@ class TestClearReset(_DBBase):
         e = self.panel._entry_bar
         e.item_combo.setCurrentIndex(e.item_combo.findData(self.item_id))
         QApplication.processEvents()
-        e.batch_combo.setCurrentIndex(1)
+        e.batch_combo.setCurrentIndex(0)
         QApplication.processEvents()
         e.clear()
         QApplication.processEvents()

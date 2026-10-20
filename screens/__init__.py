@@ -1,3 +1,9 @@
+from screens.counter_sale_actions import (
+    DrugSubstituteDialog,
+    DemandOrderDialog,
+    CustomerBalanceDialog,
+    SupplierBalanceDialog,
+)
 from screens.company_master import CompanyMasterPage
 from screens.unit_master import UnitMasterPage
 from screens.drug_master import DrugMasterPage
@@ -70,7 +76,7 @@ from screens.doctor_reports import (
 __all__ = [
     "CompanyMasterPage", "UnitMasterPage", "DrugMasterPage", "SupplierMasterPage",
     "CustomerMasterPage", "DoctorMasterPage", "ItemMasterPage", "PurchaseInvoicePage",
-    "StockMasterPage", "CounterSalePage", "CreditNotePage", "DebitNotePage",
+    "StockMasterPage", "CounterSalePage", "DrugSubstituteDialog", "DemandOrderDialog", "CustomerBalanceDialog", "SupplierBalanceDialog", "CreditNotePage", "DebitNotePage",
     "SupplierPaymentPage", "CustomerReceiptPage", "AccountLedgerPage", "AccountRolesPage",
     "JournalEntryPage", "TrialBalancePage", "ProfitLossPage", "BalanceSheetPage",
     "SalesReportPage", "PurchaseReportPage", "ExpiryReportPage", "PartyWiseReportPage",

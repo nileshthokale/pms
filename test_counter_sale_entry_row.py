@@ -166,7 +166,10 @@ class CounterSaleEntryRowTests(_DBBase):
         self.app.processEvents()
 
     def _select_batch(self):
-        self.batch.setCurrentIndex(1)
+        idx = self.batch.findData(self.batch_id)
+        if idx < 0 and self.batch.count() > 0:
+            idx = 0
+        self.batch.setCurrentIndex(idx)
         self.app.processEvents()
 
     def _add(self, qty: str = "1"):
@@ -302,9 +305,11 @@ class CounterSaleEntryRowTests(_DBBase):
         self._select_item()
         self.assertFalse(self.batch.isReadOnly())
         self.assertNotEqual(self.batch.focusPolicy(), Qt.NoFocus)
+        texts = [self.batch.itemText(i) for i in range(self.batch.count())]
+        self.assertNotIn("-- Select Batch --", texts)
         self.assertGreaterEqual(
-            self.batch.count(), 2,
-            "batch list should hold a placeholder plus real batches")
+            self.batch.count(), 1,
+            "batch list should hold available real batches without placeholder")
         self.assertGreaterEqual(self.batch.width(),
                                 self.batch.minimumWidth())
 
@@ -369,8 +374,10 @@ class CounterSaleEntryRowTests(_DBBase):
         """13: choosing an item loads its batches."""
         self._select_item()
         self.assertEqual(self.item.currentData(), self.item_id)
+        texts = [self.batch.itemText(i) for i in range(self.batch.count())]
+        self.assertNotIn("-- Select Batch --", texts)
         self.assertGreaterEqual(
-            self.batch.count(), 2,
+            self.batch.count(), 1,
             "item selection did not load the batch list")
         self.assertIn(QApplication.focusWidget(),
                       self._focus_candidates(self.batch),
