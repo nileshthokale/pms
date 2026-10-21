@@ -357,6 +357,124 @@ class CounterSaleQuickActionsTests(unittest.TestCase):
         self.assertEqual(bar.item_combo.currentData(), self.item_amox_tab)
         self.assertEqual(bar.item_combo.currentText(), "Augmentin 625")
 
+    def test_03b_drug_substitute_click_to_clear_and_search_by_entered_letters(self):
+        from PySide6.QtCore import QPoint, QEvent
+        from PySide6.QtGui import QMouseEvent
+
+        dlg = DrugSubstituteDialog(initial_item_id=self.item_amox_cap)
+        dlg.show()
+        self._pump()
+        self.addCleanup(lambda: (dlg.hide(), dlg.deleteLater()))
+
+        # Initially populated from initial item
+        self.assertEqual(dlg.drug_combo.currentText(), "AMOXICILLIN & CLAV")
+        self.assertEqual(dlg.table.rowCount(), 2)
+        self.assertTrue(dlg.select_btn.isEnabled())
+
+        # Click on the entry field to enter a new name: all fields must clear
+        ev = QMouseEvent(QEvent.MouseButtonPress, QPoint(10, 10), Qt.LeftButton, Qt.LeftButton, Qt.NoModifier)
+        self._app.sendEvent(dlg.drug_combo.lineEdit(), ev)
+        self._pump()
+
+        self.assertEqual(dlg.drug_combo.currentText(), "")
+        self.assertEqual(dlg.table.rowCount(), 0)
+        self.assertEqual(dlg.status_lbl.text(), "")
+        self.assertFalse(dlg.select_btn.isEnabled())
+        self.assertIsNone(dlg.selected_item_id)
+
+        # Now type letters into the field to search
+        dlg.drug_combo.lineEdit().setText("PARA")
+        dlg._on_text_edited("PARA")
+        self._pump()
+
+        # Dropdown suggestion box is displayed with matching items/drugs
+        self.assertTrue(dlg._completer.popup().isVisible())
+        self.assertGreater(dlg._completer_model.rowCount(), 0)
+        # Typing alone must not prematurely commit table items (Req 4)
+        self.assertEqual(dlg.table.rowCount(), 0)
+
+        # Explicitly accept suggestion
+        self.assertTrue(dlg._accept_popup_selection())
+        self._pump()
+
+        # Paracetamol items should now be populated in table
+        self.assertGreater(dlg.table.rowCount(), 0)
+        item_names = [dlg.table.item(r, 0).text() for r in range(dlg.table.rowCount())]
+        self.assertIn("Crocin 500", item_names)
+        self.assertIn("Found", dlg.status_lbl.text())
+        self.assertTrue(dlg.select_btn.isEnabled())
+
+        # Click field again: all fields must clear again
+        self._app.sendEvent(dlg.drug_combo.lineEdit(), ev)
+        self._pump()
+        self.assertEqual(dlg.drug_combo.currentText(), "")
+        self.assertEqual(dlg.table.rowCount(), 0)
+        self.assertEqual(dlg.status_lbl.text(), "")
+        self.assertFalse(dlg.select_btn.isEnabled())
+
+    def test_03c_drug_substitute_zostum_dropdown_suggestions_and_no_match(self):
+        from PySide6.QtCore import QPoint
+        from PySide6.QtGui import QKeyEvent
+        from PySide6.QtCore import QEvent
+
+        # Seed Zostum item
+        drug_zostum = DrugDAO.insert("SULBACTAM & CEFOPERAZONE")
+        item_zostum = ItemDAO.insert(
+            item_name="Zostum 1gm",
+            unit_id=self.unit_tab_id,
+            company_id=self.company_id,
+            pack_size="1",
+            mrp=350.0,
+        )
+        ItemDAO.save_ingredients(item_zostum, [{"drug_id": drug_zostum, "power": "1gm"}])
+
+        dlg = DrugSubstituteDialog()
+        dlg.show()
+        self._pump()
+        self.addCleanup(lambda: (dlg.hide(), dlg.deleteLater()))
+
+        # Type 'zostum' -> Dropdown suggestion box appears directly below search field
+        dlg.drug_combo.lineEdit().setText("zostum")
+        dlg._on_text_edited("zostum")
+        self._pump()
+
+        popup = dlg._completer.popup()
+        self.assertTrue(popup.isVisible())
+        self.assertGreater(dlg._completer_model.rowCount(), 0)
+        suggestion_names = [dlg._completer_model.item(r).text() for r in range(dlg._completer_model.rowCount())]
+        self.assertIn("Zostum 1gm", suggestion_names)
+
+        # Position must be directly below the search field (never above or covering it)
+        combo_bottom = dlg.drug_combo.mapToGlobal(QPoint(0, dlg.drug_combo.height())).y()
+        popup_top = popup.geometry().top()
+        self.assertGreaterEqual(popup_top, combo_bottom)
+
+        # Keyboard navigation: Down arrow highlights suggestion, Enter accepts it
+        ev_down = QKeyEvent(QEvent.KeyPress, Qt.Key_Down, Qt.NoModifier)
+        self._app.sendEvent(dlg.drug_combo.lineEdit(), ev_down)
+        self._pump()
+        self.assertGreaterEqual(popup.currentIndex().row(), 0)
+
+        ev_enter = QKeyEvent(QEvent.KeyPress, Qt.Key_Return, Qt.NoModifier)
+        self._app.sendEvent(dlg.drug_combo.lineEdit(), ev_enter)
+        self._pump()
+
+        self.assertFalse(popup.isVisible())
+        self.assertEqual(dlg.table.rowCount(), 1)
+        self.assertEqual(dlg.table.item(0, 0).text(), "Zostum 1gm")
+        self.assertTrue(dlg.select_btn.isEnabled())
+
+        # Test no matching medicines found behavior
+        dlg.drug_combo.lineEdit().setText("nonexistentmedicinexyz")
+        dlg._on_text_edited("nonexistentmedicinexyz")
+        self._pump()
+
+        self.assertTrue(popup.isVisible())
+        self.assertEqual(dlg._completer_model.rowCount(), 1)
+        self.assertEqual(dlg._completer_model.item(0).text(), "No matching medicines found")
+        self.assertTrue(dlg.empty_label.isVisible())
+        self.assertIn("No matching medicines found", dlg.empty_label.text())
+
     # -----------------------------------------------------------------------
     # Requirement 2: Items Demand Order Dialog
     # -----------------------------------------------------------------------

@@ -14,8 +14,8 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any, List, Optional
 
-from PySide6.QtCore import QPoint, QRect, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QPainter, QPen
+from PySide6.QtCore import QEvent, QModelIndex, QPoint, QRect, QSize, Qt, Signal, QTimer
+from PySide6.QtGui import QColor, QFont, QPainter, QPen, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -153,6 +153,28 @@ def _fresh_combo_style(p: dict | None = None) -> str:
     )
 
 
+def _fresh_completer_popup_style(p: dict | None = None) -> str:
+    p = p or palette()
+    surface = p["surface"]
+    text = p["text"]
+    border = p["border"]
+    accent = p["accent"]
+    selected_bg = p.get("selected", accent)
+    selected_text = p.get("selected_text", "#FFFFFF")
+    text_dim = p.get("text_dim", "#888888")
+    return (
+        f"QAbstractItemView {{"
+        f"  background-color: {surface}; color: {text};"
+        f"  border: 1px solid {border}; border-radius: 4px;"
+        f"  selection-background-color: {selected_bg}; selection-color: {selected_text};"
+        f"  font-size: {TYPE_INPUT}px; font-family: {FONT_FAMILY}; outline: 0;"
+        f"}}"
+        f"QAbstractItemView::item {{ min-height: 26px; padding: 4px 8px; }}"
+        f"QAbstractItemView::item:disabled {{ color: {text_dim}; font-style: italic; background-color: transparent; }}"
+        f"QAbstractItemView::item:selected {{ background-color: {selected_bg}; color: {selected_text}; }}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Numeric Table Widget Item for Accurate Sorting
 # ---------------------------------------------------------------------------
@@ -248,6 +270,7 @@ class DrugSubstituteDialog(QDialog):
         self._initial_item_id = initial_item_id
         self._drugs: list[dict] = []
         self._items: list[dict] = []
+        self._block_search: bool = False
 
         self._build_ui()
         self._load_drugs()
@@ -279,9 +302,33 @@ class DrugSubstituteDialog(QDialog):
         self.drug_combo = QComboBox()
         self.drug_combo.setEditable(True)
         self.drug_combo.setInsertPolicy(QComboBox.NoInsert)
-        self.drug_combo.completer().setCaseSensitivity(Qt.CaseInsensitive)
-        self.drug_combo.completer().setFilterMode(Qt.MatchContains)
+
+        # Setup dynamic suggestions completer
+        self._completer_model = QStandardItemModel(self)
+        self._completer = QCompleter(self._completer_model, self.drug_combo)
+        self._completer.setCaseSensitivity(Qt.CaseInsensitive)
+        self._completer.setCompletionMode(QCompleter.PopupCompletion)
+        self._completer.setMaxVisibleItems(8)
+        self._completer.activated[QModelIndex].connect(self._on_completer_activated)
+
+        popup = self._completer.popup()
+        if popup is not None:
+            popup.setFocusPolicy(Qt.NoFocus)
+            popup.setSelectionMode(QAbstractItemView.SingleSelection)
+            popup.installEventFilter(self)
+
+        self.drug_combo.setCompleter(self._completer)
         top_bar.addWidget(self.drug_combo, 1)
+
+        line_edit = self.drug_combo.lineEdit()
+        line_edit.setPlaceholderText("Type drug or medicine name to search...")
+        line_edit.setClearButtonEnabled(True)
+        line_edit.installEventFilter(self)
+        line_edit.textEdited.connect(self._on_text_edited)
+        line_edit.textChanged.connect(self._on_text_changed)
+
+        self.drug_combo.installEventFilter(self)
+        self.drug_combo.activated.connect(self._on_combo_activated)
 
         self.show_btn = QPushButton("Show")
         self.show_btn.setFixedHeight(30)
@@ -339,16 +386,255 @@ class DrugSubstituteDialog(QDialog):
 
         root.addLayout(bottom_bar)
 
+    def _position_completion_popup(self):
+        if not hasattr(self, "_completer"):
+            return
+        popup = self._completer.popup()
+        if not popup or not popup.isVisible():
+            return
+
+        bottom_left = self.drug_combo.mapToGlobal(QPoint(0, self.drug_combo.height()))
+        x = bottom_left.x()
+        y = bottom_left.y() + 2
+        width = max(self.drug_combo.width(), 350)
+
+        count = self._completer_model.rowCount()
+        row_height = max(26, popup.sizeHintForRow(0) if count > 0 else 26)
+        visible_rows = min(max(count, 1), 8)
+        height = row_height * visible_rows + 6
+
+        window = self.window()
+        window_rect = window.rect()
+        global_bottom = window.mapToGlobal(QPoint(0, window_rect.bottom())).y()
+
+        if y + height <= global_bottom + 60:
+            popup.setGeometry(x, y, width, height)
+        else:
+            avail_h = max(100, global_bottom - y)
+            popup.setGeometry(x, y, width, min(height, avail_h))
+
+    def eventFilter(self, obj, event):
+        line_edit = self.drug_combo.lineEdit()
+        popup = self._completer.popup() if hasattr(self, "_completer") else None
+
+        if obj is line_edit and event.type() == QEvent.MouseButtonPress:
+            self.clear_all_fields(clear_text=True)
+
+        if popup and obj is popup and event.type() == QEvent.Show:
+            QTimer.singleShot(0, self._position_completion_popup)
+
+        if event.type() == QEvent.KeyPress:
+            key = event.key()
+
+            # When popup is open
+            if popup and popup.isVisible():
+                if key == Qt.Key_Down:
+                    self._move_popup_selection(1)
+                    return True
+                elif key == Qt.Key_Up:
+                    self._move_popup_selection(-1)
+                    return True
+                elif key in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Tab):
+                    if self._accept_popup_selection():
+                        return True
+                    popup.hide()
+                    self._on_show_clicked()
+                    return True
+                elif key == Qt.Key_Escape:
+                    popup.hide()
+                    return True
+            else:
+                # When popup is closed
+                if key == Qt.Key_Down:
+                    if self.table.rowCount() > 0:
+                        self.table.setFocus()
+                        if self.table.currentRow() < 0:
+                            self.table.selectRow(0)
+                        return True
+                elif key in (Qt.Key_Return, Qt.Key_Enter):
+                    self._on_show_clicked()
+                    return True
+
+        return super().eventFilter(obj, event)
+
+    def _move_popup_selection(self, step: int):
+        popup = self._completer.popup()
+        count = self._completer_model.rowCount()
+        if count == 0:
+            return
+
+        current = popup.currentIndex().row()
+        if current < 0:
+            next_row = 0 if step > 0 else count - 1
+        else:
+            next_row = current + step
+
+        while 0 <= next_row < count:
+            idx = self._completer_model.index(next_row, 0)
+            if idx.data(Qt.UserRole) is not None:
+                popup.setCurrentIndex(idx)
+                popup.scrollTo(idx)
+                return
+            next_row += step
+
+    def _accept_popup_selection(self) -> bool:
+        popup = self._completer.popup()
+        idx = popup.currentIndex()
+        if not idx.isValid() or idx.data(Qt.UserRole) is None:
+            for r in range(self._completer_model.rowCount()):
+                cand = self._completer_model.index(r, 0)
+                if cand.data(Qt.UserRole) is not None:
+                    idx = cand
+                    break
+
+        if idx.isValid() and idx.data(Qt.UserRole) is not None:
+            popup.hide()
+            entry = idx.data(Qt.UserRole)
+            self._on_suggestion_selected(entry)
+            return True
+        return False
+
+    def clear_all_fields(self, clear_text: bool = True):
+        self._block_search = True
+        if clear_text:
+            self.drug_combo.lineEdit().clear()
+            self.drug_combo.setCurrentIndex(-1)
+        self._block_search = False
+
+        if hasattr(self, "_completer") and self._completer.popup():
+            self._completer.popup().hide()
+
+        self.table.setSortingEnabled(False)
+        self.table.setRowCount(0)
+        self.table.setSortingEnabled(True)
+        self.status_lbl.setText("")
+        self._items = []
+        self.selected_item_id = None
+        self.select_btn.setEnabled(False)
+        self.empty_label.setText("Select a drug/ingredient and click Show to view matching products.")
+        self.empty_label.setVisible(False)
+
+    def _on_text_changed(self, text: str):
+        if self._block_search:
+            return
+        query = text.strip()
+        if not query or query == "-- Select Drug / Ingredient --":
+            self.clear_all_fields(clear_text=False)
+            if hasattr(self, "_completer") and self._completer.popup():
+                self._completer.popup().hide()
+
+    def _on_text_edited(self, text: str):
+        if self._block_search:
+            return
+        query = text.strip()
+        if not query or query == "-- Select Drug / Ingredient --":
+            self.clear_all_fields(clear_text=False)
+            if hasattr(self, "_completer") and self._completer.popup():
+                self._completer.popup().hide()
+            return
+
+        # Dynamically query suggestions from database
+        suggestions = DrugDAO.search_suggestions(query)
+        self._completer_model.clear()
+
+        if suggestions:
+            for s in suggestions:
+                item = QStandardItem(s["name"])
+                item.setData(s, Qt.UserRole)
+                self._completer_model.appendRow(item)
+            self.empty_label.setVisible(False)
+        else:
+            item = QStandardItem("No matching medicines found")
+            item.setEnabled(False)
+            item.setData(None, Qt.UserRole)
+            self._completer_model.appendRow(item)
+            self.empty_label.setText("No matching medicines found.")
+            self.empty_label.setVisible(True)
+            self.table.setRowCount(0)
+            self.status_lbl.setText("Found 0 matching items")
+            self.select_btn.setEnabled(False)
+
+        self._completer.setCompletionPrefix("")
+        self._completer.complete()
+        self._position_completion_popup()
+
+    def _on_completer_activated(self, index: QModelIndex):
+        if not index.isValid():
+            return
+        entry = index.data(Qt.UserRole)
+        if entry is None:
+            return
+        self._on_suggestion_selected(entry)
+
+    def _on_suggestion_selected(self, entry: dict):
+        if not entry:
+            return
+        kind = entry.get("kind")
+        name = entry.get("name", "")
+        item_or_drug_id = entry.get("id")
+
+        self._block_search = True
+        self.drug_combo.lineEdit().setText(name)
+        self._block_search = False
+
+        if hasattr(self, "_completer") and self._completer.popup():
+            self._completer.popup().hide()
+
+        if kind == "drug":
+            idx = self.drug_combo.findData(item_or_drug_id)
+            if idx >= 0:
+                self.drug_combo.blockSignals(True)
+                self.drug_combo.setCurrentIndex(idx)
+                self.drug_combo.blockSignals(False)
+            self._items = DrugDAO.get_substitutes(item_or_drug_id)
+        else:  # kind == "item"
+            drugs = DrugDAO.get_drugs_for_item(item_or_drug_id)
+            if drugs:
+                target_drug_id = drugs[0]["id"]
+                idx = self.drug_combo.findData(target_drug_id)
+                if idx >= 0:
+                    self.drug_combo.blockSignals(True)
+                    self.drug_combo.setCurrentIndex(idx)
+                    self.drug_combo.blockSignals(False)
+                self._items = DrugDAO.get_substitutes(target_drug_id)
+            else:
+                self._items = DrugDAO.search_substitutes(name)
+
+        self._populate_table(self._items, query=name)
+
+    def _on_combo_activated(self, index: int):
+        drug_id = self.drug_combo.itemData(index)
+        if drug_id is not None:
+            self._items = DrugDAO.get_substitutes(drug_id)
+            self._populate_table(self._items)
+        else:
+            self.clear_all_fields(clear_text=True)
+
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter):
+            if self.table.hasFocus() and self.table.currentRow() >= 0:
+                self._on_select_item()
+                return
+        super().keyPressEvent(event)
+
     def _load_drugs(self):
+        self._block_search = True
         self.drug_combo.blockSignals(True)
         self.drug_combo.clear()
         self.drug_combo.addItem("-- Select Drug / Ingredient --", None)
         self._drugs = DrugDAO.get_all()
         for d in self._drugs:
             self.drug_combo.addItem(d["drug_name"], d["id"])
+        if not self._initial_item_id:
+            self.drug_combo.setCurrentIndex(-1)
+            self.drug_combo.lineEdit().clear()
         self.drug_combo.blockSignals(False)
+        self._block_search = False
 
     def _on_show_clicked(self):
+        if hasattr(self, "_completer") and self._completer.popup():
+            self._completer.popup().hide()
+
         drug_id = self.drug_combo.currentData()
         if drug_id is None:
             # Try to match by current text
@@ -358,19 +644,38 @@ class DrugSubstituteDialog(QDialog):
                     drug_id = d["id"]
                     break
 
-        if drug_id is None:
-            self.table.setRowCount(0)
-            self.empty_label.setText("Please select a valid drug from the list.")
-            self.empty_label.setVisible(True)
-            self.status_lbl.setText("")
-            self.select_btn.setEnabled(False)
+        if drug_id is not None:
+            self._items = DrugDAO.get_substitutes(drug_id)
+            self._populate_table(self._items)
             return
 
-        self._items = DrugDAO.get_substitutes(drug_id)
-        self.table.setSortingEnabled(False)
-        self.table.setRowCount(len(self._items))
+        text = self.drug_combo.currentText().strip()
+        if text and text != "-- Select Drug / Ingredient --":
+            # Search substitutes by text
+            items = DrugDAO.search_substitutes(text)
+            if items:
+                self._items = items
+                self._populate_table(self._items, query=text)
+                return
+            else:
+                self.table.setRowCount(0)
+                self.empty_label.setText("No matching medicines found.")
+                self.empty_label.setVisible(True)
+                self.status_lbl.setText("Found 0 matching items")
+                self.select_btn.setEnabled(False)
+                return
 
-        for row, it in enumerate(self._items):
+        self.table.setRowCount(0)
+        self.empty_label.setText("Please select a valid drug from the list.")
+        self.empty_label.setVisible(True)
+        self.status_lbl.setText("")
+        self.select_btn.setEnabled(False)
+
+    def _populate_table(self, items: list[dict], query: str = ""):
+        self.table.setSortingEnabled(False)
+        self.table.setRowCount(len(items))
+
+        for row, it in enumerate(items):
             # Item Name
             name_item = QTableWidgetItem(it.get("item_name") or "")
             name_item.setData(Qt.UserRole, it.get("item_id"))
@@ -411,20 +716,32 @@ class DrugSubstituteDialog(QDialog):
 
         self.table.setSortingEnabled(True)
 
-        if not self._items:
-            self.empty_label.setText("No matching products exist in Item Master for this drug.")
+        if not items:
+            if query:
+                self.empty_label.setText(f"No matching products exist for '{query}'.")
+            else:
+                self.empty_label.setText("No matching products exist in Item Master for this drug.")
             self.empty_label.setVisible(True)
             self.status_lbl.setText("Found 0 matching items")
+            self.selected_item_id = None
             self.select_btn.setEnabled(False)
         else:
             self.empty_label.setVisible(False)
-            self.status_lbl.setText(f"Found {len(self._items)} matching items")
+            self.status_lbl.setText(f"Found {len(items)} matching items")
             self.table.selectRow(0)
-            self.select_btn.setEnabled(True)
+            self._on_selection_changed()
 
     def _on_selection_changed(self):
-        selected = self.table.selectedItems()
-        self.select_btn.setEnabled(bool(selected))
+        selected_rows = self.table.selectionModel().selectedRows()
+        if selected_rows:
+            row = selected_rows[0].row()
+            item = self.table.item(row, 0)
+            if item is not None:
+                self.selected_item_id = item.data(Qt.UserRole)
+                self.select_btn.setEnabled(True)
+                return
+        self.selected_item_id = None
+        self.select_btn.setEnabled(False)
 
     def _on_row_double_clicked(self, index):
         self._on_select_item()
@@ -445,6 +762,8 @@ class DrugSubstituteDialog(QDialog):
         self.setStyleSheet(f"QDialog {{ background-color: {p['surface']}; color: {p['text']}; }}")
         self.drug_lbl.setStyleSheet(f"color: {p['text']}; font-size: {TYPE_FORM_LABEL}px; font-weight: bold;")
         self.drug_combo.setStyleSheet(_fresh_combo_style(p))
+        if hasattr(self, "_completer") and self._completer.popup():
+            self._completer.popup().setStyleSheet(_fresh_completer_popup_style(p))
         self.show_btn.setStyleSheet(_fresh_btn_style(p["accent"], p))
         self.table.setStyleSheet(_fresh_table_style(p))
         self.table.horizontalHeader().setStyleSheet(_fresh_header_style(p))
