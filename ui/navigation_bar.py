@@ -20,6 +20,8 @@ from PySide6.QtGui import QKeySequence
 MENU_SHORTCUTS = {
     "Daily Itemwise Sales": "Ctrl+T",
     "Daily Profit Calculation": "Ctrl+O",
+    "Sales Report": "Ctrl+F1",
+    "Duplicate Sales Bill": "Ctrl+Shift+F1",
 }
 from PySide6.QtWidgets import (
     QComboBox,
@@ -205,6 +207,11 @@ class NavigationBar(QWidget):
                     for sub_title, sub_items in item.items():
                         sub_menu = menu.addMenu(sub_title)
                         sub_menu.setObjectName(f"NavSubMenu_{sub_title}")
+                        if sub_title in MENU_SHORTCUTS:
+                            sub_menu.menuAction().setShortcut(QKeySequence(MENU_SHORTCUTS[sub_title]))
+                            sub_menu.menuAction().triggered.connect(
+                                lambda checked=False, m=label, a=sub_title: self.menu_action_triggered.emit(m, a)
+                            )
                         for sub_text in sub_items:
                             if sub_text == "---" or (isinstance(sub_text, str) and sub_text.startswith("---")):
                                 sub_menu.addSeparator()
@@ -237,6 +244,8 @@ class NavigationBar(QWidget):
                         menu.addSeparator()
                     else:
                         action = menu.addAction(item_text)
+                        if item_text in MENU_SHORTCUTS:
+                            action.setShortcut(QKeySequence(MENU_SHORTCUTS[item_text]))
                         action.triggered.connect(
                             lambda checked=False, m=label, a=item_text: self.menu_action_triggered.emit(m, a)
                         )

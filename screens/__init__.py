@@ -73,7 +73,13 @@ from screens.doctor_reports import (
     DoctorwiseItemSaleDetailsPage,
 )
 
+from screens.duplicate_sales_bill import (
+    DuplicateSalesBillListPage,
+    DuplicateSalesBillDialog,
+)
+
 __all__ = [
+
     "CompanyMasterPage", "UnitMasterPage", "DrugMasterPage", "SupplierMasterPage",
     "CustomerMasterPage", "DoctorMasterPage", "ItemMasterPage", "PurchaseInvoicePage",
     "StockMasterPage", "CounterSalePage", "DrugSubstituteDialog", "DemandOrderDialog", "CustomerBalanceDialog", "SupplierBalanceDialog", "CreditNotePage", "DebitNotePage",
@@ -92,5 +98,6 @@ __all__ = [
     "ItemwiseSalesPage", "DailyProfitCalculationPage", "DailyProfitCalculationDialog",
     "DailyProfitItemwisePage", "DailyProfitItemwiseDialog",
     "DoctorwiseItemSalePage", "DoctorwiseItemSaleDetailsPage",
+    "DuplicateSalesBillListPage", "DuplicateSalesBillDialog",
 ]
 

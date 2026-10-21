@@ -191,6 +191,8 @@ class PharmacyMainWindow(QMainWindow):
                     )
                 elif menu_name == "Reports" and item_name in ("Sales Report", "Daily Sales Report"):
                     page = screens.SalesReportPage()
+                elif menu_name == "Reports" and item_name == "Duplicate Sales Bill":
+                    page = screens.DuplicateSalesBillListPage()
 
                 elif menu_name == "Reports" and item_name == "Purchase Report":
                     page = screens.PurchaseReportPage()
