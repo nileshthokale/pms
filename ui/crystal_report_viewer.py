@@ -20,6 +20,8 @@ Provides:
 from __future__ import annotations
 
 import os
+import shutil
+import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -231,7 +233,7 @@ def _draw_report_page_content(painter: QPainter, page: ReportPage):
         page.header.store_name,
     )
 
-    font_addr = QFont("Consolas", 8, QFont.Normal)
+    font_addr = QFont("Consolas", 8, QFont.Bold)
     font_addr.setCapitalization(QFont.SmallCaps)
     painter.setFont(font_addr)
     painter.drawText(
@@ -242,7 +244,7 @@ def _draw_report_page_content(painter: QPainter, page: ReportPage):
 
     line3_text = getattr(page.header, "header_line_3", "")
     if line3_text:
-        painter.setFont(QFont("Segoe UI", 8, QFont.Normal))
+        painter.setFont(QFont("Segoe UI", 8, QFont.Bold))
         painter.setPen(QColor("#444444"))
         fm_l3 = painter.fontMetrics()
         elided_l3 = fm_l3.elidedText(line3_text, Qt.ElideRight, int(content_w * 0.52))
@@ -253,7 +255,7 @@ def _draw_report_page_content(painter: QPainter, page: ReportPage):
         )
 
     # Right: Line 1 (Report title & period) and Line 2 (Selected entity, bold)
-    font_hdr1 = QFont("Segoe UI", 9, QFont.Normal)
+    font_hdr1 = QFont("Segoe UI", 9, QFont.Bold)
     painter.setFont(font_hdr1)
     painter.setPen(QColor("#000000"))
     painter.drawText(
@@ -272,13 +274,15 @@ def _draw_report_page_content(painter: QPainter, page: ReportPage):
 
     # Horizontal Divider Line
     line_y = MARGIN_TOP + (54.0 if line3_text else 44.0)
-    pen_solid = QPen(QColor("#000000"), 1, Qt.SolidLine)
+    # Print clarity: the report prints with bold text and heavier table rules
+    # so the small 8-9 pt rows stay clearly readable on paper.
+    pen_solid = QPen(QColor("#000000"), 2, Qt.SolidLine)
     painter.setPen(pen_solid)
     painter.drawLine(MARGIN_LEFT, line_y, MARGIN_LEFT + content_w, line_y)
 
     # 4. Render Body Blocks
     curr_y = line_y + 8.0
-    pen_grid = QPen(QColor("#333333"), 1, Qt.SolidLine)
+    pen_grid = QPen(QColor("#000000"), 2, Qt.SolidLine)
 
     for block in page.blocks:
         kind = block.kind
@@ -322,14 +326,13 @@ def _draw_report_page_content(painter: QPainter, page: ReportPage):
             cells: List[str] = block.data.get("cells", [])
             widths = block.data.get("widths", [])
             aligns = block.data.get("aligns", [])
-            is_bold = block.data.get("bold", False)
             bg_color = block.data.get("bg")
 
             if bg_color:
                 row_w = sum(widths) if widths else content_w
                 painter.fillRect(QRectF(MARGIN_LEFT, curr_y, row_w, h), QColor(bg_color))
 
-            painter.setFont(QFont("Segoe UI", 8, QFont.Bold if is_bold else QFont.Normal))
+            painter.setFont(QFont("Segoe UI", 8, QFont.Bold))
             fm = painter.fontMetrics()
             x = MARGIN_LEFT
             for c_idx, val in enumerate(cells):
@@ -538,7 +541,7 @@ def _draw_report_page_content(painter: QPainter, page: ReportPage):
             )
 
         elif kind == BlockKind.EMPTY:
-            painter.setFont(QFont("Segoe UI", 9, QFont.Normal))
+            painter.setFont(QFont("Segoe UI", 9, QFont.Bold))
             painter.setPen(pen_grid)
             painter.drawRect(QRectF(MARGIN_LEFT, curr_y, content_w, h))
             painter.setPen(QColor("#666666"))
@@ -552,7 +555,7 @@ def _draw_report_page_content(painter: QPainter, page: ReportPage):
 
     # 5. Footer: Page Number
     footer_y = page_h - MARGIN_BOTTOM + 5
-    painter.setFont(QFont("Segoe UI", 8, QFont.Normal))
+    painter.setFont(QFont("Segoe UI", 8, QFont.Bold))
     painter.setPen(QColor("#444444"))
     page_txt = f"Page {page.page_num} of {page.total_pages}"
     painter.drawText(
@@ -1034,6 +1037,341 @@ def QMessageBox_getText(parent, title, prompt) -> Tuple[str, bool]:
 
 # ── Printing & PDF Export Helper ──────────────────────────────────────
 
+# A4 at 300 DPI is 2480 x 3508 pixels.  Rendering the print job at this
+# resolution gives the GDI/host-based printer a bitmap instead of text and
+# line drawing commands, which is what causes the garbled glyphs and
+# misaligned table borders on printers such as the Canon LBP2900.
+RASTER_PRINT_DPI = 300
+_REPORT_LAYOUT_DPI = 96.0  # ReportPage coordinates are 96-DPI pixels.
+
+
+class _PrintCancelled(Exception):
+    """Internal marker: the user closed the print dialog without printing."""
+
+
+def _export_report_pages_to_pdf(pages: List[ReportPage], output_pdf_path: str) -> bool:
+    """Render report pages into a vector PDF (the Save-as-PDF path)."""
+    if not pages:
+        return False
+
+    is_landscape = _pages_are_landscape(pages)
+
+    try:
+        from PySide6.QtGui import QPdfWriter, QPageLayout, QPageSize
+        from PySide6.QtCore import QMarginsF
+        writer = QPdfWriter(output_pdf_path)
+        q_orient = QPageLayout.Landscape if is_landscape else QPageLayout.Portrait
+        layout = QPageLayout(QPageSize(QPageSize.A4), q_orient, QMarginsF(0, 0, 0, 0))
+        writer.setPageLayout(layout)
+        writer.setResolution(96)
+        painter = QPainter()
+        if not painter.begin(writer):
+            return False
+        try:
+            for i, page in enumerate(pages):
+                if i > 0:
+                    writer.newPage()
+                draw_report_page(painter, page)
+        finally:
+            painter.end()
+        return True
+    except Exception:
+        return False
+
+
+def _pages_are_landscape(pages: List[ReportPage]) -> bool:
+    first_page = pages[0]
+    orientation_str = str(getattr(first_page, "orientation", "portrait")).lower()
+    if orientation_str == "landscape":
+        return True
+    if orientation_str == "portrait":
+        return False
+    page_w = getattr(first_page, "page_width", PAGE_WIDTH)
+    page_h = getattr(first_page, "page_height", PAGE_HEIGHT)
+    return page_w > page_h
+
+
+def _configure_print_printer(printer, is_landscape: bool) -> None:
+    """Force A4 and the report's orientation; never trust printer defaults."""
+    from PySide6.QtGui import QPageLayout, QPageSize
+
+    printer.setPageSize(QPageSize(QPageSize.A4))
+    printer.setPageOrientation(
+        QPageLayout.Landscape if is_landscape else QPageLayout.Portrait
+    )
+    # With fullPage=False Qt's painter origin is the printable-area origin,
+    # so nothing is double-offset by the printer's hardware margins.
+    printer.setFullPage(False)
+    try:
+        # Match the 300-DPI raster so the driver does not resample it again.
+        printer.setResolution(RASTER_PRINT_DPI)
+    except Exception:
+        # Some GDI drivers only expose their native resolution; Qt will use
+        # that instead and the bitmap is still scaled to the printable area.
+        pass
+
+
+def _selected_page_indexes(printer, page_count: int) -> List[int]:
+    """Return zero-based page indexes selected in the print dialog."""
+    ranges = printer.pageRanges()
+    if not ranges.isEmpty():
+        return [i for i in range(page_count) if ranges.contains(i + 1)]
+
+    first = int(printer.fromPage() or 0)
+    last = int(printer.toPage() or 0)
+    if 1 <= first <= page_count and first <= last:
+        return list(range(first - 1, min(last, page_count)))
+    return list(range(page_count))
+
+
+def _show_print_dialog(page_count: int, is_landscape: bool, parent) -> Tuple[Any, List[int]]:
+    """Show the standard dialog and return the configured printer + pages."""
+    from PySide6.QtPrintSupport import QPrintDialog, QPrinter
+
+    printer = QPrinter(QPrinter.HighResolution)
+    _configure_print_printer(printer, is_landscape)
+    printer.setFromTo(1, page_count)
+
+    dialog = QPrintDialog(printer, parent)
+    dialog.setWindowTitle("Print Report")
+    try:
+        from PySide6.QtPrintSupport import QAbstractPrintDialog
+        dialog.setOption(QAbstractPrintDialog.PrintPageRange, True)
+    except Exception:
+        pass
+    try:
+        dialog.setMinMax(1, page_count)
+    except Exception:
+        pass
+
+    if dialog.exec() != QPrintDialog.Accepted:
+        raise _PrintCancelled()
+
+    # The dialog may have changed the printer/page setup.  Re-assert A4 and
+    # the report orientation, but do not touch the user's page selection.
+    _configure_print_printer(printer, is_landscape)
+
+    selected = _selected_page_indexes(printer, page_count)
+    if not selected:
+        raise _PrintCancelled()
+    return printer, selected
+
+
+def _draw_bitmap_fit(painter: QPainter, image, target_rect: QRectF) -> None:
+    """Draw a bitmap centred in the printable area, preserving aspect ratio."""
+    if image is None or image.isNull():
+        raise RuntimeError("A report page could not be rasterized.")
+    if target_rect.width() <= 0 or target_rect.height() <= 0:
+        raise RuntimeError("The printer reported an empty printable area.")
+
+    image_w = float(image.width())
+    image_h = float(image.height())
+    scale = min(target_rect.width() / image_w, target_rect.height() / image_h)
+    draw_w = image_w * scale
+    draw_h = image_h * scale
+    draw_x = target_rect.x() + (target_rect.width() - draw_w) / 2.0
+    draw_y = target_rect.y() + (target_rect.height() - draw_h) / 2.0
+
+    painter.fillRect(target_rect, QColor("#FFFFFF"))
+    painter.drawImage(QRectF(draw_x, draw_y, draw_w, draw_h), image)
+
+
+def _draw_images_to_printer(printer, page_indexes: List[int], image_provider) -> None:
+    """Print already-rasterized pages in order, honouring the page range."""
+    painter = QPainter()
+    if not painter.begin(printer):
+        raise RuntimeError(
+            "The printer could not start the print job. "
+            "Check that it is switched on and online."
+        )
+    try:
+        painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+        for out_index, page_index in enumerate(page_indexes):
+            if out_index > 0:
+                if not printer.newPage():
+                    raise RuntimeError(
+                        f"The printer rejected page {page_index + 1} of the report."
+                    )
+            image = image_provider(page_index)
+            _draw_bitmap_fit(painter, image, QRectF(painter.viewport()))
+    finally:
+        if painter.isActive():
+            painter.end()
+
+
+def _print_with_image_provider(image_provider, page_count: int, parent, is_landscape: bool) -> bool:
+    """Rasterize one page first, then print all selected pages as bitmaps."""
+    if page_count <= 0:
+        raise RuntimeError("The report has no printable pages.")
+
+    # Validate rasterization before showing the dialog.  If this fails the
+    # caller can fall back without leaving a half-finished print job.
+    probe = image_provider(0)
+    if probe is None or probe.isNull():
+        raise RuntimeError("The report could not be converted to a printable image.")
+    del probe
+
+    printer, selected = _show_print_dialog(page_count, is_landscape, parent)
+    _draw_images_to_printer(printer, selected, image_provider)
+    return True
+
+
+def _render_pdf_page(document, page_index: int):
+    """Rasterize one PDF page at 300 DPI on its native A4 page size."""
+    from PySide6.QtCore import QSize
+
+    point_size = document.pagePointSize(page_index)
+    width = max(1, int(round(point_size.width() * RASTER_PRINT_DPI / 72.0)))
+    height = max(1, int(round(point_size.height() * RASTER_PRINT_DPI / 72.0)))
+    return document.render(page_index, QSize(width, height))
+
+
+def _render_report_page_image(page: ReportPage):
+    """Direct bitmap fallback using the same page-drawing routine as PDF."""
+    from PySide6.QtGui import QImage
+
+    page_w = float(getattr(page, "page_width", PAGE_WIDTH))
+    page_h = float(getattr(page, "page_height", PAGE_HEIGHT))
+    width = max(1, int(round(page_w / _REPORT_LAYOUT_DPI * RASTER_PRINT_DPI)))
+    height = max(1, int(round(page_h / _REPORT_LAYOUT_DPI * RASTER_PRINT_DPI)))
+
+    image = QImage(width, height, QImage.Format_RGB32)
+    image.fill(QColor("#FFFFFF"))
+    painter = QPainter()
+    if not painter.begin(image):
+        raise RuntimeError("Could not create a bitmap for the report page.")
+    try:
+        factor = RASTER_PRINT_DPI / _REPORT_LAYOUT_DPI
+        painter.scale(factor, factor)
+        draw_report_page(painter, page)
+    finally:
+        painter.end()
+    return image
+
+
+def _open_pdf_document(pdf_path: str):
+    """Load the temporary PDF through a QBuffer so the file is never locked."""
+    from PySide6.QtCore import QBuffer, QByteArray, QIODevice
+    from PySide6.QtPdf import QPdfDocument
+
+    with open(pdf_path, "rb") as handle:
+        data = handle.read()
+    if not data:
+        raise RuntimeError("The temporary report PDF is empty.")
+
+    buffer = QBuffer()
+    buffer.setData(QByteArray(data))
+    if not buffer.open(QIODevice.ReadOnly):
+        raise RuntimeError("The temporary report PDF could not be read.")
+
+    document = QPdfDocument()
+    error = document.load(buffer)
+    if document.status() != QPdfDocument.Status.Ready or document.pageCount() <= 0:
+        try:
+            document.close()
+        finally:
+            buffer.close()
+        raise RuntimeError(f"The report PDF could not be opened for printing ({error}).")
+    return document, buffer
+
+
+def _print_pdf_document(document, parent, is_landscape: bool) -> bool:
+    page_count = int(document.pageCount())
+    return _print_with_image_provider(
+        lambda index: _render_pdf_page(document, index),
+        page_count,
+        parent,
+        is_landscape,
+    )
+
+
+def _print_report_pages_direct(pages: List[ReportPage], parent, is_landscape: bool) -> bool:
+    """Bitmap fallback if PDF rasterization is unavailable."""
+    return _print_with_image_provider(
+        lambda index: _render_report_page_image(pages[index]),
+        len(pages),
+        parent,
+        is_landscape,
+    )
+
+
+def _print_report_pages_vector(pages: List[ReportPage], parent, is_landscape: bool) -> bool:
+    """Last-resort vector path with explicit A4 and orientation."""
+    printer, selected = _show_print_dialog(len(pages), is_landscape, parent)
+
+    painter = QPainter()
+    if not painter.begin(printer):
+        raise RuntimeError(
+            "The printer could not start the print job. "
+            "Check that it is switched on and online."
+        )
+    try:
+        for out_index, page_index in enumerate(selected):
+            if out_index > 0:
+                if not printer.newPage():
+                    raise RuntimeError(
+                        f"The printer rejected page {page_index + 1} of the report."
+                    )
+            page = pages[page_index]
+            page_w = float(getattr(page, "page_width", PAGE_WIDTH))
+            page_h = float(getattr(page, "page_height", PAGE_HEIGHT))
+            target = QRectF(painter.viewport())
+            scale = min(target.width() / page_w, target.height() / page_h)
+            offset_x = target.x() + (target.width() - page_w * scale) / 2.0
+            offset_y = target.y() + (target.height() - page_h * scale) / 2.0
+
+            painter.save()
+            try:
+                painter.translate(offset_x, offset_y)
+                painter.scale(scale, scale)
+                draw_report_page(painter, page)
+            finally:
+                painter.restore()
+    finally:
+        if painter.isActive():
+            painter.end()
+    return True
+
+
+def _print_report_pages_as_bitmaps(pages: List[ReportPage], parent, is_landscape: bool) -> bool:
+    """Export -> rasterize at 300 DPI -> print bitmaps, with safe fallbacks."""
+    temp_dir = tempfile.mkdtemp(prefix="pms_report_print_")
+    pdf_path = os.path.join(temp_dir, "report.pdf")
+    document = None
+    buffer = None
+    try:
+        if _export_report_pages_to_pdf(pages, pdf_path):
+            try:
+                document, buffer = _open_pdf_document(pdf_path)
+            except Exception:
+                document = None
+
+        if document is not None:
+            return _print_pdf_document(document, parent, is_landscape)
+
+        # PDF rasterization unavailable: draw the same ReportPage objects
+        # straight to 300-DPI bitmaps.  This still bypasses the GDI text/line
+        # path that garbles output on host-based printers.
+        try:
+            return _print_report_pages_direct(pages, parent, is_landscape)
+        except _PrintCancelled:
+            raise
+        except Exception:
+            return _print_report_pages_vector(pages, parent, is_landscape)
+    finally:
+        if document is not None:
+            try:
+                document.close()
+            except Exception:
+                pass
+        if buffer is not None:
+            try:
+                buffer.close()
+            except Exception:
+                pass
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
 def print_or_export_report_pages(
     pages: List[ReportPage],
     parent: Optional[QWidget] = None,
@@ -1043,40 +1381,15 @@ def print_or_export_report_pages(
     if not pages:
         return False
 
-    first_page = pages[0]
-    orientation_str = getattr(first_page, "orientation", "portrait").lower()
-    is_landscape = (orientation_str == "landscape")
-    page_w = getattr(first_page, "page_width", PAGE_WIDTH_LANDSCAPE if is_landscape else PAGE_WIDTH)
-    page_h = getattr(first_page, "page_height", PAGE_HEIGHT_LANDSCAPE if is_landscape else PAGE_HEIGHT)
+    is_landscape = _pages_are_landscape(pages)
 
     if output_pdf_path:
-        try:
-            from PySide6.QtGui import QPdfWriter, QPageLayout, QPageSize
-            from PySide6.QtCore import QMarginsF
-            writer = QPdfWriter(output_pdf_path)
-            q_orient = QPageLayout.Landscape if is_landscape else QPageLayout.Portrait
-            layout = QPageLayout(QPageSize(QPageSize.A4), q_orient, QMarginsF(0, 0, 0, 0))
-            writer.setPageLayout(layout)
-            writer.setResolution(96)
-            painter = QPainter()
-            if not painter.begin(writer):
-                return False
-            try:
-                for i, page in enumerate(pages):
-                    if i > 0:
-                        writer.newPage()
-                    draw_report_page(painter, page)
-            finally:
-                painter.end()
-            return True
-        except Exception:
-            return False
+        return _export_report_pages_to_pdf(pages, output_pdf_path)
 
     is_headless = os.environ.get("QT_QPA_PLATFORM") == "offscreen"
     if is_headless:
         # Offscreen / headless environment cannot talk to a real interactive printer.
         # Route through a temporary PDF to fully exercise the rendering and pagination pipeline without hanging.
-        import tempfile
         fd, tmp_path = tempfile.mkstemp(suffix=".pdf")
         os.close(fd)
         try:
@@ -1088,43 +1401,18 @@ def print_or_export_report_pages(
                 except OSError:
                     pass
 
-    # Physical printer output via QPrinter
     try:
-        from PySide6.QtPrintSupport import QPrinter, QPrintDialog
-        from PySide6.QtGui import QPageLayout, QPageSize
-    except ImportError:
+        return _print_report_pages_as_bitmaps(pages, parent, is_landscape)
+    except _PrintCancelled:
         return False
-
-    try:
-        printer = QPrinter(QPrinter.HighResolution)
-        printer.setPageSize(QPageSize(QPageSize.A4))
-        q_orient = QPageLayout.Landscape if is_landscape else QPageLayout.Portrait
-        printer.setPageOrientation(q_orient)
-        dlg = QPrintDialog(printer, parent)
-        dlg.setWindowTitle("Print Report")
-        if dlg.exec() != QPrintDialog.Accepted:
-            return False
-
-        painter = QPainter()
-        if not painter.begin(printer):
-            return False
-        try:
-            page_rect = printer.pageRect(QPrinter.DevicePixel)
-            scale_x = page_rect.width() / page_w
-            scale_y = page_rect.height() / page_h
-            scale = min(scale_x, scale_y)
-
-            for i, page in enumerate(pages):
-                if i > 0:
-                    printer.newPage()
-                painter.save()
-                painter.scale(scale, scale)
-                draw_report_page(painter, page)
-                painter.restore()
-        finally:
-            painter.end()
-        return True
-    except Exception:
+    except Exception as exc:
+        _show_warning(
+            parent,
+            "Print Error",
+            "The report could not be printed.\n\n"
+            f"{exc}\n\n"
+            "The report can still be exported to PDF and printed from a PDF viewer.",
+        )
         return False
 
 
