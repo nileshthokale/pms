@@ -124,10 +124,14 @@ class CounterSaleSalesHistoryButtonTests(unittest.TestCase):
             mock.patch("PySide6.QtWidgets.QMessageBox.information", return_value=0),
             mock.patch("PySide6.QtWidgets.QMessageBox.critical", return_value=0),
             mock.patch("PySide6.QtWidgets.QMessageBox.question", return_value=0x4000),
+            mock.patch("PySide6.QtWidgets.QMessageBox.exec", return_value=0),
         ]
         for p in self._patches:
             p.start()
             self.addCleanup(p.stop)
+
+    def tearDown(self):
+        self._pump(10)
 
     def _pump(self, n=3):
         for _ in range(n):

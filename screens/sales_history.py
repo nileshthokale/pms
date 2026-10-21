@@ -1092,7 +1092,7 @@ class SalesHistoryPage(QWidget):
         self._patient_edit.returnPressed.connect(self._on_search_clicked)
         self._patient_edit.picked.connect(self._on_search_clicked)
         p_box.addWidget(self._patient_edit)
-        row.addLayout(p_box, 3)
+        row.addLayout(p_box, 1)
 
         # From Date
         from_box = QHBoxLayout()
@@ -1104,8 +1104,9 @@ class SalesHistoryPage(QWidget):
         self._from_date.setCalendarPopup(True)
         self._from_date.setDisplayFormat("dd/MM/yyyy")
         self._from_date.setDate(QDate.currentDate())
+        self._from_date.setFixedWidth(115)
         from_box.addWidget(self._from_date)
-        row.addLayout(from_box, 2)
+        row.addLayout(from_box)
 
         # To Date
         to_box = QHBoxLayout()
@@ -1117,8 +1118,9 @@ class SalesHistoryPage(QWidget):
         self._to_date.setCalendarPopup(True)
         self._to_date.setDisplayFormat("dd/MM/yyyy")
         self._to_date.setDate(QDate.currentDate())
+        self._to_date.setFixedWidth(115)
         to_box.addWidget(self._to_date)
-        row.addLayout(to_box, 2)
+        row.addLayout(to_box)
 
         # Search & Reset buttons
         self._search_btn = QPushButton("Search")
