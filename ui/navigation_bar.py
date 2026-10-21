@@ -131,9 +131,21 @@ class NavigationBar(QWidget):
         tl.setContentsMargins(10, 0, 8, 0)
         tl.setSpacing(8)
 
-        self._brand_label = QLabel(APP_TITLE)
+        import os
+        is_staging = os.environ.get("PHARMACY_STAGING_MODE") == "1"
+        brand_text = f"{APP_TITLE} [STAGING]" if is_staging else APP_TITLE
+        self._brand_label = QLabel(brand_text)
         self._brand_label.setObjectName("BrandLabel")
         tl.addWidget(self._brand_label)
+
+        if is_staging:
+            self.staging_badge = QLabel("STAGING / AUDIT MODE")
+            self.staging_badge.setObjectName("StagingBadge")
+            self.staging_badge.setStyleSheet(
+                "background-color: #b45309; color: #ffffff; font-weight: bold; "
+                "font-size: 11px; border-radius: 3px; padding: 2px 8px; margin-left: 6px;"
+            )
+            tl.addWidget(self.staging_badge)
 
         self._menu_hint = QLabel("")
         self._menu_hint.setObjectName("NavMenuHint")

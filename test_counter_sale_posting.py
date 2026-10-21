@@ -305,7 +305,7 @@ class TestWalkinSales(_BaseTest):
             conn.close()
         self.assertEqual(sales, 0)
         self.assertEqual(txns, 0)
-        self.assertEqual(self._stock_qty(), 100.0)
+        self.assertEqual(self._stock_qty(), 10000.0)
 
     def test_13_walkin_touches_no_customer_ledger(self):
         # No fake WALKIN customer ledger is ever created, and the posting
@@ -367,7 +367,7 @@ class TestFailureAndDuplicates(_BaseTest):
             conn.close()
         self.assertEqual(sales, 0)
         self.assertEqual(txns, 0)
-        self.assertEqual(self._stock_qty(), 100.0)
+        self.assertEqual(self._stock_qty(), 10000.0)
 
     def test_15_customer_ledger_missing_rollback(self):
         conn = get_connection()
@@ -398,7 +398,7 @@ class TestFailureAndDuplicates(_BaseTest):
             conn.close()
         self.assertEqual(sales, 0)
         self.assertEqual(txns, 0)
-        self.assertEqual(self._stock_qty(), 100.0)
+        self.assertEqual(self._stock_qty(), 10000.0)
 
     def test_16_duplicate_posting_rejected(self):
         sale_id = self._insert_sale()
@@ -555,7 +555,7 @@ class TestEditRepost(_BaseTest):
         rows = self.engine.get_posting_rows(SOURCE_COUNTER_SALE, sale_id)
         self.assertEqual(len(rows), 2)  # no reversal rows survived
         self.assertTrue(self.engine.is_posted(SOURCE_COUNTER_SALE, sale_id))
-        self.assertEqual(self._stock_qty(), 95.0)
+        self.assertEqual(self._stock_qty(), 9995.0)
 
 
 # ======================================================================
@@ -582,13 +582,13 @@ class TestDeleteAndRollback(_BaseTest):
 
     def test_30_stock_restored_on_delete(self):
         sale_id = self._insert_sale()
-        self.assertEqual(self._stock_qty(), 95.0)
+        self.assertEqual(self._stock_qty(), 9995.0)
         SalesDAO.delete_invoice(sale_id)
-        self.assertEqual(self._stock_qty(), 100.0)
+        self.assertEqual(self._stock_qty(), 10000.0)
 
     def test_31_failure_rolls_back_sale_stock_accounting(self):
         sale_id = self._insert_sale()
-        self.assertEqual(self._stock_qty(), 95.0)
+        self.assertEqual(self._stock_qty(), 9995.0)
 
         conn = get_connection()
         try:
@@ -610,7 +610,7 @@ class TestDeleteAndRollback(_BaseTest):
         rows = self.engine.get_posting_rows(SOURCE_COUNTER_SALE, sale_id)
         self.assertEqual(len(rows), 2)
         self.assertTrue(self.engine.is_posted(SOURCE_COUNTER_SALE, sale_id))
-        self.assertEqual(self._stock_qty(), 95.0)
+        self.assertEqual(self._stock_qty(), 9995.0)
 
 
 # ======================================================================
@@ -791,7 +791,7 @@ class TestRegression(_BaseTest):
         all_stock = StockDAO.get_all()
         self.assertEqual(len(all_stock), 1)
         self.assertEqual(all_stock[0]["item_name"], "TestItem")
-        self.assertEqual(all_stock[0]["stock_qty"], 95.0)
+        self.assertEqual(all_stock[0]["stock_qty"], 9995.0)
         found = StockDAO.search(item_name="TestItem")
         self.assertEqual(len(found), 1)
 

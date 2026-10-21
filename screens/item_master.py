@@ -1086,7 +1086,10 @@ class ItemMasterPage(QWidget):
             items = ItemDAO.get_all()
         self._table.setRowCount(len(items))
         for row, item in enumerate(items):
-            self._table.setItem(row, 0, QTableWidgetItem(str(item["id"])))
+            id_item = QTableWidgetItem(str(item["id"]))
+            if item.get("legacy_id"):
+                id_item.setToolTip(f"Target Database ID: {item['id']}\nLegacy Source ID: {item['legacy_id']}")
+            self._table.setItem(row, 0, id_item)
             self._table.setItem(row, 1, QTableWidgetItem(item["item_name"]))
             self._table.setItem(row, 2, QTableWidgetItem(item.get("unit_name", "") or ""))
             self._table.setItem(row, 3, QTableWidgetItem(item.get("category_name", "") or ""))

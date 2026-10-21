@@ -101,33 +101,33 @@ class SupplierPaymentDAO:
     def get_supplier_balance(supplier_id: int) -> float:
         """Calculate outstanding balance for a supplier.
 
-        Balance = total purchase net_amount - total debit notes - total payments.
-        If data is insufficient, returns 0 (not calculated).
-
-        LEGACY (Phase 2D): this method predates automatic ledger posting and
-        is retained for compatibility. The Account Ledger
-        (LedgerDAO.get_balance on the supplier's linked ledger) is the
-        future authoritative accounting source once all transaction types
-        are posted. Do not extend this method — new reporting should read
-        from the ledger.
+        Reads from linked ledger (authoritative accounting balance) when available.
+        Falls back to transaction calculation if unlinked.
         """
         conn = get_connection()
         try:
-            # Total purchases (net_amount owed to supplier)
+            sup = conn.execute(
+                "SELECT ledger_id FROM suppliers WHERE id = ?",
+                (supplier_id,),
+            ).fetchone()
+            if sup and sup["ledger_id"]:
+                from database.ledger_dao import LedgerDAO
+                bal_dict = LedgerDAO.get_balance(sup["ledger_id"])
+                cb = round(bal_dict.get("closing_balance", 0.0), 2)
+                return -cb if bal_dict.get("closing_balance_type") == "Debit" else cb
+
             cur = conn.execute(
                 "SELECT COALESCE(SUM(net_amount), 0) FROM purchase_invoices WHERE supplier_id = ?",
                 (supplier_id,),
             )
             total_purchases = cur.fetchone()[0]
 
-            # Total debit notes (returns to supplier, reduce what we owe)
             cur = conn.execute(
                 "SELECT COALESCE(SUM(total_amount), 0) FROM debit_notes WHERE supplier_id = ?",
                 (supplier_id,),
             )
             total_debit_notes = cur.fetchone()[0]
 
-            # Total payments already made
             cur = conn.execute(
                 "SELECT COALESCE(SUM(amount), 0) FROM supplier_payments WHERE supplier_id = ?",
                 (supplier_id,),

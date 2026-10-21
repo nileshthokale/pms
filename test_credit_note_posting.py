@@ -252,10 +252,11 @@ class TestCreditNotePosting(_BaseTest):
         self.assertEqual(len(self.engine.get_posting_rows(SOURCE_CREDIT_NOTE, cn_id)), 2)
 
     def test_10_stock_restore_unchanged_by_posting(self):
+        initial = StockDAO.get_stock_batch_by_id(self.batch_id)["stock_qty"]
         cn_id = CreditNoteDAO.insert_credit_note(self._header(200.0),
                                                  self._items(qty=5.0))
         batch = StockDAO.get_stock_batch_by_id(self.batch_id)
-        self.assertEqual(batch["stock_qty"], 100.0 + 5.0)
+        self.assertEqual(batch["stock_qty"], initial + 5.0)
 
     def test_11_net_effect_balances_to_zero(self):
         cn_id = CreditNoteDAO.insert_credit_note(self._header(600.0),

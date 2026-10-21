@@ -2178,13 +2178,17 @@ class _ItemEntryBar(QWidget):
         line_edit = self.batch_combo.lineEdit()
         if line_edit is not None:
             line_edit.clear()
+            if self.batch_combo.count() == 0:
+                line_edit.setPlaceholderText("No stock available")
+            else:
+                line_edit.setPlaceholderText("Select batch")
         self.batch_combo.blockSignals(False)
         if item_id is not None and focus_batch:
             self._focus_batch_timer.start(0)
 
     def _focus_batch(self):
         self.batch_combo.lineEdit().setFocus()
-        if self.batch_combo.count() > 1:
+        if self.batch_combo.count() >= 1:
             self.batch_combo._show_completion_popup()
 
     def _focus_quantity(self):
@@ -2277,6 +2281,10 @@ class _ItemEntryBar(QWidget):
             line_edit = self.batch_combo.lineEdit()
             if line_edit is not None:
                 line_edit.clear()
+                if hasattr(self, "batch_combo") and self.batch_combo.count() > 0:
+                    line_edit.setPlaceholderText("Select batch")
+                else:
+                    line_edit.setPlaceholderText("")
             self.batch_combo.blockSignals(False)
         self.pack_edit.clear()
         self.expiry_edit.clear()
@@ -2393,7 +2401,7 @@ class _ItemEntryBar(QWidget):
                     self.batch_combo.currentText() != self.batch_combo.itemText(batch_index)):
                 return None
         batch = SalesDAO.get_batch_by_id(batch_id)
-        if not batch:
+        if not batch or batch.get("item_id") != item_id:
             return None
         return {
             "item_id": item_id,
@@ -2410,6 +2418,41 @@ class _ItemEntryBar(QWidget):
             "draft_qty": self._availability(batch)[0],
             "available_stock": self._availability(batch)[1],
         }
+
+    def restore_row(self, row: _BillItemRow):
+        """Restore an existing line item into the entry controls for editing."""
+        item_index = self.item_combo.findData(row.item_id)
+        if item_index >= 0:
+            self.item_combo.blockSignals(True)
+            self.item_combo.setCurrentIndex(item_index)
+            if self.item_combo.lineEdit():
+                self.item_combo.lineEdit().setText(self.item_combo.itemText(item_index))
+            self.item_combo.blockSignals(False)
+
+        # Load available batches for this item without focusing
+        self._on_item_changed(item_index, focus_batch=False)
+
+        # Restore exact batch
+        batch_index = self.batch_combo.findData(row.stock_batch_id)
+        if batch_index < 0:
+            exp = row.expiry or ""
+            label = f"{row.batch_no} | Exp: {exp} | MRP: {row.mrp:.2f}"
+            self.batch_combo.addItem(label, row.stock_batch_id)
+            batch_index = self.batch_combo.findData(row.stock_batch_id)
+
+        if batch_index >= 0:
+            self.batch_combo.setCurrentIndex(batch_index)
+
+        self.pack_edit.setText(str(row.pack_size or ""))
+        self.location_edit.setText(str(row.location or ""))
+        self.expiry_edit.setText(str(row.expiry or ""))
+        self.mrp_edit.setText(f"{row.mrp:.2f}")
+        qty_str = f"{row.sale_qty:.0f}" if float(row.sale_qty).is_integer() else f"{row.sale_qty}"
+        self.qty_edit.setText(qty_str)
+        self.discount_edit.setText(f"{row.discount_amount:.2f}")
+        self.amount_edit.setText(f"{row.amount:.2f}")
+        self.qty_edit.setFocus()
+        self.qty_edit.selectAll()
 
     def refresh_theme(self) -> None:
         """Re-apply live Day/Night colours in place (state preserved)."""
@@ -3572,7 +3615,22 @@ class _SalePanel(QWidget):
             f"QTableWidget::item {{ padding: 3px 6px; }}"
         )
         self._table.setFont(readable_font(TYPE_TABLE_DATA))
+        self._table.doubleClicked.connect(self._on_table_double_clicked)
         layout.addWidget(self._table, 1)
+
+    def _on_table_double_clicked(self, index):
+        row_idx = index.row() if hasattr(index, "row") else int(index)
+        self.edit_row(row_idx)
+
+    def edit_row(self, idx: int):
+        """Load an existing bill table row into the entry bar for editing."""
+        if not (0 <= idx < len(self._item_rows)):
+            return
+        row = self._item_rows.pop(idx)
+        self._refresh_table()
+        self._recalc_totals()
+        self._refresh_draft_availability()
+        self._entry_bar.restore_row(row)
 
     def _on_add_item(self):
         data = self._entry_bar.get_current_data()
@@ -3609,6 +3667,13 @@ class _SalePanel(QWidget):
             )
             return
         data["discount_amount"] = discount
+
+        batch = SalesDAO.get_batch_by_id(data["stock_batch_id"])
+        if not batch or batch.get("item_id") != data["item_id"]:
+            QMessageBox.warning(
+                self, "Validation", "The selected batch does not belong to this item."
+            )
+            return
 
         available = self._available_for_batch(
             data["stock_batch_id"], data["batch_stock"]

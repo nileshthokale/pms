@@ -1,0 +1,50 @@
+[
+  {
+    "screen": "counter_sale.py",
+    "domain": "Sales & Billing",
+    "issue": "Single-batch popup auto-selected numeric batches (fixed in Phase 1)",
+    "severity": "MEDIUM"
+  },
+  {
+    "screen": "credit_note.py",
+    "domain": "Sales Returns",
+    "issue": "StockDAO.get_stock_batches_for_item excludes 0-stock batches preventing returns",
+    "severity": "HIGH"
+  },
+  {
+    "screen": "customer_receipt.py",
+    "domain": "Finance & Ledgers",
+    "issue": "get_customer_balance omits ledger opening balance",
+    "severity": "HIGH"
+  },
+  {
+    "screen": "item_master.py",
+    "domain": "Master Setup",
+    "issue": "Table displays target internal ID rather than legacy item ID",
+    "severity": "MEDIUM"
+  },
+  {
+    "screen": "purchase_invoice.py",
+    "domain": "Purchases & Inward",
+    "issue": "pack_factor fails on strings with letters/symbols like 10'S, 10TAB, 1*10",
+    "severity": "MEDIUM"
+  },
+  {
+    "screen": "stock_master.py",
+    "domain": "Inventory & Stock",
+    "issue": "StockDAO._is_expired format mismatch hides all expired batches",
+    "severity": "HIGH"
+  },
+  {
+    "screen": "stock_master.py",
+    "domain": "Inventory & Stock",
+    "issue": "String-formatted numeric cells cause lexicographical sorting",
+    "severity": "MEDIUM"
+  },
+  {
+    "screen": "supplier_payment.py",
+    "domain": "Finance & Ledgers",
+    "issue": "get_supplier_balance omits ledger opening balance",
+    "severity": "HIGH"
+  }
+]

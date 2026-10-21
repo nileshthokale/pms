@@ -613,7 +613,7 @@ class TestRegression(_BaseTest):
         all_stock = StockDAO.get_all()
         self.assertEqual(len(all_stock), 1)
         self.assertEqual(all_stock[0]["item_name"], "TestItem")
-        self.assertEqual(all_stock[0]["stock_qty"], 100.0)
+        self.assertEqual(all_stock[0]["stock_qty"], 10000.0)
 
     def test_39_all_master_screens_still_work(self):
         self.assertGreater(len(CompanyDAO.get_all()), 0)

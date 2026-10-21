@@ -1,0 +1,71 @@
+{
+  "generated_at": "2026-10-21T07:41:18.960891+00:00",
+  "staging_path": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\staging\\pharmacy_staging.db",
+  "size_bytes": 45350912,
+  "sha256": "2dac6b3f4421a3d90a158b005c1146ba81eddfdf1526ed846e169f8eec0974c4",
+  "ok": true,
+  "integrity_check": [
+    "ok"
+  ],
+  "foreign_key_violations": 0,
+  "counts": {
+    "items": 940,
+    "suppliers": 86,
+    "customers": 29,
+    "doctors": 7,
+    "companies": 1220,
+    "units": 17,
+    "categories": 0,
+    "purchase_invoices": 5723,
+    "purchase_invoice_items": 11914,
+    "sales_invoices": 72175,
+    "sales_invoice_items": 234063,
+    "credit_notes": 1354,
+    "credit_note_items": 3342,
+    "debit_notes": 14,
+    "supplier_payments": 786,
+    "customer_receipts": 44,
+    "stock_batches": 7808,
+    "account_ledgers": 124,
+    "ledger_transactions": 157586,
+    "journal_entries": 0,
+    "app_users": 2
+  },
+  "active_financial_years": [
+    "2026-2027"
+  ],
+  "sqlite_version": "3.50.4",
+  "audit_artifacts": {
+    "full_application_data_integrity_audit.json": {
+      "size_bytes": 3515,
+      "modified": "2026-10-20T14:40:15.712376+00:00",
+      "sha256": "9eaf25c20e31db031139825add7420019479bfeeb3b4737bc1091d7c7e38449a"
+    },
+    "full_application_data_integrity_test_results.json": {
+      "size_bytes": 6052,
+      "modified": "2026-10-21T05:29:04.074918+00:00",
+      "sha256": "c7e036680ff9005e1388a8fd8f3ad0d01094cb2408fbea0d0a4de1d4f2b8747c"
+    },
+    "legacy_data_migration_summary.json": {
+      "size_bytes": 1547,
+      "modified": "2026-10-20T12:30:46.810497+00:00",
+      "sha256": "398a6110cab1378d635597172159ee9304ac51458cc258e5f9ee48201a9c1cb5"
+    },
+    "legacy_data_final_reconciliation_review.json": {
+      "size_bytes": 6510,
+      "modified": "2026-10-20T12:33:00.858782+00:00",
+      "sha256": "68d7c81771d37b12388df6735a06cb8d2012f0a1c94f7d6bff4381d57f83141a"
+    },
+    "legacy_data_refresh_reconciliation.json": {
+      "size_bytes": 180360,
+      "modified": "2026-10-20T09:56:50.246265+00:00",
+      "sha256": "584cdfc59b5f817ffffc9c2351a88ee615a0b08b854ece4b322d495048b0e352"
+    },
+    "legacy_data_idempotency_check.json": {
+      "size_bytes": 709,
+      "modified": "2026-10-20T12:12:33.357289+00:00",
+      "sha256": "ee2ee353fcdbea767649898ee0a249065fc432e3839bc23124c3703c3a39ea4e"
+    }
+  },
+  "problems": []
+}

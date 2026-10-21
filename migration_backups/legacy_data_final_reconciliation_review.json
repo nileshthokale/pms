@@ -1,0 +1,166 @@
+{
+  "generated_at": "2026-10-20T18:03:00+05:30",
+  "audit_status": "FINAL_READ_ONLY_RECONCILIATION_COMPLETE",
+  "promotion_safety_gate": "BLOCKED (Promotion to active database requires explicit user approval)",
+  "active_database": {
+    "path": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\data\\pharmacy.db",
+    "baseline_t0_sha256": "5a8f768322d00e42184be70d519b65b0871c7cdf54376b078b395d5ff808fb32",
+    "current_sha256": "673aed780ee2d89b1ead216db10b7edd2acebdc44b43ea875b683f8a48ce8a97",
+    "divergence_cause": "User login audit entry (auth_audit_log row 190 at 2026-10-20T12:21:24Z by user 'pratap'). All business data tables remain 100% byte-identical.",
+    "business_data_untouched": true,
+    "business_table_counts": {
+      "items": 939,
+      "purchase_invoices": 5714,
+      "sales_invoices": 72045,
+      "credit_notes": 1349,
+      "stock_batches": 7795,
+      "ledger_transactions": 157306
+    }
+  },
+  "staging_database": {
+    "path": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\staging\\pharmacy_staging.db",
+    "integrity_check": "ok",
+    "foreign_key_violations": 0,
+    "double_entry": {
+      "debits": 47251923.27,
+      "credits": 47251923.27,
+      "diff": 0.0,
+      "is_balanced": true
+    }
+  },
+  "discrepancy_resolutions": {
+    "1_imported_row_count": {
+      "reported_count": 939,
+      "verified_count": 940,
+      "difference": "+1 row",
+      "exact_source_row": {
+        "table": "itemdrugs",
+        "row_id": 413,
+        "item_id": 944,
+        "drug_id": 11,
+        "power": "1 PCS"
+      },
+      "target_destination": "item_ingredients table (ID 813)",
+      "explanation": "In tools/build_row_level_ledger.py line 270, the script checked str(r[0]) == '944' (primary key ID 413) instead of str(r[1]) == '944' (ItemID 944). Consequently, row 413 was misclassified as ALREADY_MATCHED instead of IMPORTED. The row was physically migrated into item_ingredients as ID 813. The corrected count is 940."
+    },
+    "2_merged_row_count": {
+      "reported_count": 4,
+      "plan_expected": "6 (target entities)",
+      "verified_source_rows": 7,
+      "verified_target_entities": 6,
+      "exact_source_rows": [
+        {
+          "table": "companymst",
+          "legacy_id": "2541",
+          "name": "ALKEM",
+          "merged_with_legacy_id": "2540",
+          "target_company_id": 3761
+        },
+        {
+          "table": "companymst",
+          "legacy_id": "2568",
+          "name": "JAGSAM PHARMA",
+          "merged_with_legacy_id": "2567",
+          "target_company_id": 3787
+        },
+        {
+          "table": "companymst",
+          "legacy_id": "2569",
+          "name": "JAGSAM PHARMA",
+          "merged_with_legacy_id": "2567",
+          "target_company_id": 3787
+        },
+        {
+          "table": "doctormst",
+          "legacy_id": "6",
+          "name": "SELF",
+          "merged_with_legacy_id": "3",
+          "target_doctor_id": 11
+        },
+        {
+          "table": "itemmst",
+          "legacy_id": "920",
+          "name": "POWERGESIC",
+          "merged_with_legacy_id": "51",
+          "target_item_id": 996
+        },
+        {
+          "table": "itemmst",
+          "legacy_id": "303",
+          "name": "VITOMIN-Z",
+          "merged_with_legacy_id": "290",
+          "target_item_id": 1234
+        },
+        {
+          "table": "itemmst",
+          "legacy_id": "869",
+          "name": "CALTONVIT",
+          "merged_with_legacy_id": "681",
+          "target_item_id": 1624
+        }
+      ],
+      "explanation": "The plan anticipated 6 merged target entities (2 companies, 1 doctor, 3 items). Because JAGSAM PHARMA had 2 duplicate rows (2568 and 2569), the true number of merged source rows across companies is 3. Furthermore, tools/build_row_level_ledger.py checked (name, unit_id) for itemmst; because items 920, 303, and 869 had different UnitIDs than their counterparts, they were omitted from MERGED_WITH_REASON and miscounted as updates. The verified number of merged source rows is exactly 7."
+    },
+    "3_verified_update_count": {
+      "reported_count": 1069,
+      "verified_count": 1066,
+      "difference": "-3 rows",
+      "breakdown": {
+        "itemmst_tax_provenance_backfills": 939,
+        "stockbalance_batch_syncs": 127,
+        "stockbalance_new_batches_imported": 13,
+        "stockbalance_unchanged_batches": 7666,
+        "total_stockbalance_rows": 7806
+      },
+      "explanation": "The earlier 1,069 was 942 item updates + 127 batch updates. Because itemmst has 943 total rows, subtracting 1 imported item (944) and 3 merged duplicate items (920, 303, 869) leaves exactly 939 distinct items receiving tax backfill. Adding 127 updated stock batches yields exactly 1,066 verified updates."
+    },
+    "4_unused_data_csv_count": {
+      "reported_count": 8456,
+      "archive_count": 4102,
+      "excluded_count": 4350,
+      "merged_count": 7,
+      "verified_csv_rows": 8459,
+      "explanation": "The CSV file legacy_data_unused_rows.csv correctly collects all legacy records that do not have an independent 1:1 operational representation in target: 4,102 archive rows + 4,350 excluded rows + 7 merged master rows = 8,459 total rows. Every row has a unique (source_table, source_legacy_id) key with zero duplicate keys."
+    }
+  },
+  "verified_mutually_exclusive_partition": {
+    "PRESERVED_IN_ARCHIVE": 4102,
+    "EXCLUDED_WITH_REASON": 4350,
+    "MERGED_WITH_REASON": 7,
+    "VERIFIED_UPDATE": 1066,
+    "IMPORTED": 940,
+    "ALREADY_MATCHED": 495784,
+    "UNRESOLVED": 0,
+    "total_source_rows": 506249
+  },
+  "stock_and_financial_safety_verification": {
+    "batch_CGT26065C_loose": 424.0,
+    "batch_AC2604005C_loose": 218.0,
+    "batch_146005EH_loose": -42.0,
+    "credit_notes_1350_1354_unposted": {
+      "header_count": 5,
+      "ledger_transactions_fabricated": 0,
+      "status": "PASS"
+    },
+    "native_transactions_intact": {
+      "purchase_5714": "voucher 2026-2027-Credit-0251, supplier 216, amount 1567.0",
+      "sale_72048": "bill 2026-2027-1910, net 12.1",
+      "supplier_242": "National Distributors, ledger 125",
+      "payment_786": "voucher SP-2026",
+      "receipt_45": "voucher CR-2027"
+    },
+    "double_entry_balance": {
+      "debits": 47251923.27,
+      "credits": 47251923.27,
+      "diff": 0.0
+    }
+  },
+  "automated_test_suite": {
+    "total_tests_run": 178,
+    "tests_passed": 178,
+    "failures": 0,
+    "errors": 0,
+    "execution_time_seconds": 17.67,
+    "status": "ALL_TESTS_PASS"
+  }
+}

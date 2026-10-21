@@ -46,7 +46,11 @@ def get_db_path() -> str:
     data/pharmacy.db (development) or the per-user app-data directory
     (packaged EXE — see get_app_data_dir()).
     """
-    db_path = os.environ.get("PHARMACY_DB") or _default_db_path()
+    db_path = (
+        os.environ.get("PHARMACY_DB")
+        or os.environ.get("PHARMACY_DB_PATH")
+        or _default_db_path()
+    )
     # The full-suite runner sets this guard so a test that accidentally drops
     # PHARMACY_DB (or points it back at the app database) still cannot open
     # the real business database for writing.
@@ -57,11 +61,32 @@ def get_db_path() -> str:
             os.path.abspath(protected_path)
         ):
             return safe_path
+    # The isolated test release must never fall back to a normal database.
+    # Its entry point sets PHARMACY_DB explicitly; if that configuration is
+    # ever lost, refuse rather than silently opening the production path.
+    if os.environ.get("PHARMACY_TEST_RELEASE") == "1" and not (
+        os.environ.get("PHARMACY_DB") or os.environ.get("PHARMACY_DB_PATH")
+    ):
+        raise RuntimeError(
+            "[TEST RELEASE] PHARMACY_DB is not configured. Refusing to fall back "
+            "to a normal application database."
+        )
     return db_path
 
 
 def get_connection() -> sqlite3.Connection:
     db_path = get_db_path()
+    # A test release seeds its database from the bundled snapshot on first
+    # launch.  It must never silently create an empty database if that file
+    # later disappears (which would look like all business data vanished).
+    if (
+        os.environ.get("PHARMACY_REQUIRE_EXISTING_DB") == "1"
+        and not os.path.isfile(db_path)
+    ):
+        raise RuntimeError(
+            f"[TEST RELEASE] Refusing to create a new empty database at {db_path}. "
+            "The isolated test database is missing; restore it instead."
+        )
     os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
     conn = sqlite3.connect(db_path)
     conn.execute("PRAGMA journal_mode=WAL")
@@ -159,7 +184,7 @@ def init_database():
             """
             CREATE TABLE IF NOT EXISTS doctors (
                 id           INTEGER PRIMARY KEY AUTOINCREMENT,
-                doctor_name  TEXT    NOT NULL UNIQUE,
+                doctor_name  TEXT    NOT NULL,
                 city         TEXT    DEFAULT '',
                 specialty    TEXT    DEFAULT '',
                 phone_no     TEXT    DEFAULT ''
@@ -522,6 +547,16 @@ def init_database():
         conn.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_financial_year_active "
             "ON financial_years(is_active) WHERE is_active = 1"
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS legacy_id_map (
+                entity TEXT NOT NULL,
+                legacy_id TEXT NOT NULL,
+                new_id INTEGER NOT NULL,
+                PRIMARY KEY (entity, legacy_id)
+            )
+            """
         )
 
         # ── Phase 1: Customer/Supplier → Account Ledger mapping ──

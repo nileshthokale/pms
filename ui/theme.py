@@ -179,6 +179,11 @@ def _resolve_theme_file() -> Path:
     always resolve to the patched path.
     """
     if getattr(sys, "frozen", False):
+        # The isolated test release keeps its preference beside its own
+        # database instead of the normal per-user application folder.
+        override = os.environ.get("PHARMACY_DATA_DIR")
+        if override:
+            return Path(override) / "theme.json"
         base = os.environ.get("LOCALAPPDATA") or os.path.join(
             os.path.expanduser("~"), "AppData", "Local"
         )

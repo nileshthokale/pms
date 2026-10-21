@@ -1,0 +1,150 @@
+{
+  "summary": {
+    "total_source_rows_accounted": 506249,
+    "primary_dispositions": {
+      "PRESERVED_IN_ARCHIVE": 4102,
+      "EXCLUDED_WITH_REASON": 4350,
+      "MERGED_WITH_REASON": 7,
+      "VERIFIED_UPDATE": 1066,
+      "IMPORTED": 940,
+      "ALREADY_MATCHED": 495784,
+      "UNRESOLVED": 0
+    },
+    "total_archived_rows": 4102,
+    "total_excluded_rows": 4350,
+    "total_merged_rows": 7,
+    "total_unused_rows_csv": 8459,
+    "tax_reviews_required": 1,
+    "unposted_credit_notes_preserved": 5
+  },
+  "duplicate_masters_merged": [
+    {
+      "entity": "company",
+      "legacy_id": "2541",
+      "name": "ALKEM",
+      "reason": "Duplicate company name merged under UNIQUE(company_name)"
+    },
+    {
+      "entity": "company",
+      "legacy_id": "2568",
+      "name": "JAGSAM PHARMA",
+      "reason": "Duplicate company name merged under UNIQUE(company_name)"
+    },
+    {
+      "entity": "company",
+      "legacy_id": "2569",
+      "name": "JAGSAM PHARMA",
+      "reason": "Duplicate company name merged under UNIQUE(company_name)"
+    },
+    {
+      "entity": "doctor",
+      "legacy_id": "6",
+      "name": "SELF",
+      "reason": "Duplicate doctor name merged under UNIQUE(doctor_name)"
+    },
+    {
+      "entity": "item",
+      "legacy_id": "303",
+      "name": "VITOMIN-Z",
+      "target_item_id": 1234,
+      "reason": "Duplicate item name 'VITOMIN-Z' merged into target item 1234"
+    },
+    {
+      "entity": "item",
+      "legacy_id": "869",
+      "name": "CALTONVIT",
+      "target_item_id": 1624,
+      "reason": "Duplicate item name 'CALTONVIT' merged into target item 1624"
+    },
+    {
+      "entity": "item",
+      "legacy_id": "920",
+      "name": "POWERGESIC",
+      "target_item_id": 996,
+      "reason": "Duplicate item name 'POWERGESIC' merged into target item 996"
+    }
+  ],
+  "deleted_legacy_transactions": [
+    {
+      "entity": "sales_item",
+      "legacy_detail_id": 237051,
+      "legacy_voucher_id": 72160,
+      "bill_no": "2026-2027-1857",
+      "reason": "Sale 72160 legitimately deleted in target application; stock and ledger reversed."
+    },
+    {
+      "entity": "sales_item",
+      "legacy_detail_id": 237052,
+      "legacy_voucher_id": 72160,
+      "bill_no": "2026-2027-1857",
+      "reason": "Sale 72160 legitimately deleted in target application; stock and ledger reversed."
+    },
+    {
+      "entity": "sales_item",
+      "legacy_detail_id": 237053,
+      "legacy_voucher_id": 72160,
+      "bill_no": "2026-2027-1857",
+      "reason": "Sale 72160 legitimately deleted in target application; stock and ledger reversed."
+    },
+    {
+      "entity": "sales_item",
+      "legacy_detail_id": 237054,
+      "legacy_voucher_id": 72160,
+      "bill_no": "2026-2027-1857",
+      "reason": "Sale 72160 legitimately deleted in target application; stock and ledger reversed."
+    }
+  ],
+  "unposted_credit_notes": [
+    {
+      "legacy_credit_note_id": 1350,
+      "voucher_no": "2026-2027-CreditNote-43",
+      "date": "2026-10-06",
+      "amount": 375.69,
+      "added_to_ledger": "N",
+      "rule_enforced": "Headers & lines imported into credit_notes / items; zero ledger rows fabricated."
+    },
+    {
+      "legacy_credit_note_id": 1351,
+      "voucher_no": "2026-2027-CreditNote-44",
+      "date": "2026-10-10",
+      "amount": 445.5,
+      "added_to_ledger": "N",
+      "rule_enforced": "Headers & lines imported into credit_notes / items; zero ledger rows fabricated."
+    },
+    {
+      "legacy_credit_note_id": 1352,
+      "voucher_no": "2026-2027-CreditNote-45",
+      "date": "2026-10-10",
+      "amount": 348.05,
+      "added_to_ledger": "N",
+      "rule_enforced": "Headers & lines imported into credit_notes / items; zero ledger rows fabricated."
+    },
+    {
+      "legacy_credit_note_id": 1353,
+      "voucher_no": "2026-2027-CreditNote-46",
+      "date": "2026-10-13",
+      "amount": 385.66,
+      "added_to_ledger": "N",
+      "rule_enforced": "Headers & lines imported into credit_notes / items; zero ledger rows fabricated."
+    },
+    {
+      "legacy_credit_note_id": 1354,
+      "voucher_no": "2026-2027-CreditNote-47",
+      "date": "2026-10-16",
+      "amount": 774.03,
+      "added_to_ledger": "N",
+      "rule_enforced": "Headers & lines imported into credit_notes / items; zero ledger rows fabricated."
+    }
+  ],
+  "ambiguous_tax_codes_requiring_review": [
+    {
+      "legacy_item_id": 944,
+      "item_name": "MERSILK NW 5010",
+      "legacy_tax_id": 11,
+      "target_assigned_id": 1885,
+      "status": "TAX_MAPPING_REQUIRED",
+      "note": "Imported with legacy_tax_id='11' and tax_structure='11'. Modern GST rate must be assigned by user."
+    }
+  ],
+  "cashier_rounding_and_discount_discrepancies": []
+}

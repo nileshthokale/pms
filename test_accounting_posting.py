@@ -120,7 +120,7 @@ class _BaseTest(unittest.TestCase):
             other_amount=0, paid_amount=4000.0, round_off=0,
             net_amount=4000.0, remarks="",
             items=[{
-                "item_id": self.item_id, "pack_size": "10x10",
+                "item_id": self.item_id, "pack_size": "1",
                 "pay_qty": 100, "free_qty": 0, "batch_no": "BATCH-A",
                 "expiry": "12/27", "rate": 40.0, "mrp": 50.0, "discount": 0,
                 "gst_percent": 0, "gst_amount": 0, "amount": 4000.0,
@@ -702,7 +702,7 @@ class TestRegression(_BaseTest):
             other_amount=0, paid_amount=4000.0, round_off=0,
             net_amount=4000.0, remarks="",
             items=[{
-                "item_id": self.item_id, "pack_size": "10x10",
+                "item_id": self.item_id, "pack_size": "1",
                 "pay_qty": 100, "free_qty": 0, "batch_no": "BATCH-A",
                 "expiry": "12/27", "rate": 40.0, "mrp": 50.0, "discount": 0,
                 "gst_percent": 0, "gst_amount": 0, "amount": 4000.0,
@@ -727,7 +727,7 @@ class TestRegression(_BaseTest):
             net_amount=250, remarks="",
             items=[{
                 "item_id": self.item_id, "stock_batch_id": batch_id,
-                "pack_size": "10x10", "location": "", "batch_no": "BATCH-A",
+                "pack_size": "1", "location": "", "batch_no": "BATCH-A",
                 "expiry": "12/27", "mrp": 50, "sale_qty": 5,
                 "discount_amount": 0, "amount": 250,
             }],

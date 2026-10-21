@@ -107,6 +107,9 @@ class TestStockReportsSuite(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.win.close()
+        cls.win.deleteLater()
+        if cls.app:
+            cls.app.processEvents()
         if os.path.exists(cls._DB_PATH):
             try:
                 os.remove(cls._DB_PATH)
@@ -223,14 +226,15 @@ class TestStockReportsSuite(unittest.TestCase):
     def test_02_reports_siblings_preserved(self):
         """Ensures sibling report menus remain undisturbed."""
         reports = MENUS["Reports"]
-        self.assertEqual(len(reports), 7)
+        self.assertEqual(len(reports), 8)
         self.assertEqual(reports[0], "Sales Report")
         self.assertEqual(reports[1], "Purchase Report")
         self.assertEqual(reports[2], "Stock Report")
-        self.assertEqual(reports[3], "Expiry Report")
-        self.assertEqual(reports[4], "Party Wise Report")
-        self.assertEqual(reports[5], "GST Report")
-        self.assertIn("Ledger", reports[6])
+        self.assertEqual(reports[3], "Doctor's Reports")
+        self.assertEqual(reports[4], "Expiry Report")
+        self.assertEqual(reports[5], "Party Wise Report")
+        self.assertEqual(reports[6], "GST Report")
+        self.assertIn("Ledger", reports[7])
 
     def test_03_navigation_bar_builds_stock_report_submenu(self):
         """NavigationBar creates a nested QMenu for Stock Report containing the 4 options."""
@@ -249,6 +253,7 @@ class TestStockReportsSuite(unittest.TestCase):
                 "Sales Report",
                 "Purchase Report",
                 "Stock Report",
+                "Doctor's Reports",
                 "Expiry Report",
                 "Party Wise Report",
                 "GST Report",

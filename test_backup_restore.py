@@ -40,7 +40,7 @@ from database.customer_dao import CustomerDAO
 from database.supplier_dao import SupplierDAO
 from database.customer_receipt_dao import CustomerReceiptDAO
 from database.supplier_payment_dao import SupplierPaymentDAO
-from database.purchase_dao import PurchaseDAO
+from database.purchase_dao import PurchaseDAO, pack_factor
 from database.sales_dao import SalesDAO
 from database.credit_note_dao import CreditNoteDAO
 from database.debit_note_dao import DebitNoteDAO
@@ -347,7 +347,13 @@ class TestBackupCreation(_BaseTest):
         )
         self.assertEqual(len(batches), 1)
         self.assertEqual(batches[0]["batch_no"], "BATCH-A")
-        self.assertEqual(batches[0]["stock_qty"], 10.0)
+        # Purchase quantities are recorded in packs; stock_batches.stock_qty
+        # holds loose sellable units.  This fixture purchases 10 packs of
+        # pack_size "10x10" (100 units per pack) and PurchaseDAO posts
+        # 10 * pack_factor("10x10") = 1000 loose units.  The backup must
+        # preserve that posted quantity exactly.
+        self.assertEqual(batches[0]["stock_qty"], 10.0 * pack_factor("10x10"))
+        self.assertEqual(batches[0]["stock_qty"], 1000.0)
 
     def test_11_customer_supplier_preserved(self):
         info = self._backup()
