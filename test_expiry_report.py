@@ -102,7 +102,7 @@ class _BaseTest(unittest.TestCase):
 
     # ── helper: direct batch insert (no accounting side effects) ──────
     def _batch(self, item_id=None, batch_no="BATCH-A", expiry="12/27",
-               qty=10.0, rate=40.0, mrp=50.0, net_rate=None):
+               qty=10.0, rate=40.0, mrp=50.0, net_rate=None, pack_size="10x10"):
         conn = get_connection()
         try:
             cur = conn.execute(
@@ -110,10 +110,10 @@ class _BaseTest(unittest.TestCase):
                 INSERT INTO stock_batches
                     (item_id, batch_no, expiry, pack_size, mrp,
                      purchase_rate, net_rate, stock_qty)
-                VALUES (?, ?, ?, '10x10', ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    item_id or self.item_id, batch_no, expiry, mrp, rate,
+                    item_id or self.item_id, batch_no, expiry, pack_size, mrp, rate,
                     net_rate if net_rate is not None else rate, qty,
                 ),
             )
@@ -368,8 +368,8 @@ class TestDetailChecks(_BaseTest):
 
     def test_24_summary_stock_value(self):
         # stock_qty × purchase_rate, e.g. 10 × 40 = 400 ; 5 × 20 = 100
-        self._batch(batch_no="B1", expiry="10/26", qty=10, rate=40)
-        self._batch(batch_no="B2", expiry="11/26", qty=5, rate=20)
+        self._batch(batch_no="B1", expiry="10/26", qty=10, rate=40, pack_size="1")
+        self._batch(batch_no="B2", expiry="11/26", qty=5, rate=20, pack_size="1")
         s = self._report(status=STATUS_ALL)["summary"]
         self.assertEqual(s["estimated_value"], 500.0)
 
@@ -662,7 +662,7 @@ class TestRegression(_BaseTest):
         self._seed_via_purchase()
         all_stock = StockDAO.get_all()
         self.assertEqual(len(all_stock), 1)
-        self.assertEqual(all_stock[0]["stock_qty"], 10.0)
+        self.assertEqual(all_stock[0]["stock_qty"], 1000.0)
         # Stock Master's Expired filter and this report agree: both use
         # the MM/YY first-of-month convention
         expired_in_master = StockDAO.search(stock_status="Expired")

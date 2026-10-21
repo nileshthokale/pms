@@ -290,7 +290,7 @@ class _ItemEntryBar(QWidget):
         if item_id is None:
             self.batch_combo.blockSignals(False)
             return
-        batches = StockDAO.get_stock_batches_for_item(item_id)
+        batches = StockDAO.get_stock_batches_for_item(item_id, include_zero_stock=True)
         self.batch_combo.addItem("-- Select Batch --", None)
         for b in batches:
             exp = b.get("expiry", "")

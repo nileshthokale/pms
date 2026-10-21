@@ -8,12 +8,24 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+import os
 import screens
 from database import init_database
 from database import auth
 from database import financial_year
-from version import APP_TITLE
+import version
 from ui import theme
+
+
+def _get_window_title(action: str = "") -> str:
+    """Return the application window title, ensuring staging mode branding is preserved."""
+    base = version.APP_TITLE
+    if os.environ.get("PHARMACY_STAGING_MODE") == "1":
+        if "[STAGING / AUDIT MODE]" not in base:
+            base = f"{version.APP_NAME} [STAGING / AUDIT MODE] v{version.APP_VERSION}"
+    if action:
+        return f"{base}  -  {action}"
+    return base
 from ui import components as ui
 from ui.menu_data import MENUS
 from ui.navigation_bar import NavigationBar
@@ -38,7 +50,7 @@ class PharmacyMainWindow(QMainWindow):
         init_database()
         auth.ensure_auth_schema()
         financial_year.ensure_default_financial_year()
-        self.setWindowTitle(APP_TITLE)
+        self.setWindowTitle(_get_window_title())
         # Desktop-first: comfortable at 1366x768 and scales up to 1920x1080.
         self.resize(1366, 760)
         self.setMinimumSize(1024, 640)
@@ -319,11 +331,11 @@ class PharmacyMainWindow(QMainWindow):
         key = f"{menu}:{action}"
         if key in self._page_map:
             self._stack.setCurrentIndex(self._page_map[key])
-            self.setWindowTitle(f"{APP_TITLE}  -  {action}")
+            self.setWindowTitle(_get_window_title(action))
             self._nav.status_label.setText(f"{menu} / {action}")
         elif f"Reports:{action}" in self._page_map:
             self._stack.setCurrentIndex(self._page_map[f"Reports:{action}"])
-            self.setWindowTitle(f"{APP_TITLE}  -  {action}")
+            self.setWindowTitle(_get_window_title(action))
             self._nav.status_label.setText(f"Reports / {action}")
 
     # ── financial-year viewing ──────────────────────────────────
@@ -358,7 +370,7 @@ class PharmacyMainWindow(QMainWindow):
             self.close()
             return
         self._nav.refresh_user()
-        self.setWindowTitle(APP_TITLE)
+        self.setWindowTitle(_get_window_title())
 
     # ── theme ────────────────────────────────────────────────────────
     def _apply_theme(self):

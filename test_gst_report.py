@@ -560,9 +560,9 @@ class TestSafety(_BaseTest):
 
     def test_27_stock_unchanged(self):
         self._purchase(lines=[self._line(pay_qty=10, free_qty=2, rate=40)])
-        self.assertEqual(self._stock_qty(), 12.0)
+        self.assertEqual(self._stock_qty(), 1200.0)
         GSTReportDAO.get_purchase_gst_report()
-        self.assertEqual(self._stock_qty(), 12.0)
+        self.assertEqual(self._stock_qty(), 1200.0)
 
 
 # ======================================================================
@@ -675,7 +675,7 @@ class TestRegression(_BaseTest):
         self._purchase(lines=[self._line(pay_qty=10, free_qty=2, rate=40)])
         all_stock = StockDAO.get_all()
         self.assertEqual(len(all_stock), 1)
-        self.assertEqual(all_stock[0]["stock_qty"], 12.0)
+        self.assertEqual(all_stock[0]["stock_qty"], 1200.0)
 
     def test_38_sales_report_still_works(self):
         self._purchase(lines=[self._line(pay_qty=10, free_qty=0, rate=40)])

@@ -23,3 +23,12 @@ PharmaWinner*.sql
 # build/windows/pharmacy_management.spec stays tracked.
 dist/
 build/pharmacy_management/
+build/pharmacy_management_test/
+build/test_release_staging/
+build/*.txt
+test_release_validation/
+
+# Large migration raw dumps (use summary JSONs instead)
+migration_backups/*.csv
+migration_backups/*.jsonl
+migration_backups/*changes.json

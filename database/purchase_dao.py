@@ -20,14 +20,43 @@ def pack_factor(pack_size) -> float:
 
     Purchase ``pay_qty``/``free_qty`` are recorded in packs while
     ``stock_batches.stock_qty`` holds individual loose units, so postings
-    multiply by this factor.  Non-numeric or missing pack sizes fall back
-    to 1.0 (one unit per pack), matching pack-size-1 items.
+    multiply by this factor. Robustly parses:
+      - Plain numbers: "10" -> 10.0, "15" -> 15.0
+      - Text suffixes: "10'S" -> 10.0, "10TAB" -> 10.0, "100ML" -> 100.0
+      - Multiplications: "1*10" -> 10.0, "10*10" -> 100.0, "1X10" -> 10.0
+    Non-numeric or missing pack sizes fall back to 1.0.
     """
-    try:
-        factor = float(str(pack_size).strip())
-    except (TypeError, ValueError, AttributeError):
+    if pack_size is None:
         return 1.0
-    return factor if factor > 0 else 1.0
+    text = str(pack_size).strip()
+    if not text:
+        return 1.0
+    try:
+        factor = float(text)
+        return factor if factor > 0 else 1.0
+    except (ValueError, TypeError):
+        pass
+
+    import re
+    # Check for expressions like 10*10 or 1*10 or 1X10
+    mult = re.match(r'^(\d+(?:\.\d+)?)\s*[*xX]\s*(\d+(?:\.\d+)?)$', text)
+    if mult:
+        try:
+            val = float(mult.group(1)) * float(mult.group(2))
+            return val if val > 0 else 1.0
+        except (ValueError, TypeError):
+            pass
+
+    # Extract leading or embedded number (e.g., 10's, 10TAB, 10 CAP, 100ML)
+    m = re.search(r'(\d+(?:\.\d+)?)', text)
+    if m:
+        try:
+            val = float(m.group(1))
+            return val if val > 0 else 1.0
+        except (ValueError, TypeError):
+            pass
+
+    return 1.0
 
 
 class PurchaseDAO:

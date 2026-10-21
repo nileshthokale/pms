@@ -1,0 +1,47 @@
+{
+  "generated_at": "2026-10-20T18:00:46.779884",
+  "migration_status": "COMPLETED_ON_STAGING_AWAITING_APPROVAL",
+  "promotion_safety_gate": "BLOCKED (Promotion to active database requires explicit user approval)",
+  "active_database_untouched": false,
+  "staging_integrity": "ok",
+  "staging_fk_violations": 0,
+  "total_source_rows_accounted": 506249,
+  "partition_breakdown": {
+    "PRESERVED_IN_ARCHIVE": 4102,
+    "EXCLUDED_WITH_REASON": 4350,
+    "MERGED_WITH_REASON": 7,
+    "VERIFIED_UPDATE": 1066,
+    "IMPORTED": 940,
+    "ALREADY_MATCHED": 495784,
+    "UNRESOLVED": 0
+  },
+  "staging_record_counts": {
+    "items": 940,
+    "purchase_invoices": 5723,
+    "purchase_invoice_items": 11914,
+    "sales_invoices": 72175,
+    "sales_invoice_items": 234063,
+    "credit_notes": 1354,
+    "credit_note_items": 3342,
+    "debit_notes": 14,
+    "debit_note_items": 20,
+    "supplier_payments": 786,
+    "customer_receipts": 45,
+    "stock_batches": 7808,
+    "ledger_transactions": 157584,
+    "legacy_archive_challanitemdetail": 142,
+    "legacy_archive_challanvhheader": 80,
+    "legacy_archive_countersaleitems": 2,
+    "legacy_archive_invoicedebitnote": 11,
+    "legacy_archive_ledgeropbal": 552,
+    "legacy_archive_paymentinvoice": 2671,
+    "legacy_archive_receiptinvoice": 114,
+    "legacy_archive_salescreditnote": 530
+  },
+  "audit_metrics": {
+    "unposted_credit_notes_preserved": 5,
+    "tax_reviews_required": 1,
+    "native_records_preserved": 5,
+    "idempotency_verified": true
+  }
+}

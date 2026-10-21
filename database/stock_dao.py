@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from datetime import date, datetime, timedelta
 from database.connection import get_connection
+from database.expiry_report_dao import parse_expiry
 
 
 class StockDAO:
@@ -42,7 +44,8 @@ class StockDAO:
     def search(item_name: str = "", batch_no: str = "",
                company_id: int | None = None,
                expiry_from: str = "", expiry_to: str = "",
-               stock_status: str = "All") -> list[dict]:
+               stock_status: str = "All",
+               include_zero_stock: bool = False) -> list[dict]:
         """Unified search with optional filters. stock_status: All|In Stock|Low Stock|Out of Stock|Expired."""
         clauses: list[str] = []
         params: list = []
@@ -71,11 +74,8 @@ class StockDAO:
         elif stock_status == "Out of Stock":
             clauses.append("sb.stock_qty <= 0")
         elif stock_status == "Expired":
-            # Expiry in MM/YY format — compare against today
-            # We do the comparison in Python after fetching to keep the query simple,
-            # but we still filter out obviously non-expired rows at SQL level when possible.
-            # For robustness we fetch all and filter expired in Python.
-            pass  # handled below after query
+            if not include_zero_stock:
+                clauses.append("sb.stock_qty > 0")
 
         where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
         query = StockDAO._BASE_QUERY + where + " ORDER BY i.item_name, sb.batch_no"
@@ -106,29 +106,19 @@ class StockDAO:
 
     @staticmethod
     def get_expiring(within_months: int = 3) -> list[dict]:
-        """Return batches expiring within N months from today."""
-        from datetime import datetime, timedelta
-        today = datetime.now()
+        """Return batches expiring within N months from today (including already expired)."""
+        today = date.today()
         cutoff = today + timedelta(days=within_months * 30)
-        cutoff_str = cutoff.strftime("%m/%y")
 
         all_batches = StockDAO.get_all()
         result = []
         for b in all_batches:
             exp = b.get("expiry", "")
-            if exp and StockDAO._is_expired(exp):
-                # Already expired
+            if not exp:
+                continue
+            parsed = parse_expiry(exp)
+            if parsed and parsed <= cutoff:
                 result.append(b)
-            elif exp:
-                # Check if expiring within N months
-                try:
-                    parts = exp.split("/")
-                    exp_month, exp_year = int(parts[0]), int(parts[1])
-                    exp_date = datetime(2000 + exp_year, exp_month, 1)
-                    if exp_date <= cutoff:
-                        result.append(b)
-                except (ValueError, IndexError):
-                    pass
         return result
 
     @staticmethod
@@ -177,15 +167,21 @@ class StockDAO:
         }
 
     @staticmethod
-    def get_stock_batches_for_item(item_id: int) -> list[dict]:
+    def get_stock_batches_for_item(item_id: int, include_zero_stock: bool = False) -> list[dict]:
+        """Return stock batches for an item.
+        
+        Set include_zero_stock=True for return transactions (credit notes)
+        where a sold-out batch can be accepted back into inventory.
+        """
         conn = get_connection()
         try:
+            where_clause = "WHERE item_id = ?" if include_zero_stock else "WHERE item_id = ? AND stock_qty > 0"
             cur = conn.execute(
-                """
+                f"""
                 SELECT id, item_id, batch_no, expiry, pack_size,
                        mrp, purchase_rate, stock_qty
                 FROM stock_batches
-                WHERE item_id = ? AND stock_qty > 0
+                {where_clause}
                 ORDER BY batch_no
                 """,
                 (item_id,),
@@ -214,17 +210,13 @@ class StockDAO:
 
     @staticmethod
     def _is_expired(expiry: str) -> bool:
-        """Check if expiry in MM/YY format is before today."""
+        """Check if expiry date (ISO YYYY-MM-DD or MM/YY) is before today."""
         if not expiry:
             return False
-        try:
-            from datetime import datetime
-            parts = expiry.strip().split("/")
-            month, year = int(parts[0]), int(parts[1])
-            exp_date = datetime(2000 + year, month, 1)
-            return exp_date < datetime.now()
-        except (ValueError, IndexError):
+        parsed = parse_expiry(expiry)
+        if not parsed:
             return False
+        return parsed < date.today()
 
     @staticmethod
     def get_demand_order_items() -> list[dict]:

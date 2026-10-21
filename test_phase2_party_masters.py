@@ -13,7 +13,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-SOURCE = ROOT / "PharmaWinner202610051955.sql"
+SOURCE = ROOT / "PharmaWinner202610201418.sql" if (ROOT / "PharmaWinner202610201418.sql").exists() else ROOT / "PharmaWinner202610051955.sql"
 
 
 def _fresh_db(tag: str) -> str:

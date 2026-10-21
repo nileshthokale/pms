@@ -851,6 +851,12 @@ class TestPersistence(_BaseTest):
 @unittest.skipUnless(HAS_PYSIDE6, _PYSIDE_SKIP_REASON)
 class TestBalanceSheetUI(_BaseTest):
 
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        if HAS_PYSIDE6:
+            cls._app = QApplication.instance() or QApplication([])
+
     def test_36_page_opens(self):
         page = BalanceSheetPage()
         self.assertIsNotNone(page)

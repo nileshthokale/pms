@@ -1,0 +1,24 @@
+{
+  "generated_at": "2026-10-20 17:42:23",
+  "database": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\staging\\pharmacy_staging.db",
+  "source_dump": "PharmaWinner202610201418.sql",
+  "total_changes": 0,
+  "stats": {
+    "new_items": 0,
+    "backfilled_provenance": 0,
+    "new_purchases": 0,
+    "new_purchase_items": 0,
+    "new_purchase_accounting": 0,
+    "new_sales": 0,
+    "new_sales_items": 0,
+    "new_sales_accounting": 0,
+    "new_credit_notes": 0,
+    "new_credit_note_items": 0,
+    "new_credit_note_accounting": 0,
+    "new_stock_batches": 0,
+    "updated_stock_batches": 0,
+    "archived_rows": 0,
+    "voucher_collisions": []
+  },
+  "changes": []
+}

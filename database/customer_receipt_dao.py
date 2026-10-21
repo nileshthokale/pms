@@ -101,33 +101,33 @@ class CustomerReceiptDAO:
     def get_customer_balance(customer_id: int) -> float:
         """Calculate outstanding balance for a customer.
 
-        Balance = total sales net_amount - total credit notes - total receipts.
-        Uses existing project transaction data only.
-
-        LEGACY (Phase 2C): this method predates automatic ledger posting and
-        is retained for compatibility. The Account Ledger
-        (LedgerDAO.get_balance on the customer's linked ledger) is the
-        future authoritative accounting source once all transaction types
-        are posted. Do not extend this method — new reporting should read
-        from the ledger.
+        Reads from linked ledger (authoritative accounting balance) when available.
+        Falls back to transaction calculation if unlinked.
         """
         conn = get_connection()
         try:
-            # Total sales (amount owed by customer)
+            cust = conn.execute(
+                "SELECT ledger_id FROM customers WHERE id = ?",
+                (customer_id,),
+            ).fetchone()
+            if cust and cust["ledger_id"]:
+                from database.ledger_dao import LedgerDAO
+                bal_dict = LedgerDAO.get_balance(cust["ledger_id"])
+                cb = round(bal_dict.get("closing_balance", 0.0), 2)
+                return -cb if bal_dict.get("closing_balance_type") == "Credit" else cb
+
             cur = conn.execute(
                 "SELECT COALESCE(SUM(net_amount), 0) FROM sales_invoices WHERE customer_id = ?",
                 (customer_id,),
             )
             total_sales = cur.fetchone()[0]
 
-            # Total credit notes (returns from customer, reduce what they owe)
             cur = conn.execute(
                 "SELECT COALESCE(SUM(total_amount), 0) FROM credit_notes WHERE customer_id = ?",
                 (customer_id,),
             )
             total_credit_notes = cur.fetchone()[0]
 
-            # Total receipts already received
             cur = conn.execute(
                 "SELECT COALESCE(SUM(amount), 0) FROM customer_receipts WHERE customer_id = ?",
                 (customer_id,),

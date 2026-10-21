@@ -1,0 +1,20 @@
+{
+  "active_db": {
+    "path": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\data\\pharmacy.db",
+    "size_bytes": 44474368,
+    "t0_sha256": "5a8f768322d00e42184be70d519b65b0871c7cdf54376b078b395d5ff808fb32",
+    "t1_sha256_post_backup": "5a8f768322d00e42184be70d519b65b0871c7cdf54376b078b395d5ff808fb32"
+  },
+  "source_dump": {
+    "path": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\PharmaWinner202610201418.sql",
+    "size_bytes": 35533535,
+    "sha256": "6e54dd819a077fd5a24e40ce8c21ad85f4e3040ea47dd337162347075802c388"
+  },
+  "staging_db": {
+    "path": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\staging\\pharmacy_staging.db",
+    "size_bytes": 44474368,
+    "sha256": "fba5065a89951b9ee8d2990ce942bf698e19a317e17efc5ec23d8c3b3571d2a4",
+    "integrity": "ok",
+    "fk_violations": 0
+  }
+}

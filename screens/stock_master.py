@@ -68,6 +68,19 @@ _BTN_GRAY = (
 )
 
 
+class NumericTableWidgetItem(QTableWidgetItem):
+    """QTableWidgetItem that sorts numerically based on stored float value."""
+
+    def __init__(self, value: float, display_text: str = ""):
+        super().__init__(display_text or f"{float(value or 0.0):.2f}")
+        self._val = float(value or 0.0)
+
+    def __lt__(self, other):
+        if hasattr(other, "_val"):
+            return self._val < other._val
+        return super().__lt__(other)
+
+
 class StockMasterPage(QWidget):
     """Stock / Inventory read-only table with search and filters."""
 
@@ -152,7 +165,7 @@ class StockMasterPage(QWidget):
         self._status_combo = QComboBox()
         self._status_combo.setFixedWidth(120)
         self._status_combo.setStyleSheet(_COMBO_STYLE)
-        self._status_combo.addItems(["All", "In Stock", "Low Stock", "Out of Stock", "Expired"])
+        self._status_combo.addItems(["All", "In Stock", "Low Stock", "Out of Stock", "Expired", "Expired (All)"])
         fl.addWidget(self._status_combo)
 
         # Buttons
@@ -229,12 +242,29 @@ class StockMasterPage(QWidget):
         company_id = self._company_combo.currentData()
         status = self._status_combo.currentText()
 
-        rows = StockDAO.search(
-            item_name=item_name,
-            batch_no=batch_no,
-            company_id=company_id,
-            stock_status=status,
-        )
+        if status == "Expired":
+            rows = StockDAO.search(
+                item_name=item_name,
+                batch_no=batch_no,
+                company_id=company_id,
+                stock_status="Expired",
+                include_zero_stock=False,
+            )
+        elif status == "Expired (All)":
+            rows = StockDAO.search(
+                item_name=item_name,
+                batch_no=batch_no,
+                company_id=company_id,
+                stock_status="Expired",
+                include_zero_stock=True,
+            )
+        else:
+            rows = StockDAO.search(
+                item_name=item_name,
+                batch_no=batch_no,
+                company_id=company_id,
+                stock_status=status,
+            )
         self._refresh_table(rows)
 
     def _on_clear(self):
@@ -254,24 +284,23 @@ class StockMasterPage(QWidget):
             self._table.setItem(i, 4, QTableWidgetItem(r.get("batch_no", "") or ""))
             self._table.setItem(i, 5, QTableWidgetItem(r.get("expiry", "") or ""))
 
-            mrp_item = QTableWidgetItem()
-            mrp_item.setData(Qt.DisplayRole, f"{r.get('mrp', 0.0):.2f}")
+            mrp_val = float(r.get("mrp", 0.0) or 0.0)
+            mrp_item = NumericTableWidgetItem(mrp_val, f"{mrp_val:.2f}")
             mrp_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             self._table.setItem(i, 6, mrp_item)
 
-            pr_item = QTableWidgetItem()
-            pr_item.setData(Qt.DisplayRole, f"{r.get('purchase_rate', 0.0):.2f}")
+            pr_val = float(r.get("purchase_rate", 0.0) or 0.0)
+            pr_item = NumericTableWidgetItem(pr_val, f"{pr_val:.2f}")
             pr_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             self._table.setItem(i, 7, pr_item)
 
-            nr_item = QTableWidgetItem()
-            nr_item.setData(Qt.DisplayRole, f"{r.get('net_rate', 0.0):.2f}")
+            nr_val = float(r.get("net_rate", 0.0) or 0.0)
+            nr_item = NumericTableWidgetItem(nr_val, f"{nr_val:.2f}")
             nr_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             self._table.setItem(i, 8, nr_item)
 
-            qty = r.get("stock_qty", 0.0)
-            qty_item = QTableWidgetItem()
-            qty_item.setData(Qt.DisplayRole, f"{qty:.2f}")
+            qty = float(r.get("stock_qty", 0.0) or 0.0)
+            qty_item = NumericTableWidgetItem(qty, f"{qty:.2f}")
             qty_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             if qty <= 0:
                 qty_item.setForeground(Qt.red)
@@ -280,8 +309,8 @@ class StockMasterPage(QWidget):
                 qty_item.setForeground(QColor("#b26a00"))
             self._table.setItem(i, 9, qty_item)
 
-            reorder_item = QTableWidgetItem()
-            reorder_item.setData(Qt.DisplayRole, str(r.get("reorder_stock_level", 0)))
+            reorder_val = float(r.get("reorder_stock_level", 0) or 0)
+            reorder_item = NumericTableWidgetItem(reorder_val, str(int(reorder_val)))
             reorder_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             self._table.setItem(i, 10, reorder_item)
 

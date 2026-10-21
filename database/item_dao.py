@@ -6,13 +6,26 @@ from database.connection import get_connection
 _KEEP_PROVENANCE = object()
 
 
+def _has_legacy_id_map(conn) -> bool:
+    try:
+        r = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='legacy_id_map'"
+        ).fetchone()
+        return r is not None
+    except Exception:
+        return False
+
+
 class ItemDAO:
     @staticmethod
     def get_all() -> list[dict]:
         conn = get_connection()
         try:
+            has_lim = _has_legacy_id_map(conn)
+            lim_col = "lim.legacy_id" if has_lim else "NULL AS legacy_id"
+            lim_join = "LEFT JOIN legacy_id_map lim ON lim.entity = 'item' AND lim.new_id = i.id" if has_lim else ""
             rows = conn.execute(
-                """SELECT
+                f"""SELECT
                     i.id,
                     i.item_name,
                     COALESCE(generic_names.generic_name, '') AS generic_name,
@@ -32,8 +45,10 @@ class ItemDAO:
                     i.scheduled,
                     i.location,
                     i.pathy,
-                    i.dpco
+                    i.dpco,
+                    {lim_col}
                 FROM items i
+                {lim_join}
                 LEFT JOIN units u ON i.unit_id = u.id
                 LEFT JOIN companies c ON i.company_id = c.id
                 LEFT JOIN categories cat ON i.category_id = cat.id
@@ -117,8 +132,13 @@ class ItemDAO:
     def search(name: str, category_id: int | None = None) -> list[dict]:
         conn = get_connection()
         try:
+            has_lim = _has_legacy_id_map(conn)
+            lim_col = "lim.legacy_id" if has_lim else "NULL AS legacy_id"
+            lim_join = "LEFT JOIN legacy_id_map lim ON lim.entity = 'item' AND lim.new_id = i.id" if has_lim else ""
+            where_match = "(i.item_name LIKE ? OR lim.legacy_id = ? OR CAST(i.id AS TEXT) = ?)" if has_lim else "(i.item_name LIKE ? OR CAST(i.id AS TEXT) = ?)"
+            params = (f"%{name}%", name.strip(), name.strip(), category_id, category_id) if has_lim else (f"%{name}%", name.strip(), category_id, category_id)
             rows = conn.execute(
-                """SELECT
+                f"""SELECT
                     i.id,
                     i.item_name,
                     i.unit_id,
@@ -137,15 +157,17 @@ class ItemDAO:
                     i.scheduled,
                     i.location,
                     i.pathy,
-                    i.dpco
+                    i.dpco,
+                    {lim_col}
                 FROM items i
+                {lim_join}
                 LEFT JOIN units u ON i.unit_id = u.id
                 LEFT JOIN companies c ON i.company_id = c.id
                 LEFT JOIN categories cat ON i.category_id = cat.id
-                WHERE i.item_name LIKE ?
+                WHERE {where_match}
                 AND (? IS NULL OR i.category_id = ?)
                 ORDER BY i.item_name""",
-                (f"%{name}%", category_id, category_id),
+                params,
             ).fetchall()
             return [dict(row) for row in rows]
         finally:
