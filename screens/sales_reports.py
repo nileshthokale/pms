@@ -954,6 +954,7 @@ class DailyProfitCalculationWidget(QWidget):
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
+        self._pages: List[ReportPage] = []
         root = QVBoxLayout(self)
         root.setContentsMargins(12, 12, 12, 12)
         root.setSpacing(10)
@@ -985,6 +986,11 @@ class DailyProfitCalculationWidget(QWidget):
         self.btn_export = QPushButton("Export CSV")
         self.btn_export.clicked.connect(self.export_csv)
         filter_bar.addWidget(self.btn_export)
+
+        self.btn_print = QPushButton("Print")
+        self.btn_print.setEnabled(False)
+        self.btn_print.clicked.connect(self.print_report)
+        filter_bar.addWidget(self.btn_print)
 
         filter_bar.addStretch()
         root.addLayout(filter_bar)
@@ -1086,10 +1092,115 @@ class DailyProfitCalculationWidget(QWidget):
                 self.table.setItem(tot_row_idx, col_idx, item)
 
         self.table.resizeColumnsToContents()
+        self._pages = self._build_report_pages(rows, totals, from_iso, to_iso)
+        self.btn_print.setEnabled(bool(rows))
         self.lbl_summary.setText(
             f"Dates: {len(rows)}  |  Total Sales: ₹{totals.get('net_sales', 0.0):,.2f}  |  "
             f"Total Purchase: ₹{totals.get('net_purchase', 0.0):,.2f}  |  "
             f"Net Profit: ₹{totals.get('net_profit', 0.0):,.2f}"
+        )
+
+    def print_report(self):
+        if not self._pages:
+            return
+        print_or_export_report_pages(self._pages, parent=self)
+
+    def _build_report_pages(
+        self, rows: List[dict], totals: dict, from_iso: str, to_iso: str
+    ) -> List[ReportPage]:
+        """Build the A4 landscape report pages for the current table data."""
+        store_name, store_address = get_default_store_identity()
+        header = ReportHeaderData(
+            store_name=store_name,
+            store_address=store_address,
+            header_line_1="DAILY PROFIT CALCULATION",
+            header_line_2=f"From: {fmt_date_dash(from_iso)} To: {fmt_date_dash(to_iso)}",
+            header_line_3=(
+                f"Net Sales: ₹{float(totals.get('net_sales', 0.0) or 0.0):,.2f}  |  "
+                f"Net Purchase: ₹{float(totals.get('net_purchase', 0.0) or 0.0):,.2f}  |  "
+                f"Net Profit: ₹{float(totals.get('net_profit', 0.0) or 0.0):,.2f}"
+            ),
+        )
+
+        cols = [
+            "Voucher Date",
+            "Cash Receipt",
+            "Cash Sales",
+            "Total Cash Received",
+            "Cash Payment",
+            "Cash Sales Return",
+            "Net Cash Received",
+            "Bank Payment",
+            "Credit Sales",
+            "Net Sales",
+            "Net Purchase",
+            "Net Profit",
+        ]
+        # Sums to CONTENT_WIDTH_LANDSCAPE (1053.0); each long heading keeps
+        # enough room to print in full instead of being clipped at the border.
+        widths = [80.0, 84.0, 82.0, 112.0, 86.0, 103.0, 107.0, 84.0, 80.0, 76.0, 79.0, 80.0]
+        aligns = ["center"] + ["right"] * 11
+        keys = [
+            "cash_receipt",
+            "cash_sales",
+            "total_cash_received",
+            "cash_payment",
+            "cash_sales_return",
+            "net_cash_received",
+            "bank_payment",
+            "credit_sales",
+            "net_sales",
+            "net_purchase",
+            "net_profit",
+        ]
+
+        table_header_block = ReportBlock(
+            kind=BlockKind.TABLE_HEADER,
+            height=24.0,
+            data={"columns": cols, "widths": widths, "aligns": aligns},
+        )
+        blocks: List[ReportBlock] = [table_header_block]
+
+        if not rows:
+            blocks.append(
+                ReportBlock(
+                    kind=BlockKind.EMPTY,
+                    height=32.0,
+                    data={"message": "No daily profit records found for the selected dates."},
+                )
+            )
+        else:
+            for r in rows:
+                cells = [fmt_date_dash(r.get("voucher_date", ""))]
+                cells.extend(f"{float(r.get(key) or 0.0):,.2f}" for key in keys)
+                blocks.append(
+                    ReportBlock(
+                        kind=BlockKind.DATA_ROW,
+                        height=18.0,
+                        data={"cells": cells, "widths": widths, "aligns": aligns},
+                    )
+                )
+
+            custom_cells = [
+                {"width": widths[0], "text": "Total :", "align": "right", "is_bold": True}
+            ]
+            for key, width in zip(keys, widths[1:]):
+                custom_cells.append({
+                    "width": width,
+                    "text": f"{float(totals.get(key, 0.0) or 0.0):,.2f}",
+                    "align": "right",
+                    "is_bold": True,
+                })
+            blocks.append(
+                ReportBlock(
+                    kind=BlockKind.GRAND_TOTAL,
+                    height=22.0,
+                    data={"custom_cells": custom_cells},
+                )
+            )
+
+        return paginate_sales_blocks(
+            header, blocks, table_header_block, orientation="landscape"
         )
 
     def export_csv(self):
@@ -1132,6 +1243,11 @@ class DailyProfitCalculationWidget(QWidget):
         self.btn_export.setStyleSheet(
             f"QPushButton {{ background-color: {p['border']}; color: {p['text']}; border: none; border-radius: 3px; padding: 6px 14px; font-weight: bold; }}"
             f"QPushButton:hover {{ background-color: {p['text_dim']}; color: white; }}"
+        )
+        self.btn_print.setStyleSheet(
+            f"QPushButton {{ background-color: #1B5299; color: white; border: none; border-radius: 3px; padding: 6px 14px; font-weight: bold; }}"
+            f"QPushButton:hover {{ background-color: #2669B8; }}"
+            f"QPushButton:disabled {{ background-color: {'#404040' if is_dark else '#A0B8D0'}; color: {'#707070' if is_dark else '#E0E8F0'}; }}"
         )
 
 
