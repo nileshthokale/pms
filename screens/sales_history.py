@@ -1059,7 +1059,7 @@ class SalesHistoryPage(QWidget):
 
         # ── 1. Page Title Header ─────────────────────────────────────
         title_box = QHBoxLayout()
-        self._title_lbl = QLabel("Sales History")
+        self._title_lbl = QLabel("Patient Bill History")
         self._title_lbl.setStyleSheet(f"font-size: {TYPE_PAGE_TITLE}px; font-weight: bold;")
         title_box.addWidget(self._title_lbl)
 
@@ -1073,7 +1073,7 @@ class SalesHistoryPage(QWidget):
         layout.addLayout(title_box)
 
         # ── 2. Search & Filter Bar ───────────────────────────────────
-        self._filter_box = QGroupBox("Search Historical Sales")
+        self._filter_box = QGroupBox("Search Patient Bill History")
         filter_layout = QVBoxLayout(self._filter_box)
         filter_layout.setContentsMargins(8, 12, 8, 8)
         filter_layout.setSpacing(6)
@@ -1130,7 +1130,7 @@ class SalesHistoryPage(QWidget):
         row.addWidget(self._reset_btn)
 
         self._report_btn = QPushButton("Print Report")
-        self._report_btn.setToolTip("Preview and Print Sales History Crystal Report")
+        self._report_btn.setToolTip("Preview and Print Patient Bill History Report")
         self._report_btn.clicked.connect(self._on_open_report)
         row.addWidget(self._report_btn)
 
@@ -1190,20 +1190,13 @@ class SalesHistoryPage(QWidget):
         self._view_details_btn.clicked.connect(self._on_view_details)
         footer_layout.addWidget(self._view_details_btn)
 
+        # Retained as hidden attributes for backwards compatibility
         self._print_btn = QPushButton("Print / Direct Print")
-        self._print_btn.setEnabled(False)
-        self._print_btn.clicked.connect(self._on_direct_print)
-        footer_layout.addWidget(self._print_btn)
-
+        self._print_btn.setVisible(False)
         self._save_pdf_btn = QPushButton("Save PDF")
-        self._save_pdf_btn.setEnabled(False)
-        self._save_pdf_btn.clicked.connect(self._on_save_pdf)
-        footer_layout.addWidget(self._save_pdf_btn)
-
+        self._save_pdf_btn.setVisible(False)
         self._footer_report_btn = QPushButton("Print Report")
-        self._footer_report_btn.setToolTip("Preview and Print Sales History Crystal Report")
-        self._footer_report_btn.clicked.connect(self._on_open_report)
-        footer_layout.addWidget(self._footer_report_btn)
+        self._footer_report_btn.setVisible(False)
 
         footer_layout.addStretch(1)
 
