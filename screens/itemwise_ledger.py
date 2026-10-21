@@ -40,6 +40,7 @@ from screens.ledger_widgets import (
     SearchableSelector,
     btn_primary_style,
     btn_secondary_style,
+    date_edit_style,
     make_date_edit,
     table_header_style,
     table_style,
@@ -156,7 +157,7 @@ class ItemwiseLedgerPage(QWidget):
 
         # Opening stock
         self._lbl_card_os = QLabel("Opening Stock:")
-        self._lbl_card_os.setStyleSheet(f"color: {p['text_dim']}; font-size: 13px; font-weight: bold;")
+        self._lbl_card_os.setStyleSheet(f"color: {p['text']}; font-size: 13px; font-weight: bold;")
         self._val_card_os = QLabel("0")
         self._val_card_os.setStyleSheet(f"color: {p['text']}; font-size: 15px; font-weight: bold;")
         os_box = QVBoxLayout()
@@ -167,7 +168,7 @@ class ItemwiseLedgerPage(QWidget):
 
         # Total Inward
         self._lbl_card_in = QLabel("Total Inward:")
-        self._lbl_card_in.setStyleSheet(f"color: {p['text_dim']}; font-size: 13px; font-weight: bold;")
+        self._lbl_card_in.setStyleSheet(f"color: {p['text']}; font-size: 13px; font-weight: bold;")
         self._val_card_in = QLabel("0")
         self._val_card_in.setStyleSheet(f"color: {p['text']}; font-size: 15px; font-weight: bold;")
         in_box = QVBoxLayout()
@@ -178,7 +179,7 @@ class ItemwiseLedgerPage(QWidget):
 
         # Total Outward
         self._lbl_card_out = QLabel("Total Outward:")
-        self._lbl_card_out.setStyleSheet(f"color: {p['text_dim']}; font-size: 13px; font-weight: bold;")
+        self._lbl_card_out.setStyleSheet(f"color: {p['text']}; font-size: 13px; font-weight: bold;")
         self._val_card_out = QLabel("0")
         self._val_card_out.setStyleSheet(f"color: {p['text']}; font-size: 15px; font-weight: bold;")
         out_box = QVBoxLayout()
@@ -189,9 +190,9 @@ class ItemwiseLedgerPage(QWidget):
 
         # Closing Stock
         self._lbl_card_cs = QLabel("Closing Stock:")
-        self._lbl_card_cs.setStyleSheet(f"color: {p['text_dim']}; font-size: 13px; font-weight: bold;")
+        self._lbl_card_cs.setStyleSheet(f"color: {p['text']}; font-size: 13px; font-weight: bold;")
         self._val_card_cs = QLabel("0")
-        self._val_card_cs.setStyleSheet(f"color: {p['accent']}; font-size: 16px; font-weight: bold;")
+        self._val_card_cs.setStyleSheet(f"color: {p.get('success', '#2e7d32')}; font-size: 16px; font-weight: bold;")
         cs_box = QVBoxLayout()
         cs_box.setSpacing(2)
         cs_box.addWidget(self._lbl_card_cs)
@@ -200,7 +201,7 @@ class ItemwiseLedgerPage(QWidget):
 
         # Current on hand
         self._lbl_card_hand = QLabel("Batch Stock (On Hand):")
-        self._lbl_card_hand.setStyleSheet(f"color: {p['text_dim']}; font-size: 13px; font-weight: bold;")
+        self._lbl_card_hand.setStyleSheet(f"color: {p['text']}; font-size: 13px; font-weight: bold;")
         self._val_card_hand = QLabel("0")
         self._val_card_hand.setStyleSheet(f"color: {p.get('success', '#2e7d32')}; font-size: 15px; font-weight: bold;")
         hand_box = QVBoxLayout()
@@ -250,6 +251,11 @@ class ItemwiseLedgerPage(QWidget):
         self._apply_theme_styles(p)
         self._load_options()
         self._set_default_dates()
+        try:
+            from ui import theme
+            theme.theme_manager.on_changed(lambda mode: self.refresh_theme())
+        except Exception:
+            pass
 
     # ── Option loading & Date initialization ─────────────────────────
 
@@ -307,7 +313,9 @@ class ItemwiseLedgerPage(QWidget):
         self._val_card_os.setText("0")
         self._val_card_in.setText("0")
         self._val_card_out.setText("0")
+        p = palette()
         self._val_card_cs.setText("0")
+        self._val_card_cs.setStyleSheet(f"color: {p.get('success', '#2e7d32')}; font-size: 16px; font-weight: bold;")
         self._val_card_hand.setText("0")
         self._status_badge.setText("")
 
@@ -327,7 +335,9 @@ class ItemwiseLedgerPage(QWidget):
                 self._val_card_os.setText("0")
                 self._val_card_in.setText("0")
                 self._val_card_out.setText("0")
+                p = palette()
                 self._val_card_cs.setText("0")
+                self._val_card_cs.setStyleSheet(f"color: {p.get('success', '#2e7d32')}; font-size: 16px; font-weight: bold;")
                 self._val_card_hand.setText("0")
                 self._status_badge.setText("")
                 if displayed_text and displayed_text != getattr(self._item_selector, "_placeholder", ""):
@@ -396,6 +406,8 @@ class ItemwiseLedgerPage(QWidget):
 
         cs = report["closing_stock"]
         self._val_card_cs.setText(f"{cs:g} {uname}")
+        cs_color = p.get("success", "#2e7d32") if cs >= 0 else p.get("danger", "#c0392b")
+        self._val_card_cs.setStyleSheet(f"color: {cs_color}; font-size: 16px; font-weight: bold;")
 
         cbs = report["current_batch_stock"]
         self._val_card_hand.setText(f"{cbs:g} {uname}")
@@ -501,14 +513,23 @@ class ItemwiseLedgerPage(QWidget):
         self._header.setStyleSheet(
             f"background-color: {p['surface']}; border-bottom: 1px solid {p['border']};"
         )
+        self._title_label.setStyleSheet(
+            f"color: {p['text']}; font-size: {TYPE_PAGE_TITLE}px; font-weight: bold;"
+            f"background: transparent; font-family: 'Segoe UI';"
+        )
+        self._header_hint.setStyleSheet(
+            f"color: {p['text_dim']}; font-size: 13px; background: transparent;"
+            f"font-family: 'Segoe UI'; margin-left: 14px;"
+        )
+
         self._filter_bar.setStyleSheet(
             f"background-color: {p['surface']}; border-bottom: 1px solid {p['border']};"
         )
-        self._summary_panel.setStyleSheet(
-            f"background-color: {p.get('surface_alt', p['surface'])}; border-bottom: 1px solid {p['border']};"
-        )
-        self._table.setStyleSheet(table_style(p))
-        self._table.horizontalHeader().setStyleSheet(table_header_style(p))
+        self._lbl_item.setStyleSheet(f"color: {p['text']}; font-weight: bold; font-size: 14px;")
+        self._lbl_from.setStyleSheet(f"color: {p['text']}; font-weight: bold; font-size: 14px;")
+        self._from_date.setStyleSheet(date_edit_style(p))
+        self._lbl_to.setStyleSheet(f"color: {p['text']}; font-weight: bold; font-size: 14px;")
+        self._to_date.setStyleSheet(date_edit_style(p))
 
         self._btn_show.setStyleSheet(btn_primary_style(p))
         self._btn_print.setStyleSheet(
@@ -519,6 +540,34 @@ class ItemwiseLedgerPage(QWidget):
         self._btn_clear.setStyleSheet(btn_secondary_style(p))
 
         self._item_selector.refresh_theme(p)
+
+        self._summary_panel.setStyleSheet(
+            f"background-color: {p.get('surface_alt', p['surface'])}; border-bottom: 1px solid {p['border']};"
+        )
+        self._info_item.setStyleSheet(f"color: {p['text']}; font-size: 14px; font-weight: bold;")
+
+        self._lbl_card_os.setStyleSheet(f"color: {p['text_dim']}; font-size: 13px; font-weight: bold;")
+        self._val_card_os.setStyleSheet(f"color: {p['text']}; font-size: 15px; font-weight: bold;")
+
+        self._lbl_card_in.setStyleSheet(f"color: {p['text']}; font-size: 13px; font-weight: bold;")
+        self._val_card_in.setStyleSheet(f"color: {p['text']}; font-size: 15px; font-weight: bold;")
+
+        self._lbl_card_out.setStyleSheet(f"color: {p['text']}; font-size: 13px; font-weight: bold;")
+        self._val_card_out.setStyleSheet(f"color: {p['text']}; font-size: 15px; font-weight: bold;")
+
+        self._lbl_card_cs.setStyleSheet(f"color: {p['text']}; font-size: 13px; font-weight: bold;")
+        cs_val = self._last_report.get('closing_stock', 0) if self._last_report else 0
+        cs_color = p.get('success', '#2e7d32') if cs_val >= 0 else p.get('danger', '#c0392b')
+        self._val_card_cs.setStyleSheet(f"color: {cs_color}; font-size: 16px; font-weight: bold;")
+
+        self._lbl_card_hand.setStyleSheet(f"color: {p['text']}; font-size: 13px; font-weight: bold;")
+        self._val_card_hand.setStyleSheet(f"color: {p.get('success', '#2e7d32')}; font-size: 15px; font-weight: bold;")
+
+        if not self._last_report:
+            self._status_badge.setStyleSheet(f"color: {p['text_dim']}; font-size: 13px;")
+
+        self._table.setStyleSheet(table_style(p))
+        self._table.horizontalHeader().setStyleSheet(table_header_style(p))
 
     def refresh_theme(self, p: dict | None = None) -> None:
         p = p or palette()

@@ -40,6 +40,7 @@ from screens.ledger_widgets import (
     SearchableSelector,
     btn_primary_style,
     btn_secondary_style,
+    date_edit_style,
     make_date_edit,
     table_header_style,
     table_style,
@@ -156,7 +157,7 @@ class CustomerLedgerPage(QWidget):
 
         # Opening balance
         self._lbl_card_ob = QLabel("Opening Balance:")
-        self._lbl_card_ob.setStyleSheet(f"color: {p['text_dim']}; font-size: 13px; font-weight: bold;")
+        self._lbl_card_ob.setStyleSheet(f"color: {p['text']}; font-size: 13px; font-weight: bold;")
         self._val_card_ob = QLabel("0.00 DR")
         self._val_card_ob.setStyleSheet(f"color: {p['text']}; font-size: 15px; font-weight: bold;")
         ob_box = QVBoxLayout()
@@ -167,7 +168,7 @@ class CustomerLedgerPage(QWidget):
 
         # Total debit
         self._lbl_card_dr = QLabel("Total Debit (Dr):")
-        self._lbl_card_dr.setStyleSheet(f"color: {p['text_dim']}; font-size: 13px; font-weight: bold;")
+        self._lbl_card_dr.setStyleSheet(f"color: {p['text']}; font-size: 13px; font-weight: bold;")
         self._val_card_dr = QLabel("0.00")
         self._val_card_dr.setStyleSheet(f"color: {p['text']}; font-size: 15px; font-weight: bold;")
         dr_box = QVBoxLayout()
@@ -178,7 +179,7 @@ class CustomerLedgerPage(QWidget):
 
         # Total credit
         self._lbl_card_cr = QLabel("Total Credit (Cr):")
-        self._lbl_card_cr.setStyleSheet(f"color: {p['text_dim']}; font-size: 13px; font-weight: bold;")
+        self._lbl_card_cr.setStyleSheet(f"color: {p['text']}; font-size: 13px; font-weight: bold;")
         self._val_card_cr = QLabel("0.00")
         self._val_card_cr.setStyleSheet(f"color: {p['text']}; font-size: 15px; font-weight: bold;")
         cr_box = QVBoxLayout()
@@ -189,9 +190,9 @@ class CustomerLedgerPage(QWidget):
 
         # Closing balance
         self._lbl_card_cb = QLabel("Closing Balance:")
-        self._lbl_card_cb.setStyleSheet(f"color: {p['text_dim']}; font-size: 13px; font-weight: bold;")
+        self._lbl_card_cb.setStyleSheet(f"color: {p['text']}; font-size: 13px; font-weight: bold;")
         self._val_card_cb = QLabel("0.00 DR")
-        self._val_card_cb.setStyleSheet(f"color: {p['accent']}; font-size: 16px; font-weight: bold;")
+        self._val_card_cb.setStyleSheet(f"color: {p['text']}; font-size: 16px; font-weight: bold;")
         cb_box = QVBoxLayout()
         cb_box.setSpacing(2)
         cb_box.addWidget(self._lbl_card_cb)
@@ -237,6 +238,11 @@ class CustomerLedgerPage(QWidget):
         self._apply_theme_styles(p)
         self._load_options()
         self._set_default_dates()
+        try:
+            from ui import theme
+            theme.theme_manager.on_changed(lambda mode: self.refresh_theme())
+        except Exception:
+            pass
 
     # ── Option loading & Date initialization ─────────────────────────
 
@@ -290,11 +296,16 @@ class CustomerLedgerPage(QWidget):
         self._table.setRowCount(0)
         self._last_report = None
         self._btn_print.setEnabled(False)
+        p = palette()
         self._info_party.setText("Party: -")
         self._val_card_ob.setText("0.00 DR")
+        self._val_card_ob.setStyleSheet(f"color: {p['text']}; font-size: 15px; font-weight: bold;")
         self._val_card_dr.setText("0.00")
+        self._val_card_dr.setStyleSheet(f"color: {p['text']}; font-size: 15px; font-weight: bold;")
         self._val_card_cr.setText("0.00")
+        self._val_card_cr.setStyleSheet(f"color: {p['text']}; font-size: 15px; font-weight: bold;")
         self._val_card_cb.setText("0.00 DR")
+        self._val_card_cb.setStyleSheet(f"color: {p['text']}; font-size: 16px; font-weight: bold;")
         self._status_badge.setText("")
 
     def _on_generate(self):
@@ -309,11 +320,16 @@ class CustomerLedgerPage(QWidget):
                 self._table.setRowCount(0)
                 self._last_report = None
                 self._btn_print.setEnabled(False)
+                p = palette()
                 self._info_party.setText("Party: -")
                 self._val_card_ob.setText("0.00 DR")
+                self._val_card_ob.setStyleSheet(f"color: {p['text']}; font-size: 15px; font-weight: bold;")
                 self._val_card_dr.setText("0.00")
+                self._val_card_dr.setStyleSheet(f"color: {p['text']}; font-size: 15px; font-weight: bold;")
                 self._val_card_cr.setText("0.00")
+                self._val_card_cr.setStyleSheet(f"color: {p['text']}; font-size: 15px; font-weight: bold;")
                 self._val_card_cb.setText("0.00 DR")
+                self._val_card_cb.setStyleSheet(f"color: {p['text']}; font-size: 16px; font-weight: bold;")
                 self._status_badge.setText("")
                 if displayed_text and displayed_text != getattr(self._customer_selector, "_placeholder", ""):
                     QMessageBox.warning(
@@ -380,6 +396,8 @@ class CustomerLedgerPage(QWidget):
         cb = report["closing_balance"]
         cb_type = report["closing_balance_type"]
         self._val_card_cb.setText(f"{cb:,.2f} {cb_type}")
+        cb_color = p.get("danger", "#c0392b") if cb_type == "DR" else p.get("success", "#2e7d32")
+        self._val_card_cb.setStyleSheet(f"color: {cb_color}; font-size: 16px; font-weight: bold;")
 
         warning = report.get("warning")
         if warning:
@@ -477,14 +495,23 @@ class CustomerLedgerPage(QWidget):
         self._header.setStyleSheet(
             f"background-color: {p['surface']}; border-bottom: 1px solid {p['border']};"
         )
+        self._title_label.setStyleSheet(
+            f"color: {p['text']}; font-size: {TYPE_PAGE_TITLE}px; font-weight: bold;"
+            f"background: transparent; font-family: 'Segoe UI';"
+        )
+        self._header_hint.setStyleSheet(
+            f"color: {p['text_dim']}; font-size: 13px; background: transparent;"
+            f"font-family: 'Segoe UI'; margin-left: 14px;"
+        )
+
         self._filter_bar.setStyleSheet(
             f"background-color: {p['surface']}; border-bottom: 1px solid {p['border']};"
         )
-        self._summary_panel.setStyleSheet(
-            f"background-color: {p.get('surface_alt', p['surface'])}; border-bottom: 1px solid {p['border']};"
-        )
-        self._table.setStyleSheet(table_style(p))
-        self._table.horizontalHeader().setStyleSheet(table_header_style(p))
+        self._lbl_customer.setStyleSheet(f"color: {p['text']}; font-weight: bold; font-size: 14px;")
+        self._lbl_from.setStyleSheet(f"color: {p['text']}; font-weight: bold; font-size: 14px;")
+        self._from_date.setStyleSheet(date_edit_style(p))
+        self._lbl_to.setStyleSheet(f"color: {p['text']}; font-weight: bold; font-size: 14px;")
+        self._to_date.setStyleSheet(date_edit_style(p))
 
         self._btn_show.setStyleSheet(btn_primary_style(p))
         self._btn_print.setStyleSheet(
@@ -495,6 +522,34 @@ class CustomerLedgerPage(QWidget):
         self._btn_clear.setStyleSheet(btn_secondary_style(p))
 
         self._customer_selector.refresh_theme(p)
+
+        self._summary_panel.setStyleSheet(
+            f"background-color: {p.get('surface_alt', p['surface'])}; border-bottom: 1px solid {p['border']};"
+        )
+        self._info_party.setStyleSheet(f"color: {p['text']}; font-size: 14px; font-weight: bold;")
+
+        self._lbl_card_ob.setStyleSheet(f"color: {p['text']}; font-size: 13px; font-weight: bold;")
+        self._val_card_ob.setStyleSheet(f"color: {p['text']}; font-size: 15px; font-weight: bold;")
+
+        self._lbl_card_dr.setStyleSheet(f"color: {p['text']}; font-size: 13px; font-weight: bold;")
+        self._val_card_dr.setStyleSheet(f"color: {p['text']}; font-size: 15px; font-weight: bold;")
+
+        self._lbl_card_cr.setStyleSheet(f"color: {p['text']}; font-size: 13px; font-weight: bold;")
+        self._val_card_cr.setStyleSheet(f"color: {p['text']}; font-size: 15px; font-weight: bold;")
+
+        self._lbl_card_cb.setStyleSheet(f"color: {p['text']}; font-size: 13px; font-weight: bold;")
+        if self._last_report:
+            cb_type = self._last_report.get('closing_balance_type', 'DR')
+            cb_color = p.get('danger', '#c0392b') if cb_type == 'DR' else p.get('success', '#2e7d32')
+        else:
+            cb_color = p['text']
+        self._val_card_cb.setStyleSheet(f"color: {cb_color}; font-size: 16px; font-weight: bold;")
+
+        if not self._last_report:
+            self._status_badge.setStyleSheet(f"color: {p.get('danger', '#c0392b')}; font-size: 13px; font-weight: bold;")
+
+        self._table.setStyleSheet(table_style(p))
+        self._table.horizontalHeader().setStyleSheet(table_header_style(p))
 
     def refresh_theme(self, p: dict | None = None) -> None:
         p = p or palette()
