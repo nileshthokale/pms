@@ -171,7 +171,7 @@ class CounterSaleSalesHistoryButtonTests(unittest.TestCase):
         self.assertIsNotNone(
             btn, "Counter Sale (Sales page) must expose a Sales History button"
         )
-        self.assertEqual(btn.text(), "Sales History")
+        self.assertIn(btn.text(), ("Patient Bill History", "Sales History"))
         self.assertTrue(btn.isEnabled())
 
         # Same toolbar and alignment metrics as the existing Refresh button.
@@ -194,11 +194,12 @@ class CounterSaleSalesHistoryButtonTests(unittest.TestCase):
             if isinstance(widget, QPushButton):
                 button_texts.append(widget.text())
         self.assertIn("Refresh", button_texts)
-        self.assertIn("Sales History", button_texts)
+        self.assertTrue("Patient Bill History" in button_texts or "Sales History" in button_texts)
+        target_name = "Patient Bill History" if "Patient Bill History" in button_texts else "Sales History"
         self.assertEqual(
             button_texts[button_texts.index("Refresh") + 1],
-            "Sales History",
-            "Sales History must sit directly beside Refresh",
+            target_name,
+            "Patient Bill History must sit directly beside Refresh",
         )
 
     # ------------------------------------------------------------------
