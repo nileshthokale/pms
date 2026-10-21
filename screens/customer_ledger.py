@@ -32,6 +32,10 @@ from PySide6.QtWidgets import (
 from core.doc_formatter import format_document_number
 from database import financial_year
 from database.ledger_report_dao import LedgerReportDAO
+from screens.ledger_report_pages import (
+    build_party_ledger_pages,
+    open_ledger_report_preview,
+)
 from screens.ledger_widgets import (
     SearchableSelector,
     btn_primary_style,
@@ -119,6 +123,11 @@ class CustomerLedgerPage(QWidget):
         self._btn_show.setStyleSheet(btn_primary_style(p))
         self._btn_show.clicked.connect(self._on_generate)
         fl.addWidget(self._btn_show)
+
+        self._btn_print = QPushButton("Print")
+        self._btn_print.setEnabled(False)
+        self._btn_print.clicked.connect(self._on_print)
+        fl.addWidget(self._btn_print)
 
         self._btn_refresh = QPushButton("Refresh")
         self._btn_refresh.setStyleSheet(btn_secondary_style(p))
@@ -279,6 +288,8 @@ class CustomerLedgerPage(QWidget):
         self._customer_selector.clear_selection()
         self._set_default_dates()
         self._table.setRowCount(0)
+        self._last_report = None
+        self._btn_print.setEnabled(False)
         self._info_party.setText("Party: -")
         self._val_card_ob.setText("0.00 DR")
         self._val_card_dr.setText("0.00")
@@ -296,6 +307,8 @@ class CustomerLedgerPage(QWidget):
             customer_id = self._customer_selector.selected_id
             if not customer_id:
                 self._table.setRowCount(0)
+                self._last_report = None
+                self._btn_print.setEnabled(False)
                 self._info_party.setText("Party: -")
                 self._val_card_ob.setText("0.00 DR")
                 self._val_card_dr.setText("0.00")
@@ -335,6 +348,7 @@ class CustomerLedgerPage(QWidget):
 
             self._last_report = report
             self._render(report)
+            self._btn_print.setEnabled(True)
         finally:
             self._generating = False
 
@@ -427,6 +441,12 @@ class CustomerLedgerPage(QWidget):
         self._set_cell(last_row, 6, f"{cb:,.2f} {cb_type}", bold=True, align=Qt.AlignRight,
                        color=p.get("danger", "#c0392b") if cb_type == "DR" else p.get("success", "#2e7d32"))
 
+    def _on_print(self):
+        if not self._last_report:
+            return
+        pages = build_party_ledger_pages(self._last_report, "Customer")
+        open_ledger_report_preview(self, "Customer Ledger", pages)
+
     def _set_cell(
         self,
         row: int,
@@ -467,6 +487,10 @@ class CustomerLedgerPage(QWidget):
         self._table.horizontalHeader().setStyleSheet(table_header_style(p))
 
         self._btn_show.setStyleSheet(btn_primary_style(p))
+        self._btn_print.setStyleSheet(
+            btn_primary_style(p)
+            + f"QPushButton:disabled {{ background-color: {p['border']}; color: {p['text_dim']}; }}"
+        )
         self._btn_refresh.setStyleSheet(btn_secondary_style(p))
         self._btn_clear.setStyleSheet(btn_secondary_style(p))
 
