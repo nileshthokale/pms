@@ -80,6 +80,7 @@ MENUS = {
         SubmenuDict({
             "Sales Report": REPORT_SALES_SUBMENU,
         }),
+        "Duplicate Sales Bill",
         SubmenuDict({
             "Purchase Report": REPORT_PURCHASE_SUBMENU,
         }),
