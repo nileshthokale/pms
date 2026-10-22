@@ -3,6 +3,7 @@ from screens.counter_sale_actions import (
     DemandOrderDialog,
     CustomerBalanceDialog,
     SupplierBalanceDialog,
+    StockAdjustmentDialog,
 )
 from screens.company_master import CompanyMasterPage
 from screens.unit_master import UnitMasterPage
@@ -12,6 +13,7 @@ from screens.customer_master import CustomerMasterPage
 from screens.doctor_master import DoctorMasterPage
 from screens.item_master import ItemMasterPage
 from screens.purchase_invoice import PurchaseInvoicePage
+from screens.adjusted_stock_list import AdjustedStockListPage
 from screens.stock_master import StockMasterPage
 from screens.counter_sale import CounterSalePage
 from screens.credit_note import CreditNotePage
@@ -81,7 +83,7 @@ from screens.duplicate_sales_bill import (
 __all__ = [
 
     "CompanyMasterPage", "UnitMasterPage", "DrugMasterPage", "SupplierMasterPage",
-    "CustomerMasterPage", "DoctorMasterPage", "ItemMasterPage", "PurchaseInvoicePage",
+    "CustomerMasterPage", "DoctorMasterPage", "ItemMasterPage", "PurchaseInvoicePage", "AdjustedStockListPage",
     "StockMasterPage", "CounterSalePage", "DrugSubstituteDialog", "DemandOrderDialog", "CustomerBalanceDialog", "SupplierBalanceDialog", "CreditNotePage", "DebitNotePage",
     "SupplierPaymentPage", "CustomerReceiptPage", "AccountLedgerPage", "AccountRolesPage",
     "JournalEntryPage", "TrialBalancePage", "ProfitLossPage", "BalanceSheetPage",

@@ -760,6 +760,44 @@ def init_database():
                 from database.ledger_report_dao import LedgerReportDAO
                 LedgerReportDAO.reconcile_item_baseline_stock(conn=conn, overwrite=False)
 
+        # ── Stock Adjustments Audit & Tracking ──
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS stock_adjustments (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                adjustment_date     TEXT    NOT NULL,
+                adjustment_time     TEXT    DEFAULT '',
+                item_id             INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+                stock_batch_id      INTEGER NOT NULL REFERENCES stock_batches(id) ON DELETE CASCADE,
+                batch_no            TEXT    NOT NULL,
+                expiry              TEXT    DEFAULT '',
+                pack_size           TEXT    DEFAULT '',
+                previous_qty        REAL    NOT NULL DEFAULT 0.0,
+                adjusted_qty        REAL    NOT NULL,
+                resulting_qty       REAL    NOT NULL DEFAULT 0.0,
+                mrp                 REAL    DEFAULT 0.0,
+                rate                REAL    DEFAULT 0.0,
+                tax_percent         REAL    DEFAULT 0.0,
+                net_rate            REAL    DEFAULT 0.0,
+                reason              TEXT    DEFAULT '',
+                user_name           TEXT    DEFAULT '',
+                created_at          TEXT    DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_stock_adjustments_item "
+            "ON stock_adjustments(item_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_stock_adjustments_batch "
+            "ON stock_adjustments(stock_batch_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_stock_adjustments_date "
+            "ON stock_adjustments(adjustment_date)"
+        )
+
         conn.commit()
 
         # Runs after the commit above so that no transaction is open: PRAGMA

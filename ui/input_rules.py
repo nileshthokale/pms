@@ -57,7 +57,9 @@ A screen with a genuinely case-significant field opts out once::
 
 from __future__ import annotations
 
+import ctypes
 import re
+import sys
 
 from PySide6.QtCore import QEvent, QObject, Qt, QTimer
 from PySide6.QtGui import QKeyEvent
@@ -67,6 +69,8 @@ from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
     QLineEdit,
+    QPlainTextEdit,
+    QTextEdit,
 )
 
 #: Widget property naming the per-widget override.  ``True`` forces the
@@ -85,6 +89,51 @@ _BUSY_PROPERTY = "_uppercase_busy"
 #: field is converted unless something excludes it.  A deployment that wants
 #: the conversion only where a field explicitly asks for it can flip this.
 DEFAULT_UPPERCASE = True
+
+
+# ── Windows Caps Lock Synchronization ──────────────────────────────────
+
+def is_caps_lock_on() -> bool:
+    """Return True if Windows Caps Lock is currently ON."""
+    if sys.platform != "win32":
+        return True
+    try:
+        user32 = ctypes.windll.user32
+        return bool(user32.GetKeyState(0x14) & 1)
+    except Exception:
+        return True
+
+
+def ensure_caps_lock_on() -> bool:
+    """Ensure Windows Caps Lock is turned ON when working in the software.
+
+    If Caps Lock is currently OFF on Windows, enables it both in the
+    application thread's virtual keyboard state and system-wide on the
+    keyboard. Returns True if Caps Lock is ON.
+    """
+    if sys.platform != "win32":
+        return True
+    try:
+        user32 = ctypes.windll.user32
+        VK_CAPITAL = 0x14
+
+        # 1. Update the application thread's keyboard state table
+        buf = (ctypes.c_byte * 256)()
+        if user32.GetKeyboardState(buf):
+            if not (buf[VK_CAPITAL] & 1):
+                buf[VK_CAPITAL] |= 1
+                user32.SetKeyboardState(buf)
+
+        # 2. Simulate Caps Lock toggle key event if system state is OFF
+        if not (user32.GetKeyState(VK_CAPITAL) & 1):
+            scan = user32.MapVirtualKeyW(VK_CAPITAL, 0) or 0x3A
+            KEYEVENTF_KEYUP = 0x2
+            user32.keybd_event(VK_CAPITAL, scan, 0, 0)
+            user32.keybd_event(VK_CAPITAL, scan, KEYEVENTF_KEYUP, 0)
+
+        return bool(user32.GetKeyState(VK_CAPITAL) & 1)
+    except Exception:
+        return True
 
 
 # ── Pure text logic ───────────────────────────────────────────────────
@@ -173,15 +222,11 @@ def _explicit_override(widget) -> bool | None:
     return None
 
 
-def line_edit_for(widget):
-    """The ``QLineEdit`` a typeable widget edits, or None.
-
-    Handles a plain ``QLineEdit`` and the inner editor of an editable
-    ``QComboBox``; a non-editable combo has no text field and is skipped.
-    """
+def editable_text_widget_for(widget):
+    """The editable text widget (QLineEdit, QTextEdit, QPlainTextEdit) or None."""
     if widget is None:
         return None
-    if isinstance(widget, QLineEdit):
+    if isinstance(widget, (QLineEdit, QTextEdit, QPlainTextEdit)):
         return widget
     if isinstance(widget, QComboBox):
         try:
@@ -190,6 +235,15 @@ def line_edit_for(widget):
         except Exception:
             return None
     return None
+
+
+def line_edit_for(widget):
+    """The editable text widget a typeable widget edits, or None.
+
+    Handles a plain ``QLineEdit``, ``QTextEdit``, ``QPlainTextEdit`` and the inner
+    editor of an editable ``QComboBox``; a non-editable combo has no text field and is skipped.
+    """
+    return editable_text_widget_for(widget)
 
 
 def uppercase_enabled(widget) -> bool:
@@ -205,21 +259,30 @@ def uppercase_enabled(widget) -> bool:
     override = _explicit_override(widget)
     if override is not None:
         return override
-    if not isinstance(widget, QLineEdit):
-        return False
-    try:
-        if widget.echoMode() != QLineEdit.EchoMode.Normal:
+    if isinstance(widget, QLineEdit):
+        try:
+            if widget.echoMode() != QLineEdit.EchoMode.Normal:
+                return False
+        except Exception:
             return False
-    except Exception:
-        return False
-    try:
-        if widget.isReadOnly() or not widget.isEnabled():
+        try:
+            if widget.isReadOnly() or not widget.isEnabled():
+                return False
+        except Exception:
             return False
-    except Exception:
-        return False
-    if _ancestor_blocks(widget):
-        return False
-    return DEFAULT_UPPERCASE
+        if _ancestor_blocks(widget):
+            return False
+        return DEFAULT_UPPERCASE
+    if isinstance(widget, (QTextEdit, QPlainTextEdit)):
+        try:
+            if widget.isReadOnly() or not widget.isEnabled():
+                return False
+        except Exception:
+            return False
+        if _ancestor_blocks(widget):
+            return False
+        return DEFAULT_UPPERCASE
+    return False
 
 
 def set_uppercase(widget, enabled: bool | None) -> None:
@@ -258,6 +321,30 @@ def apply_uppercase(edit) -> bool:
     """
     if edit is None:
         return False
+    if isinstance(edit, (QTextEdit, QPlainTextEdit)):
+        try:
+            original = edit.toPlainText()
+        except Exception:
+            return False
+        upper = coerce_upper(original)
+        if upper == original:
+            return False
+        if edit.property(_BUSY_PROPERTY):
+            return False
+        try:
+            edit.setProperty(_BUSY_PROPERTY, True)
+            cursor = edit.textCursor()
+            pos = cursor.position()
+            edit.setPlainText(upper)
+            cursor.setPosition(min(pos, len(upper)))
+            edit.setTextCursor(cursor)
+            return True
+        finally:
+            try:
+                edit.setProperty(_BUSY_PROPERTY, False)
+            except Exception:
+                pass
+
     try:
         original = edit.text()
     except Exception:
@@ -337,7 +424,7 @@ def _handle_paste(watched, event) -> bool:
     Returning True consumes the key event after inserting the converted
     text, so the paste is one normal edit (one textChanged / undo step).
     """
-    edit = line_edit_for(watched)
+    edit = editable_text_widget_for(watched)
     if edit is None:
         return False
     try:
@@ -353,13 +440,19 @@ def _handle_paste(watched, event) -> bool:
         return False
     if not text:
         return False
-    # QLineEdit's own paste drops line breaks; mirror that.
-    text = " ".join(text.splitlines()) or text
+    if isinstance(edit, QLineEdit):
+        # QLineEdit's own paste drops line breaks; mirror that.
+        text = " ".join(text.splitlines()) or text
     upper = coerce_upper(text)
     if upper == text:
         return False
     try:
-        edit.insert(upper)
+        if isinstance(edit, QLineEdit):
+            edit.insert(upper)
+        elif isinstance(edit, (QTextEdit, QPlainTextEdit)):
+            edit.insertPlainText(upper)
+        else:
+            return False
     except Exception:
         return False
     return True
@@ -409,15 +502,17 @@ def _keeps_pack_format(edit, inserted: str) -> bool:
 
 
 def _handle_key_press(watched, event) -> bool:
-    """Rewrite lower-case key text before Qt inserts it.
+    """Rewrite lower-case key text before Qt inserts it and enforce Caps Lock.
 
     Returns True when the original event was consumed and an upper-case
     replacement delivered.  One keystroke therefore produces exactly one
     ``textChanged``, one undo step and the natural caret/selection outcome.
     """
+    ensure_caps_lock_on()
+
     if _handle_paste(watched, event):
         return True
-    edit = line_edit_for(watched)
+    edit = editable_text_widget_for(watched)
     if edit is None:
         return False
     try:
@@ -431,7 +526,7 @@ def _handle_key_press(watched, event) -> bool:
         return False
     if not text:
         return False
-    if _keeps_pack_format(edit, text):
+    if isinstance(edit, QLineEdit) and _keeps_pack_format(edit, text):
         return False
     upper = coerce_upper(text)
     if upper == text:
@@ -470,7 +565,7 @@ def attach_uppercase(widget) -> bool:
     application-wide watcher may re-examine a widget as often as it likes.
     Returns True when the widget carries a hook.
     """
-    target = line_edit_for(widget)
+    target = editable_text_widget_for(widget)
     if target is None:
         return False
     try:
@@ -490,7 +585,7 @@ def attach_uppercase(widget) -> bool:
 
 
 class UppercaseInputFilter(QObject):
-    """Attaches the hook to every text field as the UI appears.
+    """Attaches the hook to every text field as the UI appears and keeps Caps Lock ON.
 
     Installed on the ``QApplication``, so it sees the events of every widget
     in every window — including dialogs that do not exist yet when the
@@ -507,14 +602,17 @@ class UppercaseInputFilter(QObject):
             kind = event.type()
             if kind == QEvent.Type.KeyPress:
                 return _handle_key_press(watched, event)
+            if kind in (QEvent.Type.WindowActivate, QEvent.Type.ApplicationActivate):
+                ensure_caps_lock_on()
             if kind == QEvent.Type.Drop or kind == QEvent.Type.InputMethod:
-                edit = line_edit_for(watched)
-                if edit is not None:
+                edit = editable_text_widget_for(watched)
+                if edit is not None and isinstance(edit, QLineEdit):
                     QTimer.singleShot(
                         0, lambda _edit=edit: _convert_after_nonkey_edit(_edit)
                     )
                 return False
             if kind == QEvent.Type.Show or kind == QEvent.Type.FocusIn:
+                ensure_caps_lock_on()
                 attach_uppercase(watched)
         except Exception:
             pass
@@ -542,7 +640,7 @@ def _app_instance() -> "QApplication | None":
 
 
 def install_uppercase_input(app=None) -> "UppercaseInputFilter | None":
-    """Attach the app-wide upper-casing watcher (idempotent).
+    """Attach the app-wide upper-casing watcher and ensure Caps Lock is ON (idempotent).
 
     Safe to call more than once and at any point in start-up: whatever
     already exists is swept immediately, and everything created later is
@@ -555,6 +653,7 @@ def install_uppercase_input(app=None) -> "UppercaseInputFilter | None":
         app = _app_instance()
     if app is None:
         return None
+    ensure_caps_lock_on()
     if _filter is None or _filter_app is not app:
         candidate = UppercaseInputFilter(app)
         try:
@@ -564,7 +663,7 @@ def install_uppercase_input(app=None) -> "UppercaseInputFilter | None":
         _filter, _filter_app, _focus_hooked = candidate, app, False
     if not _focus_hooked:
         try:
-            app.focusChanged.connect(lambda _old, now: attach_uppercase(now))
+            app.focusChanged.connect(lambda _old, now: (ensure_caps_lock_on(), attach_uppercase(now)))
         except Exception:
             pass
         else:
@@ -588,8 +687,13 @@ def sweep_uppercase_input(root=None) -> int:
         if hasattr(root, "allWidgets"):
             widgets = list(root.allWidgets())
         else:
-            widgets = ([root] + list(root.findChildren(QLineEdit))
-                       + list(root.findChildren(QComboBox)))
+            widgets = (
+                [root]
+                + list(root.findChildren(QLineEdit))
+                + list(root.findChildren(QComboBox))
+                + list(root.findChildren(QTextEdit))
+                + list(root.findChildren(QPlainTextEdit))
+            )
     except Exception:
         return 0
     attached = 0
@@ -610,12 +714,15 @@ def uppercase_filter() -> "UppercaseInputFilter | None":
 __all__ = [
     "UPPERCASE_PROPERTY",
     "DEFAULT_UPPERCASE",
+    "is_caps_lock_on",
+    "ensure_caps_lock_on",
     "coerce_upper",
     "needs_conversion",
     "uppercase_enabled",
     "set_uppercase",
     "apply_uppercase",
     "attach_uppercase",
+    "editable_text_widget_for",
     "line_edit_for",
     "install_uppercase_input",
     "sweep_uppercase_input",

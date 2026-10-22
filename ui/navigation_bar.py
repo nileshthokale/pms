@@ -24,6 +24,7 @@ MENU_SHORTCUTS = {
     "Daily Profit Calculation": "Ctrl+O",
     "Sales Report": "Ctrl+F1",
     "Duplicate Sales Bill": "Ctrl+Shift+F1",
+    "Stock Adjustment": "Ctrl+A",
 }
 from PySide6.QtWidgets import (
     QComboBox,

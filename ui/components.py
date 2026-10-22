@@ -1002,6 +1002,9 @@ class SearchableComboBox(ConstrainedComboBox):
     def clear_selection(self):
         """Reset combo to empty/unselected state and clear lineEdit text."""
         self.setCurrentIndex(-1)
+        popup = getattr(self, "_completer", None) and self._completer.popup()
+        if popup and popup.isVisible():
+            popup.hide()
         line = self.lineEdit()
         if line is not None:
             line.clear()

@@ -3,6 +3,23 @@ from __future__ import annotations
 from database.connection import get_connection
 
 
+class PatientOption(str):
+    """Patient name suggestion with optional saved address context.
+
+    Subclasses str so that isinstance(opt, str) and opt == 'NAME' remain true
+    for full backward compatibility with any code expecting string suggestions.
+    """
+    def __new__(cls, name: str, address: str = "", is_duplicate: bool = False):
+        clean_name = " ".join((name or "").split()).strip()
+        obj = str.__new__(cls, clean_name)
+        obj.name = clean_name
+        clean_addr = " ".join((address or "").split()).strip()
+        obj.address = clean_addr
+        # Show address in parentheses when disambiguation is needed for duplicate names
+        obj.display_text = f"{clean_name}  ({clean_addr})" if (is_duplicate and clean_addr) else clean_name
+        return obj
+
+
 class CustomerDAO:
 
     @staticmethod
@@ -239,6 +256,95 @@ class CustomerDAO:
         return addresses
 
     @staticmethod
+    def get_matching_patients(query: str = "", limit: int = 50) -> list[PatientOption]:
+        """Search existing patient and customer records in SQLite for matching patients.
+
+        Queries:
+          1. patient_addresses (saved mapping of patient_name -> address)
+          2. customers (customer_name -> address, excluding WALKIN)
+          3. sales_invoices (distinct patient_name, excluding WALKIN)
+
+        Matches case-insensitively across words, prioritizes exact and prefix matches,
+        and includes address context for disambiguation.
+        """
+        CustomerDAO._ensure_patient_addresses_table()
+
+        clean = " ".join((query or "").split()).strip()
+        words = clean.split()
+
+        import sqlite3
+        conn = get_connection()
+        try:
+            clauses = []
+            params = []
+            for w in words:
+                clauses.append("patient_name LIKE ?")
+                params.append(f"%{w}%")
+            where_sql = ("WHERE " + " AND ".join(clauses)) if clauses else "WHERE 1=1"
+
+            sql = f"""
+            WITH combined AS (
+                SELECT patient_name, address, 1 as priority
+                FROM patient_addresses
+                WHERE patient_name IS NOT NULL AND TRIM(patient_name) <> ''
+                  AND UPPER(TRIM(patient_name)) NOT IN ('WALKIN', 'WALKIN CUSTOMER')
+
+                UNION ALL
+
+                SELECT customer_name as patient_name, address, 2 as priority
+                FROM customers
+                WHERE customer_name IS NOT NULL AND TRIM(customer_name) <> ''
+                  AND UPPER(TRIM(customer_name)) NOT IN ('WALKIN', 'WALKIN CUSTOMER')
+
+                UNION ALL
+
+                SELECT patient_name, '' as address, 3 as priority
+                FROM sales_invoices
+                WHERE patient_name IS NOT NULL AND TRIM(patient_name) <> ''
+                  AND UPPER(TRIM(patient_name)) NOT IN ('WALKIN', 'WALKIN CUSTOMER')
+            )
+            SELECT patient_name, address, priority
+            FROM combined
+            {where_sql}
+            ORDER BY
+                CASE
+                    WHEN UPPER(TRIM(patient_name)) = UPPER(?) THEN 1
+                    WHEN UPPER(TRIM(patient_name)) LIKE UPPER(?) || '%' THEN 2
+                    ELSE 3
+                END,
+                priority ASC,
+                patient_name ASC,
+                address ASC
+            """
+            cur = conn.execute(sql, params + [clean, clean])
+            rows = cur.fetchall()
+
+            raw_items = []
+            seen = set()
+            name_counts = {}
+            for row in rows:
+                name = " ".join(str(row[0] if not isinstance(row, sqlite3.Row) else row["patient_name"] or "").split()).strip()
+                addr = " ".join(str(row[1] if not isinstance(row, sqlite3.Row) else row["address"] or "").split()).strip()
+                if not name:
+                    continue
+                key = (name.upper(), addr.upper())
+                if key in seen:
+                    continue
+                seen.add(key)
+                raw_items.append((name, addr))
+                name_counts[name.upper()] = name_counts.get(name.upper(), 0) + 1
+                if len(raw_items) >= limit:
+                    break
+
+            results: list[PatientOption] = []
+            for name, addr in raw_items:
+                is_dup = name_counts.get(name.upper(), 0) > 1
+                results.append(PatientOption(name, addr, is_duplicate=is_dup))
+            return results
+        finally:
+            conn.close()
+
+    @staticmethod
     def get_distinct_addresses(query: str = "") -> list[tuple[str, str]]:
         """Return distinct saved addresses matching query as (clean_address, display_text).
 
@@ -254,55 +360,48 @@ class CustomerDAO:
         results: list[tuple[str, str]] = []
         seen: set[str] = set()
 
-        def _add(clean_addr: str, person_name: str | None = None):
+        def _add(clean_addr: str):
             clean = " ".join((clean_addr or "").split()).strip()
             if not clean:
                 return
-            p_name = " ".join((person_name or "").split()).strip()
-            if p_name and p_name.upper() not in ("WALKIN", "WALKIN CUSTOMER"):
-                disp = f"{clean}  ({p_name})"
-            else:
-                disp = clean
-            key = (clean.upper(), disp.upper())
+            key = clean.upper()
             if key not in seen:
                 seen.add(key)
-                results.append((clean, disp))
+                results.append((clean, clean))
 
         try:
             # 1. From patient_addresses table
             cur = conn.execute(
                 """
-                SELECT address, patient_name
+                SELECT address
                 FROM patient_addresses
                 WHERE address IS NOT NULL AND TRIM(address) <> ''
-                  AND (address COLLATE NOCASE LIKE ? OR patient_name COLLATE NOCASE LIKE ?)
+                  AND address COLLATE NOCASE LIKE ?
                 ORDER BY updated_at DESC, id DESC
                 LIMIT 50
                 """,
-                (pattern, pattern),
+                (pattern,),
             )
             for row in cur.fetchall():
                 c_addr = row["address"] if isinstance(row, sqlite3.Row) else row[0]
-                p_name = row["patient_name"] if isinstance(row, sqlite3.Row) else row[1]
-                _add(c_addr, p_name)
+                _add(c_addr)
 
             # 2. From customers table
             cur = conn.execute(
                 """
-                SELECT address, customer_name
+                SELECT address
                 FROM customers
                 WHERE address IS NOT NULL AND TRIM(address) <> ''
-                  AND (address COLLATE NOCASE LIKE ? OR customer_name COLLATE NOCASE LIKE ?)
+                  AND address COLLATE NOCASE LIKE ?
                   AND UPPER(TRIM(customer_name)) NOT IN ('WALKIN', 'WALKIN CUSTOMER')
                 ORDER BY address ASC
                 LIMIT 50
                 """,
-                (pattern, pattern),
+                (pattern,),
             )
             for row in cur.fetchall():
                 c_addr = row["address"] if isinstance(row, sqlite3.Row) else row[0]
-                c_name = row["customer_name"] if isinstance(row, sqlite3.Row) else row[1]
-                _add(c_addr, c_name)
+                _add(c_addr)
         finally:
             conn.close()
 
