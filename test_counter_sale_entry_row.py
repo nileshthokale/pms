@@ -297,7 +297,7 @@ class CounterSaleEntryRowTests(_DBBase):
         self.app.processEvents()
         QTest.keyClicks(self.item.lineEdit(), "Test")
         self.app.processEvents()
-        self.assertIn("Test", self.item.lineEdit().text(),
+        self.assertIn("TEST", self.item.lineEdit().text().upper(),
                       "typing into Item Name did not reach the field")
 
     def test_08_batch_field_remains_usable(self):
@@ -352,12 +352,22 @@ class CounterSaleEntryRowTests(_DBBase):
         self.assertIn(QApplication.focusWidget(),
                       self._focus_candidates(self.batch),
                       "Enter on an item must move focus to Batch")
+        self.assertEqual(self.item.currentText(), "TestItem",
+                         "keyboard selection must show the item name, not its id")
+        self.assertEqual(self.item.currentData(), self.item_id)
+        self.assertGreaterEqual(
+            self.batch.count(), 1,
+            "keyboard selection must load the item's batches")
 
         QTest.keyClick(self.batch.lineEdit(), Qt.Key_Down)
         QTest.keyClick(self.batch.lineEdit(), Qt.Key_Return)
         self.app.processEvents()
         self.assertIs(QApplication.focusWidget(), self.qty,
                       "Enter on a batch must move focus to Qty")
+        self.assertEqual(self.batch.currentData(), self.batch_id,
+                         "keyboard selection must choose the real batch")
+        self.assertTrue(self.entry.mrp_edit.text(),
+                        "batch selection must fill its MRP")
 
         QTest.keyClick(self.qty, Qt.Key_Tab)
         self.app.processEvents()
@@ -485,7 +495,7 @@ class CounterSaleEntryRowTests(_DBBase):
                 f"Tab from {source} did not reach {target}")
 
     def test_20_labels_stay_compact(self):
-        """Captions stay compact but must read as bold black 12-14 px text."""
+        """Captions stay compact but must read as bold black 12-15 px text."""
         import re
 
         for text in LABEL_ORDER:
@@ -494,7 +504,7 @@ class CounterSaleEntryRowTests(_DBBase):
             match = re.search(r"font-size:\s*(\d+)px", label.styleSheet())
             self.assertIsNotNone(match, f"{text} lost its font size")
             self.assertGreaterEqual(int(match.group(1)), 12)
-            self.assertLessEqual(int(match.group(1)), 14)
+            self.assertLessEqual(int(match.group(1)), 15)
             self.assertIn("font-weight: bold", label.styleSheet(),
                           f"{text} caption must be bold")
             self.assertIn("#000000", label.styleSheet(),

@@ -406,7 +406,10 @@ class DailyBillwiseSalesPage(_BaseSalesReportPage):
         else:
             for idx, r in enumerate(rows, 1):
                 raw_bill = str(r.get("bill_no") or "")
-                bill_no = format_sales_bill_number(raw_bill, patient_name=r.get("patient_name"))
+                bill_no = format_sales_bill_number(
+                    raw_bill,
+                    patient_name=r.get("original_patient_name", r.get("patient_name")),
+                )
                 b_date = fmt_date_dash(r.get("sale_date", ""))
                 v_type = str(r.get("voucher_type") or "Cash")
                 pat = str(r.get("patient_name") or "WALKIN").strip()
@@ -524,7 +527,7 @@ class DailyItemwiseSalesPage(_BaseSalesReportPage):
         else:
             for r in rows:
                 raw_bill = str(r.get("bill_no") or "")
-                bill_no = format_sales_bill_number(raw_bill)
+                bill_no = format_sales_bill_number(raw_bill, patient_name=r.get("patient_name"))
                 v_type = str(r.get("voucher_type") or "Cash")
                 item = str(r.get("item_name") or "")
                 mrp_val = f"{float(r.get('mrp') or 0.0):,.2f}"
@@ -904,7 +907,10 @@ class ItemwiseSalesPage(_BaseSalesReportPage):
                 d_str = fmt_date_dash(r.get("sale_date", ""))
                 v_type = str(r.get("voucher_type") or "Cash")
                 raw_bill = str(r.get("bill_no") or "")
-                bill_no = format_sales_bill_number(raw_bill)
+                bill_no = format_sales_bill_number(
+                    raw_bill,
+                    patient_name=r.get("original_patient_name", r.get("patient_name")),
+                )
                 pat = str(r.get("patient_name") or "WALKIN").strip()
                 batch = str(r.get("batch_no") or "")
                 mrp_val = f"{float(r.get('mrp') or 0.0):,.2f}"

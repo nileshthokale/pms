@@ -37,6 +37,7 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QStackedWidget,
     QSplitter,
+    QStyledItemDelegate,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -1046,6 +1047,25 @@ def _round2(value) -> float:
     return float(_d(value).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
 
+def _compute_bill_round_off(unrounded_net: float | Decimal) -> tuple[float, float]:
+    """Calculate nearest whole rupee payable and round-off adjustment.
+
+    Uses Decimal ROUND_HALF_UP so that:
+      100.16 -> round-off -0.16 -> payable 100.00
+      100.49 -> round-off -0.49 -> payable 100.00
+      100.50 -> round-off +0.50 -> payable 101.00
+      137.16 -> round-off -0.16 -> payable 137.00
+      11.25  -> round-off -0.25 -> payable 11.00
+
+    Returns:
+      (round_off, final_payable)
+    """
+    d_net = _d(unrounded_net).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    d_rounded = d_net.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    d_round_off = d_rounded - d_net
+    return float(d_round_off), float(d_rounded)
+
+
 def _mark_cs(widget, kind: str) -> None:
     """Tag a Counter Sale widget with its style kind for refresh_theme()."""
     try:
@@ -1303,8 +1323,8 @@ class _KeyboardCombo(QComboBox):
         popup = self.completer().popup()
         if not popup.isVisible():
             return
-        window = self.window()
-        bounds = QRect(window.mapToGlobal(QPoint(0, 0)), window.size())
+        screen = self.screen() or QApplication.primaryScreen()
+        bounds = screen.availableGeometry() if screen else QRect(0, 0, 1920, 1080)
         count = max(1, self.completer().completionCount())
         row_height = max(24, popup.sizeHintForRow(0))
         height = min(row_height * min(count, 10) + 4, bounds.height())
@@ -1312,13 +1332,19 @@ class _KeyboardCombo(QComboBox):
         below = self.mapToGlobal(QPoint(0, self.height())).y()
         x = min(max(bounds.left(), self.mapToGlobal(QPoint(0, 0)).x()),
                 bounds.right() - width + 1)
-        y = min(below, bounds.bottom() - height + 1)
-        y = max(bounds.top(), y)
+        if below + height > bounds.bottom():
+            above = self.mapToGlobal(QPoint(0, 0)).y() - height
+            y = max(bounds.top(), above)
+        else:
+            y = max(bounds.top(), below)
         popup.setGeometry(x, y, width, height)
 
     def _accept_text(self, text: str):
         index = self.findText(text, Qt.MatchFixedString)
         if index >= 0:
+            # Show the row's display label, never its hidden role value (an
+            # item id).  Keep signals enabled: currentIndexChanged is what
+            # loads the selected item's batches and fills batch details.
             self.setCurrentIndex(index)
             return True
         return False
@@ -1326,6 +1352,11 @@ class _KeyboardCombo(QComboBox):
     def _on_activated(self, text: str):
         if self._accept_text(text):
             self.completionAccepted.emit()
+        try:
+            self.completer().popup().hide()
+            self._restore_owner_activation()
+        except Exception:
+            pass
 
     def _accept_popup_selection(self) -> bool:
         completer = self.completer()
@@ -1343,7 +1374,9 @@ class _KeyboardCombo(QComboBox):
             index = self._selectable_index(0, 1)
             accepted = index.isValid()
         if accepted:
-            self._accept_text(index.data())
+            display = index.data(Qt.DisplayRole)
+            if display is not None:
+                self._accept_text(str(display))
         popup.hide()
         self._restore_owner_activation()
         if accepted:
@@ -1444,22 +1477,9 @@ def _patient_name_options(query: str) -> list[str]:
     return [row[0] for row in rows]
 
 
-def _address_options(query: str) -> list[str]:
-    """Distinct addresses already stored against customers."""
-    text = (query or "").strip()
-    pattern = f"%{text}%" if text else "%"
-    conn = get_connection()
-    try:
-        rows = conn.execute(
-            "SELECT DISTINCT address FROM customers "
-            "WHERE address IS NOT NULL AND TRIM(address) <> '' "
-            "AND address COLLATE NOCASE LIKE ? "
-            "ORDER BY address LIMIT ?",
-            (pattern, _DB_LOOKUP_LIMIT),
-        ).fetchall()
-    finally:
-        conn.close()
-    return [row[0] for row in rows]
+def _address_options(query: str) -> list[tuple[str, str]]:
+    """Distinct addresses already stored against customers or patients."""
+    return CustomerDAO.get_distinct_addresses(query)
 
 
 class _DBLookupCombo(_KeyboardCombo):
@@ -1469,7 +1489,7 @@ class _DBLookupCombo(_KeyboardCombo):
     list, typing filters it case-insensitively on a partial match, and
     Arrow Up / Arrow Down / Enter / Escape / Tab and mouse selection all
     work through the shared ``_KeyboardCombo`` contract.  Only the source of
-    the rows differs â€” the values are queried on demand instead of held in
+    the rows differs — the values are queried on demand instead of held in
     memory, so a large patient history stays responsive.
 
     The ``text()`` / ``setText()`` / ``clear()`` trio mirrors the plain line
@@ -1480,6 +1500,7 @@ class _DBLookupCombo(_KeyboardCombo):
                  width: int | None = None):
         super().__init__()
         self._option_provider = option_provider
+        self._patient_addresses: list[str] | None = None
         self.setStyleSheet(_COMBO_STYLE)
         if placeholder:
             self.lineEdit().setPlaceholderText(placeholder)
@@ -1495,6 +1516,17 @@ class _DBLookupCombo(_KeyboardCombo):
         self.lineEdit().textEdited.connect(self._on_text_edited)
         self._on_text_edited("")
 
+    def set_patient_addresses(self, addresses: list[str] | None):
+        self._patient_addresses = list(addresses) if addresses is not None else None
+        typed = self.lineEdit().text()
+        self._reload(typed)
+
+    def show_dropdown(self):
+        """Display the dropdown directly below the Address field."""
+        if self.count() == 0:
+            return
+        self._show_completion_popup()
+
     def _on_text_edited(self, _text: str):
         """Re-query the database for what the user has typed so far.
 
@@ -1502,13 +1534,27 @@ class _DBLookupCombo(_KeyboardCombo):
         upper-casing hook is connected first, so the argument still holds the
         pre-conversion spelling while the box already holds the final text.
         """
+        # User is typing manually in Address: unlock patient restriction so full DB is searched
+        self._patient_addresses = None
         self._reload(self.lineEdit().text())
+        typed = self.lineEdit().text().strip()
+        if typed and self.count() > 0:
+            self.show_dropdown()
+        elif not typed or self.count() == 0:
+            self.completer().popup().hide()
 
     def _reload(self, query: str):
         """Replace the suggestion rows, keeping the typed text intact."""
         typed = self.lineEdit().text()
         try:
-            options = self._option_provider(query)
+            if self._patient_addresses is not None:
+                q = (query or "").strip().upper()
+                if q:
+                    options = [a for a in self._patient_addresses if q in a.upper()]
+                else:
+                    options = list(self._patient_addresses)
+            else:
+                options = self._option_provider(query)
         except Exception:
             # A lookup failure must never block typing in the bill.
             options = []
@@ -1516,13 +1562,27 @@ class _DBLookupCombo(_KeyboardCombo):
         try:
             QComboBox.clear(self)
             for option in options:
-                self.addItem(option)
+                if isinstance(option, (tuple, list)) and len(option) >= 2:
+                    self.addItem(str(option[1]), option[0])
+                else:
+                    self.addItem(str(option), option)
             # The completer reads the combo's own model, so a selected row
             # can always be matched back by text.
             self.set_completion_model(self.model())
             self.setEditText(typed)
         finally:
             self.blockSignals(False)
+
+    def _accept_text(self, text: str) -> bool:
+        index = self.findText(text, Qt.MatchFixedString)
+        if index >= 0:
+            clean = self.itemData(index)
+            if clean:
+                self.setEditText(str(clean))
+                return True
+            self.setCurrentIndex(index)
+            return True
+        return False
 
     def reload(self, query: str = ""):
         """Public refresh used when the popup opens."""
@@ -1535,7 +1595,7 @@ class _DBLookupCombo(_KeyboardCombo):
         self.setEditText(value or "")
 
     def clear(self):
-        """Clear the typed value only â€” the suggestion rows stay."""
+        """Clear the typed value only — the suggestion rows stay."""
         self.lineEdit().clear()
 
 
@@ -1549,7 +1609,7 @@ class _BillItemRow:
     def __init__(self, item_id: int, item_name: str, stock_batch_id: int,
                  pack_size: str, location: str, batch_no: str, expiry: str,
                  mrp: float, sale_qty: float, discount_amount: float,
-                 amount: float):
+                 amount: float, net_rate: float = 0.0, purchase_rate: float = 0.0):
         self.item_id = item_id
         self.item_name = item_name
         self.stock_batch_id = stock_batch_id
@@ -1561,6 +1621,8 @@ class _BillItemRow:
         self.sale_qty = sale_qty
         self.discount_amount = discount_amount
         self.amount = amount
+        self.net_rate = net_rate
+        self.purchase_rate = purchase_rate
 
     def to_dict(self) -> dict:
         return {
@@ -1574,7 +1636,75 @@ class _BillItemRow:
             "sale_qty": self.sale_qty,
             "discount_amount": self.discount_amount,
             "amount": self.amount,
+            "net_rate": self.net_rate,
+            "purchase_rate": self.purchase_rate,
         }
+
+
+def _compute_line_profit(row: _BillItemRow) -> tuple[float, float]:
+    """Calculate (customer_saving, yours_gross_profit) for a single bill line item.
+
+    Customer Saving:
+      mrp_gross = sale_qty * (mrp / pack_factor)
+      customer_saving = max(0.0, mrp_gross - amount)
+
+    Yours (Gross Margin / Profit):
+      cost_rate = net_rate if net_rate > 0 else purchase_rate
+      unit_cost = cost_rate / pack_factor
+      line_cost = sale_qty * unit_cost
+      profit = amount - line_cost
+    """
+    ps_str = str(getattr(row, "pack_size", "1") or "1").strip()
+    pack_factor = 1
+    if ps_str.isdigit():
+        pack_factor = max(1, int(ps_str))
+
+    mrp = float(getattr(row, "mrp", 0.0) or 0.0)
+    sale_qty = float(getattr(row, "sale_qty", 0.0) or 0.0)
+    amount = float(getattr(row, "amount", 0.0) or 0.0)
+
+    # Customer saving = MRP gross - line selling amount
+    mrp_gross = _round2(sale_qty * (mrp / pack_factor))
+    customer_saving = max(0.0, _round2(mrp_gross - amount))
+
+    # Yours (Gross Profit) = line selling amount - line cost
+    net_rate = float(getattr(row, "net_rate", 0.0) or 0.0)
+    purchase_rate = float(getattr(row, "purchase_rate", 0.0) or 0.0)
+    if net_rate <= 0.0 and purchase_rate <= 0.0:
+        s_batch_id = getattr(row, "stock_batch_id", None)
+        if s_batch_id:
+            try:
+                batch = SalesDAO.get_batch_by_id(s_batch_id)
+                if batch:
+                    net_rate = float(batch.get("net_rate") or 0.0)
+                    purchase_rate = float(batch.get("purchase_rate") or 0.0)
+                    row.net_rate = net_rate
+                    row.purchase_rate = purchase_rate
+            except Exception:
+                pass
+
+    cost_rate = net_rate if net_rate > 0.0 else purchase_rate
+    if cost_rate > 0.0:
+        line_cost = _round2(sale_qty * (cost_rate / pack_factor))
+        yours_profit = _round2(amount - line_cost)
+    else:
+        # If cost rate is unavailable/0, do not invent a fake cost
+        yours_profit = amount
+
+    return customer_saving, yours_profit
+
+
+def _compute_bill_savings_and_profit(item_rows, bill_discount: float) -> tuple[float, float]:
+    """Calculate (total_customer_saving, total_yours_profit) for the bill."""
+    total_savings = 0.0
+    total_profit = 0.0
+    for r in item_rows:
+        sav, prof = _compute_line_profit(r)
+        total_savings += sav
+        total_profit += prof
+    total_savings = _round2(total_savings + bill_discount)
+    total_profit = _round2(total_profit - bill_discount)
+    return total_savings, total_profit
 
 
 # ======================================================================
@@ -2348,16 +2478,16 @@ class _ItemEntryBar(QWidget):
             is_draft, is_saved, has_invoice = True, False, False
         if is_draft and not is_saved and not has_invoice:
             try:
-                short = _display_bill_no(text) if (text or "").strip() else "--"
+                short = _display_bill_no(text) if (text or "").strip() else ""
             except Exception:
-                short = (text or "--").strip() or "--"
-            full = f"{(text or short).strip()} (preview, assigned on Save)"
+                short = (text or "").strip()
+            full = f"{(text or short).strip()} (preview, assigned on Save)" if (text or "").strip() else ""
         else:
             try:
-                short = _display_bill_no(text) if (text or "").strip() else "--"
+                short = _display_bill_no(text) if (text or "").strip() else ""
             except Exception:
-                short = (text or "--").strip() or "--"
-            full = (text or "--").strip() or "--"
+                short = (text or "").strip()
+            full = (text or "").strip() if short else ""
         try:
             fm = QFontMetrics(self.cno_label.font())
             needed = fm.horizontalAdvance(short) + 16
@@ -2514,11 +2644,8 @@ class _ItemEntryBar(QWidget):
 def _display_bill_no(bill_no: str, patient_name: str | None = None) -> str:
     """Short CNo for the billing UI (display only, never saved).
 
-    Returns numeric-only bill number when patient_name is present (or omitted).
-    If patient_name is provided and is empty or contains only whitespace, returns a blank string.
+    Returns numeric-only bill number.
     """
-    if patient_name is not None and not str(patient_name).strip():
-        return ""
     try:
         return SalesDAO.display_bill_no(bill_no, patient_name=patient_name)
     except Exception:
@@ -2529,7 +2656,7 @@ def _display_bill_no(bill_no: str, patient_name: str | None = None) -> str:
 def _increment_bill_no(bill_no: str) -> str:
     """Next bill number after *bill_no*, same prefix/width convention."""
     text = (bill_no or '').strip() or 'CS-0000'
-    # Plain sequential numbers (new convention) increment numerically.
+    # Plain sequential numbers increment numerically.
     if text.isdigit():
         try:
             return str(int(text) + 1)
@@ -2544,8 +2671,10 @@ def _increment_bill_no(bill_no: str) -> str:
         num = int(num_part) + 1
     except ValueError:
         num = 1
-    width = max(4, len(num_part) if num_part.isdigit() else 4)
-    return f"{prefix}{num:0{width}d}"
+    if prefix.upper().startswith("CS-") or num_part.startswith("0"):
+        width = max(4 if prefix.upper().startswith("CS-") else len(num_part), len(num_part) if num_part.isdigit() else 4)
+        return f"{prefix}{num:0{width}d}"
+    return f"{prefix}{num}"
 
 
 def _resolve_bill_no_for_save(provisional: str) -> str:
@@ -2580,6 +2709,86 @@ def _is_provisional_state(state: dict | None) -> bool:
         return bool(state.get('provisional_bill_no', False))
     except Exception:
         return False
+
+
+# ======================================================================
+# Bill Items Table & Qty Inline Editing Delegate
+# ======================================================================
+
+class _BillTableWidget(QTableWidget):
+    """QTableWidget with keyboard navigation support for inline Qty editing."""
+
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_F2):
+            if self.state() != QAbstractItemView.EditingState:
+                row = self.currentRow()
+                if 0 <= row < self.rowCount():
+                    qty_item = self.item(row, 7)
+                    if qty_item and (qty_item.flags() & Qt.ItemIsEditable):
+                        self.setCurrentCell(row, 7)
+                        self.editItem(qty_item)
+                        event.accept()
+                        return
+        super().keyPressEvent(event)
+
+
+class _BillQtyDelegate(QStyledItemDelegate):
+    """Item delegate for inline editing of the Qty column in Bill Items."""
+
+    def __init__(self, panel: _SalePanel):
+        super().__init__(panel._table if hasattr(panel, "_table") else panel)
+        self._panel = panel
+        self._committing = False
+        self.active_editor: QLineEdit | None = None
+
+    def createEditor(self, parent, option, index):
+        editor = QLineEdit(parent)
+        self.active_editor = editor
+        editor.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        editor.setFont(readable_font(TYPE_TABLE_DATA))
+        try:
+            p = palette()
+            editor.setStyleSheet(
+                f"QLineEdit {{"
+                f"  background-color: {p['input_bg']}; color: {p['text']};"
+                f"  border: 1px solid {p['accent']}; border-radius: 2px;"
+                f"  padding: 1px 4px; font-size: {TYPE_TABLE_DATA}px; font-family: {FONT_FAMILY};"
+                f"}}"
+            )
+        except Exception:
+            pass
+        editor.returnPressed.connect(lambda: self._on_return(editor))
+        return editor
+
+    def _on_return(self, editor: QLineEdit):
+        self.commitData.emit(editor)
+        self.closeEditor.emit(editor, QStyledItemDelegate.SubmitModelCache)
+
+    def setEditorData(self, editor: QLineEdit, index):
+        val = index.data(Qt.EditRole)
+        if val is None:
+            val = index.data(Qt.DisplayRole)
+        editor.setText(str(val) if val is not None else "")
+        # Requirement 3: Preselect current quantity when editing so user can type replacement easily
+        QTimer.singleShot(0, editor.selectAll)
+
+    def setModelData(self, editor: QLineEdit, model, index):
+        if self._committing:
+            return
+        self._committing = True
+        try:
+            row_idx = index.row()
+            if not (0 <= row_idx < len(self._panel._item_rows)):
+                return
+            new_text = editor.text().strip()
+            self._panel._update_row_quantity(row_idx, new_text)
+        finally:
+            self._committing = False
+
+    def destroyEditor(self, editor, index):
+        if self.active_editor is editor:
+            self.active_editor = None
+        super().destroyEditor(editor, index)
 
 
 # ======================================================================
@@ -2644,6 +2853,10 @@ class _SalePanel(QWidget):
         # popup's read-only Cnt No and Address fields.
         self._customer_contacts: dict[int, str] = {}
         self._customer_addresses: dict[int, str] = {}
+        self._auto_filled_address_patient: str | None = None
+        self._auto_filled_address_text: str | None = None
+        self._user_edited_address: bool = False
+        self._last_lookup_patient: str | None = None
 
         self.setObjectName("SalePanel")
         self.setStyleSheet(
@@ -2736,7 +2949,7 @@ class _SalePanel(QWidget):
         if self.sale_type_combo.count():
             self.sale_type_combo.setCurrentIndex(0)
         for index in range(self.customer_combo.count()):
-            if self.customer_combo.itemText(index).upper() == "WALKIN":
+            if self.customer_combo.itemText(index).strip().upper() in ("WALKIN", "WALKIN CUSTOMER"):
                 self.customer_combo.setCurrentIndex(index)
                 break
         self.patient_name_edit.clear()
@@ -2956,7 +3169,7 @@ class _SalePanel(QWidget):
         voucher_layout = QHBoxLayout()
         voucher_layout.setSpacing(6)
         voucher_layout.addWidget(self._lbl("Voucher No"))
-        self.voucher_no_label = QLabel(self.bill_no_edit.text() or "--")
+        self.voucher_no_label = QLabel(self.bill_no_edit.text() or "")
         self.voucher_no_label.setStyleSheet(
             f"color: {_TEXT}; font-size: {TYPE_VALUE}px; font-weight: bold;"
             f"background: transparent; font-family: {FONT_FAMILY};"
@@ -2965,7 +3178,7 @@ class _SalePanel(QWidget):
         # keeps the full identifier readable; tooltip carries it as well.
         self.voucher_no_label.setMinimumWidth(230)
         try:
-            self.voucher_no_label.setToolTip(self.bill_no_edit.text() or "--")
+            self.voucher_no_label.setToolTip(self.bill_no_edit.text() or "")
         except Exception:
             pass
         voucher_layout.addWidget(self.voucher_no_label)
@@ -3038,10 +3251,15 @@ class _SalePanel(QWidget):
         centre.addWidget(patient, 1, 1)
         if hasattr(patient, "lineEdit") and patient.lineEdit():
             patient.lineEdit().textChanged.connect(self._on_patient_name_changed)
+        patient.completionAccepted.connect(self._on_patient_completion_accepted)
+        patient.currentIndexChanged.connect(self._on_patient_completion_accepted)
         centre.addWidget(self._lbl("Address"), 2, 0, Qt.AlignRight | Qt.AlignVCenter)
         self.address_edit = _DBLookupCombo(
             _address_options, placeholder="Search saved address", width=300,
         )
+        if hasattr(self.address_edit, "lineEdit") and self.address_edit.lineEdit():
+            self.address_edit.lineEdit().textEdited.connect(self._on_address_edited)
+        self.address_edit.currentIndexChanged.connect(self._on_address_selected)
         centre.addWidget(self.address_edit, 2, 1)
         centre.setColumnStretch(1, 1)  # Stretch fields within centre grid
 
@@ -3081,6 +3299,41 @@ class _SalePanel(QWidget):
 
         main_layout.addLayout(form_row)
 
+        saving_row = QHBoxLayout()
+        saving_row.setContentsMargins(0, 2, 8, 2)
+        saving_row.setSpacing(6)
+        saving_row.addStretch(1)
+
+        lbl_cs = QLabel("Customer Saving:")
+        lbl_cs.setStyleSheet(f"color: {_TEXT}; font-size: {TYPE_FORM_LABEL}px; font-weight: bold; background: transparent;")
+        saving_row.addWidget(lbl_cs)
+
+        self.strip_saving_label = QLabel("0.00")
+        self.strip_saving_label.setFixedWidth(80)
+        self.strip_saving_label.setAlignment(Qt.AlignCenter)
+        self.strip_saving_label.setStyleSheet(
+            f"background-color: {_SURFACE}; color: {_TEXT}; border: 1px solid {_BORDER}; "
+            f"border-radius: 2px; font-size: {TYPE_VALUE}px; font-weight: bold; padding: 2px 4px;"
+        )
+        saving_row.addWidget(self.strip_saving_label)
+
+        saving_row.addSpacing(12)
+
+        lbl_yr = QLabel("Yours:")
+        lbl_yr.setStyleSheet(f"color: {_TEXT}; font-size: {TYPE_FORM_LABEL}px; font-weight: bold; background: transparent;")
+        saving_row.addWidget(lbl_yr)
+
+        self.strip_yours_label = QLabel("0.00")
+        self.strip_yours_label.setFixedWidth(80)
+        self.strip_yours_label.setAlignment(Qt.AlignCenter)
+        self.strip_yours_label.setStyleSheet(
+            f"background-color: {_SURFACE}; color: {_TEXT}; border: 1px solid {_BORDER}; "
+            f"border-radius: 2px; font-size: {TYPE_VALUE}px; font-weight: bold; padding: 2px 4px;"
+        )
+        saving_row.addWidget(self.strip_yours_label)
+
+        main_layout.addLayout(saving_row)
+
         # Discount / Paid recalculate through the same wiring as the panel.
         self.bill_disc_edit.textChanged.connect(self._recalc_totals)
         self.paid_edit.textChanged.connect(self._recalc_totals)
@@ -3108,15 +3361,25 @@ class _SalePanel(QWidget):
                 short, full = "Draft", "Unsaved draft (number assigned on Save)"
             else:
                 try:
-                    pat = self.patient_name_edit.text() if hasattr(self, 'patient_name_edit') else None
                     raw_bno = getattr(self, "_full_bill_no", None) or self.bill_no_edit.text()
-                    short = _display_bill_no(raw_bno, patient_name=pat) if raw_bno.strip() else "--"
+                    patient_for_display = (
+                        self.patient_name_edit.text()
+                        if getattr(self, "_invoice", None) is not None else None
+                    )
+                    short = (
+                        _display_bill_no(raw_bno, patient_name=patient_for_display)
+                        if (raw_bno or "").strip() else ""
+                    )
                 except Exception:
-                    short = self.bill_no_edit.text() or "--"
-                full = getattr(self, "_full_bill_no", None) or self.bill_no_edit.text() or "--"
+                    short = self.bill_no_edit.text()
+                    full = ""
+                else:
+                    full = raw_bno if short else ""
             self.voucher_no_label.setText(short)
             try:
-                self.voucher_no_label.setToolTip(f"Full Voucher: {full}" if full else "--")
+                self.voucher_no_label.setToolTip(
+                    f"Full Voucher: {full}" if full else ""
+                )
             except Exception:
                 pass
         if hasattr(self, 'header_date_label'):
@@ -3148,9 +3411,9 @@ class _SalePanel(QWidget):
                     short = "Draft"
                 else:
                     raw = (self.bill_no_edit.text() or "").strip()
-                    short = _display_bill_no(raw) if raw else "--"
+                    short = _display_bill_no(raw) if raw else ""
             except Exception:
-                short = "--"
+                short = ""
             font = readable_font(TYPE_VALUE, bold=True)
             needed = QFontMetrics(font).horizontalAdvance(short) + 16
             return max(_POPUP_CNO_MIN_WIDTH, min(int(needed), _POPUP_CNO_MAX_WIDTH))
@@ -3383,7 +3646,19 @@ class _SalePanel(QWidget):
             return
         cid = self.customer_combo.currentData()
         self.cnt_no_edit.setText(self._customer_contacts.get(cid, ""))
-        self.address_edit.setText(self._customer_addresses.get(cid, ""))
+        cust_addr = self._customer_addresses.get(cid, "")
+        if cust_addr:
+            self.address_edit.setText(cust_addr)
+            self._auto_filled_address_patient = None
+            self._auto_filled_address_text = None
+        else:
+            pat = self.patient_name_edit.text().strip() if hasattr(self, "patient_name_edit") else ""
+            if pat:
+                self._update_address_for_patient(pat)
+            elif getattr(self, "_auto_filled_address_patient", None):
+                self.address_edit.setText("")
+                self._auto_filled_address_patient = None
+                self._auto_filled_address_text = None
 
     def _remarks_text(self) -> str:
         """Bill remarks typed in the popup's Remarks box.
@@ -3482,21 +3757,93 @@ class _SalePanel(QWidget):
         self._load_customers()
         self._load_doctors()
 
+    def _on_address_edited(self, text: str):
+        self._user_edited_address = True
+        self._auto_filled_address_patient = None
+        self._auto_filled_address_text = None
+        if hasattr(self.address_edit, "set_patient_addresses"):
+            self.address_edit.set_patient_addresses(None)
+
+    def _on_address_selected(self, index: int):
+        if index >= 0:
+            self._user_edited_address = True
+
+    def _on_patient_completion_accepted(self):
+        text = self.patient_name_edit.text() if hasattr(self, "patient_name_edit") else ""
+        self._update_address_for_patient(text)
+
     def _on_patient_name_changed(self, text: str):
         full_bno = getattr(self, "_full_bill_no", None)
-        if not full_bno:
-            return
-        if getattr(self, "_invoice", None) is not None:
-            has_pat = bool(text and text.strip())
-            disp = _display_bill_no(full_bno) if has_pat else ""
+        if full_bno and getattr(self, "_invoice", None) is not None:
+            disp = _display_bill_no(full_bno, patient_name=text)
             self.bill_no_edit.blockSignals(True)
             self.bill_no_edit.setText(disp)
             self.bill_no_edit.blockSignals(False)
+            self.bill_no_edit.setToolTip(
+                f"Full Bill No: {full_bno}" if disp and full_bno else ""
+            )
             self._update_header_labels()
             try:
                 self._entry_bar.set_cno(disp)
             except Exception:
                 pass
+        self._update_address_for_patient(text)
+
+    def _update_address_for_patient(self, text: str):
+        if not hasattr(self, "address_edit"):
+            return
+
+        norm = " ".join((text or "").split()).strip()
+
+        # If patient name is genuinely empty or whitespace or WALKIN:
+        if not norm or norm.upper() in ("WALKIN", "WALKIN CUSTOMER"):
+            if getattr(self, "_auto_filled_address_patient", None):
+                self.address_edit.setText("")
+                self._auto_filled_address_patient = None
+                self._auto_filled_address_text = None
+            if hasattr(self.address_edit, "set_patient_addresses"):
+                self.address_edit.set_patient_addresses(None)
+            self._last_lookup_patient = None
+            return
+
+        # When the patient name changes, refresh the address suggestions and
+        # clear a previously auto-filled address if it belongs to a different patient.
+        prev_patient = getattr(self, "_auto_filled_address_patient", None)
+        if prev_patient and prev_patient.upper() != norm.upper():
+            curr_addr = self.address_edit.text().strip()
+            auto_text = getattr(self, "_auto_filled_address_text", "")
+            if curr_addr == auto_text or not getattr(self, "_user_edited_address", False):
+                self.address_edit.setText("")
+                self._auto_filled_address_patient = None
+                self._auto_filled_address_text = None
+
+        addresses = CustomerDAO.get_saved_addresses_for_patient(norm)
+        self._last_lookup_patient = norm
+
+        if len(addresses) == 1:
+            addr = addresses[0]
+            if hasattr(self.address_edit, "set_patient_addresses"):
+                self.address_edit.set_patient_addresses(addresses)
+            self.address_edit.setText(addr)
+            self._auto_filled_address_patient = norm
+            self._auto_filled_address_text = addr
+            self._user_edited_address = False
+        elif len(addresses) > 1:
+            if hasattr(self.address_edit, "set_patient_addresses"):
+                self.address_edit.set_patient_addresses(addresses)
+            if getattr(self, "_auto_filled_address_patient", None):
+                self.address_edit.setText("")
+                self._auto_filled_address_patient = None
+                self._auto_filled_address_text = None
+            if hasattr(self.address_edit, "show_dropdown"):
+                self.address_edit.show_dropdown()
+        else:
+            if hasattr(self.address_edit, "set_patient_addresses"):
+                self.address_edit.set_patient_addresses(None)
+            if getattr(self, "_auto_filled_address_patient", None):
+                self.address_edit.setText("")
+                self._auto_filled_address_patient = None
+                self._auto_filled_address_text = None
 
     def _load_customers(self):
         customers = CustomerDAO.get_all()
@@ -3509,7 +3856,7 @@ class _SalePanel(QWidget):
             self._customer_addresses[c["id"]] = c.get("address") or ""
         # Try to default to WALKIN
         for i in range(self.customer_combo.count()):
-            if self.customer_combo.itemText(i).upper() == "WALKIN":
+            if self.customer_combo.itemText(i).strip().upper() in ("WALKIN", "WALKIN CUSTOMER"):
                 self.customer_combo.setCurrentIndex(i)
                 break
 
@@ -3560,13 +3907,18 @@ class _SalePanel(QWidget):
         layout = QVBoxLayout(self._table_group)
         layout.setContentsMargins(8, 20, 8, 8)
 
-        self._table = QTableWidget()
+        self._table = _BillTableWidget()
         self._table.setColumnCount(11)
         self._table.setHorizontalHeaderLabels([
             "#", "Item Name", "Pack Size", "Location", "Batch No",
             "Expiry", "MRP", "Qty", "Disc Amt", "Amount", "Del"
         ])
-        self._table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self._table.setEditTriggers(
+            QAbstractItemView.DoubleClicked |
+            QAbstractItemView.SelectedClicked |
+            QAbstractItemView.EditKeyPressed |
+            QAbstractItemView.AnyKeyPressed
+        )
         self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self._table.setSelectionMode(QAbstractItemView.SingleSelection)
         self._table.verticalHeader().setVisible(False)
@@ -3615,15 +3967,31 @@ class _SalePanel(QWidget):
             f"QTableWidget::item {{ padding: 3px 6px; }}"
         )
         self._table.setFont(readable_font(TYPE_TABLE_DATA))
+        self._qty_delegate = _BillQtyDelegate(self)
+        self._table.setItemDelegateForColumn(7, self._qty_delegate)
+        self._table.cellClicked.connect(self._on_table_cell_clicked)
         self._table.doubleClicked.connect(self._on_table_double_clicked)
         layout.addWidget(self._table, 1)
 
+    def _on_table_cell_clicked(self, row: int, col: int):
+        if col == 7:
+            if hasattr(self, "_commit_table_edits"):
+                self._commit_table_edits()
+            self._table.setCurrentCell(row, col)
+            item = self._table.item(row, col)
+            if item and (item.flags() & Qt.ItemIsEditable):
+                self._table.editItem(item)
+
     def _on_table_double_clicked(self, index):
+        col_idx = index.column() if hasattr(index, "column") else -1
+        if col_idx == 7:
+            return
         row_idx = index.row() if hasattr(index, "row") else int(index)
         self.edit_row(row_idx)
 
     def edit_row(self, idx: int):
         """Load an existing bill table row into the entry bar for editing."""
+        self._commit_table_edits()
         if not (0 <= idx < len(self._item_rows)):
             return
         row = self._item_rows.pop(idx)
@@ -3631,6 +3999,124 @@ class _SalePanel(QWidget):
         self._recalc_totals()
         self._refresh_draft_availability()
         self._entry_bar.restore_row(row)
+
+    def _update_row_quantity(self, row_idx: int, new_text: str) -> bool:
+        """Validate and apply inline quantity change for a bill table row."""
+        if not (0 <= row_idx < len(self._item_rows)):
+            return False
+
+        r = self._item_rows[row_idx]
+        old_qty = r.sale_qty
+
+        try:
+            new_qty = float(new_text)
+        except (TypeError, ValueError):
+            new_qty = 0.0
+
+        if not math.isfinite(new_qty) or new_qty <= 0:
+            QMessageBox.warning(
+                self, "Validation", "Sale Quantity must be a valid number greater than 0."
+            )
+            self._restore_table_qty_cell(row_idx, old_qty)
+            return False
+
+        if new_qty == old_qty:
+            self._restore_table_qty_cell(row_idx, old_qty)
+            return True
+
+        batch = SalesDAO.get_batch_by_id(r.stock_batch_id)
+        if not batch or batch.get("item_id") != r.item_id:
+            QMessageBox.warning(
+                self, "Validation", f"Batch {r.batch_no} is no longer available for this item."
+            )
+            self._restore_table_qty_cell(row_idx, old_qty)
+            return False
+
+        if SalesDAO.is_expired(batch.get("expiry", r.expiry)):
+            QMessageBox.warning(
+                self, "Expired Batch",
+                f"Batch {batch.get('batch_no', r.batch_no)} is expired and cannot be sold."
+            )
+            self._restore_table_qty_cell(row_idx, old_qty)
+            return False
+
+        # Stock availability check
+        other_rows_draft_qty = sum(
+            row.sale_qty for idx, row in enumerate(self._item_rows)
+            if idx != row_idx and row.stock_batch_id == r.stock_batch_id
+        )
+        stored_stock = float(batch.get("stock_qty", 0.0) or 0.0)
+        original_qty = self._original_batch_qty.get(r.stock_batch_id, 0.0)
+        other_draft_reserved = max(
+            0.0, float(self._other_draft_reserved_qty(r.stock_batch_id) or 0.0)
+        )
+
+        draft_quantity = other_rows_draft_qty + new_qty
+        own_reserved = reserved_quantity(draft_quantity, original_qty)
+        if own_reserved + other_draft_reserved > stored_stock + 1e-9:
+            max_allowed = max(
+                0.0,
+                stored_stock - other_draft_reserved + original_qty - other_rows_draft_qty
+            )
+            QMessageBox.warning(
+                self, "Insufficient Stock",
+                f"Only {max_allowed:.0f} units are available for this batch."
+            )
+            self._restore_table_qty_cell(row_idx, old_qty)
+            return False
+
+        # Pack-size & pricing calculation
+        ps_str = r.pack_size
+        pack_size_int = 1
+        if ps_str and str(ps_str).strip().isdigit():
+            try:
+                pack_size_int = int(str(ps_str).strip())
+            except (ValueError, TypeError):
+                pack_size_int = 1
+        if pack_size_int < 1:
+            pack_size_int = 1
+
+        unit_price = r.mrp / pack_size_int
+        gross = _round2(new_qty * unit_price)
+        if r.discount_amount > gross:
+            QMessageBox.warning(
+                self, "Validation", "Discount cannot exceed gross amount."
+            )
+            self._restore_table_qty_cell(row_idx, old_qty)
+            return False
+
+        # Update row model
+        r.sale_qty = new_qty
+        r.amount = _round2(gross - r.discount_amount)
+
+        # Update table cells
+        qty_str = f"{r.sale_qty:.0f}" if float(r.sale_qty).is_integer() else f"{r.sale_qty}"
+        qty_item = self._table.item(row_idx, 7)
+        if qty_item:
+            qty_item.setText(qty_str)
+        amt_item = self._table.item(row_idx, 9)
+        if amt_item:
+            amt_item.setText(f"{r.amount:.2f}")
+
+        # Recalculate totals and refresh stock availability
+        self._recalc_totals()
+        self._refresh_draft_availability()
+        self._table.selectRow(row_idx)
+        return True
+
+    def _restore_table_qty_cell(self, row_idx: int, qty: float):
+        qty_str = f"{qty:.0f}" if float(qty).is_integer() else f"{qty}"
+        qty_item = self._table.item(row_idx, 7)
+        if qty_item:
+            qty_item.setText(qty_str)
+        self._table.selectRow(row_idx)
+
+    def _commit_table_edits(self):
+        """Ensure any in-flight table cell edit is committed."""
+        if hasattr(self, "_qty_delegate") and self._qty_delegate.active_editor:
+            ed = self._qty_delegate.active_editor
+            self._qty_delegate.commitData.emit(ed)
+            self._qty_delegate.closeEditor.emit(ed, QStyledItemDelegate.SubmitModelCache)
 
     def _on_add_item(self):
         data = self._entry_bar.get_current_data()
@@ -3711,6 +4197,9 @@ class _SalePanel(QWidget):
             return
         amount = _round2(gross - discount)
 
+        net_rate = float(batch.get("net_rate") or 0.0) if batch else 0.0
+        purchase_rate = float(batch.get("purchase_rate") or 0.0) if batch else 0.0
+
         existing = next(
             (r for r in self._item_rows
              if r.item_id == data["item_id"] and r.stock_batch_id == data["stock_batch_id"]),
@@ -3723,6 +4212,9 @@ class _SalePanel(QWidget):
             existing.discount_amount = _round2(existing.discount_amount + discount)
             combined_gross = _round2(existing.sale_qty * unit_price)
             existing.amount = _round2(combined_gross - existing.discount_amount)
+            if not getattr(existing, "net_rate", 0.0) and not getattr(existing, "purchase_rate", 0.0):
+                existing.net_rate = net_rate
+                existing.purchase_rate = purchase_rate
         else:
             row = _BillItemRow(
                 item_id=data["item_id"], item_name=data["item_name"],
@@ -3730,6 +4222,7 @@ class _SalePanel(QWidget):
                 location=data["location"], batch_no=data["batch_no"],
                 expiry=data["expiry"], mrp=mrp, sale_qty=sale_qty,
                 discount_amount=discount, amount=amount,
+                net_rate=net_rate, purchase_rate=purchase_rate,
             )
             self._item_rows.append(row)
         self._refresh_table()
@@ -3745,29 +4238,49 @@ class _SalePanel(QWidget):
             self._table.setRowHeight(i, _BILL_ROW_HEIGHT)
             index_item = QTableWidgetItem(str(i + 1))
             index_item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+            index_item.setFlags(index_item.flags() & ~Qt.ItemIsEditable)
             self._table.setItem(i, 0, index_item)
-            self._table.setItem(i, 1, QTableWidgetItem(r.item_name))
-            self._table.setItem(i, 2, QTableWidgetItem(r.pack_size))
-            self._table.setItem(i, 3, QTableWidgetItem(r.location))
-            self._table.setItem(i, 4, QTableWidgetItem(r.batch_no))
+
+            name_item = QTableWidgetItem(r.item_name)
+            name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
+            self._table.setItem(i, 1, name_item)
+
+            pack_item = QTableWidgetItem(r.pack_size)
+            pack_item.setFlags(pack_item.flags() & ~Qt.ItemIsEditable)
+            self._table.setItem(i, 2, pack_item)
+
+            loc_item = QTableWidgetItem(r.location)
+            loc_item.setFlags(loc_item.flags() & ~Qt.ItemIsEditable)
+            self._table.setItem(i, 3, loc_item)
+
+            batch_item = QTableWidgetItem(r.batch_no)
+            batch_item.setFlags(batch_item.flags() & ~Qt.ItemIsEditable)
+            self._table.setItem(i, 4, batch_item)
+
             expiry_item = QTableWidgetItem(r.expiry)
             expiry_item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+            expiry_item.setFlags(expiry_item.flags() & ~Qt.ItemIsEditable)
             self._table.setItem(i, 5, expiry_item)
 
             mrp_item = QTableWidgetItem(f"{r.mrp:.2f}")
             mrp_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            mrp_item.setFlags(mrp_item.flags() & ~Qt.ItemIsEditable)
             self._table.setItem(i, 6, mrp_item)
 
-            qty_item = QTableWidgetItem(f"{r.sale_qty:.0f}")
+            qty_str = f"{r.sale_qty:.0f}" if float(r.sale_qty).is_integer() else f"{r.sale_qty}"
+            qty_item = QTableWidgetItem(qty_str)
             qty_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            qty_item.setFlags(qty_item.flags() | Qt.ItemIsEditable | Qt.ItemIsEnabled | Qt.ItemIsSelectable)
             self._table.setItem(i, 7, qty_item)
 
             disc_item = QTableWidgetItem(f"{r.discount_amount:.2f}")
             disc_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            disc_item.setFlags(disc_item.flags() & ~Qt.ItemIsEditable)
             self._table.setItem(i, 8, disc_item)
 
             amt_item = QTableWidgetItem(f"{r.amount:.2f}")
             amt_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            amt_item.setFlags(amt_item.flags() & ~Qt.ItemIsEditable)
             self._table.setItem(i, 9, amt_item)
 
             self._make_row_delete_button(i)
@@ -3776,7 +4289,7 @@ class _SalePanel(QWidget):
         """Compact Delete action, centred inside the fixed-width Del column.
 
         The button is wrapped in a filler cell so it is centred both ways and
-        never stretches to the row height â€” a small table action instead of a
+        never stretches to the row height — a small table action instead of a
         standalone control dominating the row.  Delete behaviour is unchanged.
         """
         del_btn = QPushButton("\u00d7")
@@ -3813,6 +4326,7 @@ class _SalePanel(QWidget):
         return cell
 
     def _delete_item(self, idx: int):
+        self._commit_table_edits()
         if 0 <= idx < len(self._item_rows):
             self._item_rows.pop(idx)
             self._refresh_table()
@@ -3846,6 +4360,10 @@ class _SalePanel(QWidget):
             # widgets are created there - nothing is duplicated.
             self._add_total_field(layout, "Total Amt", "total_amount_label",
                                   width=96)
+            self._add_total_field(layout, "Customer Saving", "customer_saving_label",
+                                  width=110)
+            self._add_total_field(layout, "Yours", "yours_label",
+                                  width=90)
             self._add_total_field(layout, "Round Off", "round_off_label",
                                   width=92)
             self._add_total_field(layout, "NET AMT", "net_amt_label",
@@ -3859,14 +4377,18 @@ class _SalePanel(QWidget):
         self._add_total_field(layout, "Total Items", "total_items_label",
                               width=76, emphasised=False)
         self._add_total_field(layout, "Total Amt", "total_amount_label",
-                              width=110)
-        self._add_total_field(layout, "Customer Saving", "bill_disc_edit",
-                              width=120)
-        self._add_total_field(layout, "Round Off", "round_off_label",
                               width=100)
+        self._add_total_field(layout, "Bill Disc", "bill_disc_edit",
+                              width=90)
+        self._add_total_field(layout, "Customer Saving", "customer_saving_label",
+                              width=110)
+        self._add_total_field(layout, "Yours", "yours_label",
+                              width=90)
+        self._add_total_field(layout, "Round Off", "round_off_label",
+                              width=85)
         self._add_total_field(layout, "NET AMT", "net_amt_label",
-                              width=130, emphasised=True)
-        self._add_total_field(layout, "Paid", "paid_edit", width=110)
+                              width=115, emphasised=True)
+        self._add_total_field(layout, "Paid", "paid_edit", width=95)
 
         # Wire recalc
         self.bill_disc_edit.textChanged.connect(self._recalc_totals)
@@ -4000,12 +4522,31 @@ class _SalePanel(QWidget):
         self.total_amount_label.setText(f"{total:.2f}")
 
         bill_disc = _safe_float(self.bill_disc_edit.text())
-        net = total - bill_disc
-        round_off = _round2(net) - net
-        net = _round2(net + round_off)
+        unrounded_net = _round2(total - bill_disc)
+        round_off, net = _compute_bill_round_off(unrounded_net)
 
-        self.round_off_label.setText(f"{round_off:.2f}")
+        if round_off > 0:
+            ro_text = f"+{round_off:.2f}"
+        elif round_off < 0:
+            ro_text = f"{round_off:.2f}"
+        else:
+            ro_text = "0.00"
+
+        self.round_off_label.setText(ro_text)
         self.net_amt_label.setText(f"{net:.2f}")
+
+        # Compute Customer Saving and Yours (Gross Profit)
+        savings, yours = _compute_bill_savings_and_profit(self._item_rows, bill_disc)
+        if hasattr(self, "customer_saving_label"):
+            self.customer_saving_label.setText(f"{savings:.2f}")
+        if hasattr(self, "yours_label"):
+            self.yours_label.setText(f"{yours:.2f}")
+
+        if hasattr(self, "strip_saving_label"):
+            self.strip_saving_label.setText(f"{savings:.2f}")
+        if hasattr(self, "strip_yours_label"):
+            self.strip_yours_label.setText(f"{yours:.2f}")
+
         self._emit_totals()
 
     def _emit_totals(self):
@@ -4121,8 +4662,21 @@ class _SalePanel(QWidget):
         self._full_bill_no = full_bno
         pat = inv.get("patient_name", "")
         self.patient_name_edit.setText(pat)
-        self.bill_no_edit.setText(_display_bill_no(full_bno, patient_name=pat))
-        self.bill_no_edit.setToolTip(f"Full Bill No: {full_bno}" if full_bno else "")
+        disp_bno = _display_bill_no(full_bno, patient_name=pat)
+        self.bill_no_edit.setText(disp_bno)
+        self.bill_no_edit.setToolTip(
+            f"Full Bill No: {full_bno}" if disp_bno and full_bno else ""
+        )
+        if hasattr(self, "address_edit"):
+            addr = inv.get("address", "")
+            if not addr and pat:
+                saved = CustomerDAO.get_saved_addresses_for_patient(pat)
+                if len(saved) == 1:
+                    addr = saved[0]
+            self.address_edit.setText(addr or "")
+            if addr and pat:
+                self._auto_filled_address_patient = pat
+                self._auto_filled_address_text = addr
 
         from PySide6.QtCore import QDate
         sd = inv.get("sale_date", "")
@@ -4166,6 +4720,8 @@ class _SalePanel(QWidget):
                 sale_qty=it.get("sale_qty", 0.0),
                 discount_amount=it.get("discount_amount", 0.0),
                 amount=it.get("amount", 0.0),
+                net_rate=float(it.get("net_rate") or 0.0),
+                purchase_rate=float(it.get("purchase_rate") or 0.0),
             )
             self._item_rows.append(row)
             self._original_batch_qty[row.stock_batch_id] = (
@@ -4332,6 +4888,7 @@ class _SalePanel(QWidget):
         Used by both the Counter Sale Save Sale step and the popup's final
         Save, so the review popup can never be the step that skips a rule.
         """
+        self._commit_table_edits()
         if not fy_view.confirm_transaction_date(
             self,
             self.sale_date.date().toString("yyyy-MM-dd"),
@@ -4346,9 +4903,19 @@ class _SalePanel(QWidget):
             return False
 
         # Drafts carry no number until Save (assigned transactionally);
-        # only edits of existing invoices require a bill number here.
+        # only edits of existing named invoices require a bill number here.
+        # A sale created without a patient name legitimately has a blank
+        # Bill No, so editing it must never be blocked by this check.
         existing_bno = getattr(self, "_full_bill_no", None) or (self._invoice.get("bill_no") if self._invoice else None)
-        if self._invoice and not (existing_bno or self.bill_no_edit.text().strip()):
+        original_patient_empty = bool(
+            self._invoice is not None
+            and not str(self._invoice.get("patient_name") or "").strip()
+        )
+        # An existing invoice whose stored Bill No is already blank has
+        # nothing to preserve and must stay editable without inventing one.
+        stored_bno = (self._invoice.get("bill_no") or "").strip() if self._invoice else ""
+        if (self._invoice and not original_patient_empty and stored_bno
+                and not (existing_bno or self.bill_no_edit.text().strip())):
             self.bill_no_edit.setFocus()
             QMessageBox.warning(self, "Validation", "Bill number is required.")
             return False
@@ -4419,24 +4986,46 @@ class _SalePanel(QWidget):
             total_amount = _round2(float(_d(sum(r.amount for r in self._item_rows))))
             bill_discount = _safe_float(self.bill_disc_edit.text())
             paid = _safe_float(self.paid_edit.text())
-            round_off = _safe_float(self.round_off_label.text())
-            net_amount = _round2(total_amount - bill_discount + round_off)
+            unrounded_net = _round2(total_amount - bill_discount)
+            round_off, net_amount = _compute_bill_round_off(unrounded_net)
             sale_date = self.sale_date.date().toString("yyyy-MM-dd")
             sale_time = self.sale_time_edit.text().strip()
             sale_type = self.sale_type_combo.currentText()
-            patient_name = self.patient_name_edit.text().strip()
+            pat_text = self.patient_name_edit.text().strip()
+            # Emptiness is decided before the WALKIN business default below:
+            # a sale saved without a patient name keeps a genuinely blank
+            # Bill No, while a named sale keeps the existing numbering flow.
+            patient_was_empty = not pat_text
             cid = self.customer_combo.currentData()
             did = self.doctor_combo.currentData()
-            # Drafts carry no number: assign the next unique sequential number
-            # transactionally at Save time only. insert_invoice re-checks
-            # uniqueness inside its transaction, so concurrent saves can
-            # never share one permanent CNo. On failure the draft is
-            # preserved (still Draft, not marked saved).
-            displayed = self.bill_no_edit.text().strip()
-            if self._invoice:
-                bill_no = getattr(self, "_full_bill_no", None) or self._invoice.get("bill_no") or displayed
+            if not pat_text:
+                patient_name = "WALKIN"
+                if cid is None:
+                    cid = CustomerDAO.get_or_create_walkin()
             else:
-                bill_no = getattr(self, "_full_bill_no", None) or SalesDAO.generate_next_bill_no()
+                patient_name = pat_text
+
+            if self._invoice:
+                bill_no = getattr(self, "_full_bill_no", None)
+                if bill_no is None:
+                    bill_no = self._invoice.get("bill_no") or ""
+                bill_no = str(bill_no).strip()
+            elif patient_was_empty:
+                # Explicit blank: never pass the provisional preview or a
+                # freshly generated number for an unnamed sale.
+                bill_no = ""
+            else:
+                raw_cand = getattr(self, "_full_bill_no", None) or SalesDAO.generate_next_bill_no()
+                try:
+                    from database import financial_year as _fy
+                    _active = _fy.get_active_financial_year()
+                    _act_name = (_active.get("name") if _active else "") or ""
+                except Exception:
+                    _act_name = ""
+                _act_name = (_act_name or "").strip()
+                if _act_name and raw_cand and raw_cand.isdigit():
+                    raw_cand = f"{_act_name}-{raw_cand}"
+                bill_no = raw_cand
             remarks = self._remarks_text()
             items_data = [r.to_dict() for r in self._item_rows]
 
@@ -4463,6 +5052,16 @@ class _SalePanel(QWidget):
                     net_amount=net_amount, remarks=remarks,
                     items=items_data,
                 )
+            addr_text = self.address_edit.text().strip() if hasattr(self, "address_edit") else ""
+            if addr_text:
+                try:
+                    CustomerDAO.save_patient_address(
+                        patient_name=patient_name,
+                        address=addr_text,
+                        customer_id=cid,
+                    )
+                except Exception:
+                    pass
             self._saved = True
             self._provisional_bill_no = False
             self.saved.emit()
@@ -4477,9 +5076,10 @@ class _SalePanel(QWidget):
     def draft_state(self) -> dict:
         """Snapshot of the unsaved draft, for the review popup to edit.
 
-        Pure copy â€” nothing is written and no stock is reserved by taking
+        Pure copy — nothing is written and no stock is reserved by taking
         this snapshot, which is what keeps the popup free of side effects.
         """
+        self._commit_table_edits()
         return {
             "bill_no": getattr(self, "_full_bill_no", None) or self.bill_no_edit.text(),
             "provisional_bill_no": self._provisional_bill_no,
@@ -4488,6 +5088,7 @@ class _SalePanel(QWidget):
             "sale_type": self.sale_type_combo.currentText(),
             "customer_id": self.customer_combo.currentData(),
             "patient_name": self.patient_name_edit.text(),
+            "address": self.address_edit.text() if hasattr(self, "address_edit") else "",
             "doctor_id": self.doctor_combo.currentData(),
             "bill_discount": self.bill_disc_edit.text(),
             "paid_amount": self.paid_edit.text(),
@@ -4507,6 +5108,8 @@ class _SalePanel(QWidget):
                     "sale_qty": r.sale_qty,
                     "discount_amount": r.discount_amount,
                     "amount": r.amount,
+                    "net_rate": getattr(r, "net_rate", 0.0),
+                    "purchase_rate": getattr(r, "purchase_rate", 0.0),
                 }
                 for r in self._item_rows
             ],
@@ -4546,6 +5149,18 @@ class _SalePanel(QWidget):
 
         self.patient_name_edit.setText(state.get("patient_name", ""))
 
+        if hasattr(self, "address_edit"):
+            addr = state.get("address", "")
+            if addr:
+                self.address_edit.setText(addr)
+                if state.get("patient_name"):
+                    self._auto_filled_address_patient = state.get("patient_name")
+                    self._auto_filled_address_text = addr
+            else:
+                pat = state.get("patient_name", "")
+                if pat:
+                    self._update_address_for_patient(pat)
+
         doctor_index = self.doctor_combo.findData(state.get("doctor_id"))
         if doctor_index >= 0:
             self.doctor_combo.setCurrentIndex(doctor_index)
@@ -4567,6 +5182,8 @@ class _SalePanel(QWidget):
                 sale_qty=row["sale_qty"],
                 discount_amount=row["discount_amount"],
                 amount=row["amount"],
+                net_rate=float(row.get("net_rate") or 0.0),
+                purchase_rate=float(row.get("purchase_rate") or 0.0),
             )
             for row in state.get("rows") or []
         ]
@@ -4590,6 +5207,7 @@ class _SalePanel(QWidget):
     # ------------------------------------------------------------------
 
     def _on_hold(self):
+        self._commit_table_edits()
         if not self._item_rows:
             QMessageBox.warning(self, "Hold Bill", "No items to hold. Add items first.")
             return
@@ -4700,6 +5318,8 @@ class _SalePanel(QWidget):
                     f"({batch_stock:.0f} available, {it.get('sale_qty', 0):.0f} needed)."
                 )
 
+            net_rate = float(batch.get("net_rate") or 0.0) if batch else 0.0
+            purchase_rate = float(batch.get("purchase_rate") or 0.0) if batch else 0.0
             row = _BillItemRow(
                 item_id=it["item_id"],
                 item_name=it.get("item_name_snapshot", ""),
@@ -4712,6 +5332,8 @@ class _SalePanel(QWidget):
                 sale_qty=it.get("sale_qty", 0.0),
                 discount_amount=it.get("discount_amount", 0.0),
                 amount=it.get("amount", 0.0),
+                net_rate=net_rate,
+                purchase_rate=purchase_rate,
             )
             self._item_rows.append(row)
 
@@ -4961,7 +5583,7 @@ class SalesBillReviewDialog(QDialog):
             cap = QLabel(caption)
             cap.setStyleSheet(cap_style)
             layout.addWidget(cap)
-            val = QLabel(value or "--")
+            val = QLabel("--" if value is None else str(value))
             val.setStyleSheet(val_style)
             val.setMinimumWidth(min_w)
             layout.addWidget(val)
@@ -4973,10 +5595,20 @@ class SalesBillReviewDialog(QDialog):
                 self._header_time_label = val
 
         try:
-            raw_bno = panel.bill_no_edit.text() or "--"
-            _pair("Voucher No", _display_bill_no(raw_bno), 140)
+            raw_bno = panel.bill_no_edit.text() or ""
+            patient_for_display = (
+                panel.patient_name_edit.text()
+                if getattr(panel, "_invoice", None) is not None else None
+            )
+            display_bno = (
+                _display_bill_no(raw_bno, patient_name=patient_for_display)
+                if raw_bno.strip() else ""
+            )
+            _pair("Voucher No", display_bno, 140)
             if hasattr(self, "_header_voucher_label"):
-                self._header_voucher_label.setToolTip(f"Full Voucher: {raw_bno}")
+                self._header_voucher_label.setToolTip(
+                    f"Full Voucher: {raw_bno}" if display_bno and raw_bno else ""
+                )
             _pair("Date", panel.sale_date.date().toString("dd-MM-yyyy"), 100)
             _pair("Time", panel.sale_time_edit.text() or "--", 70)
         except Exception:
@@ -5051,19 +5683,23 @@ class SalesBillReviewDialog(QDialog):
         self._compact_footer_block(totals_row, "Total Items", "_total_items_label",
                                    str(len(self._panel._item_rows)), 74)
         self._compact_footer_block(totals_row, "Total Amount", "_footer_total_amount",
-                                   self._panel.total_amount_label.text(), 92)
+                                   self._panel.total_amount_label.text(), 90)
         self._compact_footer_block(totals_row, "Bill Discount", "_footer_bill_discount",
-                                   f"{_safe_float(self._panel.bill_disc_edit.text()):.2f}", 92)
+                                   f"{_safe_float(self._panel.bill_disc_edit.text()):.2f}", 88)
+        self._compact_footer_block(totals_row, "Customer Saving", "_footer_customer_saving",
+                                   self._panel.customer_saving_label.text() if hasattr(self._panel, 'customer_saving_label') else "0.00", 100)
+        self._compact_footer_block(totals_row, "Yours", "_footer_yours",
+                                   self._panel.yours_label.text() if hasattr(self._panel, 'yours_label') else "0.00", 80)
         self._compact_footer_block(totals_row, "CN Amount", "_footer_cn_amount",
-                                   "0.00", 78)
+                                   "0.00", 72)
         self._compact_footer_block(totals_row, "Dr Amount", "_footer_dr_amount",
-                                   "0.00", 78)
+                                   "0.00", 72)
         self._compact_footer_block(totals_row, "Credit Note", "_footer_credit_note",
-                                   "0.00", 92)
+                                   "0.00", 80)
         self._compact_footer_block(totals_row, "Round Off", "_footer_round_off",
-                                   self._panel.round_off_label.text(), 78)
+                                   self._panel.round_off_label.text(), 76)
         self._compact_footer_block(totals_row, "Net Amount", "_footer_net_amount",
-                                   self._panel.net_amt_label.text(), 112, net=True)
+                                   self._panel.net_amt_label.text(), 110, net=True)
         totals_row.addStretch(1)
         main_layout.addLayout(totals_row)
 
@@ -5120,6 +5756,10 @@ class SalesBillReviewDialog(QDialog):
             self._footer_bill_discount.setText(f"{_safe_float(self._panel.bill_disc_edit.text()):.2f}")
         if hasattr(self, '_footer_total_amount'):
             self._footer_total_amount.setText(self._panel.total_amount_label.text())
+        if hasattr(self, '_footer_customer_saving') and hasattr(self._panel, 'customer_saving_label'):
+            self._footer_customer_saving.setText(self._panel.customer_saving_label.text())
+        if hasattr(self, '_footer_yours') and hasattr(self._panel, 'yours_label'):
+            self._footer_yours.setText(self._panel.yours_label.text())
         if hasattr(self, '_footer_round_off'):
             self._footer_round_off.setText(self._panel.round_off_label.text())
         if hasattr(self, '_footer_net_amount'):
@@ -5128,13 +5768,17 @@ class SalesBillReviewDialog(QDialog):
     def _on_totals_changed(self, bill_no: str, amount: str, bill_total: str):
         # Update header voucher no if it changed
         if hasattr(self, '_header_voucher_label'):
-            self._header_voucher_label.setText(bill_no or "--")
+            self._header_voucher_label.setText(bill_no or "")
 
         # Update footer totals
         if hasattr(self, '_total_items_label'):
             self._total_items_label.setText(str(len(self._panel._item_rows)))
         if hasattr(self, '_footer_total_amount'):
             self._footer_total_amount.setText(amount)
+        if hasattr(self, '_footer_customer_saving') and hasattr(self._panel, 'customer_saving_label'):
+            self._footer_customer_saving.setText(self._panel.customer_saving_label.text())
+        if hasattr(self, '_footer_yours') and hasattr(self._panel, 'yours_label'):
+            self._footer_yours.setText(self._panel.yours_label.text())
         if hasattr(self, '_footer_round_off'):
             self._footer_round_off.setText(self._panel.round_off_label.text())
         if hasattr(self, '_footer_net_amount'):
@@ -5542,8 +6186,12 @@ class CounterSalePage(QWidget):
 
         root.addLayout(body, 1)
 
+        self._status_bar = self._build_bottom_status_bar()
+        root.addWidget(self._status_bar)
+
         self._editing_invoice_id: int | None = None
         self._refresh_history()
+        self._refresh_status_bar()
 
     # ------------------------------------------------------------------
     # Layout construction
@@ -5640,17 +6288,17 @@ class CounterSalePage(QWidget):
             has_invoice, is_saved = False, False
         if has_invoice or is_saved:
             try:
-                short = _display_bill_no(bill_no) if (bill_no or "").strip() else "--"
+                short = _display_bill_no(bill_no) if (bill_no or "").strip() else ""
             except Exception:
-                short = (bill_no or "").strip() or "--"
-            full = (bill_no or "").strip() or "--"
+                short = (bill_no or "").strip()
+            full = (bill_no or "").strip() if short else ""
             label.setText(f"Bill: {short}")
             label.setToolTip(full)
         else:
             try:
-                short = _display_bill_no(bill_no) if (bill_no or "").strip() else "--"
+                short = _display_bill_no(bill_no) if (bill_no or "").strip() else ""
             except Exception:
-                short = (bill_no or "").strip() or "--"
+                short = (bill_no or "").strip()
             full = f"{(bill_no or short).strip()} (preview, assigned on Save)" if (bill_no or "").strip() else "Unsaved draft"
             label.setText(f"Next Bill: {short} (Unsaved)")
             label.setToolTip(full)
@@ -6152,8 +6800,10 @@ class CounterSalePage(QWidget):
         # the footer All-Bills summary refresh on every totals change.
         self._sale_panel.totals_changed.connect(lambda *_args: self._refresh_open_bill_cards())
         self._sale_panel.totals_changed.connect(lambda *_args: self._refresh_combined_summary())
+        self._sale_panel.totals_changed.connect(lambda *_args: self._refresh_status_bar())
         self._refresh_open_bill_cards()
         self._refresh_combined_summary()
+        self._refresh_status_bar()
         return panel
 
     # ------------------------------------------------------------------
@@ -6237,7 +6887,8 @@ class CounterSalePage(QWidget):
                     except Exception:
                         disc = 0.0
                     amount += total
-                    net += _round2(total - disc)
+                    _, bill_net = _compute_bill_round_off(total - disc)
+                    net += bill_net
                 else:
                     rows = state.get('rows') or []
                     qty += sum(float(r.get('sale_qty', 0.0) or 0.0) for r in rows)
@@ -6247,7 +6898,8 @@ class CounterSalePage(QWidget):
                     except Exception:
                         disc = 0.0
                     amount += total
-                    net += _round2(total - disc)
+                    _, bill_net = _compute_bill_round_off(total - disc)
+                    net += bill_net
             except Exception:
                 continue
         return count, qty, amount, net
@@ -6262,6 +6914,67 @@ class CounterSalePage(QWidget):
             self._sale_panel.set_combined_totals(count, qty, amount, net)
         except Exception:
             pass
+        self._refresh_status_bar()
+
+    def _build_bottom_status_bar(self) -> QWidget:
+        """Bottom status bar matching legacy Pharma-WINNER Counter Sale footer."""
+        bar = QWidget()
+        bar.setObjectName("CounterSaleStatusBar")
+        bar.setFixedHeight(28)
+        bar.setStyleSheet(
+            f"#CounterSaleStatusBar {{ background-color: {_SURFACE};"
+            f"  border-top: 1px solid {_BORDER}; }}"
+        )
+        layout = QHBoxLayout(bar)
+        layout.setContentsMargins(12, 2, 12, 2)
+        layout.setSpacing(20)
+
+        style = (
+            f"color: {_TEXT}; font-size: {TYPE_FORM_LABEL}px; font-weight: bold;"
+            f"background: transparent; font-family: {FONT_FAMILY};"
+        )
+
+        self._status_cnt_label = QLabel("CntNo=1")
+        self._status_cnt_label.setStyleSheet(style)
+        layout.addWidget(self._status_cnt_label)
+
+        self._status_items_label = QLabel("Total Items: 0")
+        self._status_items_label.setStyleSheet(style)
+        layout.addWidget(self._status_items_label)
+
+        self._status_saving_label = QLabel("Customer Saving: 0.00")
+        self._status_saving_label.setStyleSheet(style)
+        layout.addWidget(self._status_saving_label)
+
+        self._status_yours_label = QLabel("Yours: 0.00")
+        self._status_yours_label.setStyleSheet(style)
+        layout.addWidget(self._status_yours_label)
+
+        layout.addStretch(1)
+
+        self._status_bills_total_label = QLabel("Bill(s) Total: 0.00")
+        self._status_bills_total_label.setStyleSheet(
+            f"color: {_ACCENT}; font-size: {TYPE_VALUE_EMPHASIS}px; font-weight: bold;"
+            f"background: transparent; font-family: {FONT_FAMILY};"
+        )
+        layout.addWidget(self._status_bills_total_label)
+
+        return bar
+
+    def _refresh_status_bar(self, *_args) -> None:
+        if not hasattr(self, "_status_cnt_label"):
+            return
+        cno = self._sale_panel.bill_no_edit.text().strip()
+        self._status_cnt_label.setText(f"CntNo={cno}")
+        items_cnt = len(self._sale_panel._item_rows)
+        self._status_items_label.setText(f"Total Items: {items_cnt}")
+        savings = self._sale_panel.customer_saving_label.text() if hasattr(self._sale_panel, "customer_saving_label") else "0.00"
+        self._status_saving_label.setText(f"Customer Saving: {savings}")
+        yours = self._sale_panel.yours_label.text() if hasattr(self._sale_panel, "yours_label") else "0.00"
+        self._status_yours_label.setText(f"Yours: {yours}")
+
+        _, _, _, net = self._combined_open_bill_totals()
+        self._status_bills_total_label.setText(f"Bill(s) Total: {net:.2f}")
 
     def _reserved_by_other_open_bills(self, batch_id: int) -> float:
         """Total unsaved reservation for *batch_id* outside the active bill."""
@@ -6302,7 +7015,7 @@ class CounterSalePage(QWidget):
         except Exception:
             discount = 0.0
         try:
-            net = _round2(total - discount + (_round2(total - discount) - (total - discount)))
+            _, net = _compute_bill_round_off(total - discount)
         except Exception:
             net = total - discount
         return f"{net:.2f}"
@@ -6314,13 +7027,10 @@ class CounterSalePage(QWidget):
             identity = "Draft"
         else:
             try:
-                raw = str(state.get("bill_no") or invoice.get("bill_no") or "--").strip() or "--"
-                pat = state.get("patient_name") or invoice.get("patient_name") or ""
-                identity = _display_bill_no(raw, patient_name=pat) if raw != "--" else "--"
-                if not identity:
-                    identity = "Bill"
+                raw = str(state.get("bill_no") or invoice.get("bill_no") or "").strip()
+                identity = raw
             except Exception:
-                identity = str(state.get("bill_no") or invoice.get("bill_no") or "--").strip() or "--"
+                identity = str(state.get("bill_no") or invoice.get("bill_no") or "").strip()
         if state.get("saved_total") is not None:
             bill_total = state["saved_total"]
         elif draft_id == self._active_open_bill_id:
@@ -6482,6 +7192,8 @@ class CounterSalePage(QWidget):
             self._open_bills_layout.activate()
         except Exception:
             pass
+        self._refresh_status_bar()
+
     def _select_open_bill(self, draft_id: int) -> None:
         if draft_id not in self._open_bills or draft_id == self._active_open_bill_id:
             return
@@ -6718,9 +7430,16 @@ class CounterSalePage(QWidget):
         stored number is kept in the tooltip.
         """
         stored = row.get("bill_no") or ""
-        pat = row.get("patient_name")
-        cell = QTableWidgetItem(_display_bill_no(stored, patient_name=pat))
-        cell.setToolTip(f"Full Bill No: {stored}" if stored else "")
+        raw_pat = row.get("patient_name") or ""
+        pat_display = raw_pat.strip() or "WALKIN"
+        # Use the *stored* patient name: a historical empty marker hides the
+        # legacy number, while a named row keeps it.  The WALKIN fallback is
+        # for the Patient cell only and must never feed the bill-number rule.
+        display_bno = _display_bill_no(stored, patient_name=raw_pat)
+        cell = QTableWidgetItem(display_bno)
+        cell.setToolTip(
+            f"Full Bill No: {stored}" if display_bno and stored else ""
+        )
         table.setItem(row_index, 0, cell)
         table.setItem(row_index, 1, QTableWidgetItem(row.get("sale_type") or ""))
         table.setItem(row_index, 2, QTableWidgetItem(row.get("item_name") or ""))
@@ -6731,7 +7450,7 @@ class CounterSalePage(QWidget):
         table.setItem(row_index, 4, qty_item)
 
         table.setItem(row_index, 5, self._money_cell(row.get("amount")))
-        table.setItem(row_index, 6, QTableWidgetItem(row.get("patient_name") or ""))
+        table.setItem(row_index, 6, QTableWidgetItem(pat_display))
         table.setItem(row_index, 7, QTableWidgetItem(row.get("pack_size") or ""))
         table.setItem(row_index, 8, QTableWidgetItem(row.get("batch_no") or ""))
         table.setItem(row_index, 9, QTableWidgetItem(row.get("expiry") or ""))
@@ -6749,16 +7468,20 @@ class CounterSalePage(QWidget):
         stored number.  The full stored number is kept in the tooltip.
         """
         stored = row.get("bill_no") or ""
-        pat = row.get("patient_name")
-        cell = QTableWidgetItem(_display_bill_no(stored, patient_name=pat))
-        cell.setToolTip(f"Full Bill No: {stored}" if stored else "")
+        raw_pat = row.get("patient_name") or ""
+        patient_name = raw_pat.strip() or "WALKIN"
+        # The stored empty patient marker (historical unnamed sale) hides the
+        # legacy Bill No; the WALKIN fallback is display-only.
+        display_bno = _display_bill_no(stored, patient_name=raw_pat)
+        cell = QTableWidgetItem(display_bno)
+        cell.setToolTip(
+            f"Full Bill No: {stored}" if display_bno and stored else ""
+        )
         table.setItem(row_index, 0, cell)
         table.setItem(row_index, 1, QTableWidgetItem(row.get("sale_type") or ""))
 
-        patient_name = row.get("patient_name") or ""
         pat_cell = QTableWidgetItem(patient_name)
-        if patient_name:
-            pat_cell.setToolTip(patient_name)
+        pat_cell.setToolTip(patient_name)
         table.setItem(row_index, 2, pat_cell)
 
         sale_date = row.get("sale_date") or ""

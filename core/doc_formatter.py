@@ -62,15 +62,16 @@ def format_document_number(value: Any, default: str = "") -> str:
 
 
 def format_sales_bill_number(value: Any, patient_name: Any = None, default: str = "") -> str:
-    """Return numeric sales bill number, or empty string if patient_name is empty/whitespace.
+    """Return the display sales bill number for a sale.
 
-    Rules:
-    - If patient_name is provided and is empty or contains only whitespace: return ''
-    - If patient_name is present: return format_document_number(value, default=default)
-    - If patient_name is None (omitted): return format_document_number(value, default=default)
+    When the original stored patient name is empty or whitespace-only, the
+    sale was created without a patient and its business Bill No is displayed
+    as blank.  ``patient_name=None`` means the caller did not supply the
+    name, so the number is formatted normally.  A genuinely blank stored
+    number is always returned blank.
     """
     if patient_name is not None and not str(patient_name).strip():
-        return ""
+        return default
     return format_document_number(value, default=default)
 
 

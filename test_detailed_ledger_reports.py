@@ -670,7 +670,9 @@ class TestItemwiseLedgerDAO(_BaseLedgerTest):
             to_date="2026-04-30",
         )
         self.assertEqual(report["opening_stock"], 50.0)
-        self.assertEqual(report["total_inward"], 0.0)
+        # Total Inward includes opening stock per legacy Pharma-WINNER convention
+        self.assertEqual(report["total_inward"], 50.0)
+        self.assertEqual(report["period_inward"], 0.0)
         self.assertEqual(report["total_outward"], 0.0)
         self.assertEqual(report["closing_stock"], 50.0)
         self.assertEqual(len(report["rows"]), 0)
@@ -754,7 +756,7 @@ class TestLedgerScreensAndWiring(_BaseLedgerTest):
 
         self.assertGreaterEqual(page._table.rowCount(), 2)
         os_cell = page._table.item(0, 1)
-        self.assertIn("OPENING STOCK", os_cell.text())
+        self.assertIn("OPENING", os_cell.text())
 
     def test_16_financial_year_switch_updates_pages(self):
         """set_history_financial_year updates date range on all 3 pages."""

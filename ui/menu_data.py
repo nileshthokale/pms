@@ -63,6 +63,8 @@ MENUS = {
         "Supplier Payment",
     ],
     "Account": [
+        "Debit Note (Return to Supplier)",
+        "Credit Note (Return from Customer)",
         "Supplier Payment Voucher",
         "Customer Receipt Voucher",
         "Cash Book",

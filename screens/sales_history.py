@@ -228,15 +228,20 @@ def _fmt_bill_no(
     invoice_id: int | None = None,
     patient_name: str | None = None,
 ) -> str:
-    """Return the display value for a bill number using centralized formatting.
+    """Return the display value for a bill number.
 
-    If patient_name is provided and contains only whitespace or is empty,
-    returns a blank string.
+    A sale created without a patient name (empty/whitespace in the stored
+    row) has a genuinely blank business Bill No.  It is never replaced by
+    ``--`` or by an internal id.  When the caller does not supply the patient
+    name (``None``), the number is formatted normally.
     """
     if patient_name is not None and not str(patient_name).strip():
         return ""
+    text = str(bill_no).strip() if bill_no is not None else ""
+    if not text or text in ("--", "---"):
+        return ""
     from core.doc_formatter import format_document_number
-    return format_document_number(bill_no, default="--")
+    return format_document_number(text, default="")
 
 
 def _fmt_patient_name(patient_name: str | None) -> str:
@@ -353,7 +358,7 @@ class SalesBillDetailsDialog(QDialog):
         grid.setVerticalSpacing(4)
         grid.setContentsMargins(10, 8, 10, 8)
 
-        bill_no = self._invoice.get("bill_no") or "--"
+        bill_no = self._invoice.get("bill_no") or ""
         sale_date = self._invoice.get("sale_date") or "--"
         sale_time = self._invoice.get("sale_time") or ""
         dt_str = f"{sale_date} {sale_time}".strip()
@@ -1047,18 +1052,17 @@ class SalesHistoryPage(QWidget):
         self._table.setRowCount(len(rows))
         for r_idx, row in enumerate(rows):
             # 0: Bill No (numeric sequence displayed when patient present, blank when empty)
-            raw_bno = row.get("bill_no") or "--"
-            bno_item = QTableWidgetItem(
-                _fmt_bill_no(
-                    raw_bno,
-                    row.get("remarks"),
-                    row.get("id"),
-                    patient_name=row.get("patient_name"),
-                )
+            raw_bno = row.get("bill_no") or ""
+            display_bno = _fmt_bill_no(
+                raw_bno,
+                row.get("remarks"),
+                row.get("id"),
+                patient_name=row.get("patient_name"),
             )
+            bno_item = QTableWidgetItem(display_bno)
             bno_item.setData(Qt.UserRole, row.get("id"))
             bno_item.setTextAlignment(Qt.AlignCenter)
-            bno_item.setToolTip(f"Full Bill No: {raw_bno}")
+            bno_item.setToolTip(f"Full Bill No: {raw_bno}" if display_bno and raw_bno else "")
             self._table.setItem(r_idx, 0, bno_item)
 
             # 1: Date & Time
