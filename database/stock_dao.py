@@ -179,7 +179,7 @@ class StockDAO:
             cur = conn.execute(
                 f"""
                 SELECT id, item_id, batch_no, expiry, pack_size,
-                       mrp, purchase_rate, stock_qty
+                       mrp, purchase_rate, net_rate, stock_qty
                 FROM stock_batches
                 {where_clause}
                 ORDER BY batch_no
@@ -197,7 +197,7 @@ class StockDAO:
             cur = conn.execute(
                 """
                 SELECT id, item_id, batch_no, expiry, pack_size,
-                       mrp, purchase_rate, stock_qty
+                       mrp, purchase_rate, net_rate, stock_qty
                 FROM stock_batches
                 WHERE id = ?
                 """,
@@ -205,6 +205,226 @@ class StockDAO:
             )
             row = cur.fetchone()
             return dict(row) if row else None
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_batches_for_adjustment(item_id: int) -> list[dict]:
+        """Return all batches for an item for stock adjustment.
+
+        Orders batches prioritizing available stock:
+        1. Active unexpired batches with stock (FEFO: earliest expiry first).
+        2. Expired batches with stock (for write-off / adjustment).
+        3. Zero-stock and historical batches at the bottom.
+
+        Includes actual stored rates, tax percent from purchase history,
+        calculated net rate, and eligibility tags.
+        """
+        conn = get_connection()
+        try:
+            today_iso = date.today().isoformat()
+            cur = conn.execute(
+                """
+                SELECT
+                    sb.id,
+                    sb.item_id,
+                    i.item_name,
+                    sb.batch_no,
+                    sb.expiry,
+                    COALESCE(NULLIF(sb.pack_size, ''), i.pack_size, '1') AS pack_size,
+                    COALESCE(sb.mrp, 0.0) AS mrp,
+                    COALESCE(sb.purchase_rate, 0.0) AS purchase_rate,
+                    COALESCE(sb.net_rate, 0.0) AS net_rate,
+                    COALESCE(sb.stock_qty, 0.0) AS stock_qty,
+                    COALESCE(
+                        (
+                            SELECT pii.gst_percent
+                            FROM purchase_invoice_items pii
+                            WHERE pii.item_id = sb.item_id AND pii.batch_no = sb.batch_no
+                            ORDER BY pii.id DESC
+                            LIMIT 1
+                        ),
+                        0.0
+                    ) AS tax_percent
+                FROM stock_batches sb
+                JOIN items i ON i.id = sb.item_id
+                WHERE sb.item_id = ?
+                ORDER BY
+                    CASE
+                        WHEN sb.stock_qty > 0 AND (sb.expiry IS NULL OR sb.expiry >= ? OR sb.expiry = '') THEN 1
+                        WHEN sb.stock_qty > 0 THEN 2
+                        ELSE 3
+                    END ASC,
+                    CASE
+                        WHEN sb.stock_qty > 0 AND (sb.expiry IS NULL OR sb.expiry >= ? OR sb.expiry = '') THEN sb.expiry
+                        ELSE NULL
+                    END ASC,
+                    sb.expiry DESC,
+                    sb.batch_no ASC
+                """,
+                (item_id, today_iso, today_iso),
+            )
+            rows = [dict(r) for r in cur.fetchall()]
+            for r in rows:
+                if not r.get("net_rate") and r.get("purchase_rate"):
+                    tax = float(r.get("tax_percent") or 0.0)
+                    r["net_rate"] = round(float(r["purchase_rate"]) * (1.0 + tax / 100.0), 2)
+                r["is_expired"] = StockDAO._is_expired(r.get("expiry", ""))
+                r["is_zero_stock"] = (float(r.get("stock_qty") or 0.0) <= 0.0)
+                r["is_eligible"] = (not r["is_expired"] and not r["is_zero_stock"])
+            return rows
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_item_stock_summary(item_id: int) -> dict:
+        """Calculate authoritative item-level stock summary under verified unit conventions.
+
+        - All stock quantities in stock_batches, sales_invoice_items, and credit_note_items
+          are stored in LOOSE UNITS (e.g. individual tablets/capsules).
+        - Purchases and debit notes are stored in PACKS and converted via pack_size.
+        - eligible_stock: sum of stock_qty of active (unexpired) batches with stock_qty > 0.
+        - expired_stock: sum of stock_qty of expired batches with stock_qty > 0.
+        - total_book_stock: sum of all stock_batches.stock_qty for the item.
+        """
+        batches = StockDAO.get_batches_for_adjustment(item_id)
+        eligible_stock = sum(
+            float(b.get("stock_qty") or 0.0) for b in batches
+            if not b.get("is_expired") and float(b.get("stock_qty") or 0.0) > 0.0
+        )
+        expired_stock = sum(
+            float(b.get("stock_qty") or 0.0) for b in batches
+            if b.get("is_expired") and float(b.get("stock_qty") or 0.0) > 0.0
+        )
+        total_book_stock = sum(float(b.get("stock_qty") or 0.0) for b in batches)
+
+        active_batches = [b for b in batches if not b.get("is_expired") and float(b.get("stock_qty") or 0.0) > 0.0]
+        expired_batches = [b for b in batches if b.get("is_expired") and float(b.get("stock_qty") or 0.0) > 0.0]
+        zero_batches = [b for b in batches if float(b.get("stock_qty") or 0.0) <= 0.0]
+
+        return {
+            "item_id": item_id,
+            "eligible_stock": eligible_stock,
+            "expired_stock": expired_stock,
+            "total_book_stock": total_book_stock,
+            "batches": batches,
+            "active_batches": active_batches,
+            "expired_batches": expired_batches,
+            "zero_batches": zero_batches,
+            "active_batch_count": len(active_batches),
+            "expired_batch_count": len(expired_batches),
+            "total_batch_count": len(batches),
+        }
+
+    @staticmethod
+    def get_batch_ledger_movement(item_id: int, stock_batch_id: int | None = None, batch_no: str | None = None) -> dict:
+        """Trace movement ledger for a batch and reconcile against stock_batches.stock_qty.
+
+        Movement formula:
+          Purchases (loose) = (pay_qty + free_qty) * pack_size
+          Sales (loose) = sale_qty
+          Sales Returns (loose) = return_qty from credit_note_items
+          Purchase Returns (loose) = return_qty * pack_size from debit_note_items
+          Stock Adjustments (loose) = adjusted_qty from stock_adjustments
+          Calculated Book Stock = Purchases - Sales + Sales Returns - Purchase Returns + Adjustments
+        """
+        from database.purchase_dao import pack_factor
+        conn = get_connection()
+        try:
+            batch = None
+            if stock_batch_id:
+                cur = conn.execute("SELECT * FROM stock_batches WHERE id = ?", (stock_batch_id,))
+                r = cur.fetchone()
+                if r:
+                    batch = dict(r)
+            if not batch and batch_no:
+                cur = conn.execute("SELECT * FROM stock_batches WHERE item_id = ? AND batch_no = ?", (item_id, batch_no))
+                r = cur.fetchone()
+                if r:
+                    batch = dict(r)
+
+            b_id = batch["id"] if batch else stock_batch_id
+            b_no = (batch.get("batch_no") if batch else batch_no) or ""
+            p_size = batch.get("pack_size") if batch else ""
+            p_factor = pack_factor(p_size)
+
+            # Purchases (loose)
+            p_cur = conn.execute(
+                """
+                SELECT SUM((pay_qty + COALESCE(free_qty, 0)) * ?)
+                FROM purchase_invoice_items
+                WHERE item_id = ? AND batch_no = ?
+                """,
+                (p_factor, item_id, b_no),
+            )
+            pur_loose = float(p_cur.fetchone()[0] or 0.0)
+
+            # Sales (loose)
+            s_cur = conn.execute(
+                """
+                SELECT SUM(sale_qty)
+                FROM sales_invoice_items
+                WHERE item_id = ? AND (stock_batch_id = ? OR batch_no = ?)
+                """,
+                (item_id, b_id, b_no),
+            )
+            sale_loose = float(s_cur.fetchone()[0] or 0.0)
+
+            # Credit Notes / Sales returns (loose)
+            cn_cur = conn.execute(
+                """
+                SELECT SUM(return_qty)
+                FROM credit_note_items
+                WHERE item_id = ? AND (stock_batch_id = ? OR batch_no = ?)
+                """,
+                (item_id, b_id, b_no),
+            )
+            cn_loose = float(cn_cur.fetchone()[0] or 0.0)
+
+            # Debit Notes / Purchase returns (respects is_pack_qty flag)
+            dn_cur = conn.execute(
+                """
+                SELECT SUM(
+                    CASE
+                        WHEN is_pack_qty = 1 THEN (return_qty + COALESCE(free_qty, 0)) * ?
+                        ELSE (return_qty + COALESCE(free_qty, 0))
+                    END
+                )
+                FROM debit_note_items
+                WHERE item_id = ? AND (stock_batch_id = ? OR batch_no = ?)
+                """,
+                (p_factor, item_id, b_id, b_no),
+            )
+            dn_loose = float(dn_cur.fetchone()[0] or 0.0)
+
+            # Stock Adjustments (loose)
+            adj_cur = conn.execute(
+                """
+                SELECT SUM(adjusted_qty)
+                FROM stock_adjustments
+                WHERE item_id = ? AND (stock_batch_id = ? OR batch_no = ?)
+                """,
+                (item_id, b_id, b_no),
+            )
+            adj_loose = float(adj_cur.fetchone()[0] or 0.0)
+
+            calc_stock = pur_loose - sale_loose + cn_loose - dn_loose + adj_loose
+            stored_stock = float(batch.get("stock_qty") or 0.0) if batch else 0.0
+
+            return {
+                "item_id": item_id,
+                "batch_id": b_id,
+                "batch_no": b_no,
+                "pack_factor": p_factor,
+                "purchased_loose": pur_loose,
+                "sold_loose": sale_loose,
+                "sales_returns_loose": cn_loose,
+                "purchase_returns_loose": dn_loose,
+                "adjustments_loose": adj_loose,
+                "calculated_book_stock": calc_stock,
+                "stored_stock": stored_stock,
+                "variance": stored_stock - calc_stock,
+            }
         finally:
             conn.close()
 

@@ -914,6 +914,51 @@ class LedgerReportDAO:
                     "ref_id": d["ref_id"],
                 })
 
+            # 5. Stock Adjustments (Positive -> Inward, Negative -> Outward)
+            try:
+                adjs = conn.execute(
+                    """
+                    SELECT
+                        id,
+                        adjustment_date AS txn_date,
+                        adjustment_time AS txn_time,
+                        batch_no,
+                        expiry,
+                        pack_size,
+                        adjusted_qty,
+                        reason
+                    FROM stock_adjustments
+                    WHERE item_id = ?
+                    """,
+                    (item_id,),
+                ).fetchall()
+
+                for a in adjs:
+                    adj_qty = float(a["adjusted_qty"] or 0.0)
+                    reason_str = (a["reason"] or "").strip()
+                    part = f"Stock Adjustment ({adj_qty:+g})"
+                    if reason_str:
+                        part += f" - {reason_str}"
+
+                    in_qty = round(adj_qty, 2) if adj_qty > 0 else 0.0
+                    out_qty = round(abs(adj_qty), 2) if adj_qty < 0 else 0.0
+
+                    all_movements.append({
+                        "date": a["txn_date"] or "",
+                        "time": a["txn_time"] or "",
+                        "particulars": part,
+                        "voucher_no": f"ADJ-{a['id']}",
+                        "voucher_type": "Stock Adjustment",
+                        "batch_no": a["batch_no"] or "",
+                        "expiry": a["expiry"] or "",
+                        "inward_qty": in_qty,
+                        "outward_qty": out_qty,
+                        "reference": f"Adj #{a['id']}",
+                        "ref_id": a["id"],
+                    })
+            except Exception:
+                pass
+
             # Sort all movements chronologically
             all_movements.sort(key=lambda m: (m["date"], m["time"], m["voucher_no"], m["ref_id"]))
 

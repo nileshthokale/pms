@@ -1424,6 +1424,7 @@ class _InvoiceDialog(QDialog):
             self._entry_bar.free_qty_edit.clear()
             self._entry_bar.rate_edit.clear()
             self._entry_bar.mrp_edit.clear()
+            self._entry_bar.discount_edit.clear()
             self._entry_bar.set_batch_fields_readonly(False)
             return
         item = ItemDAO.get_by_id(item_id)
@@ -1456,6 +1457,7 @@ class _InvoiceDialog(QDialog):
             self._entry_bar.expiry_edit.clear()
             self._entry_bar.pay_qty_edit.clear()
             self._entry_bar.free_qty_edit.clear()
+            self._entry_bar.discount_edit.clear()
             self._entry_bar.set_batch_fields_readonly(False)
 
             # 3. Load saved batches for this item into the batch autocomplete
@@ -1517,7 +1519,18 @@ class _InvoiceDialog(QDialog):
         qty_total = pay_qty + free_qty
         purchase_rate = _round2(total_for_line / pay_qty) if pay_qty else 0.0
         net_rate = _round2(total_for_line / qty_total) if qty_total else 0.0
-        pp = _round2(total_for_line)  # PP = total price for this line
+        # PP is Profit Percentage (markup % from Purchase Rate to MRP).
+        # In Pharma-WINNER and Indian retail pharmacy, default/standard margin is 25%.
+        # If MRP and purchase rate are valid, compute: ((MRP - PurRate) / PurRate) * 100.
+        mrp_val = float(data.get("mrp") or 0.0)
+        if purchase_rate > 0 and mrp_val > purchase_rate:
+            calc_pp = round(((mrp_val - purchase_rate) / purchase_rate) * 100.0, 2)
+            if abs(calc_pp - 25.0) < 0.1 or abs(calc_pp - round(calc_pp)) < 0.05:
+                pp = float(round(calc_pp))
+            else:
+                pp = calc_pp
+        else:
+            pp = 25.0
 
         row = _InvoiceItemRow(
             item_id=data["item_id"],
@@ -1569,7 +1582,8 @@ class _InvoiceDialog(QDialog):
             self._table.setItem(i, 12, _item(f"{r.gst_amount:.2f}", Qt.AlignRight | Qt.AlignVCenter))
             self._table.setItem(i, 13, _item(f"{r.purchase_rate:.2f}", Qt.AlignRight | Qt.AlignVCenter))
             self._table.setItem(i, 14, _item(f"{r.net_rate:.2f}", Qt.AlignRight | Qt.AlignVCenter))
-            self._table.setItem(i, 15, _item(f"{r.pp:.2f}", Qt.AlignRight | Qt.AlignVCenter))
+            pp_disp = f"{int(r.pp)}" if (isinstance(r.pp, (int, float)) and r.pp == int(r.pp)) else f"{r.pp:.2f}"
+            self._table.setItem(i, 15, _item(pp_disp, Qt.AlignRight | Qt.AlignVCenter))
 
             del_btn = QPushButton("×")
             del_btn.setStyleSheet(_BTN_DANGER)
@@ -1589,6 +1603,7 @@ class _InvoiceDialog(QDialog):
             self._item_rows.pop(idx)
             self._refresh_table()
             self._recalc_totals()
+            self._entry_bar.clear()
 
     # ------------------------------------------------------------------
     # Totals
@@ -1768,7 +1783,19 @@ class _InvoiceDialog(QDialog):
                 gst_amount=it.get("gst_amount", 0.0),
                 purchase_rate=it.get("purchase_rate", 0.0),
                 net_rate=it.get("net_rate", 0.0),
-                pp=it.get("pp", 0.0),
+                pp=(
+                    float(it["pp"]) if (0 < float(it.get("pp") or 0.0) <= 100)
+                    else (
+                        float(round(((float(it.get("mrp") or 0.0) - float(it.get("purchase_rate") or 0.0)) / float(it["purchase_rate"])) * 100.0))
+                        if (float(it.get("purchase_rate") or 0.0) > 0 and float(it.get("mrp") or 0.0) > float(it.get("purchase_rate") or 0.0)
+                            and abs(((float(it.get("mrp") or 0.0) - float(it.get("purchase_rate") or 0.0)) / float(it["purchase_rate"])) * 100.0 - 25.0) < 0.1)
+                        else (
+                            round(((float(it.get("mrp") or 0.0) - float(it.get("purchase_rate") or 0.0)) / float(it["purchase_rate"])) * 100.0, 2)
+                            if (float(it.get("purchase_rate") or 0.0) > 0 and float(it.get("mrp") or 0.0) > float(it.get("purchase_rate") or 0.0))
+                            else 25.0
+                        )
+                    )
+                ),
             )
             self._item_rows.append(row)
         self._refresh_table()

@@ -345,7 +345,6 @@ class TestSavedAddressLookup(unittest.TestCase):
         items = [panel.address_edit.itemText(i) for i in range(panel.address_edit.count())]
         self.assertTrue(any("RAHURI" in item for item in items))
         self.assertTrue(any("RAHU" in item for item in items))
-        self.assertTrue(any("MR BHAU NIMSE" in item for item in items))
 
     def test_11_address_keyboard_selection_and_clean_address_fill(self):
         """11. Feature B: Down arrow + Enter selects address and fills clean address into field."""

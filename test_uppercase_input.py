@@ -28,6 +28,8 @@ try:
         QDialog,
         QDoubleSpinBox,
         QLineEdit,
+        QPlainTextEdit,
+        QTextEdit,
         QVBoxLayout,
         QWidget,
     )
@@ -345,6 +347,45 @@ class UpperCaseConversionTests(unittest.TestCase):
         self.assertEqual(combo.lineEdit().text(), "CIPLA")
         self.assertEqual(len(changes), 5,
                          "each key must produce exactly one textChanged")
+
+    def test_19_text_edit_is_converted(self):
+        """QTextEdit inputs are automatically upper-cased."""
+        te = QTextEdit()
+        self.addCleanup(te.deleteLater)
+        input_rules.attach_uppercase(te)
+        QTest.keyClicks(te, "paracetamol")
+        self.assertEqual(te.toPlainText(), "PARACETAMOL")
+
+    def test_20_plain_text_edit_is_converted(self):
+        """QPlainTextEdit inputs are automatically upper-cased."""
+        pte = QPlainTextEdit()
+        self.addCleanup(pte.deleteLater)
+        input_rules.attach_uppercase(pte)
+        QTest.keyClicks(pte, "dolo 650")
+        self.assertEqual(pte.toPlainText(), "DOLO 650")
+
+    def test_21_caps_lock_helpers(self):
+        """Caps Lock query and ensure helpers are available and callable."""
+        self.assertIn("ensure_caps_lock_on", dir(input_rules))
+        self.assertIn("is_caps_lock_on", dir(input_rules))
+        # Should execute safely without error
+        res = input_rules.ensure_caps_lock_on()
+        self.assertIsInstance(res, bool)
+        is_on = input_rules.is_caps_lock_on()
+        self.assertIsInstance(is_on, bool)
+
+    def test_22_searchable_combo_box_uppercase(self):
+        """SearchableComboBox line edit receives uppercase key input."""
+        from ui.components import SearchableComboBox
+
+        combo = SearchableComboBox()
+        self.addCleanup(combo.deleteLater)
+        combo.populate([("Cipla 500", 1), ("Sun Pharma", 2)])
+        input_rules.attach_uppercase(combo)
+        line = combo.lineEdit()
+        self.assertIsNotNone(line)
+        QTest.keyClicks(line, "cip")
+        self.assertEqual(line.text(), "CIP")
 
 
 # ── 3. Application-wide installer ─────────────────────────────────────

@@ -1,4 +1,4 @@
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QEvent
 from PySide6.QtWidgets import (
     QApplication,
     QLabel,
@@ -15,6 +15,7 @@ from database import auth
 from database import financial_year
 import version
 from ui import theme
+from ui.input_rules import install_uppercase_input, ensure_caps_lock_on
 
 
 def _get_window_title(action: str = "") -> str:
@@ -47,6 +48,8 @@ class PlaceholderPage(QWidget):
 class PharmacyMainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+        install_uppercase_input(QApplication.instance())
+        ensure_caps_lock_on()
         init_database()
         auth.ensure_auth_schema()
         financial_year.ensure_default_financial_year()
@@ -141,6 +144,8 @@ class PharmacyMainWindow(QMainWindow):
                     page = screens.PurchaseInvoicePage()
                 elif menu_name == "Purchase" and item_name == "Purchase History":
                     page = screens.PurchaseInvoicePage()
+                elif menu_name == "Purchase" and item_name in ("Stock Adjustment", "Adjusted Stock"):
+                    page = screens.AdjustedStockListPage()
                 elif menu_name == "Reports" and item_name == "Items (All) Stock":
                     page = screens.ItemsAllStockPage()
                     page.close_requested.connect(
@@ -498,3 +503,9 @@ class PharmacyMainWindow(QMainWindow):
             except Exception:
                 continue
             self._refresh_widget_tree(widget)
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() in (QEvent.Type.ActivationChange, QEvent.Type.WindowStateChange):
+            if self.isActiveWindow():
+                ensure_caps_lock_on()

@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
 
 from database import auth
 from ui import components as ui
-from ui.input_rules import set_uppercase
+from ui.input_rules import set_uppercase, ensure_caps_lock_on
 from version import APP_TITLE
 
 #login file
@@ -28,6 +28,7 @@ class LoginDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        ensure_caps_lock_on()
         is_staging = os.environ.get("PHARMACY_STAGING_MODE") == "1"
         if is_staging:
             self.setWindowTitle("Pharmacy Management System Login [STAGING / AUDIT MODE]")

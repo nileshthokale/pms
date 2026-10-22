@@ -10,6 +10,8 @@ supporting Day Mode, Night Mode, searching, sorting, and reporting.
 
 from __future__ import annotations
 
+from screens.stock_adjustment_dialog import StockAdjustmentDialog
+
 from datetime import datetime
 from decimal import Decimal
 from typing import Any, List, Optional

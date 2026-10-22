@@ -45,7 +45,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QFontMetrics, QStandardItem, QStandardItemModel
 
-from database.customer_dao import CustomerDAO
+from database.customer_dao import CustomerDAO, PatientOption
 from database.connection import get_connection
 from database.doctor_dao import DoctorDAO
 from database.item_dao import ItemDAO
@@ -1327,17 +1327,23 @@ class _KeyboardCombo(QComboBox):
         bounds = screen.availableGeometry() if screen else QRect(0, 0, 1920, 1080)
         count = max(1, self.completer().completionCount())
         row_height = max(24, popup.sizeHintForRow(0))
-        height = min(row_height * min(count, 10) + 4, bounds.height())
+        height = min(row_height * min(count, 7) + 4, 190)
         width = min(max(self.width(), popup.sizeHintForColumn(0) + 28), bounds.width())
-        below = self.mapToGlobal(QPoint(0, self.height())).y()
+        below = self.mapToGlobal(QPoint(0, self.height())).y() + 2
         x = min(max(bounds.left(), self.mapToGlobal(QPoint(0, 0)).x()),
                 bounds.right() - width + 1)
-        if below + height > bounds.bottom():
-            above = self.mapToGlobal(QPoint(0, 0)).y() - height
-            y = max(bounds.top(), above)
+        space_below = bounds.bottom() - below
+        top_of_widget = self.mapToGlobal(QPoint(0, 0)).y()
+        space_above = top_of_widget - bounds.top()
+
+        if space_below >= height or space_below >= space_above:
+            y = below
+            height = min(height, max(space_below - 4, 50))
         else:
-            y = max(bounds.top(), below)
-        popup.setGeometry(x, y, width, height)
+            y = max(bounds.top() + 2, top_of_widget - height - 2)
+            height = min(height, top_of_widget - y - 2)
+
+        popup.setGeometry(x, y, width, max(height, 40))
 
     def _accept_text(self, text: str):
         index = self.findText(text, Qt.MatchFixedString)
@@ -1454,27 +1460,12 @@ def _make_date() -> QDateEdit:
 _DB_LOOKUP_LIMIT = 60
 
 
-def _patient_name_options(query: str) -> list[str]:
+def _patient_name_options(query: str) -> list[PatientOption]:
     """Distinct patient names already recorded in the database.
 
-    Patient is free text on the sale, so the existing sale history is the
-    real source of names.  Matching is case-insensitive and partial, so
-    "ram" finds "BHRAMHAKUMARI NANDA".  Nothing is invented here.
+    Searches across patient_addresses, customers, and sales_invoices.
     """
-    text = (query or "").strip()
-    pattern = f"%{text}%" if text else "%"
-    conn = get_connection()
-    try:
-        rows = conn.execute(
-            "SELECT DISTINCT patient_name FROM sales_invoices "
-            "WHERE patient_name IS NOT NULL AND TRIM(patient_name) <> '' "
-            "AND patient_name COLLATE NOCASE LIKE ? "
-            "ORDER BY patient_name LIMIT ?",
-            (pattern, _DB_LOOKUP_LIMIT),
-        ).fetchall()
-    finally:
-        conn.close()
-    return [row[0] for row in rows]
+    return CustomerDAO.get_matching_patients(query, limit=_DB_LOOKUP_LIMIT)
 
 
 def _address_options(query: str) -> list[tuple[str, str]]:
@@ -1559,10 +1550,14 @@ class _DBLookupCombo(_KeyboardCombo):
             # A lookup failure must never block typing in the bill.
             options = []
         self.blockSignals(True)
+        if hasattr(self, "lineEdit") and self.lineEdit():
+            self.lineEdit().blockSignals(True)
         try:
             QComboBox.clear(self)
             for option in options:
-                if isinstance(option, (tuple, list)) and len(option) >= 2:
+                if isinstance(option, PatientOption):
+                    self.addItem(option.display_text, option)
+                elif isinstance(option, (tuple, list)) and len(option) >= 2:
                     self.addItem(str(option[1]), option[0])
                 else:
                     self.addItem(str(option), option)
@@ -1571,14 +1566,26 @@ class _DBLookupCombo(_KeyboardCombo):
             self.set_completion_model(self.model())
             self.setEditText(typed)
         finally:
+            if hasattr(self, "lineEdit") and self.lineEdit():
+                self.lineEdit().blockSignals(False)
             self.blockSignals(False)
 
     def _accept_text(self, text: str) -> bool:
         index = self.findText(text, Qt.MatchFixedString)
         if index >= 0:
-            clean = self.itemData(index)
-            if clean:
-                self.setEditText(str(clean))
+            data = self.itemData(index)
+            if isinstance(data, PatientOption):
+                self.setEditText(data.name)
+                self._selected_item_data = data
+                return True
+            elif isinstance(data, dict):
+                clean = data.get("patient_name") or data.get("clean_text") or str(text)
+                self.setEditText(clean)
+                self._selected_item_data = data
+                return True
+            elif data:
+                self.setEditText(str(data))
+                self._selected_item_data = data
                 return True
             self.setCurrentIndex(index)
             return True
@@ -1802,6 +1809,14 @@ class _ItemEntryBar(QWidget):
         # into a banner.  A trailing stretch keeps "+ Add" flush right once
         # every field has hit its maximum.
         layout.addWidget(self.item_combo, 3)
+
+        # Adjusted button — opens Stock Adjustment dialog for selected medicine/batch (or any medicine)
+        self.adjusted_btn = QPushButton("Adjusted")
+        self.adjusted_btn.setStyleSheet(_btn_style(_p["accent"], padding="3px 6px", radius="3px"))
+        self.adjusted_btn.setToolTip("Stock Adjustment (Ctrl+A)")
+        self.adjusted_btn.setFixedWidth(66)
+        self.adjusted_btn.setFixedHeight(_ENTRY_BAR_HEIGHT - 8)
+        self.adjusted_btn.setCursor(Qt.PointingHandCursor)
 
         # Batch â€” medium width: long batch numbers stay readable and the
         # light completion popup has room to show useful batch text.
@@ -2459,6 +2474,25 @@ class _ItemEntryBar(QWidget):
         self.qty_edit.setText("1")
         self.discount_edit.setText("0.00")
 
+    def selected_item_id(self) -> int | None:
+        """Return the currently selected item's database ID or None."""
+        return self.item_combo.currentData() if hasattr(self, "item_combo") else None
+
+    def selected_batch_id(self) -> int | None:
+        """Return the currently selected batch's database ID or None."""
+        return self.batch_combo.currentData() if hasattr(self, "batch_combo") else None
+
+    def reload_item_batches(self, keep_batch_id: int | None = None):
+        """Reload batches for current item and refresh stock display."""
+        item_id = self.selected_item_id()
+        if item_id is None:
+            return
+        self._on_item_changed(self.item_combo.currentIndex(), focus_batch=False)
+        if keep_batch_id is not None:
+            idx = self.batch_combo.findData(keep_batch_id)
+            if idx >= 0:
+                self.batch_combo.setCurrentIndex(idx)
+
     def set_cno(self, text: str):
         """Display preview for unsaved bills, number for saved viewing.
 
@@ -2912,6 +2946,8 @@ class _SalePanel(QWidget):
 
         # Wire add button
         self._entry_bar.add_btn.clicked.connect(self._on_add_item)
+        if hasattr(self._entry_bar, "adjusted_btn"):
+            self._entry_bar.adjusted_btn.clicked.connect(self.open_stock_adjustment)
 
         # CNo display mirrors the current bill number (display only).
         self.bill_no_edit.textChanged.connect(self._entry_bar.set_cno)
@@ -2932,6 +2968,22 @@ class _SalePanel(QWidget):
     # ------------------------------------------------------------------
     # Inline lifecycle helpers (reset / load)
     # ------------------------------------------------------------------
+
+    def open_stock_adjustment(self):
+        """Open the Stock Adjustment dialog matching Pharma-WINNER workflow."""
+        from screens.stock_adjustment_dialog import StockAdjustmentDialog
+        item_id = self._entry_bar.selected_item_id()
+        batch_id = self._entry_bar.selected_batch_id()
+
+        dialog = StockAdjustmentDialog(parent=self, item_id=item_id, stock_batch_id=batch_id)
+        dialog.adjustment_saved.connect(self._on_stock_adjustment_applied)
+        dialog.exec()
+
+    def _on_stock_adjustment_applied(self, item_id: int, batch_id: int, adj_qty: float, res_qty: float):
+        """Handle stock adjustment applied from dialog: refresh entry bar and views."""
+        cur_item_id = self._entry_bar.selected_item_id()
+        if cur_item_id == item_id:
+            self._entry_bar.reload_item_batches(keep_batch_id=batch_id)
 
     def reset_for_new(self):
         """Reset the form for a brand-new sale (New Sale / after a save)."""
@@ -3252,14 +3304,13 @@ class _SalePanel(QWidget):
         if hasattr(patient, "lineEdit") and patient.lineEdit():
             patient.lineEdit().textChanged.connect(self._on_patient_name_changed)
         patient.completionAccepted.connect(self._on_patient_completion_accepted)
-        patient.currentIndexChanged.connect(self._on_patient_completion_accepted)
         centre.addWidget(self._lbl("Address"), 2, 0, Qt.AlignRight | Qt.AlignVCenter)
         self.address_edit = _DBLookupCombo(
             _address_options, placeholder="Search saved address", width=300,
         )
         if hasattr(self.address_edit, "lineEdit") and self.address_edit.lineEdit():
             self.address_edit.lineEdit().textEdited.connect(self._on_address_edited)
-        self.address_edit.currentIndexChanged.connect(self._on_address_selected)
+        self.address_edit.completionAccepted.connect(self._on_address_completion_accepted)
         centre.addWidget(self.address_edit, 2, 1)
         centre.setColumnStretch(1, 1)  # Stretch fields within centre grid
 
@@ -3768,9 +3819,24 @@ class _SalePanel(QWidget):
         if index >= 0:
             self._user_edited_address = True
 
+    def _on_address_completion_accepted(self):
+        self._user_edited_address = True
+        self._auto_filled_address_patient = None
+        self._auto_filled_address_text = None
+
     def _on_patient_completion_accepted(self):
         text = self.patient_name_edit.text() if hasattr(self, "patient_name_edit") else ""
-        self._update_address_for_patient(text)
+        selected_data = getattr(self.patient_name_edit, "_selected_item_data", None)
+        if selected_data and getattr(selected_data, "address", None):
+            addr = selected_data.address
+            if hasattr(self.address_edit, "set_patient_addresses"):
+                self.address_edit.set_patient_addresses([addr])
+            self.address_edit.setText(addr)
+            self._auto_filled_address_patient = selected_data.name
+            self._auto_filled_address_text = addr
+            self._user_edited_address = False
+        else:
+            self._update_address_for_patient(text)
 
     def _on_patient_name_changed(self, text: str):
         full_bno = getattr(self, "_full_bill_no", None)
@@ -3816,6 +3882,11 @@ class _SalePanel(QWidget):
                 self.address_edit.setText("")
                 self._auto_filled_address_patient = None
                 self._auto_filled_address_text = None
+                self._user_edited_address = False
+
+        if getattr(self, "_user_edited_address", False):
+            # User manually edited/entered this address: do not overwrite it.
+            return
 
         addresses = CustomerDAO.get_saved_addresses_for_patient(norm)
         self._last_lookup_patient = norm
@@ -6192,6 +6263,8 @@ class CounterSalePage(QWidget):
         self._editing_invoice_id: int | None = None
         self._refresh_history()
         self._refresh_status_bar()
+        from PySide6.QtGui import QShortcut, QKeySequence
+        QShortcut(QKeySequence("Ctrl+A"), self).activated.connect(self._open_stock_adjustment)
 
     # ------------------------------------------------------------------
     # Layout construction
@@ -6243,12 +6316,14 @@ class CounterSalePage(QWidget):
         self._btn_customer_balance = QPushButton("Customer Balance")
         self._btn_demand_order = QPushButton("Demand Order")
         self._btn_drug_substitute = QPushButton("Drug Substitute")
+        self._btn_stock_adjustment = QPushButton("Stock Adjustment")
 
         for btn in (
             self._btn_supplier_balance,
             self._btn_customer_balance,
             self._btn_demand_order,
             self._btn_drug_substitute,
+            self._btn_stock_adjustment,
         ):
             btn.setFixedHeight(28)
             btn.setStyleSheet(_fresh_btn_style(p_now["text_dim"], p_now))
@@ -6259,11 +6334,13 @@ class CounterSalePage(QWidget):
         self._btn_customer_balance.setToolTip("View customer balances and sundry debtors")
         self._btn_demand_order.setToolTip("View items requiring reorder with supplier contacts")
         self._btn_drug_substitute.setToolTip("Find alternative products matching drug / ingredient")
+        self._btn_stock_adjustment.setToolTip("Stock Adjustment (Ctrl+A)")
 
         self._btn_supplier_balance.clicked.connect(self._open_supplier_balance)
         self._btn_customer_balance.clicked.connect(self._open_customer_balance)
         self._btn_demand_order.clicked.connect(self._open_demand_order)
         self._btn_drug_substitute.clicked.connect(self._open_drug_substitute)
+        self._btn_stock_adjustment.clicked.connect(self._open_stock_adjustment)
 
         self._new_btn = QPushButton("New Sale")
         self._new_btn.setFixedWidth(110)
@@ -6458,6 +6535,11 @@ class CounterSalePage(QWidget):
                     bar.qty_edit.setFocus()
         except Exception:
             pass
+
+    def _open_stock_adjustment(self) -> None:
+        """Open the Stock Adjustment dialog matching Pharma-WINNER workflow."""
+        if hasattr(self, "_sale_panel"):
+            self._sale_panel.open_stock_adjustment()
 
     def _open_demand_order(self) -> None:
         """Open the Demand Order dialog showing items at or below reorder level."""

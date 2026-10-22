@@ -60,6 +60,7 @@ MENUS = {
         "New Purchase",
         "Purchase Return",
         "Purchase History",
+        "Stock Adjustment",
         "Supplier Payment",
     ],
     "Account": [
