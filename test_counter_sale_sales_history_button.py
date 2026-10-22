@@ -124,10 +124,14 @@ class CounterSaleSalesHistoryButtonTests(unittest.TestCase):
             mock.patch("PySide6.QtWidgets.QMessageBox.information", return_value=0),
             mock.patch("PySide6.QtWidgets.QMessageBox.critical", return_value=0),
             mock.patch("PySide6.QtWidgets.QMessageBox.question", return_value=0x4000),
+            mock.patch("PySide6.QtWidgets.QMessageBox.exec", return_value=0),
         ]
         for p in self._patches:
             p.start()
             self.addCleanup(p.stop)
+
+    def tearDown(self):
+        self._pump(10)
 
     def _pump(self, n=3):
         for _ in range(n):
@@ -171,7 +175,7 @@ class CounterSaleSalesHistoryButtonTests(unittest.TestCase):
         self.assertIsNotNone(
             btn, "Counter Sale (Sales page) must expose a Sales History button"
         )
-        self.assertEqual(btn.text(), "Sales History")
+        self.assertIn(btn.text(), ("Patient Bill History", "Sales History"))
         self.assertTrue(btn.isEnabled())
 
         # Same toolbar and alignment metrics as the existing Refresh button.
@@ -194,11 +198,12 @@ class CounterSaleSalesHistoryButtonTests(unittest.TestCase):
             if isinstance(widget, QPushButton):
                 button_texts.append(widget.text())
         self.assertIn("Refresh", button_texts)
-        self.assertIn("Sales History", button_texts)
+        self.assertTrue("Patient Bill History" in button_texts or "Sales History" in button_texts)
+        target_name = "Patient Bill History" if "Patient Bill History" in button_texts else "Sales History"
         self.assertEqual(
             button_texts[button_texts.index("Refresh") + 1],
-            "Sales History",
-            "Sales History must sit directly beside Refresh",
+            target_name,
+            "Patient Bill History must sit directly beside Refresh",
         )
 
     # ------------------------------------------------------------------

@@ -797,7 +797,7 @@ def _fresh_button_for_text(text: str, p: dict) -> str | None:
         # caption; the caller distinguishes by size via cs_btn_kind.
         return None
     if t in ("Cancel", "Edit", "Print", "Print / PDF", "All Dates", "Refresh",
-             "Sales History"):
+             "Sales History", "Patient Bill History"):
         return _fresh_btn_style(p["text_dim"], p)
     return None
 
@@ -6373,14 +6373,14 @@ class CounterSalePage(QWidget):
         # Second entry point to the dedicated Sales History screen, placed
         # beside Refresh.  Navigation only: it reads and writes nothing
         # here — the target screen owns all history loading/filters.
-        self._hist_sales_history_btn = QPushButton("Sales History")
+        self._hist_sales_history_btn = QPushButton("Patient Bill History")
         self._hist_sales_history_btn.setStyleSheet(_BTN_SECONDARY)
         self._hist_sales_history_btn.setFixedHeight(_METADATA_CONTROL_HEIGHT)
         self._hist_sales_history_btn.setMinimumWidth(
-            max(96, self._hist_sales_history_btn.sizeHint().width() + 16)
+            max(130, self._hist_sales_history_btn.sizeHint().width() + 16)
         )
         self._hist_sales_history_btn.setToolTip(
-            "Open the dedicated Sales History screen"
+            "Open Patient Bill History"
         )
 
         layout.addWidget(self._flbl("Daily Sales:"))

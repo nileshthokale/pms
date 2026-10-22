@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QDateEdit,
     QDialog,
     QFileDialog,
+    QFrame,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -28,6 +29,18 @@ from PySide6.QtWidgets import (
 from database import document_printing, financial_year
 from database.sales_dao import SalesDAO
 from ui.components import FONT_FAMILY
+from ui.crystal_report_viewer import (
+    BlockKind,
+    CrystalReportViewer,
+    PAGE_HEIGHT_LANDSCAPE,
+    PAGE_WIDTH_LANDSCAPE,
+    ReportBlock,
+    ReportHeaderData,
+    ReportPage,
+    get_default_store_identity,
+    print_or_export_report_pages,
+)
+from ui.fy_view import view_year_bounds
 from ui.input_rules import attach_uppercase
 from ui.theme import (
     TYPE_BUTTON,
@@ -656,7 +669,10 @@ class PatientSearchEdit(QLineEdit):
 
     def hide_suggestions(self):
         if hasattr(self, "_popup"):
-            self._popup.hide()
+            try:
+                self._popup.hide()
+            except RuntimeError:
+                pass
 
     def clear_filter(self):
         self.clear()
@@ -706,6 +722,319 @@ class PatientSearchEdit(QLineEdit):
         super().hideEvent(event)
 
 
+# ══════════════════════════════════════════════════════════════════════
+# Sales History Crystal Report & Dialog
+# ══════════════════════════════════════════════════════════════════════
+
+_MAX_LANDSCAPE_BODY_HEIGHT = 635.0
+
+
+def _paginate_sales_history_blocks(
+    header: ReportHeaderData,
+    blocks: list[ReportBlock],
+    table_header_block: ReportBlock,
+) -> list[ReportPage]:
+    """Split report blocks across A4 landscape pages, repeating header row."""
+    if not blocks:
+        return [
+            ReportPage(
+                page_num=1,
+                total_pages=1,
+                header=header,
+                blocks=[],
+                orientation="landscape",
+                page_width=PAGE_WIDTH_LANDSCAPE,
+                page_height=PAGE_HEIGHT_LANDSCAPE,
+            )
+        ]
+
+    pages: list[ReportPage] = []
+    current_blocks: list[ReportBlock] = []
+    current_h = 0.0
+
+    for block in blocks:
+        if current_blocks and current_h + block.height > _MAX_LANDSCAPE_BODY_HEIGHT:
+            pages.append(
+                ReportPage(
+                    page_num=len(pages) + 1,
+                    total_pages=0,
+                    header=header,
+                    blocks=current_blocks,
+                    orientation="landscape",
+                    page_width=PAGE_WIDTH_LANDSCAPE,
+                    page_height=PAGE_HEIGHT_LANDSCAPE,
+                )
+            )
+            current_blocks = []
+            current_h = 0.0
+            if block.kind != BlockKind.TABLE_HEADER:
+                current_blocks.append(table_header_block)
+                current_h += table_header_block.height
+
+        current_blocks.append(block)
+        current_h += block.height
+
+    if current_blocks:
+        pages.append(
+            ReportPage(
+                page_num=len(pages) + 1,
+                total_pages=0,
+                header=header,
+                blocks=current_blocks,
+                orientation="landscape",
+                page_width=PAGE_WIDTH_LANDSCAPE,
+                page_height=PAGE_HEIGHT_LANDSCAPE,
+            )
+        )
+
+    total = len(pages)
+    for p in pages:
+        p.total_pages = total
+
+    return pages
+
+
+def build_sales_history_report_pages(
+    rows: list[dict],
+    from_date: str = "",
+    to_date: str = "",
+    patient_filter: str = "",
+) -> list[ReportPage]:
+    """Generate A4 landscape Crystal Report pages for historical sales."""
+    store_name, store_address = get_default_store_identity()
+
+    period_parts = []
+    if from_date and to_date:
+        period_parts.append(f"Period : {from_date}  To  {to_date}")
+    elif from_date:
+        period_parts.append(f"From : {from_date}")
+    elif to_date:
+        period_parts.append(f"Up To : {to_date}")
+    else:
+        period_parts.append("All Records")
+
+    header_line_2 = " | ".join(period_parts)
+    header_line_3 = f"Patient : {patient_filter}" if patient_filter else ""
+
+    header = ReportHeaderData(
+        store_name=store_name,
+        store_address=store_address,
+        header_line_1="SALES HISTORY REPORT",
+        header_line_2=header_line_2,
+        header_line_3=header_line_3,
+    )
+
+    columns = [
+        "Bill No",
+        "Date & Time",
+        "Patient Name",
+        "Doctor",
+        "Bill Total",
+        "Discount",
+        "Paid Amount",
+        "Net Amount",
+        "Pay Type",
+    ]
+    widths = [85.0, 120.0, 198.0, 170.0, 100.0, 90.0, 100.0, 100.0, 90.0]
+    aligns = [
+        "center",
+        "center",
+        "left",
+        "left",
+        "right",
+        "right",
+        "right",
+        "right",
+        "center",
+    ]
+
+    table_header_block = ReportBlock(
+        kind=BlockKind.TABLE_HEADER,
+        height=22.0,
+        data={"columns": columns, "widths": widths, "aligns": aligns},
+    )
+
+    if not rows:
+        return [
+            ReportPage(
+                page_num=1,
+                total_pages=1,
+                header=header,
+                blocks=[table_header_block],
+                orientation="landscape",
+                page_width=PAGE_WIDTH_LANDSCAPE,
+                page_height=PAGE_HEIGHT_LANDSCAPE,
+            )
+        ]
+
+    blocks: list[ReportBlock] = [table_header_block]
+
+    tot_total = 0.0
+    tot_disc = 0.0
+    tot_paid = 0.0
+    tot_net = 0.0
+
+    for idx, row in enumerate(rows):
+        bno = _fmt_bill_no(
+            row.get("bill_no") or "--",
+            row.get("remarks"),
+            row.get("id"),
+            patient_name=row.get("patient_name"),
+        )
+        s_date = row.get("sale_date") or ""
+        s_time = row.get("sale_time") or ""
+        dt_str = f"{s_date} {s_time}".strip()
+        p_name = _fmt_patient_name(row.get("patient_name"))
+        d_name = row.get("doctor_name") or "--"
+
+        amt_total = float(row.get("total_amount") or 0.0)
+        amt_disc = float(row.get("discount") or 0.0)
+        amt_paid = float(row.get("paid_amount") or 0.0)
+        amt_net = float(row.get("net_amount") or 0.0)
+        stype = row.get("sale_type") or "Cash"
+
+        tot_total += amt_total
+        tot_disc += amt_disc
+        tot_paid += amt_paid
+        tot_net += amt_net
+
+        cells = [
+            bno,
+            dt_str,
+            p_name,
+            d_name,
+            f"{amt_total:.2f}",
+            f"{amt_disc:.2f}",
+            f"{amt_paid:.2f}",
+            f"{amt_net:.2f}",
+            stype,
+        ]
+
+        bg = "#F9FBFC" if idx % 2 == 1 else None
+
+        blocks.append(
+            ReportBlock(
+                kind=BlockKind.DATA_ROW,
+                height=18.0,
+                data={
+                    "cells": cells,
+                    "widths": widths,
+                    "aligns": aligns,
+                    "bg": bg,
+                },
+            )
+        )
+
+    # Multi-column Grand Total matching table columns
+    prefix_w = widths[0] + widths[1] + widths[2] + widths[3]  # 573.0
+    custom_cells = [
+        {"width": prefix_w, "text": f"Grand Total ({len(rows)} Bills) :", "align": "right"},
+        {"width": widths[4], "text": f"{tot_total:.2f}", "align": "right"},
+        {"width": widths[5], "text": f"{tot_disc:.2f}", "align": "right"},
+        {"width": widths[6], "text": f"{tot_paid:.2f}", "align": "right"},
+        {"width": widths[7], "text": f"{tot_net:.2f}", "align": "right"},
+        {"width": widths[8], "text": "", "align": "center"},
+    ]
+
+    blocks.append(
+        ReportBlock(
+            kind=BlockKind.GRAND_TOTAL,
+            height=22.0,
+            data={"custom_cells": custom_cells, "widths": widths},
+        )
+    )
+
+    return _paginate_sales_history_blocks(header, blocks, table_header_block)
+
+
+class SalesHistoryReportDialog(QDialog):
+    """Crystal Reports preview and print dialog for Sales History."""
+
+    def __init__(
+        self,
+        pages: list[ReportPage],
+        parent: QWidget | None = None,
+    ):
+        super().__init__(parent)
+        self._pages = list(pages)
+        self._export_name = "sales_history_report.pdf"
+
+        self.setWindowTitle("Sales History - Crystal Report")
+        self.resize(1180, 820)
+        self.setMinimumSize(900, 600)
+        self.setModal(False)
+        self.setAttribute(Qt.WA_DeleteOnClose, True)
+
+        p = palette()
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        # Viewer with full toolbar: Export, Print, Copy, Navigation, Zoom, Find
+        self.viewer = CrystalReportViewer(self)
+        self.viewer.print_requested.connect(self._on_print)
+        self.viewer.export_requested.connect(self._on_export)
+        layout.addWidget(self.viewer, 1)
+        self.viewer.set_pages(self._pages)
+
+        # Bottom action bar for convenient printing and exporting
+        bottom_frame = QFrame()
+        bottom_frame.setStyleSheet(
+            f"QFrame {{ background-color: {p['surface']}; border-top: 1px solid {p['border']}; padding: 6px; }}"
+        )
+        bottom_layout = QHBoxLayout(bottom_frame)
+        bottom_layout.setContentsMargins(10, 6, 10, 6)
+        bottom_layout.setSpacing(10)
+
+        count_lbl = QLabel(f"Total Pages: {len(self._pages)}")
+        count_lbl.setStyleSheet(f"color: {p['text']}; font-weight: bold; font-size: {TYPE_FORM_LABEL}px;")
+        bottom_layout.addWidget(count_lbl)
+
+        bottom_layout.addStretch()
+
+        self.btn_print = QPushButton("Print Report")
+        self.btn_print.setStyleSheet(_fresh_btn_style(p, primary=True))
+        self.btn_print.clicked.connect(self._on_print)
+        bottom_layout.addWidget(self.btn_print)
+
+        self.btn_export = QPushButton("Export PDF")
+        self.btn_export.setStyleSheet(_fresh_btn_style(p))
+        self.btn_export.clicked.connect(self._on_export)
+        bottom_layout.addWidget(self.btn_export)
+
+        self.btn_close = QPushButton("Close")
+        self.btn_close.setStyleSheet(_fresh_btn_style(p))
+        self.btn_close.clicked.connect(self.close)
+        bottom_layout.addWidget(self.btn_close)
+
+        layout.addWidget(bottom_frame)
+
+    def _on_print(self):
+        if self._pages:
+            print_or_export_report_pages(self._pages, parent=self)
+
+    def _on_export(self):
+        if not self._pages:
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Sales History Report",
+            self._export_name,
+            "PDF Files (*.pdf)",
+        )
+        if not path:
+            return
+        if not path.casefold().endswith(".pdf"):
+            path += ".pdf"
+        if print_or_export_report_pages(
+            self._pages, parent=self, output_pdf_path=path
+        ):
+            QMessageBox.information(
+                self, "Export", f"Sales History Report saved as PDF:\n{path}"
+            )
+
+
 class SalesHistoryPage(QWidget):
     """Dedicated Sales History screen (Sales → Sales History).
 
@@ -724,6 +1053,7 @@ class SalesHistoryPage(QWidget):
 
         self._build_ui()
         self._load_master_data()
+        self._set_default_dates()
         self.refresh_theme()
         self._perform_search()
 
@@ -734,7 +1064,7 @@ class SalesHistoryPage(QWidget):
 
         # ── 1. Page Title Header ─────────────────────────────────────
         title_box = QHBoxLayout()
-        self._title_lbl = QLabel("Sales History")
+        self._title_lbl = QLabel("Patient Bill History")
         self._title_lbl.setStyleSheet(f"font-size: {TYPE_PAGE_TITLE}px; font-weight: bold;")
         title_box.addWidget(self._title_lbl)
 
@@ -748,7 +1078,7 @@ class SalesHistoryPage(QWidget):
         layout.addLayout(title_box)
 
         # ── 2. Search & Filter Bar ───────────────────────────────────
-        self._filter_box = QGroupBox("Search Historical Sales")
+        self._filter_box = QGroupBox("Search Patient Bill History")
         filter_layout = QVBoxLayout(self._filter_box)
         filter_layout.setContentsMargins(8, 12, 8, 8)
         filter_layout.setSpacing(6)
@@ -767,19 +1097,35 @@ class SalesHistoryPage(QWidget):
         self._patient_edit.returnPressed.connect(self._on_search_clicked)
         self._patient_edit.picked.connect(self._on_search_clicked)
         p_box.addWidget(self._patient_edit)
-        row.addLayout(p_box, 3)
+        row.addLayout(p_box, 1)
 
-        # FY Dropdown
-        fy_box = QHBoxLayout()
-        fy_box.setSpacing(6)
-        fy_lbl = QLabel("Financial Year:")
-        fy_lbl.setStyleSheet(f"font-size: {TYPE_FORM_LABEL}px; font-weight: bold;")
-        fy_box.addWidget(fy_lbl)
-        self._fy_combo = QComboBox()
-        self._fy_combo.addItem("All Financial Years", userData=None)
-        self._fy_combo.currentIndexChanged.connect(self._on_fy_changed)
-        fy_box.addWidget(self._fy_combo)
-        row.addLayout(fy_box, 2)
+        # From Date
+        from_box = QHBoxLayout()
+        from_box.setSpacing(6)
+        self._from_lbl = QLabel("From:")
+        self._from_lbl.setStyleSheet(f"font-size: {TYPE_FORM_LABEL}px; font-weight: bold;")
+        from_box.addWidget(self._from_lbl)
+        self._from_date = QDateEdit()
+        self._from_date.setCalendarPopup(True)
+        self._from_date.setDisplayFormat("dd/MM/yyyy")
+        self._from_date.setDate(QDate.currentDate())
+        self._from_date.setFixedWidth(115)
+        from_box.addWidget(self._from_date)
+        row.addLayout(from_box)
+
+        # To Date
+        to_box = QHBoxLayout()
+        to_box.setSpacing(6)
+        self._to_lbl = QLabel("To:")
+        self._to_lbl.setStyleSheet(f"font-size: {TYPE_FORM_LABEL}px; font-weight: bold;")
+        to_box.addWidget(self._to_lbl)
+        self._to_date = QDateEdit()
+        self._to_date.setCalendarPopup(True)
+        self._to_date.setDisplayFormat("dd/MM/yyyy")
+        self._to_date.setDate(QDate.currentDate())
+        self._to_date.setFixedWidth(115)
+        to_box.addWidget(self._to_date)
+        row.addLayout(to_box)
 
         # Search & Reset buttons
         self._search_btn = QPushButton("Search")
@@ -790,16 +1136,20 @@ class SalesHistoryPage(QWidget):
         self._reset_btn.clicked.connect(self._on_reset_clicked)
         row.addWidget(self._reset_btn)
 
+        self._report_btn = QPushButton("Print Report")
+        self._report_btn.setToolTip("Preview and Print Patient Bill History Report")
+        self._report_btn.clicked.connect(self._on_open_report)
+        row.addWidget(self._report_btn)
+
         filter_layout.addLayout(row)
         layout.addWidget(self._filter_box)
 
         # Retained as internal attributes for backwards compatibility
         self._date_check = QCheckBox("Filter by Date:")
         self._date_check.setChecked(False)
-        self._from_date = QDateEdit()
-        self._from_date.setDate(QDate.currentDate())
-        self._to_date = QDateEdit()
-        self._to_date.setDate(QDate.currentDate())
+        self._fy_combo = QComboBox()
+        self._fy_combo.addItem("All Financial Years", userData=None)
+        self._fy_combo.currentIndexChanged.connect(self._on_fy_changed)
 
         # ── 3. Results Table ─────────────────────────────────────────
         self._table = QTableWidget()
@@ -847,15 +1197,13 @@ class SalesHistoryPage(QWidget):
         self._view_details_btn.clicked.connect(self._on_view_details)
         footer_layout.addWidget(self._view_details_btn)
 
+        # Retained as hidden attributes for backwards compatibility
         self._print_btn = QPushButton("Print / Direct Print")
-        self._print_btn.setEnabled(False)
-        self._print_btn.clicked.connect(self._on_direct_print)
-        footer_layout.addWidget(self._print_btn)
-
+        self._print_btn.setVisible(False)
         self._save_pdf_btn = QPushButton("Save PDF")
-        self._save_pdf_btn.setEnabled(False)
-        self._save_pdf_btn.clicked.connect(self._on_save_pdf)
-        footer_layout.addWidget(self._save_pdf_btn)
+        self._save_pdf_btn.setVisible(False)
+        self._footer_report_btn = QPushButton("Print Report")
+        self._footer_report_btn.setVisible(False)
 
         footer_layout.addStretch(1)
 
@@ -901,19 +1249,41 @@ class SalesHistoryPage(QWidget):
         finally:
             self._fy_combo.blockSignals(False)
 
+    def _set_default_dates(self):
+        self._from_date.setDate(QDate.currentDate())
+        self._to_date.setDate(QDate.currentDate())
+
     def set_history_financial_year(self, year: dict | None) -> None:
         """Called by the main-window navigation bar when viewing a different FY."""
         self._history_financial_year = dict(year) if year else None
-        if not hasattr(self, "_fy_combo"):
-            return
         if not year:
-            self._fy_combo.setCurrentIndex(0)
+            self._date_check.setChecked(False)
+            self._set_default_dates()
+            if hasattr(self, "_fy_combo"):
+                self._fy_combo.setCurrentIndex(0)
+            self._current_page = 1
+            self._perform_search()
             return
-        for idx in range(1, self._fy_combo.count()):
-            y = self._fy_combo.itemData(idx)
-            if y and y.get("name") == year.get("name"):
-                self._fy_combo.setCurrentIndex(idx)
-                break
+
+        start_iso = year.get("start_date") or ""
+        end_iso = year.get("end_date") or ""
+        if start_iso and end_iso:
+            start_qd = QDate.fromString(start_iso, "yyyy-MM-dd")
+            end_qd = QDate.fromString(end_iso, "yyyy-MM-dd")
+            if start_qd.isValid():
+                self._from_date.setDate(start_qd)
+            if end_qd.isValid():
+                self._to_date.setDate(end_qd)
+            self._date_check.setChecked(True)
+
+        if hasattr(self, "_fy_combo"):
+            for idx in range(1, self._fy_combo.count()):
+                y = self._fy_combo.itemData(idx)
+                if y and y.get("name") == year.get("name"):
+                    self._fy_combo.setCurrentIndex(idx)
+                    break
+        self._current_page = 1
+        self._perform_search()
 
     def _on_fy_changed(self, index: int):
         self._current_page = 1
@@ -933,10 +1303,64 @@ class SalesHistoryPage(QWidget):
         if hasattr(self, "_fy_combo"):
             self._fy_combo.setCurrentIndex(0)
         self._date_check.setChecked(False)
-        self._from_date.setDate(QDate.currentDate())
-        self._to_date.setDate(QDate.currentDate())
+        self._set_default_dates()
         self._current_page = 1
         self._perform_search()
+
+    def _on_open_report(self):
+        """Build and display the Sales History Crystal Report."""
+        patient_name = self._patient_edit.text().strip()
+
+        start_date = ""
+        end_date = ""
+        if self._date_check.isChecked():
+            if self._from_date.date() > self._to_date.date():
+                QMessageBox.warning(
+                    self,
+                    "Sales History",
+                    "From Date cannot be later than To Date.",
+                )
+                return
+            start_date = self._from_date.date().toString("yyyy-MM-dd")
+            end_date = self._to_date.date().toString("yyyy-MM-dd")
+
+        try:
+            rows, total = SalesDAO.search_sales_history(
+                patient_name=patient_name,
+                start_date=start_date,
+                end_date=end_date,
+                limit=10000,
+                offset=0,
+            )
+        except Exception as exc:
+            QMessageBox.warning(
+                self, "Report Error", f"Failed to generate report:\n{exc}"
+            )
+            return
+
+        if not rows:
+            QMessageBox.information(
+                self,
+                "Sales History Report",
+                "No sales records found for the selected period.",
+            )
+            return
+
+        from_str = self._from_date.date().toString("dd/MM/yyyy") if start_date else ""
+        to_str = self._to_date.date().toString("dd/MM/yyyy") if end_date else ""
+
+        pages = build_sales_history_report_pages(
+            rows=rows,
+            from_date=from_str,
+            to_date=to_str,
+            patient_filter=patient_name,
+        )
+
+        dlg = SalesHistoryReportDialog(pages, self)
+        self._report_dialog = dlg
+        dlg.show()
+        dlg.raise_()
+        dlg.activateWindow()
 
     def _on_prev_page(self):
         if self._current_page > 1:
@@ -1126,9 +1550,19 @@ class SalesHistoryPage(QWidget):
         self._from_date.setStyleSheet(_fresh_date_style(p))
         self._to_date.setStyleSheet(_fresh_date_style(p))
 
+        # Labels
+        if hasattr(self, "_from_lbl"):
+            self._from_lbl.setStyleSheet(f"color: {p['text']}; font-size: {TYPE_FORM_LABEL}px; font-weight: bold;")
+        if hasattr(self, "_to_lbl"):
+            self._to_lbl.setStyleSheet(f"color: {p['text']}; font-size: {TYPE_FORM_LABEL}px; font-weight: bold;")
+
         # Buttons
         self._search_btn.setStyleSheet(_fresh_btn_style(p, primary=True))
         self._reset_btn.setStyleSheet(_fresh_btn_style(p))
+        if hasattr(self, "_report_btn"):
+            self._report_btn.setStyleSheet(_fresh_btn_style(p))
+        if hasattr(self, "_footer_report_btn"):
+            self._footer_report_btn.setStyleSheet(_fresh_btn_style(p))
         self._view_details_btn.setStyleSheet(_fresh_btn_style(p, primary=True))
         self._print_btn.setStyleSheet(_fresh_btn_style(p))
         self._save_pdf_btn.setStyleSheet(_fresh_btn_style(p))
