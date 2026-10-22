@@ -75,6 +75,13 @@ class PharmacyMainWindow(QMainWindow):
         self._page_map: dict[str, int] = {}
         self._build_pages()
 
+        from PySide6.QtGui import QShortcut, QKeySequence
+        QShortcut(QKeySequence("Ctrl+D"), self).activated.connect(
+            lambda: self._on_menu_action("Account", "Debit Note (Return to Supplier)")
+        )
+        QShortcut(QKeySequence("Ctrl+C"), self).activated.connect(
+            lambda: self._on_menu_action("Account", "Credit Note (Return from Customer)")
+        )
         theme.theme_manager.on_changed(self._on_theme_changed)
         self._apply_theme()
 
@@ -268,6 +275,14 @@ class PharmacyMainWindow(QMainWindow):
                     page = screens.DebitNotePage()
                 elif menu_name == "Purchase" and item_name == "Supplier Payment":
                     page = screens.SupplierPaymentPage()
+                elif menu_name == "Account" and item_name in (
+                    "Debit Note (Return to Supplier)", "Debit Note"
+                ):
+                    page = screens.DebitNotePage()
+                elif menu_name == "Account" and item_name in (
+                    "Credit Note (Return from Customer)", "Credit Note"
+                ):
+                    page = screens.CreditNotePage()
                 elif menu_name == "Account" and item_name in (
                     "Supplier Payment Voucher", "Supplier Payment"
                 ):

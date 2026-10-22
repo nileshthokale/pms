@@ -15,6 +15,7 @@ Conventions:
 
 from __future__ import annotations
 
+from collections import defaultdict
 from datetime import datetime
 from typing import Any, Optional
 
@@ -537,6 +538,121 @@ class LedgerReportDAO:
     # ── Itemwise Ledger ────────────────────────────────────────────────
 
     @staticmethod
+    def reconcile_item_baseline_stock(
+        conn: Any = None,
+        overwrite: bool = False,
+    ) -> int:
+        """Compute and record baseline opening stock for items from batch stock and lifetime transactions.
+
+        Formula:
+            Baseline Stock = Current Batch Stock - (All Lifetime Inward - All Lifetime Outward)
+
+        This guarantees the inventory identity:
+            Opening Stock + Lifetime Inward - Lifetime Outward = Current Batch Stock
+        """
+        own_conn = conn is None
+        if own_conn:
+            conn = get_connection()
+        try:
+            # 1. Existing records check
+            existing_ids = set()
+            if not overwrite:
+                try:
+                    rows = conn.execute("SELECT item_id FROM item_opening_balances").fetchall()
+                    existing_ids = {r[0] for r in rows}
+                except Exception:
+                    pass
+
+            # 2. Get all items
+            items = conn.execute("SELECT id, pack_size FROM items").fetchall()
+            if not items:
+                return 0
+
+            # 3. Sum batch stock per item
+            batch_stocks = dict(
+                conn.execute(
+                    "SELECT item_id, COALESCE(SUM(stock_qty), 0.0) FROM stock_batches GROUP BY item_id"
+                ).fetchall()
+            )
+
+            # 4. Purchases inward per item
+            pur_in = defaultdict(float)
+            for p in conn.execute("SELECT item_id, pack_size, pay_qty, free_qty FROM purchase_invoice_items").fetchall():
+                factor = pack_factor(p["pack_size"])
+                pur_in[p["item_id"]] += round((float(p["pay_qty"] or 0.0) + float(p["free_qty"] or 0.0)) * factor, 2)
+
+            # 5. Sales outward per item
+            sal_out = defaultdict(float)
+            for s in conn.execute("SELECT item_id, sale_qty FROM sales_invoice_items").fetchall():
+                sal_out[s["item_id"]] += round(float(s["sale_qty"] or 0.0), 2)
+
+            # 6. Credit notes inward per item
+            cn_in = defaultdict(float)
+            for c in conn.execute("SELECT item_id, return_qty FROM credit_note_items").fetchall():
+                cn_in[c["item_id"]] += round(float(c["return_qty"] or 0.0), 2)
+
+            # 7. Debit notes outward per item
+            dn_out = defaultdict(float)
+            dni_cols = {row[1] for row in conn.execute("PRAGMA table_info(debit_note_items)").fetchall()}
+            has_free = "free_qty" in dni_cols
+            has_pack = "is_pack_qty" in dni_cols
+            query_dn = f"""
+                SELECT item_id, pack_size, return_qty
+                       {', free_qty' if has_free else ''}
+                       {', is_pack_qty' if has_pack else ''}
+                FROM debit_note_items
+            """
+            for d in conn.execute(query_dn).fetchall():
+                f_qty = float(d["free_qty"] or 0.0) if has_free else 0.0
+                is_pk = bool(d["is_pack_qty"]) if has_pack else False
+                factor = pack_factor(d["pack_size"]) if is_pk else 1.0
+                dn_out[d["item_id"]] += round((float(d["return_qty"] or 0.0) + f_qty) * factor, 2)
+
+            # 8. Compute baseline and write
+            updated_count = 0
+            for it in items:
+                iid = it["id"]
+                if not overwrite and iid in existing_ids:
+                    continue
+
+                cbs = round(float(batch_stocks.get(iid, 0.0)), 2)
+                tot_in = round(pur_in[iid] + cn_in[iid], 2)
+                tot_out = round(sal_out[iid] + dn_out[iid], 2)
+                lifetime_net = round(tot_in - tot_out, 2)
+                baseline = round(cbs - lifetime_net, 2)
+
+                try:
+                    conn.execute(
+                        """
+                        INSERT INTO item_opening_balances (item_id, opening_date, opening_stock, source, notes)
+                        VALUES (?, '2015-04-01', ?, 'reconstructed_baseline', 'Baseline stock reconstructed from batch on-hand stock and lifetime movements')
+                        ON CONFLICT(item_id, opening_date) DO UPDATE SET
+                            opening_stock = excluded.opening_stock,
+                            source = excluded.source,
+                            notes = excluded.notes
+                        """,
+                        (iid, baseline),
+                    )
+                except Exception:
+                    pass
+
+                try:
+                    conn.execute(
+                        "UPDATE items SET opening_stock = ? WHERE id = ?",
+                        (baseline, iid),
+                    )
+                except Exception:
+                    pass
+                updated_count += 1
+
+            if own_conn:
+                conn.commit()
+            return updated_count
+        finally:
+            if own_conn:
+                conn.close()
+
+    @staticmethod
     def get_item_ledger(
         item_id: int, from_date: str, to_date: str
     ) -> dict[str, Any]:
@@ -590,6 +706,29 @@ class LedgerReportDAO:
                 (item_id,),
             ).fetchone()
             current_batch_stock = round(batch_stock_row["total_stock"] or 0.0, 2)
+
+            # Baseline opening stock from item_opening_balances or items table:
+            baseline_stock = 0.0
+            baseline_date = "2015-04-01"
+            try:
+                ob_row = conn.execute(
+                    """
+                    SELECT opening_stock, opening_date
+                    FROM item_opening_balances
+                    WHERE item_id = ?
+                    ORDER BY opening_date ASC
+                    LIMIT 1
+                    """,
+                    (item_id,),
+                ).fetchone()
+                if ob_row is not None:
+                    baseline_stock = float(ob_row["opening_stock"] or 0.0)
+                    baseline_date = ob_row["opening_date"] or "2015-04-01"
+                elif "opening_stock" in item_dict and item_dict["opening_stock"] is not None:
+                    baseline_stock = float(item_dict["opening_stock"] or 0.0)
+            except Exception:
+                if "opening_stock" in item_dict and item_dict["opening_stock"] is not None:
+                    baseline_stock = float(item_dict["opening_stock"] or 0.0)
 
             all_movements: list[dict[str, Any]] = []
 
@@ -728,8 +867,10 @@ class LedgerReportDAO:
                 })
 
             # 4. Debit Notes (Purchase Return -> Outward)
-            dns = conn.execute(
-                """
+            dni_cols = {row[1] for row in conn.execute("PRAGMA table_info(debit_note_items)").fetchall()}
+            has_free = "free_qty" in dni_cols
+            has_pack = "is_pack_qty" in dni_cols
+            query_dns = f"""
                 SELECT
                     dn.voucher_date AS txn_date,
                     dn.voucher_time AS txn_time,
@@ -742,16 +883,20 @@ class LedgerReportDAO:
                     dni.expiry AS expiry,
                     dni.pack_size AS pack_size,
                     dni.return_qty AS return_qty
+                    {', COALESCE(dni.free_qty, 0.0) AS free_qty' if has_free else ''}
+                    {', COALESCE(dni.is_pack_qty, 0) AS is_pack_qty' if has_pack else ''}
                 FROM debit_note_items dni
                 JOIN debit_notes dn ON dn.id = dni.debit_note_id
                 LEFT JOIN suppliers s ON s.id = dn.supplier_id
                 WHERE dni.item_id = ?
-                """,
-                (item_id,),
-            ).fetchall()
+            """
+            dns = conn.execute(query_dns, (item_id,)).fetchall()
 
             for d in dns:
-                out_qty = round(float(d["return_qty"] or 0.0), 2)
+                f_qty = float(d["free_qty"] or 0.0) if has_free else 0.0
+                is_pk = bool(d["is_pack_qty"]) if has_pack else False
+                factor = pack_factor(d["pack_size"]) if is_pk else 1.0
+                out_qty = round((float(d["return_qty"] or 0.0) + f_qty) * factor, 2)
                 pname = (d["party_name"] or "").strip() or "Supplier"
                 part = f"Purchase Return to {pname}"
 
@@ -785,7 +930,27 @@ class LedgerReportDAO:
                 elif d <= to_date:
                     period_rows.append(m)
 
-            opening_stock = round(prior_in - prior_out, 2)
+            # If from_date is on or after baseline_date, baseline_stock is part of opening balance
+            if from_date >= baseline_date:
+                opening_stock = round(baseline_stock + prior_in - prior_out, 2)
+            else:
+                opening_stock = round(prior_in - prior_out, 2)
+                if baseline_date <= to_date and baseline_stock != 0.0:
+                    period_rows.append({
+                        "date": baseline_date,
+                        "time": "00:00:00",
+                        "particulars": "*** BASELINE / OPENING STOCK ***",
+                        "voucher_no": "OPENING",
+                        "voucher_type": "Opening",
+                        "batch_no": "-",
+                        "expiry": "-",
+                        "inward_qty": baseline_stock if baseline_stock > 0 else 0.0,
+                        "outward_qty": abs(baseline_stock) if baseline_stock < 0 else 0.0,
+                        "reference": "Master OB",
+                        "ref_id": 0,
+                    })
+                    period_rows.sort(key=lambda m: (m["date"], m["time"], m["voucher_no"], m["ref_id"]))
+
             running_stock = opening_stock
             period_in = 0.0
             period_out = 0.0
@@ -802,12 +967,16 @@ class LedgerReportDAO:
                 row_item["closing_stock"] = running_stock
                 rows.append(row_item)
 
-            closing_stock = round(running_stock, 2)
+            # Legacy Pharma-WINNER convention: Total Inward includes opening stock + period inward
+            total_inward = round(opening_stock + period_in, 2)
+            total_outward = round(period_out, 2)
+            # Closing stock calculated as Total Inward - Total Outward (opening stock counted exactly once)
+            closing_stock = round(total_inward - total_outward, 2)
 
             warning = None
             if opening_stock < 0:
-                warning = f"Notice: Opening stock is negative ({opening_stock:g}). Initial opening inventory was not recorded as inward."
-            elif not all_movements and current_batch_stock > 0:
+                warning = f"Notice: Opening stock is negative ({opening_stock:g})."
+            elif not all_movements and baseline_stock == 0.0 and current_batch_stock > 0:
                 warning = f"Notice: No transaction history found, but batch stock shows {current_batch_stock:g} units on hand."
             elif period_rows and closing_stock < 0:
                 warning = f"Notice: Closing stock is negative ({closing_stock:g}). Historical initial stock was not recorded in database."
@@ -818,8 +987,10 @@ class LedgerReportDAO:
                 "to_date": to_date,
                 "opening_stock": opening_stock,
                 "rows": rows,
-                "total_inward": round(period_in, 2),
-                "total_outward": round(period_out, 2),
+                "total_inward": total_inward,
+                "total_outward": total_outward,
+                "period_inward": round(period_in, 2),
+                "period_outward": round(period_out, 2),
                 "closing_stock": closing_stock,
                 "current_batch_stock": current_batch_stock,
                 "warning": warning,

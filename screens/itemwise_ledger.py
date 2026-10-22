@@ -429,12 +429,12 @@ class ItemwiseLedgerPage(QWidget):
 
         # ── Row 0: Opening Stock ──
         self._set_cell(0, 0, report["from_date"], bold=True)
-        self._set_cell(0, 1, "*** OPENING STOCK ***", bold=True)
+        self._set_cell(0, 1, "*** OPENING BALANCE ***", bold=True)
         self._set_cell(0, 2, "-", align=Qt.AlignCenter)
         self._set_cell(0, 3, "-", align=Qt.AlignCenter)
         self._set_cell(0, 4, "-", align=Qt.AlignCenter)
         self._set_cell(0, 5, "-", align=Qt.AlignCenter)
-        self._set_cell(0, 6, "-", align=Qt.AlignRight)
+        self._set_cell(0, 6, f"{os:g}", bold=True, align=Qt.AlignRight)
         self._set_cell(0, 7, "-", align=Qt.AlignRight)
         self._set_cell(0, 8, f"{os:g}", bold=True, align=Qt.AlignRight,
                        color=p.get("success", "#2e7d32") if os >= 0 else p.get("danger", "#c0392b"))

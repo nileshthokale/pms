@@ -350,12 +350,12 @@ def build_itemwise_ledger_pages(report: Dict[str, Any]) -> List[ReportPage]:
             data={
                 "cells": [
                     fmt_date_dash(from_date),
-                    "*** OPENING STOCK ***",
+                    "*** OPENING BALANCE ***",
                     "-",
                     "-",
                     "-",
                     "-",
-                    "",
+                    f"{opening:g}",
                     "",
                     f"{opening:g}",
                 ],

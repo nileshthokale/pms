@@ -75,6 +75,7 @@ class SalesReportsDAO:
                 SELECT
                     si.id AS invoice_id,
                     si.bill_no,
+                    si.patient_name AS original_patient_name,
                     si.sale_date,
                     COALESCE(si.sale_time, '') AS sale_time,
                     COALESCE(si.sale_type, 'Cash') AS voucher_type,
@@ -119,6 +120,7 @@ class SalesReportsDAO:
                 SELECT
                     si.id AS invoice_id,
                     si.bill_no,
+                    si.patient_name AS patient_name,
                     COALESCE(si.sale_type, 'Cash') AS voucher_type,
                     COALESCE(i.item_name, 'Unknown Item') AS item_name,
                     COALESCE(sii.mrp, 0.0) AS mrp,
@@ -224,6 +226,7 @@ class SalesReportsDAO:
                     si.sale_date,
                     COALESCE(si.sale_type, 'Cash') AS voucher_type,
                     si.bill_no,
+                    si.patient_name AS original_patient_name,
                     COALESCE(NULLIF(si.patient_name, ''), c.customer_name, 'WALKIN') AS patient_name,
                     COALESCE(sii.batch_no, '') AS batch_no,
                     COALESCE(sii.mrp, 0.0) AS mrp,

@@ -18,6 +18,8 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QKeySequence
 
 MENU_SHORTCUTS = {
+    "Debit Note (Return to Supplier)": "Ctrl+D",
+    "Credit Note (Return from Customer)": "Ctrl+C",
     "Daily Itemwise Sales": "Ctrl+T",
     "Daily Profit Calculation": "Ctrl+O",
 }
@@ -237,6 +239,8 @@ class NavigationBar(QWidget):
                         menu.addSeparator()
                     else:
                         action = menu.addAction(item_text)
+                        if item_text in MENU_SHORTCUTS:
+                            action.setShortcut(QKeySequence(MENU_SHORTCUTS[item_text]))
                         action.triggered.connect(
                             lambda checked=False, m=label, a=item_text: self.menu_action_triggered.emit(m, a)
                         )

@@ -196,6 +196,7 @@ class DoctorReportsDAO:
                     si.bill_no,
                     si.sale_date,
                     COALESCE(si.sale_type, 'Cash') AS voucher_type,
+                    si.patient_name AS original_patient_name,
                     COALESCE(NULLIF(si.patient_name, ''), c.customer_name, 'WALKIN') AS patient_name,
                     COALESCE(NULLIF(c.address, ''), c.city, '') AS address,
                     sii.id AS item_line_id,
@@ -241,7 +242,7 @@ class DoctorReportsDAO:
                 groups.append(item_entry)
 
             display_bill = format_sales_bill_number(
-                line["bill_no"], patient_name=line["patient_name"]
+                line["bill_no"], patient_name=line["original_patient_name"]
             )
             qty = float(line.get("sale_qty") or 0.0)
             amt = float(line.get("amount") or 0.0)

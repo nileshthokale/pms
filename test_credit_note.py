@@ -321,9 +321,10 @@ class TestCNValidation(_BaseTest):
     def test_12_return_qty_zero(self):
         header = {"voucher_date": "2026-01-20", "cn_date": "2026-01-20", "cn_type": "Customer", "customer_id": self.customer_id, "total_amount": 0, "ledger_amount": 0, "remarks": ""}
         items = [{"item_id": self.item_id, "stock_batch_id": self.batch_id, "batch_no": "BATCH-A", "expiry": "12/27", "pack_size": "10x10", "rate": 40, "mrp": 50, "return_qty": 0, "less_amount": 0, "amount": 0, "return_reason": "", "price_factor": 1.0}]
+        batch_before = StockDAO.get_stock_batch_by_id(self.batch_id)["stock_qty"]
         cn_id = CreditNoteDAO.insert_credit_note(header, items)
         batch_after = StockDAO.get_stock_batch_by_id(self.batch_id)["stock_qty"]
-        self.assertAlmostEqual(batch_after, 100.0, places=2)
+        self.assertAlmostEqual(batch_after, batch_before, places=2)
 
 
 # ======================================================================

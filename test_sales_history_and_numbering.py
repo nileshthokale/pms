@@ -526,8 +526,8 @@ class SalesHistoryAndNumberingTests(unittest.TestCase):
         self.assertTrue(counter_page.isVisible())
 
     # ------------------------------------------------------------------
-    # Criterion 11: Synthetic fallback bill numbers display as '---',
-    # Customer row is completely removed from SalesBillDetailsDialog,
+    # Criterion 11: Historical unnamed bill numbers display as genuinely
+    # blank, Customer row is completely removed from SalesBillDetailsDialog,
     # patient name shows WALKIN when empty, genuine bills preserve numbers,
     # and reprinting neither modifies stock nor database records.
     # ------------------------------------------------------------------
@@ -573,6 +573,13 @@ class SalesHistoryAndNumberingTests(unittest.TestCase):
         try:
             conn.execute(
                 "INSERT OR REPLACE INTO legacy_id_map (entity, legacy_id, new_id) VALUES ('sale', '72213', ?)",
+                (fb_id,),
+            )
+            # Faithful historical unnamed row: the DAO normalises a new sale's
+            # empty patient to WALKIN, but legacy imports kept the empty
+            # marker.  Seed it directly so display semantics are exercised.
+            conn.execute(
+                "UPDATE sales_invoices SET patient_name = '' WHERE id = ?",
                 (fb_id,),
             )
             conn.commit()
@@ -636,8 +643,9 @@ class SalesHistoryAndNumberingTests(unittest.TestCase):
         self.assertGreaterEqual(fb_row_idx, 0)
         self.assertGreaterEqual(gen_row_idx, 0)
 
-        # Fallback bill has empty patient name, so Bill No column is blank ''
+        # Historical unnamed bill displays a genuinely blank Bill No
         self.assertEqual(hist_page._table.item(fb_row_idx, 0).text(), "")
+        self.assertEqual(hist_page._table.item(fb_row_idx, 0).toolTip(), "")
         self.assertEqual(hist_page._table.item(fb_row_idx, 2).text(), "WALKIN")
 
         # Genuine bill displays '1905' and 'Real Patient'
