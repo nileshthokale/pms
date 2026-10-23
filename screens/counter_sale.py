@@ -1126,7 +1126,7 @@ class _KeyboardCombo(QComboBox):
 
     completionAccepted = Signal()
 
-    def __init__(self):
+    def __init__(self, filter_mode: Qt.MatchFlag = Qt.MatchContains):
         super().__init__()
         self.setEditable(True)
         self.setInsertPolicy(QComboBox.NoInsert)
@@ -1134,7 +1134,7 @@ class _KeyboardCombo(QComboBox):
         self.setCompleter(QCompleter(self.model(), self))
         completer = self.completer()
         completer.setCaseSensitivity(Qt.CaseInsensitive)
-        completer.setFilterMode(Qt.MatchContains)
+        completer.setFilterMode(filter_mode)
         completer.setCompletionMode(QCompleter.PopupCompletion)
         completer.setMaxVisibleItems(10)
         completer.popup().setFocusPolicy(Qt.NoFocus)
@@ -1158,9 +1158,11 @@ class _KeyboardCombo(QComboBox):
         completer.popup().installEventFilter(self)
         completer.activated[str].connect(self._on_activated)
 
-    def set_completion_model(self, model, role=Qt.DisplayRole):
+    def set_completion_model(self, model, role=Qt.DisplayRole, filter_mode=None):
         self.completer().setModel(model)
         self.completer().setCompletionRole(role)
+        if filter_mode is not None:
+            self.completer().setFilterMode(filter_mode)
 
     def show_all_completions_on_click(self, enabled=True):
         self._show_all_on_click = enabled
@@ -1434,8 +1436,8 @@ class _KeyboardCombo(QComboBox):
             pass
 
 
-def _make_combo() -> QComboBox:
-    c = _KeyboardCombo()
+def _make_combo(filter_mode: Qt.MatchFlag = Qt.MatchContains) -> QComboBox:
+    c = _KeyboardCombo(filter_mode=filter_mode)
     c.setStyleSheet(_COMBO_STYLE)
     _mark_cs(c, "combo")
     _keep_alive(c)
@@ -1781,7 +1783,7 @@ class _ItemEntryBar(QWidget):
         # with the other fields so the bar fills evenly.
         layout.addSpacing(_ENTRY_GROUP_GAP)
         layout.addWidget(self._lbl("Item"))
-        self.item_combo = _make_combo()
+        self.item_combo = _make_combo(filter_mode=Qt.MatchStartsWith)
         self.item_combo.setStyleSheet(_ENTRY_COMBO_STYLE)
         _mark_cs(self.item_combo, "entry_combo")
         self._fit(self.item_combo, _ENTRY_FLOOR_WIDTHS["item_combo"],
@@ -1792,7 +1794,7 @@ class _ItemEntryBar(QWidget):
         self.item_combo.show_all_completions_on_click()
         self._item_completion_model = QStandardItemModel(self)
         self.item_combo.set_completion_model(
-            self._item_completion_model, Qt.UserRole + 1
+            self._item_completion_model, Qt.UserRole + 1, filter_mode=Qt.MatchStartsWith
         )
         self._item_search_values: list[str] = []
         self._items_by_id: dict[int, dict] = {}
@@ -2225,17 +2227,14 @@ class _ItemEntryBar(QWidget):
         self.item_combo.addItem("-- Select --", None)
         items = ItemDAO.get_all()
         for it in items:
-            item_name = it["item_name"]
-            generic_name = it.get("generic_name", "") or ""
-            product_code = it.get("product_code", it.get("item_code", "")) or ""
-            search_value = " ".join((item_name, generic_name, product_code)).strip()
+            item_name = (it["item_name"] or "").strip()
             self.item_combo.addItem(item_name, it["id"])
             self._items_by_id[it["id"]] = it
             completion_item = QStandardItem(item_name)
             completion_item.setData(it["id"], Qt.UserRole)
-            completion_item.setData(search_value, Qt.UserRole + 1)
+            completion_item.setData(item_name, Qt.UserRole + 1)
             self._item_completion_model.appendRow(completion_item)
-            self._item_search_values.append(search_value.casefold())
+            self._item_search_values.append(item_name.casefold())
         self.item_combo.blockSignals(False)
         self.item_combo.setCurrentIndex(0)
         self.item_combo.lineEdit().setPlaceholderText("Search products")
@@ -2255,14 +2254,14 @@ class _ItemEntryBar(QWidget):
                 self._item_completion_model.rowCount() - 1
             )
             self._has_no_match_row = False
-        if query and not any(query.casefold() in value for value in self._item_search_values):
+        if query and not any(value.startswith(query.casefold()) for value in self._item_search_values):
             status = QStandardItem("No products found")
             status.setData(None, Qt.UserRole)
             status.setData(query, Qt.UserRole + 1)
             self._item_completion_model.appendRow(status)
             self._has_no_match_row = True
         completer = self.item_combo.completer()
-        completer.setCompletionPrefix(text)
+        completer.setCompletionPrefix(query)
         if text:
             completer.complete()
 

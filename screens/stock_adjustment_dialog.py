@@ -14,11 +14,14 @@ Matches the Pharma-WINNER Stock Adjustment workflow:
 from __future__ import annotations
 
 import re
+from datetime import date
 from typing import Any, Optional
 
 from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
     QDialog,
     QFrame,
     QGridLayout,
@@ -63,6 +66,13 @@ def _format_expiry_display(expiry: str) -> str:
             year = f"20{year}"
         return f"{int(m_slash.group(1)):02d}-{year}"
     return exp
+
+
+_BUTTON_SECONDARY_STYLE = (
+    "QPushButton { background-color: #374151; color: #ffffff; border: 1px solid #4B5563; "
+    "border-radius: 3px; font-size: 13px; font-weight: bold; padding: 4px 10px; }"
+    "QPushButton:hover { background-color: #4B5563; }"
+)
 
 
 class StockAdjustmentDialog(QDialog):
@@ -163,6 +173,32 @@ class StockAdjustmentDialog(QDialog):
         self.btn_hist.clicked.connect(self._show_history_popup)
         row1.addWidget(self.btn_hist)
 
+        row1.addSpacing(10)
+        lbl_mode = QLabel("Mode:")
+        lbl_mode.setStyleSheet(f"font-weight: bold; font-size: {TYPE_FORM_LABEL}px; color: {p['text']};")
+        row1.addWidget(lbl_mode)
+
+        self.op_filter = QComboBox()
+        self.op_filter.addItems([
+            "All Active Batches",
+            "Stock Removal (-)",
+            "Stock Addition (+)",
+            "Write-Off Expired Stock",
+        ])
+        self.op_filter.setFixedHeight(30)
+        self.op_filter.setMinimumWidth(160)
+        self.op_filter.setStyleSheet(
+            f"QComboBox {{ background-color: {p['surface']}; color: {p['text']}; border: 1px solid {p['border']}; "
+            f"padding: 2px 8px; font-size: {TYPE_INPUT}px; border-radius: 2px; }}"
+        )
+        self.op_filter.currentIndexChanged.connect(self._on_filter_changed)
+        row1.addWidget(self.op_filter)
+
+        self.show_expired_cb = QCheckBox("Show Expired (Write-Off)")
+        self.show_expired_cb.setStyleSheet(f"font-size: {TYPE_FORM_LABEL}px; color: {p['text']};")
+        self.show_expired_cb.stateChanged.connect(self._on_show_expired_toggled)
+        row1.addWidget(self.show_expired_cb)
+
         card_layout.addLayout(row1)
 
         # Row 2: Grid of all batch and stock details
@@ -193,12 +229,27 @@ class StockAdjustmentDialog(QDialog):
         grid.addWidget(self._create_header_label("Batch #"), 0, col)
         self.batch_combo = SearchableComboBox(
             placeholder="Select Batch...",
-            min_width=270,
+            min_width=350,
             allow_width_expansion=True,
         )
         self.batch_combo.setFixedHeight(30)
         self.batch_combo.setMinimumWidth(260)
         self.batch_combo.selection_changed.connect(self._on_batch_selected)
+
+        # Wrap set_selected_id so that if an expired batch ID is targeted, write-off mode is automatically enabled
+        _orig_batch_set_id = self.batch_combo.set_selected_id
+        def _wrapped_batch_set_id(bid: Any):
+            if bid is not None and isinstance(bid, int) and bid in self._batches_by_id:
+                b_info = self._batches_by_id[bid]
+                if (b_info.get("is_expired") or not b_info.get("is_valid_expiry")) and hasattr(self, "show_expired_cb") and not self.show_expired_cb.isChecked():
+                    self.show_expired_cb.blockSignals(True)
+                    self.show_expired_cb.setChecked(True)
+                    self.show_expired_cb.blockSignals(False)
+                    self._populate_batch_dropdown(select_batch_id=bid)
+                    return
+            _orig_batch_set_id(bid)
+        self.batch_combo.set_selected_id = _wrapped_batch_set_id
+
         grid.addWidget(self.batch_combo, 1, col)
         col += 1
 
@@ -344,6 +395,16 @@ class StockAdjustmentDialog(QDialog):
         self.btn_write_off.clicked.connect(self._on_write_off_batch)
         row4.addWidget(self.btn_write_off)
 
+        self.btn_new_batch = QPushButton("+ New Batch")
+        self.btn_new_batch.setToolTip("Create a new stock batch for this medicine to add stock")
+        self.btn_new_batch.setFixedHeight(28)
+        self.btn_new_batch.setStyleSheet(
+            f"QPushButton {{ background-color: {p['surface']}; color: {p['accent']}; border: 1px solid {p['accent']}; border-radius: 2px; padding: 2px 10px; font-size: {TYPE_BUTTON}px; font-weight: bold; }}"
+            f"QPushButton:hover {{ background-color: {p['accent']}; color: #ffffff; }}"
+        )
+        self.btn_new_batch.clicked.connect(self._on_create_new_batch)
+        row4.addWidget(self.btn_new_batch)
+
         self.btn_movement = QPushButton("Movement Ledger")
         self.btn_movement.setToolTip("View authoritative transaction ledger (purchases, sales, returns, adjustments) for this batch")
         self.btn_movement.setFixedHeight(28)
@@ -459,6 +520,14 @@ class StockAdjustmentDialog(QDialog):
         self.item_combo.set_selected_id(item_id)
 
     def _select_batch_by_id(self, batch_id: int):
+        if batch_id in self._batches_by_id:
+            b_info = self._batches_by_id[batch_id]
+            if (b_info.get("is_expired") or not b_info.get("is_valid_expiry")) and hasattr(self, "show_expired_cb") and not self.show_expired_cb.isChecked():
+                self.show_expired_cb.blockSignals(True)
+                self.show_expired_cb.setChecked(True)
+                self.show_expired_cb.blockSignals(False)
+                self._populate_batch_dropdown(select_batch_id=batch_id)
+                return
         self.batch_combo.set_selected_id(batch_id)
 
     def _on_item_selected(self, item_id: Any):
@@ -469,7 +538,7 @@ class StockAdjustmentDialog(QDialog):
         self._load_batches_for_item(int(item_id))
 
     def _load_batches_for_item(self, item_id: int):
-        """Load all batches for the selected medicine into batch_combo."""
+        """Load batches for the selected medicine into batch_combo based on active mode."""
         summary = StockDAO.get_item_stock_summary(item_id)
         self._stock_summary = summary
         self._batches = summary["batches"]
@@ -484,11 +553,11 @@ class StockAdjustmentDialog(QDialog):
         if expired_stock > 0:
             self.item_stock_edit.setToolTip(
                 f"Eligible (Active) Stock: {eligible_stock:g} tablets\n"
-                f"Expired Stock in DB: {expired_stock:g} tablets ({summary['expired_batch_count']} batches)\n"
+                f"Expired/Write-Off in DB: {expired_stock:g} tablets ({summary['expired_batch_count']} batches)\n"
                 f"Total Book Stock: {total_book:g} tablets"
             )
             self.stock_breakdown_lbl.setText(
-                f"[!] Active Eligible: {eligible_stock:g} | Expired in DB: {expired_stock:g} ({summary['expired_batch_count']} historical batches) | Total Book: {total_book:g}"
+                f"[!] Active Eligible: {eligible_stock:g} | Expired/Write-Off in DB: {expired_stock:g} ({summary['expired_batch_count']} batches) | Total Book: {total_book:g}"
             )
             self.stock_breakdown_lbl.setStyleSheet("font-size: 12px; color: #D97706; font-weight: bold;")
             self.stock_breakdown_lbl.setVisible(True)
@@ -496,6 +565,43 @@ class StockAdjustmentDialog(QDialog):
             self.item_stock_edit.setToolTip(f"Total Eligible Stock: {eligible_stock:g} tablets")
             self.stock_breakdown_lbl.setVisible(False)
 
+        self._populate_batch_dropdown()
+
+    def _on_filter_changed(self):
+        if not hasattr(self, "op_filter"):
+            return
+        mode = self.op_filter.currentText()
+        if mode == "Write-Off Expired Stock":
+            if hasattr(self, "show_expired_cb") and not self.show_expired_cb.isChecked():
+                self.show_expired_cb.blockSignals(True)
+                self.show_expired_cb.setChecked(True)
+                self.show_expired_cb.blockSignals(False)
+        else:
+            if hasattr(self, "show_expired_cb") and self.show_expired_cb.isChecked():
+                self.show_expired_cb.blockSignals(True)
+                self.show_expired_cb.setChecked(False)
+                self.show_expired_cb.blockSignals(False)
+        self._populate_batch_dropdown()
+
+    def _on_show_expired_toggled(self, state: int):
+        if not hasattr(self, "op_filter") or not hasattr(self, "show_expired_cb"):
+            return
+        if self.show_expired_cb.isChecked():
+            idx = self.op_filter.findText("Write-Off Expired Stock")
+            if idx >= 0:
+                self.op_filter.blockSignals(True)
+                self.op_filter.setCurrentIndex(idx)
+                self.op_filter.blockSignals(False)
+        else:
+            idx = self.op_filter.findText("All Active Batches")
+            if idx >= 0:
+                self.op_filter.blockSignals(True)
+                self.op_filter.setCurrentIndex(idx)
+                self.op_filter.blockSignals(False)
+        self._populate_batch_dropdown()
+
+    def _populate_batch_dropdown(self, select_batch_id: Optional[int] = None):
+        """Populate batch_combo with filtered batches according to active mode."""
         if not self._batches:
             self.batch_combo.populate([("No batches found for this medicine", None, "")])
             self.batch_combo.setCurrentIndex(0)
@@ -504,46 +610,83 @@ class StockAdjustmentDialog(QDialog):
             self.projected_label.setStyleSheet("color: #D97706; font-weight: bold;")
             return
 
+        mode = self.op_filter.currentText() if hasattr(self, "op_filter") else "All Active Batches"
+        include_expired = (
+            (hasattr(self, "show_expired_cb") and self.show_expired_cb.isChecked())
+            or (mode == "Write-Off Expired Stock")
+        )
+
+        if include_expired:
+            # Expired or invalid expiry batches for disposal / write-off
+            filtered = [
+                b for b in self._batches
+                if b.get("is_expired") or not b.get("is_valid_expiry")
+            ]
+            empty_msg = "No expired batches found for write-off"
+        elif mode == "Stock Removal (-)":
+            # Active unexpired batches with stock available to remove
+            filtered = [
+                b for b in self._batches
+                if b.get("is_unexpired") and float(b.get("stock_qty") or 0.0) > 0.0
+            ]
+            empty_msg = "No active batches with available stock"
+        elif mode == "Stock Addition (+)":
+            # Active unexpired batches (both positive stock and zero stock can receive stock)
+            filtered = [
+                b for b in self._batches
+                if b.get("is_unexpired")
+            ]
+            empty_msg = "No eligible unexpired batches found"
+        else:
+            # "All Active Batches" (Default): Active valid unexpired batches only
+            filtered = [
+                b for b in self._batches
+                if b.get("is_unexpired")
+            ]
+            empty_msg = "No active unexpired batches found"
+
+        if not filtered:
+            self.batch_combo.populate([(empty_msg, None, "")])
+            self.batch_combo.setCurrentIndex(0)
+            self._clear_batch_fields()
+            p = palette()
+            self.projected_label.setText(empty_msg)
+            self.projected_label.setStyleSheet(f"color: {p['text_dim']}; font-weight: bold;")
+            return
+
         batch_items = []
-        for b in self._batches:
+        for b in filtered:
             b_no = str(b.get("batch_no") or "").strip() or "-"
-            exp = _format_expiry_display(b.get("expiry") or "")
-            qty = float(b.get("stock_qty") or 0.0)
-            mrp = float(b.get("mrp") or 0.0)
-
-            status_tag = ""
-            if b.get("is_zero_stock"):
-                status_tag = " [0 Stock]"
-            elif b.get("is_expired"):
-                status_tag = " [EXPIRED]"
-
-            label = f"{b_no} | Exp: {exp or '-'} | Stk: {qty:g}{status_tag} | MRP: {mrp:.2f}"
-            batch_items.append((label, int(b["id"]), b_no))
+            # User requirement: Batch box shows ONLY the batch number (no expiry, no MRP)
+            batch_items.append((b_no, int(b["id"]), b_no))
 
         self.batch_combo.populate(batch_items)
 
-        # Select appropriate default batch:
-        # 1. If explicit batch requested (edit mode / initial), pick it
-        # 2. Else pick primary active batch (largest stock or first unexpired)
-        # 3. Else if only expired batches have stock, pick first
-        # 4. Else if only zero stock batches, pick first
-        chosen_batch_id = None
-        if self._initial_batch_id is not None and self._initial_batch_id in self._batches_by_id:
-            chosen_batch_id = self._initial_batch_id
+        # Handle initial or explicit selection
+        target_id = select_batch_id
+        if target_id is None and self._initial_batch_id is not None:
+            target_id = self._initial_batch_id
             self._initial_batch_id = None
-        elif summary["active_batches"]:
-            # Pick active batch with largest stock
-            chosen_batch_id = max(summary["active_batches"], key=lambda b: float(b.get("stock_qty") or 0.0))["id"]
-        elif summary["expired_batches"]:
-            chosen_batch_id = summary["expired_batches"][0]["id"]
-        elif self._batches:
-            chosen_batch_id = self._batches[0]["id"]
+            if target_id in self._batches_by_id:
+                b_info = self._batches_by_id[target_id]
+                if (b_info.get("is_expired") or not b_info.get("is_valid_expiry")) and not include_expired:
+                    if hasattr(self, "show_expired_cb"):
+                        self.show_expired_cb.blockSignals(True)
+                        self.show_expired_cb.setChecked(True)
+                        self.show_expired_cb.blockSignals(False)
+                    self._populate_batch_dropdown(select_batch_id=target_id)
+                    return
 
-        if chosen_batch_id is not None:
-            self.batch_combo.set_selected_id(chosen_batch_id)
+        if target_id is not None and target_id in self._batches_by_id:
+            self.batch_combo.set_selected_id(target_id)
         else:
+            # Do NOT auto-select batch when selecting a medicine.
+            # Batch field remains empty until the user explicitly chooses a batch.
             self.batch_combo.clear_selection()
             self._clear_batch_fields()
+            p = palette()
+            self.projected_label.setText("Select a batch to adjust stock.")
+            self.projected_label.setStyleSheet(f"color: {p['text_dim']}; font-weight: bold;")
 
     def _on_batch_selected(self, batch_id: Any):
         """Called when a batch is chosen from the SearchableComboBox."""
@@ -552,19 +695,32 @@ class StockAdjustmentDialog(QDialog):
             return
 
         b = self._batches_by_id[int(batch_id)]
+        b_no = str(b.get("batch_no") or "").strip() or "-"
+        exp = _format_expiry_display(b.get("expiry") or "")
+        mrp = float(b.get("mrp") or 0.0)
+
+        # Batch box displays ONLY the batch number
+        line = self.batch_combo.lineEdit()
+        if line is not None and line.text() != b_no:
+            line.setText(b_no)
+            line.setCursorPosition(0)
+
+        self.batch_combo.setToolTip(f"Batch: {b_no} | Exp: {exp} | MRP: {mrp:.2f}")
+
         self.pack_edit.setText(str(b.get("pack_size") or "1"))
         qty = float(b.get("stock_qty") or 0.0)
         self.batch_stock_edit.setText(f"{int(qty) if qty.is_integer() else qty:g}")
-        self.expiry_edit.setText(_format_expiry_display(b.get("expiry") or ""))
-        self.mrp_edit.setText(f"{float(b.get('mrp') or 0.0):.2f}")
+        self.expiry_edit.setText(exp)
+        self.mrp_edit.setText(f"{mrp:.2f}")
         self.rate_edit.setText(f"{float(b.get('purchase_rate') or 0.0):.2f}")
         self.tax_edit.setText(f"{float(b.get('tax_percent') or 0.0):.2f}%")
         self.net_rate_edit.setText(f"{float(b.get('net_rate') or 0.0):.2f}")
 
         # Update styling based on expiry
         p = palette()
-        if b.get("is_expired"):
-            self.batch_stock_edit.setToolTip("[!] This batch is EXPIRED. Use adjustment to write off.")
+        if b.get("is_expired") or not b.get("is_valid_expiry"):
+            exp_text = "EXPIRED" if b.get("is_expired") else "INVALID EXPIRY"
+            self.batch_stock_edit.setToolTip(f"[!] This batch is {exp_text}. Use adjustment to write off.")
             self.batch_stock_edit.setStyleSheet(
                 f"QLineEdit {{ background-color: #7F1D1D; color: #FECACA; border: 1px solid #DC2626; padding: 3px 6px; font-weight: bold; font-size: {TYPE_INPUT}px; }}"
             )
@@ -683,7 +839,17 @@ class StockAdjustmentDialog(QDialog):
         """Quick action to write off the entire stock of the selected batch to 0."""
         batch_id = self.batch_combo.currentData()
         if batch_id is None or int(batch_id) not in self._batches_by_id:
-            QMessageBox.warning(self, "Select Batch", "Please select a batch to write off.")
+            # If expired batches exist, switch to write-off mode automatically
+            if self._stock_summary and self._stock_summary.get("expired_batches"):
+                if hasattr(self, "show_expired_cb"):
+                    self.show_expired_cb.setChecked(True)
+                QMessageBox.information(
+                    self,
+                    "Write-Off Mode",
+                    "Expired batches loaded into Batch dropdown. Please select an expired batch to write off.",
+                )
+            else:
+                QMessageBox.warning(self, "Select Batch", "Please select a batch to write off.")
             return
 
         b = self._batches_by_id[int(batch_id)]
@@ -695,11 +861,128 @@ class StockAdjustmentDialog(QDialog):
         self.qty_edit.setText(f"-{int(cur_stock) if cur_stock.is_integer() else cur_stock:g}")
         b_no = b.get("batch_no") or ""
         exp = _format_expiry_display(b.get("expiry") or "")
-        if b.get("is_expired"):
+        if b.get("is_expired") or not b.get("is_valid_expiry"):
             self.reason_edit.setText(f"Expired stock write-off: batch {b_no} (expired {exp})")
         else:
             self.reason_edit.setText(f"Batch zero-out / disposal: batch {b_no}")
         self._update_projected_stock()
+
+    def _on_create_new_batch(self):
+        """Allow creating a new batch for the selected medicine during stock adjustment."""
+        item_id = self.item_combo.currentData()
+        if item_id is None:
+            QMessageBox.warning(self, "Select Medicine", "Please select a medicine before creating a new batch.")
+            return
+
+        item_info = next((it for it in self._items_list if it["id"] == int(item_id)), None)
+        item_name = item_info["item_name"] if item_info else "Medicine"
+        default_pack = item_info.get("pack_size", "1") if item_info else "1"
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Create New Batch - {item_name}")
+        dlg.setFixedWidth(420)
+        p = palette()
+        dlg.setStyleSheet(f"QDialog {{ background-color: {p['surface']}; color: {p['text']}; font-family: {FONT_FAMILY}; }}")
+
+        layout = QVBoxLayout(dlg)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(10)
+
+        grid = QGridLayout()
+        grid.setSpacing(8)
+
+        grid.addWidget(QLabel("Batch No *:"), 0, 0)
+        batch_no_edit = QLineEdit()
+        batch_no_edit.setPlaceholderText("e.g. BATCH2026")
+        grid.addWidget(batch_no_edit, 0, 1)
+
+        grid.addWidget(QLabel("Expiry (MM/YY or YYYY-MM-DD) *:"), 1, 0)
+        expiry_edit = QLineEdit()
+        expiry_edit.setPlaceholderText("e.g. 12/28 or 2028-12-31")
+        grid.addWidget(expiry_edit, 1, 1)
+
+        grid.addWidget(QLabel("Pack Size:"), 2, 0)
+        pack_size_edit = QLineEdit(str(default_pack))
+        grid.addWidget(pack_size_edit, 2, 1)
+
+        grid.addWidget(QLabel("MRP:"), 3, 0)
+        mrp_edit = QLineEdit("0.00")
+        grid.addWidget(mrp_edit, 3, 1)
+
+        grid.addWidget(QLabel("Purchase Rate:"), 4, 0)
+        rate_edit = QLineEdit("0.00")
+        grid.addWidget(rate_edit, 4, 1)
+
+        layout.addLayout(grid)
+
+        btn_box = QHBoxLayout()
+        btn_box.addStretch()
+        btn_save = QPushButton("Create Batch")
+        btn_save.setStyleSheet(f"background-color: {p['accent']}; color: #ffffff; font-weight: bold; padding: 6px 14px;")
+        btn_cancel = QPushButton("Cancel")
+        btn_cancel.setStyleSheet(_BUTTON_SECONDARY_STYLE)
+        btn_cancel.clicked.connect(dlg.reject)
+        btn_box.addWidget(btn_save)
+        btn_box.addWidget(btn_cancel)
+        layout.addLayout(btn_box)
+
+        def do_save():
+            b_no = batch_no_edit.text().strip().upper()
+            if not b_no:
+                QMessageBox.warning(dlg, "Validation Error", "Batch No is required.")
+                batch_no_edit.setFocus()
+                return
+
+            exp_raw = expiry_edit.text().strip()
+            parsed_exp = StockDAO.parse_expiry_date(exp_raw)
+            if parsed_exp is None:
+                QMessageBox.warning(dlg, "Validation Error", "Please enter a valid expiry date (e.g. MM/YY or YYYY-MM-DD).")
+                expiry_edit.setFocus()
+                return
+
+            if parsed_exp < date.today():
+                QMessageBox.warning(dlg, "Validation Error", "Cannot create a new batch with an already expired date.")
+                expiry_edit.setFocus()
+                return
+
+            try:
+                mrp_val = float(mrp_edit.text().strip() or "0")
+                rate_val = float(rate_edit.text().strip() or "0")
+            except ValueError:
+                QMessageBox.warning(dlg, "Validation Error", "MRP and Purchase Rate must be valid numbers.")
+                return
+
+            p_size = pack_size_edit.text().strip() or "1"
+            iso_exp = parsed_exp.isoformat()
+
+            conn = get_connection()
+            try:
+                existing = conn.execute(
+                    "SELECT id FROM stock_batches WHERE item_id = ? AND UPPER(batch_no) = ?",
+                    (int(item_id), b_no)
+                ).fetchone()
+                if existing:
+                    new_batch_id = existing[0]
+                else:
+                    cur = conn.execute(
+                        """
+                        INSERT INTO stock_batches (item_id, batch_no, expiry, pack_size, mrp, purchase_rate, net_rate, stock_qty)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, 0.0)
+                        """,
+                        (int(item_id), b_no, iso_exp, p_size, mrp_val, rate_val, rate_val)
+                    )
+                    conn.commit()
+                    new_batch_id = cur.lastrowid
+            finally:
+                conn.close()
+
+            dlg.accept()
+            self._load_batches_for_item(int(item_id))
+            self.batch_combo.set_selected_id(new_batch_id)
+            self.qty_edit.setFocus()
+
+        btn_save.clicked.connect(do_save)
+        dlg.exec()
 
     def _show_movement_dialog(self):
         """Display authoritative movement ledger audit for the selected batch."""
@@ -795,6 +1078,20 @@ class StockAdjustmentDialog(QDialog):
         if adj_val == 0.0:
             self.projected_label.setText("Adjustment quantity cannot be zero.")
             self.projected_label.setStyleSheet("color: #D97706; font-weight: bold;")
+            return
+
+        if adj_val < 0.0 and cur_stock <= 0.0:
+            self.projected_label.setText(
+                f"Current: 0  |  Adjustment: {adj_val:+g}  |  [ERROR: Cannot remove stock from zero-stock batch]"
+            )
+            self.projected_label.setStyleSheet("color: #DC2626; font-weight: bold;")
+            return
+
+        if adj_val > 0.0 and (b.get("is_expired") or not b.get("is_valid_expiry")):
+            self.projected_label.setText(
+                f"Current: {cur_stock:g}  |  Adjustment: {adj_val:+g}  |  [ERROR: Cannot add stock to expired batch]"
+            )
+            self.projected_label.setStyleSheet("color: #DC2626; font-weight: bold;")
             return
 
         if self._edit_adjustment_id is not None and self._edit_adj_data:
@@ -907,6 +1204,29 @@ class StockAdjustmentDialog(QDialog):
 
         b = self._batches_by_id[int(batch_id)]
         cur_stock = float(b.get("stock_qty") or 0.0)
+
+        # Stock removal validation: batch must have available stock
+        if adj_val < 0.0 and cur_stock <= 0.0:
+            QMessageBox.warning(
+                self,
+                "Zero Stock Error",
+                f"Batch '{b.get('batch_no')}' has 0 available stock.\n"
+                f"Stock removal is not permitted on a zero-stock batch.",
+            )
+            self.qty_edit.setFocus()
+            return
+
+        # Stock addition validation: expired or invalid expiry batches cannot receive stock
+        if adj_val > 0.0 and (b.get("is_expired") or not b.get("is_valid_expiry")):
+            QMessageBox.warning(
+                self,
+                "Expired Batch Error",
+                f"Batch '{b.get('batch_no')}' is expired or has an invalid expiry date.\n"
+                f"Stock addition to expired batches is strictly prohibited.\n"
+                f"Expired stock can only be written off / disposed.",
+            )
+            self.qty_edit.setFocus()
+            return
 
         if self._edit_adjustment_id is not None and self._edit_adj_data:
             old_qty = float(self._edit_adj_data.get("adjusted_qty") or 0.0)
