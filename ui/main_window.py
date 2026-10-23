@@ -270,6 +270,18 @@ class PharmacyMainWindow(QMainWindow):
                     page.sales_history_requested.connect(
                         lambda: self._on_menu_action("Sales", "Sales History")
                     )
+                    page.pur_invoice_requested.connect(
+                        lambda: self._on_menu_action("Purchase", "New Purchase")
+                    )
+                    page.challan_requested.connect(
+                        lambda: self._on_menu_action("Reports", "Supplierwise Itemwise Purchase (Challan)")
+                    )
+                    page.debit_note_requested.connect(
+                        lambda: self._on_menu_action("Purchase", "Purchase Return")
+                    )
+                    page.credit_note_requested.connect(
+                        lambda: self._on_menu_action("Sales", "Return Bill")
+                    )
                 elif menu_name == "Sales" and item_name == "Hold Bill":
                     page = screens.HoldBillPage()
                 elif menu_name == "Sales" and item_name == "Day End":

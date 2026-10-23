@@ -41,7 +41,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from PySide6.QtCore import QDate, Qt
 from PySide6.QtGui import QKeySequence
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QApplication, QMessageBox, QComboBox
 
 from database.connection import get_connection, init_database
 from database import auth, financial_year
@@ -53,7 +53,10 @@ from database.duplicate_sales_dao import (
 from screens.duplicate_sales_bill import (
     DuplicateSalesBillDialog,
     DuplicateSalesBillListPage,
+    DuplicateSalesBillA6PreviewDialog,
     build_duplicate_sales_bill_report_pages,
+    generate_duplicate_a6_pdf,
+    print_duplicate_a6_bill,
 )
 from ui.menu_data import MENUS
 from ui.navigation_bar import MENU_SHORTCUTS, NavigationBar
@@ -509,6 +512,141 @@ class TestDuplicateSalesBillSuite(unittest.TestCase):
         # 2. Without [ DUPLICATE COPY ] label
         pages_without_dup = build_duplicate_sales_bill_report_pages(head, items, show_duplicate_copy=False)
         self.assertNotIn("[ DUPLICATE COPY ]", pages_without_dup[0].header.header_line_1)
+
+    def test_11_item_and_batch_autofill_read_only(self):
+        """Verify tablet MRP, batch, pack size, and expiry autofill correctly without altering stock."""
+        conn = get_connection()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "INSERT INTO items (item_name, pack_size, mrp) VALUES (?, ?, ?)",
+                ("TEST DOLO 650", "15 TAB", 32.50),
+            )
+            item_id = cur.lastrowid
+            cur.execute(
+                """
+                INSERT INTO stock_batches (item_id, batch_no, expiry, pack_size, mrp, stock_qty)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (item_id, "DL-2026X", "2028-11-30", "15 TAB", 32.50, 45.0),
+            )
+            cur.execute(
+                """
+                INSERT INTO stock_batches (item_id, batch_no, expiry, pack_size, mrp, stock_qty)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (item_id, "DL-OLD-9", "2025-01-31", "15 TAB", 28.00, 0.0),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        # 1. Test DAO suggestions - must pick active stock batch DL-2026X first
+        suggestions = DuplicateSalesDAO.get_item_batch_suggestions("TEST DOLO 650")
+        self.assertGreaterEqual(len(suggestions), 1)
+        top_batch = suggestions[0]
+        self.assertEqual(top_batch["batch_no"], "DL-2026X")
+        self.assertEqual(top_batch["mrp"], 32.50)
+        self.assertEqual(top_batch["pack_size"], "15 TAB")
+        self.assertEqual(top_batch["expiry"], "2028-11-30")
+
+        # 2. Test specific batch details
+        old_batch = DuplicateSalesDAO.get_batch_details("TEST DOLO 650", "DL-OLD-9")
+        self.assertIsNotNone(old_batch)
+        self.assertEqual(old_batch["mrp"], 28.00)
+
+        # 3. Test Dialog Autofill
+        dlg = DuplicateSalesBillDialog()
+        dlg._entry_item.setText("TEST DOLO 650")
+        dlg._autofill_item_and_batch("TEST DOLO 650")
+
+        self.assertTrue(isinstance(dlg._entry_batch, QComboBox))
+        self.assertTrue(dlg._entry_batch.isEditable())
+        self.assertGreaterEqual(dlg._entry_batch.count(), 2)
+        dropdown_items = [dlg._entry_batch.itemText(i) for i in range(dlg._entry_batch.count())]
+        self.assertIn("DL-2026X", dropdown_items)
+        self.assertIn("DL-OLD-9", dropdown_items)
+
+        self.assertEqual(dlg._entry_batch.text(), "DL-2026X")
+        self.assertEqual(float(dlg._entry_mrp.text()), 32.50)
+        self.assertEqual(dlg._entry_pack.text(), "15 TAB")
+        self.assertEqual(dlg._entry_exp.text(), "11/28")
+
+        # 4. Change batch to DL-OLD-9 via selection from dropdown
+        dlg._on_batch_chosen("DL-OLD-9")
+        self.assertEqual(float(dlg._entry_mrp.text()), 28.00)
+
+        # 5. Add to bill and verify stock remains 100% untouched
+        dlg._entry_qty.setText("5")
+        dlg._on_add_item()
+        self.assertEqual(dlg._table.rowCount(), 1)
+        self.assertEqual(float(dlg._table.item(0, 5).text()), 28.00)  # MRP column
+
+        conn = get_connection()
+        try:
+            qty_now = conn.execute(
+                "SELECT stock_qty FROM stock_batches WHERE batch_no = 'DL-2026X'"
+            ).fetchone()[0]
+            self.assertEqual(qty_now, 45.0, "Stock qty was modified!")
+        finally:
+            conn.close()
+        dlg.close()
+
+    def test_12_a6_print_and_preview_integration(self):
+        """Verify A6 receipt printing, PDF generation, and preview dialog."""
+        head = {
+            "voucher_no": 99,
+            "vh_date": "2026-10-23",
+            "vh_time": "04:15 PM",
+            "bill_type": "Cash",
+            "customer_name": "SUNIL PATEL",
+            "patient_name": "AJAY",
+            "doctor_name": "DR. SHAH",
+            "total_items": 1,
+            "total_amount": 250.0,
+            "less_bill_discount": 0.0,
+            "round_off": 0.0,
+            "net_amount": 250.0,
+        }
+        items = [
+            {
+                "item_name": "AUGMENTIN 625",
+                "pack_size": "10 TAB",
+                "batch_no": "AG-771",
+                "expiry": "09/27",
+                "mrp": 250.0,
+                "sales_qty": 1.0,
+                "disc": 0.0,
+                "amount": 250.0,
+            }
+        ]
+
+        # 1. Test A6 PDF generation
+        temp_pdf = os.path.join(tempfile.gettempdir(), "_test_dup_a6.pdf")
+        if os.path.exists(temp_pdf):
+            try:
+                os.remove(temp_pdf)
+            except OSError:
+                pass
+
+        pdf_path = generate_duplicate_a6_pdf(head, items, output_path=temp_pdf, show_duplicate_copy=True)
+        self.assertEqual(pdf_path, temp_pdf)
+        self.assertTrue(os.path.exists(temp_pdf))
+        self.assertGreater(os.path.getsize(temp_pdf), 500)
+
+        # 2. Test A6 Preview Dialog initialization without crash
+        preview_dlg = DuplicateSalesBillA6PreviewDialog(head, items, show_duplicate_copy=True)
+        self.assertIsNotNone(preview_dlg._print_btn)
+        self.assertIsNotNone(preview_dlg._save_pdf_btn)
+        self.assertTrue(preview_dlg._show_duplicate)
+        preview_dlg.close()
+
+        # Clean up
+        if os.path.exists(temp_pdf):
+            try:
+                os.remove(temp_pdf)
+            except OSError:
+                pass
 
 
 if __name__ == "__main__":

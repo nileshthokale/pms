@@ -4447,9 +4447,9 @@ class _SalePanel(QWidget):
         self._add_total_field(layout, "Total Items", "total_items_label",
                               width=76, emphasised=False)
         self._add_total_field(layout, "Total Amt", "total_amount_label",
-                              width=100)
+                              width=100, visible=False)
         self._add_total_field(layout, "Bill Disc", "bill_disc_edit",
-                              width=90)
+                              width=90, visible=False)
         self._add_total_field(layout, "Customer Saving", "customer_saving_label",
                               width=110)
         self._add_total_field(layout, "Yours", "yours_label",
@@ -4458,7 +4458,7 @@ class _SalePanel(QWidget):
                               width=85)
         self._add_total_field(layout, "NET AMT", "net_amt_label",
                               width=115, emphasised=True)
-        self._add_total_field(layout, "Paid", "paid_edit", width=95)
+        self._add_total_field(layout, "Paid", "paid_edit", width=95, visible=False)
 
         # Wire recalc
         self.bill_disc_edit.textChanged.connect(self._recalc_totals)
@@ -4517,13 +4517,15 @@ class _SalePanel(QWidget):
         layout.addWidget(cancel_btn)
 
     def _add_total_field(self, layout: QHBoxLayout, title: str, attr_name: str,
-                         *, width: int, emphasised: bool = False):
+                         *, width: int, emphasised: bool = False, visible: bool = True):
         """One caption-over-value block of a fixed width in the footer.
 
         Captions use the 14 px form-label size (bold) and values use
         15/17 px so the taller 70 px footer reads at a glance.
         """
-        container = QVBoxLayout()
+        box = QWidget()
+        box.setFixedWidth(width)
+        container = QVBoxLayout(box)
         container.setSpacing(2)
         container.setContentsMargins(0, 0, 0, 0)
         lbl = QLabel(title)
@@ -4559,7 +4561,9 @@ class _SalePanel(QWidget):
             if attr_name not in ("bill_disc_edit", "paid_edit"):
                 edit.setReadOnly(True)
 
-        layout.addLayout(container)
+        layout.addWidget(box)
+        if not visible:
+            box.hide()
 
     def set_combined_totals(self, count: int, qty: float,
                               amount: float, net: float) -> None:
@@ -6178,6 +6182,10 @@ class CounterSalePage(QWidget):
     # routes it through the exact same "Sales > Sales History" action the
     # top menu uses, so both entries open the same page/view.
     sales_history_requested = Signal()
+    pur_invoice_requested = Signal()
+    challan_requested = Signal()
+    debit_note_requested = Signal()
+    credit_note_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
@@ -6264,6 +6272,56 @@ class CounterSalePage(QWidget):
         self._refresh_status_bar()
         from PySide6.QtGui import QShortcut, QKeySequence
         QShortcut(QKeySequence("Ctrl+A"), self).activated.connect(self._open_stock_adjustment)
+        QShortcut(QKeySequence("Ctrl+S"), self).activated.connect(self._on_new)
+        QShortcut(QKeySequence("Ctrl+P"), self).activated.connect(self._open_supplier_balance)
+        QShortcut(QKeySequence("Ctrl+R"), self).activated.connect(self._open_customer_balance)
+        QShortcut(QKeySequence("Ctrl+I"), self).activated.connect(self._open_pur_invoice)
+        QShortcut(QKeySequence("Ctrl+H"), self).activated.connect(self._open_challan)
+        QShortcut(QKeySequence("Ctrl+D"), self).activated.connect(self._open_debit_note)
+        QShortcut(QKeySequence("Ctrl+C"), self).activated.connect(self._on_ctrl_c_pressed)
+
+    def _open_pur_invoice(self) -> None:
+        if self.pur_invoice_requested.receivers(self.pur_invoice_requested) > 0:
+            self.pur_invoice_requested.emit()
+        else:
+            win = self.window()
+            if win is not None and hasattr(win, "_on_menu_action"):
+                win._on_menu_action("Purchase", "New Purchase")
+
+    def _open_challan(self) -> None:
+        if self.challan_requested.receivers(self.challan_requested) > 0:
+            self.challan_requested.emit()
+        else:
+            win = self.window()
+            if win is not None and hasattr(win, "_on_menu_action"):
+                win._on_menu_action("Reports", "Supplierwise Itemwise Purchase (Challan)")
+
+    def _open_debit_note(self) -> None:
+        if self.debit_note_requested.receivers(self.debit_note_requested) > 0:
+            self.debit_note_requested.emit()
+        else:
+            win = self.window()
+            if win is not None and hasattr(win, "_on_menu_action"):
+                win._on_menu_action("Purchase", "Purchase Return")
+
+    def _open_credit_note(self) -> None:
+        if self.credit_note_requested.receivers(self.credit_note_requested) > 0:
+            self.credit_note_requested.emit()
+        else:
+            win = self.window()
+            if win is not None and hasattr(win, "_on_menu_action"):
+                win._on_menu_action("Sales", "Return Bill")
+
+    def _on_ctrl_c_pressed(self) -> None:
+        from PySide6.QtWidgets import QApplication, QLineEdit, QTextEdit, QPlainTextEdit, QTableWidget
+        fw = QApplication.focusWidget()
+        if isinstance(fw, (QLineEdit, QTextEdit, QPlainTextEdit)):
+            if fw.hasSelectedText():
+                fw.copy()
+                return
+        elif isinstance(fw, QTableWidget):
+            return
+        self._open_credit_note()
 
     # ------------------------------------------------------------------
     # Layout construction
@@ -7001,44 +7059,58 @@ class CounterSalePage(QWidget):
         """Bottom status bar matching legacy Pharma-WINNER Counter Sale footer."""
         bar = QWidget()
         bar.setObjectName("CounterSaleStatusBar")
-        bar.setFixedHeight(28)
+        bar.setFixedHeight(26)
         bar.setStyleSheet(
             f"#CounterSaleStatusBar {{ background-color: {_SURFACE};"
             f"  border-top: 1px solid {_BORDER}; }}"
         )
         layout = QHBoxLayout(bar)
-        layout.setContentsMargins(12, 2, 12, 2)
-        layout.setSpacing(20)
+        layout.setContentsMargins(8, 2, 8, 2)
+        layout.setSpacing(10)
 
-        style = (
-            f"color: {_TEXT}; font-size: {TYPE_FORM_LABEL}px; font-weight: bold;"
+        # Retain references to legacy status labels for backwards compatibility and test stability
+        self._status_cnt_label = QLabel("CntNo=1")
+        self._status_items_label = QLabel("Total Items: 0")
+        self._status_saving_label = QLabel("Customer Saving: 0.00")
+        self._status_yours_label = QLabel("Yours: 0.00")
+        self._status_bills_total_label = QLabel("Bill(s) Total: 0.00")
+
+        shortcuts_text = (
+            "Pur. Invoice: [Ctrl+I]   Challan: [Ctrl+H]   Adjust: [Ctrl+A]   "
+            "DebitNote : [Ctrl+D]   CreditNote : [Ctrl+C]   Supp. Payment: [Ctrl+P]   "
+            "Cust. Receipt: [Ctrl+R]   Counter Sales: [Ctrl+S]"
+        )
+        self._shortcuts_label = QLabel(shortcuts_text)
+        self._shortcuts_label.setObjectName("CounterSaleShortcutsLabel")
+        self._shortcuts_label.setStyleSheet(
+            f"color: {_TEXT}; font-size: 11px; font-weight: normal;"
             f"background: transparent; font-family: {FONT_FAMILY};"
         )
-
-        self._status_cnt_label = QLabel("CntNo=1")
-        self._status_cnt_label.setStyleSheet(style)
-        layout.addWidget(self._status_cnt_label)
-
-        self._status_items_label = QLabel("Total Items: 0")
-        self._status_items_label.setStyleSheet(style)
-        layout.addWidget(self._status_items_label)
-
-        self._status_saving_label = QLabel("Customer Saving: 0.00")
-        self._status_saving_label.setStyleSheet(style)
-        layout.addWidget(self._status_saving_label)
-
-        self._status_yours_label = QLabel("Yours: 0.00")
-        self._status_yours_label.setStyleSheet(style)
-        layout.addWidget(self._status_yours_label)
+        layout.addWidget(self._shortcuts_label)
 
         layout.addStretch(1)
 
-        self._status_bills_total_label = QLabel("Bill(s) Total: 0.00")
-        self._status_bills_total_label.setStyleSheet(
-            f"color: {_ACCENT}; font-size: {TYPE_VALUE_EMPHASIS}px; font-weight: bold;"
-            f"background: transparent; font-family: {FONT_FAMILY};"
-        )
-        layout.addWidget(self._status_bills_total_label)
+        p = palette()
+        is_night = p.get("bg") == "#1a2530" or p.get("bg") != "#ffffff"
+        if is_night:
+            badge_style = (
+                f"color: {p['text']}; font-size: 11px; font-weight: bold;"
+                f"background-color: {p['surface']};"
+                f"border: 1px solid {p['border']}; border-radius: 2px; padding: 1px 8px;"
+                f"font-family: {FONT_FAMILY};"
+            )
+        else:
+            badge_style = (
+                "color: #000000; font-size: 11px; font-weight: bold;"
+                "background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ffffff, stop:0.4 #eaf2fb, stop:1 #d4e5f7);"
+                "border: 1px solid #9db6cc; border-radius: 2px; padding: 1px 8px;"
+                f"font-family: {FONT_FAMILY};"
+            )
+
+        self._license_badge = QLabel("Software Licenced to :SHREE SAMARTH MEDICAL AND GEN STORE,RAHURI")
+        self._license_badge.setObjectName("SoftwareLicenseBadge")
+        self._license_badge.setStyleSheet(badge_style)
+        layout.addWidget(self._license_badge)
 
         return bar
 
@@ -7438,6 +7510,35 @@ class CounterSalePage(QWidget):
         try:
             if getattr(self, "_edit_dialog", None) is not None:
                 self._edit_dialog.refresh_theme()
+        except Exception:
+            pass
+        try:
+            if hasattr(self, "_status_bar") and self._status_bar is not None:
+                self._status_bar.setStyleSheet(
+                    f"#CounterSaleStatusBar {{ background-color: {p['surface']};"
+                    f"  border-top: 1px solid {p['border']}; }}"
+                )
+            if hasattr(self, "_shortcuts_label") and self._shortcuts_label is not None:
+                self._shortcuts_label.setStyleSheet(
+                    f"color: {p['text']}; font-size: 11px; font-weight: normal;"
+                    f"background: transparent; font-family: {FONT_FAMILY};"
+                )
+            if hasattr(self, "_license_badge") and self._license_badge is not None:
+                is_night = p.get("bg") == "#1a2530" or p.get("bg") != "#ffffff"
+                if is_night:
+                    self._license_badge.setStyleSheet(
+                        f"color: {p['text']}; font-size: 11px; font-weight: bold;"
+                        f"background-color: {p['surface']};"
+                        f"border: 1px solid {p['border']}; border-radius: 2px; padding: 1px 8px;"
+                        f"font-family: {FONT_FAMILY};"
+                    )
+                else:
+                    self._license_badge.setStyleSheet(
+                        "color: #000000; font-size: 11px; font-weight: bold;"
+                        "background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ffffff, stop:0.4 #eaf2fb, stop:1 #d4e5f7);"
+                        "border: 1px solid #9db6cc; border-radius: 2px; padding: 1px 8px;"
+                        f"font-family: {FONT_FAMILY};"
+                    )
         except Exception:
             pass
         try:

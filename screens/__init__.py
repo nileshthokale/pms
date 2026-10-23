@@ -78,6 +78,9 @@ from screens.doctor_reports import (
 from screens.duplicate_sales_bill import (
     DuplicateSalesBillListPage,
     DuplicateSalesBillDialog,
+    DuplicateSalesBillA6PreviewDialog,
+    print_duplicate_a6_bill,
+    generate_duplicate_a6_pdf,
 )
 
 __all__ = [
@@ -100,6 +103,6 @@ __all__ = [
     "ItemwiseSalesPage", "DailyProfitCalculationPage", "DailyProfitCalculationDialog",
     "DailyProfitItemwisePage", "DailyProfitItemwiseDialog",
     "DoctorwiseItemSalePage", "DoctorwiseItemSaleDetailsPage",
-    "DuplicateSalesBillListPage", "DuplicateSalesBillDialog",
+    "DuplicateSalesBillListPage", "DuplicateSalesBillDialog", "DuplicateSalesBillA6PreviewDialog", "print_duplicate_a6_bill", "generate_duplicate_a6_pdf",
 ]
 
