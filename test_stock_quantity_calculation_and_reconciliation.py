@@ -232,7 +232,7 @@ class TestStockQuantityCalculationAndReconciliation(unittest.TestCase):
         self.assertEqual(ordered_nos[2], "OLD-EXP")
         self.assertEqual(ordered_nos[3], "ZERO-STK")
 
-        # Open StockAdjustmentDialog and verify auto-selection
+        # Open StockAdjustmentDialog and verify no auto-selection under new requirement
         dlg = StockAdjustmentDialog()
         self._pump()
         dlg.item_combo.set_selected_id(item_id)
@@ -240,7 +240,14 @@ class TestStockQuantityCalculationAndReconciliation(unittest.TestCase):
 
         # Item Stock must show 231 (eligible stock), NOT 681
         self.assertEqual(dlg.item_stock_edit.text(), "231")
-        # Batch Stock must display the active batch's stock (218), NEVER 0!
+        # Under new requirement: selecting medicine does NOT auto-select any batch.
+        self.assertIsNone(dlg.batch_combo.currentData())
+        self.assertEqual(dlg.batch_stock_edit.text(), "")
+
+        # When user explicitly selects the active batch, batch stock shows 218
+        active_b_id = next(b["id"] for b in ordered_batches if b["batch_no"] == "ACTIVE-LARGE")
+        dlg._select_batch_by_id(active_b_id)
+        self._pump()
         self.assertEqual(dlg.batch_stock_edit.text(), "218")
         self.assertIn("ACTIVE-LARGE", dlg.batch_combo.currentText())
         dlg.close()
@@ -390,7 +397,11 @@ class TestStockQuantityCalculationAndReconciliation(unittest.TestCase):
 
         # Item Stock must show 233 (active eligible stock)
         self.assertEqual(dlg.item_stock_edit.text(), "233")
-        # Primary batch ACT-218 auto-selected with Batch Stock = 218
+        # Batch combo remains unselected initially until explicitly chosen
+        self.assertIsNone(dlg.batch_combo.currentData())
+        dlg._select_batch_by_id(b1_id)
+        self._pump()
+        # Batch ACT-218 explicitly selected with Batch Stock = 218
         self.assertEqual(dlg.batch_stock_edit.text(), "218")
 
         # User enters reported physical count = 230

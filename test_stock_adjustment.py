@@ -490,7 +490,7 @@ class TestStockAdjustment(unittest.TestCase):
         self.assertEqual(_format_expiry_display("12/26"), "12-2026")
 
     def test_15_changing_medicine_clears_stale_batch_fields(self):
-        """15. Changing medicine refreshes batch list and clears stale batch fields."""
+        """15. Changing medicine refreshes batch list, does not auto-select batch, and clears stale fields."""
         dlg = StockAdjustmentDialog(item_id=101, stock_batch_id=1001)
         self.assertEqual(dlg.batch_combo.currentData(), 1001)
         self.assertEqual(dlg.batch_stock_edit.text(), "627")
@@ -499,7 +499,14 @@ class TestStockAdjustment(unittest.TestCase):
         # Now change medicine to Item 102 (PARACETAMOL, has single batch 2001)
         dlg.item_combo.set_selected_id(102)
 
-        # Batch 2001 should be auto-selected (single batch) and fields reflect Item 102
+        # Batch should NOT be auto-selected; batch combo and dependent fields remain empty
+        self.assertIsNone(dlg.batch_combo.currentData())
+        self.assertEqual(dlg.batch_stock_edit.text(), "")
+        self.assertEqual(dlg.expiry_edit.text(), "")
+        self.assertEqual(dlg.mrp_edit.text(), "")
+
+        # When explicitly chosen, batch 2001 details populate correctly
+        dlg._select_batch_by_id(2001)
         self.assertEqual(dlg.batch_combo.currentData(), 2001)
         self.assertEqual(dlg.batch_stock_edit.text(), "100")
         self.assertEqual(dlg.expiry_edit.text(), "05-2028")

@@ -159,7 +159,7 @@ class TestAdjustedStockListAndWorkflow(unittest.TestCase):
         _app.processEvents()
 
     def test_01_load_batches_for_selected_item_and_switch_items(self):
-        """1. Selecting a medicine loads all valid batches (including 0-stock). Switching clears previous batch."""
+        """1. Selecting medicine loads valid batches without auto-selecting. Switching clears previous batch."""
         dlg = StockAdjustmentDialog()
         self._pump()
 
@@ -176,6 +176,19 @@ class TestAdjustedStockListAndWorkflow(unittest.TestCase):
         # Total item stock should be 20.0
         self.assertEqual(dlg.item_stock_edit.text(), "20")
 
+        # Under new requirement: selecting medicine does NOT auto-select any batch.
+        # Batch field remains empty until explicitly selected:
+        self.assertIsNone(dlg.batch_combo.currentData())
+        self.assertEqual(dlg.batch_stock_edit.text(), "")
+        self.assertEqual(dlg.expiry_edit.text(), "")
+        self.assertEqual(dlg.mrp_edit.text(), "")
+
+        # Explicitly choose Batch 1
+        dlg._select_batch_by_id(self.batch1_id)
+        self._pump()
+        self.assertEqual(dlg.batch_combo.currentData(), self.batch1_id)
+        self.assertEqual(dlg.batch_stock_edit.text(), "20")
+
         # Now switch to Item 2
         dlg.item_combo.set_selected_id(self.item2_id)
         self._pump()
@@ -185,8 +198,18 @@ class TestAdjustedStockListAndWorkflow(unittest.TestCase):
         self.assertEqual(dlg._batches[0]["id"], self.batch3_id)
         self.assertEqual(dlg.item_stock_edit.text(), "50")
 
-        # Previous batch IDs must not be present
-        self.assertNotIn(self.batch1_id, [b["id"] for b in dlg._batches])
+        # Previous batch selection and details must be cleared
+        self.assertIsNone(dlg.batch_combo.currentData())
+        self.assertEqual(dlg.batch_stock_edit.text(), "")
+        self.assertEqual(dlg.expiry_edit.text(), "")
+        self.assertEqual(dlg.mrp_edit.text(), "")
+
+        # Explicitly choose Item 2's batch 3
+        dlg._select_batch_by_id(self.batch3_id)
+        self._pump()
+        self.assertEqual(dlg.batch_combo.currentData(), self.batch3_id)
+        self.assertEqual(dlg.batch_stock_edit.text(), "50")
+
         dlg.close()
 
     def test_02_select_batch_populates_all_fields(self):
@@ -298,8 +321,8 @@ class TestAdjustedStockListAndWorkflow(unittest.TestCase):
         self.assertEqual(page.table.item(1, 7).text(), "169.14")
         page.close()
 
-    def test_07_history_filtering_by_date_and_item(self):
-        """7. History filtering by date range and Item (ALL vs specific medicine)."""
+    def test_07_history_filtering_by_date_range_and_refresh(self):
+        """7. History filtering by date range, wide date controls without clipping, and Refresh button."""
         StockAdjustmentDAO.record_adjustment(self.item1_id, self.batch1_id, 2.0)
         StockAdjustmentDAO.record_adjustment(self.item2_id, self.batch3_id, 3.0)
 
@@ -307,19 +330,26 @@ class TestAdjustedStockListAndWorkflow(unittest.TestCase):
         self._pump()
         self.assertEqual(page.table.rowCount(), 2)
 
-        # Filter by Item 1
-        idx = page.item_filter_combo.findData(self.item1_id)
-        self.assertGreater(idx, 0)
-        page.item_filter_combo.setCurrentIndex(idx)
+        # Date controls must have width 135 to prevent truncation
+        self.assertEqual(page.from_date_edit.width(), 135)
+        self.assertEqual(page.to_date_edit.width(), 135)
+        self.assertEqual(page.from_date_edit.displayFormat(), "dd/MM/yyyy")
+        self.assertEqual(page.to_date_edit.displayFormat(), "dd/MM/yyyy")
+
+        # Filter by a date range in the past (e.g. 2020) -> should return 0 records
+        past_date = QDate(2020, 1, 1)
+        page.from_date_edit.setDate(past_date)
+        page.to_date_edit.setDate(past_date)
+        page.btn_filter.click()
         self._pump()
+        self.assertEqual(page.table.rowCount(), 0)
 
-        self.assertEqual(page.table.rowCount(), 1)
-        self.assertEqual(page.table.item(0, 0).text(), "UBINEXT-LC TABLET")
-
-        # Filter by ALL
-        page.item_filter_combo.setCurrentIndex(0)
+        # Click Refresh button -> resets dates to today and shows all 2 records
+        page.btn_refresh.click()
         self._pump()
         self.assertEqual(page.table.rowCount(), 2)
+        self.assertEqual(page.from_date_edit.date(), QDate.currentDate())
+        self.assertEqual(page.to_date_edit.date(), QDate.currentDate())
         page.close()
 
     def test_08_edit_adjustment_atomic_delta_reconciliation_no_double_count(self):
@@ -478,6 +508,85 @@ class TestAdjustedStockListAndWorkflow(unittest.TestCase):
         items = PurchaseDAO.get_invoice_items(inv_id)
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0]["batch_no"], "0AAIZ005")
+
+    def test_14_batch_box_shows_only_batch_no_expiry_no_mrp(self):
+        """14. Batch box displays ONLY batch number without expiry or MRP."""
+        dlg = StockAdjustmentDialog(item_id=self.item1_id)
+        self._pump()
+
+        # Item 1 has 2 batches: positive stock batch and zero-stock batch
+        items_data = dlg.batch_combo._items_data
+        self.assertEqual(len(items_data), 2)
+
+        for label, data_id, raw_name, _idx in items_data:
+            # Batch box displays ONLY the batch number
+            self.assertEqual(label, raw_name)
+            # Must NOT display expiry or MRP in batch box
+            self.assertNotIn("Exp:", label)
+            self.assertNotIn("MRP:", label)
+            self.assertNotIn("Stk:", label)
+            self.assertNotIn("[0 Stock]", label)
+            self.assertNotIn("[EXPIRED]", label)
+            # Internal data must be the integer batch ID
+            self.assertIsInstance(data_id, int)
+
+        # Batch field remains unselected / empty initially
+        self.assertIsNone(dlg.batch_combo.currentData())
+        self.assertEqual(dlg.batch_combo.currentText(), "")
+
+        # Select Batch 1: batch box must display strictly '0AAIZ005'
+        dlg._select_batch_by_id(self.batch1_id)
+        self._pump()
+        self.assertEqual(dlg.batch_combo.currentText(), "0AAIZ005")
+        self.assertNotIn("Exp", dlg.batch_combo.currentText())
+        self.assertNotIn("MRP", dlg.batch_combo.currentText())
+
+        # Expiry and MRP are populated in their own separate fields
+        self.assertEqual(dlg.expiry_edit.text(), "01-2028")
+        self.assertEqual(dlg.mrp_edit.text(), "222.00")
+        dlg.close()
+
+    def test_15_zero_stock_batch_can_be_selected_and_populates_values(self):
+        """15. Zero-stock batches remain available in the dropdown and populate fields when selected."""
+        dlg = StockAdjustmentDialog(item_id=self.item1_id)
+        self._pump()
+
+        # Explicitly select the zero-stock batch (batch 2)
+        dlg._select_batch_by_id(self.batch2_id)
+        self._pump()
+
+        self.assertEqual(dlg.batch_combo.currentData(), self.batch2_id)
+        self.assertEqual(dlg.batch_stock_edit.text(), "0")
+        self.assertEqual(dlg.expiry_edit.text(), "06-2028")
+        self.assertEqual(dlg.mrp_edit.text(), "222.00")
+        self.assertEqual(dlg.rate_edit.text(), "169.14")
+        self.assertEqual(dlg.net_rate_edit.text(), "177.60")
+
+        dlg.close()
+
+    def test_16_completer_popup_right_edge_boundary_guard(self):
+        """16. Completer popup position respects screen_geo.right() and does not clip off screen."""
+        from ui.components import SearchableComboBox
+        from PySide6.QtCore import QPoint
+
+        combo = SearchableComboBox(placeholder="Test", min_width=350)
+        combo.addItem("Batch 12345", 1)
+        combo.resize(200, 30)
+        self._pump()
+
+        # Trigger popup positioning
+        combo.show_all_suggestions()
+        popup = combo._completer.popup()
+        self.assertIsNotNone(popup)
+        # Popup width must be at least min_width (350)
+        self.assertGreaterEqual(popup.width(), 350)
+
+        # Verify geometry stays within screen right boundary
+        screen = QApplication.primaryScreen()
+        if screen:
+            screen_geo = screen.availableGeometry()
+            self.assertLessEqual(popup.x() + popup.width(), screen_geo.right() + 1)
+        combo.close()
 
 
 if __name__ == "__main__":

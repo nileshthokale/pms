@@ -559,7 +559,7 @@ class PurchaseDAO:
             # 1. Purchase invoice items (gives exact purchase rate, mrp, expiry)
             cur = conn.execute(
                 """
-                SELECT batch_no, expiry, rate, mrp, pack_size
+                SELECT batch_no, expiry, rate, mrp, pack_size, gst_percent
                 FROM purchase_invoice_items
                 WHERE item_id = ? AND batch_no IS NOT NULL AND TRIM(batch_no) != ''
                 ORDER BY id DESC
@@ -579,6 +579,7 @@ class PurchaseDAO:
                         "rate": float(b.get("rate") or 0.0),
                         "mrp": float(b.get("mrp") or 0.0),
                         "pack_size": str(b.get("pack_size") or ""),
+                        "gst_percent": float(b.get("gst_percent") or 0.0) if b.get("gst_percent") is not None else None,
                     }
                 else:
                     if not batches[key]["expiry"] and b.get("expiry"):
@@ -589,11 +590,13 @@ class PurchaseDAO:
                         batches[key]["mrp"] = float(b.get("mrp") or 0.0)
                     if not batches[key]["pack_size"] and b.get("pack_size"):
                         batches[key]["pack_size"] = str(b.get("pack_size") or "")
+                    if batches[key].get("gst_percent") is None and b.get("gst_percent") is not None:
+                        batches[key]["gst_percent"] = float(b.get("gst_percent") or 0.0)
 
             # 2. Stock batches (for batches that may not be in purchase_invoice_items)
             cur = conn.execute(
                 """
-                SELECT batch_no, expiry, purchase_rate AS rate, mrp, pack_size
+                SELECT id, batch_no, expiry, purchase_rate AS rate, mrp, pack_size
                 FROM stock_batches
                 WHERE item_id = ? AND batch_no IS NOT NULL AND TRIM(batch_no) != ''
                 ORDER BY id DESC
@@ -608,6 +611,8 @@ class PurchaseDAO:
                 key = bno.upper()
                 if key not in batches:
                     batches[key] = {
+                        "id": b.get("id"),
+                        "batch_id": b.get("id"),
                         "batch_no": bno,
                         "expiry": (b.get("expiry") or "").strip(),
                         "rate": float(b.get("rate") or 0.0),
@@ -615,6 +620,9 @@ class PurchaseDAO:
                         "pack_size": str(b.get("pack_size") or ""),
                     }
                 else:
+                    if not batches[key].get("id") and b.get("id"):
+                        batches[key]["id"] = b.get("id")
+                        batches[key]["batch_id"] = b.get("id")
                     if not batches[key]["expiry"] and b.get("expiry"):
                         batches[key]["expiry"] = str(b.get("expiry")).strip()
                     if batches[key]["rate"] <= 0 and float(b.get("rate") or 0.0) > 0:

@@ -11,7 +11,7 @@ Provides atomic, audit-safe stock adjustments:
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 import sqlite3
 from typing import Any
 
@@ -109,8 +109,25 @@ class StockAdjustmentDAO:
                 )
 
             prev_qty = float(batch_dict.get("stock_qty") or 0.0)
-            res_qty = round(prev_qty + adj_val, 4)
 
+            # Stock addition requires a valid, non-expired batch
+            if adj_val > 0.0:
+                from database.stock_dao import StockDAO
+                parsed_exp = StockDAO.parse_expiry_date(batch_dict.get("expiry"))
+                if parsed_exp is None or parsed_exp < date.today():
+                    raise StockAdjustmentError(
+                        f"Cannot add stock to batch '{batch_dict.get('batch_no')}' because it is expired or has an invalid expiry date. "
+                        f"Stock addition is only permitted on valid, non-expired batches."
+                    )
+
+            # Stock removal requires available stock and cannot result in negative stock
+            if adj_val < 0.0 and prev_qty <= 0.0:
+                raise StockAdjustmentError(
+                    f"Cannot remove stock from batch '{batch_dict.get('batch_no')}' because current stock is 0. "
+                    f"negative stock is not permitted."
+                )
+
+            res_qty = round(prev_qty + adj_val, 4)
             if res_qty < 0.0:
                 raise StockAdjustmentError(
                     f"Adjustment of {adj_val:+g} would result in negative stock "
