@@ -92,7 +92,17 @@ class ScheduleReportsDAO:
             JOIN items i ON i.id = sii.item_id
             LEFT JOIN units u ON u.id = i.unit_id
             LEFT JOIN customers c ON c.id = si.customer_id
-            LEFT JOIN patient_addresses pa ON UPPER(TRIM(pa.patient_name)) = UPPER(TRIM(si.patient_name))
+            LEFT JOIN (
+                SELECT patient_name, address
+                FROM (
+                    SELECT patient_name, address,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY UPPER(TRIM(patient_name))
+                               ORDER BY updated_at DESC, id DESC
+                           ) as rn
+                    FROM patient_addresses
+                ) WHERE rn = 1
+            ) pa ON UPPER(TRIM(pa.patient_name)) = UPPER(TRIM(si.patient_name))
             WHERE si.sale_date BETWEEN ? AND ?
               AND {sched_sql}
               {item_filter}
