@@ -12,8 +12,11 @@ import os
 from typing import Any
 
 from PySide6.QtCore import QDate, QTime, Qt, Signal
-from PySide6.QtGui import QColor, QFont
+import re
+from PySide6.QtCore import QRectF
+from PySide6.QtGui import QColor, QFont, QPainter, QPixmap
 from PySide6.QtWidgets import (
+    QScrollArea,
     QAbstractItemView,
     QCheckBox,
     QComboBox,
@@ -40,6 +43,7 @@ from PySide6.QtWidgets import (
 
 from database.duplicate_sales_dao import DuplicateSalesDAO
 from database import financial_year
+from database import pharmacy_a6_receipt as a6
 from ui.crystal_report_viewer import (
     BlockKind,
     CONTENT_WIDTH,
@@ -239,6 +243,268 @@ def build_duplicate_sales_bill_report_pages(
     return pages
 
 
+def _format_expiry_display(val: str) -> str:
+    val = str(val or "").strip()
+    m = re.match(r"^(\d{4})-(\d{2})", val)
+    if m:
+        return f"{m.group(2)}/{m.group(1)[2:]}"
+    m2 = re.match(r"^(\d{1,2})/(\d{4})$", val)
+    if m2:
+        return f"{int(m2.group(1)):02d}/{m2.group(2)[2:]}"
+    return val
+
+
+def _build_a6_pages_for_duplicate_bill(
+    head: dict[str, Any],
+    items: list[dict[str, Any]],
+    show_duplicate_copy: bool = True,
+) -> tuple[list[list[a6.Block]], a6.PaperProfile]:
+    doc_title = "DUPLICATE SALES BILL"
+    if show_duplicate_copy:
+        doc_title = "DUPLICATE SALES BILL [DUPLICATE COPY]"
+
+    raw_date = str(head.get("vh_date") or "")
+    m = re.match(r"(\d{4})-(\d{2})-(\d{2})", raw_date)
+    display_date = f"{m.group(3)}-{m.group(2)}-{m.group(1)}" if m else raw_date
+
+    record = {
+        "document_title": doc_title,
+        "customer_name": head.get("customer_name") or "WALKIN",
+        "patient_name": head.get("patient_name") or "",
+        "doctor_name": head.get("doctor_name") or "",
+        "bill_no": str(head.get("voucher_no") or head.get("bill_no") or "1"),
+        "sale_date": display_date,
+        "net_amount": head.get("net_amount") or 0.0,
+        "remarks": head.get("remarks") or ("DUPLICATE COPY" if show_duplicate_copy else ""),
+    }
+
+    prepared_items = []
+    units = {}
+    companies = {}
+    for idx, itm in enumerate(items, start=1):
+        prepared_items.append({
+            "item_id": idx,
+            "item_name": itm.get("item_name") or "",
+            "batch_no": itm.get("batch_no") or "",
+            "expiry": itm.get("expiry") or "",
+            "sale_qty": itm.get("sales_qty") if itm.get("sales_qty") is not None else itm.get("sale_qty", 0.0),
+            "mrp": itm.get("mrp") or 0.0,
+            "amount": itm.get("amount") or 0.0,
+        })
+        if itm.get("pack_size"):
+            units[idx] = str(itm["pack_size"])
+        if itm.get("location"):
+            companies[idx] = str(itm["location"])
+
+    profile = a6.PHARMACY_A6
+    blocks = a6.build_layout(record, prepared_items, companies=companies, units=units, profile=profile)
+    pages = a6.paginate(blocks, profile)
+    page_profile = a6.content_profile(pages, profile)
+    return pages, page_profile
+
+
+def print_duplicate_a6_bill(
+    head: dict[str, Any],
+    items: list[dict[str, Any]],
+    parent=None,
+    title: str = "DUPLICATE SALES BILL",
+    show_dialog: bool = True,
+    show_duplicate_copy: bool = True,
+) -> bool:
+    """Print duplicate sales bill on A6 (105 x 148 mm) via standard Windows print dialog."""
+    try:
+        from PySide6.QtPrintSupport import QPrintDialog, QPrinter
+        from PySide6.QtGui import QPainter
+    except ImportError as exc:
+        raise ValueError("Printer support requires PySide6.") from exc
+
+    pages, page_profile = _build_a6_pages_for_duplicate_bill(head, items, show_duplicate_copy=show_duplicate_copy)
+
+    printer = QPrinter(QPrinter.HighResolution)
+    layout = a6.qt_page_layout(page_profile)
+    if layout is not None:
+        printer.setPageLayout(layout)
+
+    doc_title = title + (" [DUPLICATE COPY]" if show_duplicate_copy else "")
+    if show_dialog:
+        dialog = QPrintDialog(printer, parent)
+        dialog.setWindowTitle(f"Print {doc_title} - {page_profile.size_label}")
+        if dialog.exec() != QPrintDialog.Accepted:
+            return False
+
+    painter = QPainter()
+    try:
+        if not painter.begin(printer):
+            raise RuntimeError("Could not start print job on printer.")
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        a6.draw_pages_on_painter(painter, pages, painter.viewport(), page_profile)
+    finally:
+        if painter.isActive():
+            painter.end()
+    return True
+
+
+def generate_duplicate_a6_pdf(
+    head: dict[str, Any],
+    items: list[dict[str, Any]],
+    output_path: str,
+    title: str = "DUPLICATE SALES BILL",
+    show_duplicate_copy: bool = True,
+) -> str:
+    pages, page_profile = _build_a6_pages_for_duplicate_bill(head, items, show_duplicate_copy=show_duplicate_copy)
+    pdf_bytes = a6.pages_to_pdf_bytes(pages, page_profile)
+    with open(output_path, "wb") as f:
+        f.write(pdf_bytes)
+    return output_path
+
+
+class DuplicateSalesBillA6PreviewDialog(QDialog):
+    """A6 Receipt Preview and Print Dialog for Duplicate Sales Bills."""
+
+    def __init__(
+        self,
+        head: dict[str, Any],
+        items: list[dict[str, Any]],
+        show_duplicate: bool = True,
+        show_duplicate_copy: bool | None = None,
+        parent: QWidget | None = None,
+    ):
+        super().__init__(parent)
+        self._head = dict(head)
+        self._items = list(items)
+        if show_duplicate_copy is not None:
+            self._show_duplicate = bool(show_duplicate_copy)
+        else:
+            self._show_duplicate = bool(show_duplicate)
+
+        v_no = self._head.get("voucher_no") or 1
+        self.setWindowTitle(f"Duplicate Sales Bill #{v_no} - A6 Receipt (105 x 148 mm)")
+        self.resize(560, 780)
+        self.setModal(True)
+
+        p = palette()
+        self.setStyleSheet(f"QDialog {{ background-color: {p['bg']}; color: {p['text']}; }}")
+
+        self._build_ui()
+
+    def _build_ui(self):
+        root = QVBoxLayout(self)
+        root.setContentsMargins(8, 8, 8, 8)
+        root.setSpacing(8)
+
+        # ── Toolbar ──────────────────────────────────────────────────
+        tb = QHBoxLayout()
+        title_lbl = QLabel("A6 Receipt Preview")
+        title_lbl.setStyleSheet("font-size: 16px; font-weight: bold; color: #00838f;")
+        tb.addWidget(title_lbl)
+
+        v_num = self._head.get("voucher_no") or 1
+        net_amt = fmt_amt(self._head.get("net_amount"))
+        info_lbl = QLabel(f"Voucher #{v_num}   |   Net: ₹{net_amt}")
+        info_lbl.setStyleSheet("font-weight: bold; color: #555;")
+        tb.addSpacing(12)
+        tb.addWidget(info_lbl)
+
+        tb.addStretch()
+
+        self._print_btn = QPushButton("🖨 Print (A6)")
+        self._print_btn.setFixedHeight(30)
+        self._print_btn.setStyleSheet("background-color: #2e7d32; color: white; font-weight: bold; padding: 0 14px;")
+        self._print_btn.clicked.connect(self._on_print)
+        tb.addWidget(self._print_btn)
+
+        self._pdf_btn = QPushButton("📥 Save PDF")
+        self._pdf_btn.setFixedHeight(30)
+        self._pdf_btn.setStyleSheet("background-color: #0288d1; color: white; font-weight: bold; padding: 0 12px;")
+        self._pdf_btn.clicked.connect(self._on_save_pdf)
+        self._save_pdf_btn = self._pdf_btn
+        tb.addWidget(self._pdf_btn)
+
+        self._close_btn = QPushButton("Close")
+        self._close_btn.setFixedHeight(30)
+        self._close_btn.setStyleSheet("font-weight: bold; padding: 0 12px;")
+        self._close_btn.clicked.connect(self.reject)
+        tb.addWidget(self._close_btn)
+
+        root.addLayout(tb)
+
+        # ── Scroll Area for A6 Pages ─────────────────────────────────
+        self._scroll = QScrollArea()
+        self._scroll.setStyleSheet("QScrollArea { background-color: #607d8b; border: 1px solid #cfd8dc; }")
+        self._scroll.setAlignment(Qt.AlignCenter)
+
+        container = QWidget()
+        container.setStyleSheet("background-color: transparent;")
+        c_layout = QVBoxLayout(container)
+        c_layout.setContentsMargins(16, 16, 16, 16)
+        c_layout.setSpacing(16)
+        c_layout.setAlignment(Qt.AlignCenter)
+
+        # Render A6 layout blocks & pages
+        self._pages, self._page_profile = _build_a6_pages_for_duplicate_bill(
+            self._head, self._items, show_duplicate_copy=self._show_duplicate
+        )
+
+        dpi = 150.0
+        scale_factor = dpi / 72.0
+        w_px = int(round(self._page_profile.width_pt * scale_factor))
+        h_px = int(round(self._page_profile.height_pt * scale_factor))
+
+        for page_blocks in self._pages:
+            pixmap = QPixmap(w_px, h_px)
+            pixmap.fill(QColor("#ffffff"))
+
+            painter = QPainter(pixmap)
+            painter.setRenderHint(QPainter.Antialiasing, True)
+            painter.setRenderHint(QPainter.TextAntialiasing, True)
+            a6.draw_pages_on_painter(painter, [page_blocks], QRectF(0, 0, w_px, h_px), self._page_profile)
+            painter.end()
+
+            page_lbl = QLabel()
+            page_lbl.setPixmap(pixmap)
+            page_lbl.setFixedSize(w_px, h_px)
+            page_lbl.setStyleSheet(
+                "QLabel { background: white; border: 1px solid #37474f; border-radius: 2px; }"
+            )
+            c_layout.addWidget(page_lbl)
+
+        self._scroll.setWidget(container)
+        root.addWidget(self._scroll, 1)
+
+    def _on_print(self):
+        try:
+            success = print_duplicate_a6_bill(
+                self._head,
+                self._items,
+                parent=self,
+                title="DUPLICATE SALES BILL",
+                show_dialog=True,
+                show_duplicate_copy=self._show_duplicate,
+            )
+            if success:
+                self.accept()
+        except Exception as exc:
+            QMessageBox.critical(self, "Print Error", f"Failed to print A6 receipt:\n{exc}")
+
+    def _on_save_pdf(self):
+        v_no = self._head.get("voucher_no") or 1
+        default_name = f"duplicate_sales_bill_A6_{v_no}.pdf"
+        path, _ = QFileDialog.getSaveFileName(self, "Save A6 Duplicate Bill PDF", default_name, "PDF (*.pdf)")
+        if not path:
+            return
+        try:
+            generate_duplicate_a6_pdf(
+                self._head,
+                self._items,
+                path,
+                title="DUPLICATE SALES BILL",
+                show_duplicate_copy=self._show_duplicate,
+            )
+            QMessageBox.information(self, "PDF Saved", f"A6 receipt PDF saved to:\n{path}")
+        except Exception as exc:
+            QMessageBox.critical(self, "Save Error", f"Failed to save PDF:\n{exc}")
+
+
 # ══════════════════════════════════════════════════════════════════════
 # 2. POPUP ENTRY FORM ("Sales Bill" Modal Dialog)
 # ══════════════════════════════════════════════════════════════════════
@@ -266,6 +532,7 @@ class DuplicateSalesBillDialog(QDialog):
         super().__init__(parent)
         self._dup_id = dup_id
         self._items: list[dict[str, Any]] = []
+        self._current_item_batches: list[dict[str, Any]] = []
 
         self.setWindowTitle("Sales Bill")
         self.setModal(True)
@@ -418,11 +685,13 @@ class DuplicateSalesBillDialog(QDialog):
         self._entry_item.setPlaceholderText("Medicine / Item name")
         attach_uppercase(self._entry_item)
         # Setup item autocomplete suggestions
-        suggestions = DuplicateSalesDAO.get_item_name_suggestions(limit=100)
-        completer = QCompleter(suggestions, self)
-        completer.setCaseSensitivity(Qt.CaseInsensitive)
-        completer.setFilterMode(Qt.MatchContains)
-        self._entry_item.setCompleter(completer)
+        suggestions = DuplicateSalesDAO.get_item_name_suggestions(limit=5000)
+        self._item_completer = QCompleter(suggestions, self)
+        self._item_completer.setCaseSensitivity(Qt.CaseInsensitive)
+        self._item_completer.setFilterMode(Qt.MatchContains)
+        self._entry_item.setCompleter(self._item_completer)
+        self._item_completer.activated[str].connect(self._on_item_name_chosen)
+        self._entry_item.editingFinished.connect(self._on_item_editing_finished)
         box_item.addWidget(self._entry_item)
         el.addLayout(box_item, 3)
 
@@ -508,8 +777,11 @@ class DuplicateSalesBillDialog(QDialog):
         box_disc.addWidget(self._entry_disc)
         el.addLayout(box_disc)
 
+        self._entry_batch.editingFinished.connect(self._on_batch_editing_finished)
+
         # Connect returnPressed for smooth keyboard progression
-        self._entry_item.returnPressed.connect(self._entry_qty.setFocus)
+        self._entry_item.returnPressed.connect(self._on_item_return_pressed)
+        self._entry_batch.returnPressed.connect(self._entry_qty.setFocus)
         self._entry_qty.returnPressed.connect(self._entry_mrp.setFocus)
         self._entry_mrp.returnPressed.connect(self._entry_disc.setFocus)
         self._entry_disc.returnPressed.connect(self._on_add_item)
@@ -669,7 +941,75 @@ class DuplicateSalesBillDialog(QDialog):
         self._date_edit.setDate(QDate.currentDate())
         self._time_edit.setText(QTime.currentTime().toString("hh:mm AP"))
         self._items = []
+        self._current_item_batches = []
         self._refresh_table()
+
+    def _on_item_name_chosen(self, text: str):
+        self._entry_item.setText(text)
+        self._autofill_item_and_batch(text)
+
+    def _on_item_editing_finished(self):
+        text = self._entry_item.text().strip()
+        if text:
+            self._autofill_item_and_batch(text)
+
+    def _on_item_return_pressed(self):
+        text = self._entry_item.text().strip()
+        if text:
+            self._autofill_item_and_batch(text)
+        self._entry_qty.setFocus()
+        self._entry_qty.selectAll()
+
+    def _autofill_item_and_batch(self, item_name: str):
+        batches = DuplicateSalesDAO.get_item_batch_suggestions(item_name)
+        self._current_item_batches = batches
+        if batches:
+            top = batches[0]
+            if top.get("batch_no"):
+                self._entry_batch.setText(str(top["batch_no"]))
+            if top.get("mrp") is not None and float(top["mrp"]) > 0:
+                self._entry_mrp.setText(f"{float(top['mrp']):.2f}")
+            if top.get("expiry"):
+                self._entry_exp.setText(_format_expiry_display(str(top["expiry"])))
+            if top.get("pack_size"):
+                self._entry_pack.setText(str(top["pack_size"]))
+
+            batch_list = [str(b["batch_no"]) for b in batches if b.get("batch_no")]
+            if batch_list:
+                b_completer = QCompleter(batch_list, self)
+                b_completer.setCaseSensitivity(Qt.CaseInsensitive)
+                self._entry_batch.setCompleter(b_completer)
+                b_completer.activated[str].connect(self._on_batch_chosen)
+
+    def _on_batch_chosen(self, batch_no: str):
+        self._entry_batch.setText(batch_no)
+        self._autofill_from_batch(batch_no)
+
+    def _on_batch_editing_finished(self):
+        batch_no = self._entry_batch.text().strip()
+        if batch_no:
+            self._autofill_from_batch(batch_no)
+
+    def _autofill_from_batch(self, batch_no: str | None = None):
+        if not batch_no:
+            batch_no = self._entry_batch.text().strip()
+        if not batch_no:
+            return
+        item_name = self._entry_item.text().strip()
+        matched = None
+        for b in getattr(self, "_current_item_batches", []):
+            if str(b.get("batch_no", "")).strip().upper() == batch_no.strip().upper():
+                matched = b
+                break
+        if not matched and item_name:
+            matched = DuplicateSalesDAO.get_batch_details(item_name, batch_no)
+        if matched:
+            if matched.get("mrp") is not None and float(matched["mrp"]) > 0:
+                self._entry_mrp.setText(f"{float(matched['mrp']):.2f}")
+            if matched.get("expiry"):
+                self._entry_exp.setText(_format_expiry_display(str(matched["expiry"])))
+            if matched.get("pack_size"):
+                self._entry_pack.setText(str(matched["pack_size"]))
 
     def _load_existing_bill(self, dup_id: int):
         head = DuplicateSalesDAO.get_bill_by_id(dup_id)
@@ -743,9 +1083,12 @@ class DuplicateSalesBillDialog(QDialog):
         # Clear entry fields for next item
         self._entry_item.clear()
         self._entry_batch.clear()
+        self._entry_pack.setText("10x10")
+        self._entry_exp.setText("12/28")
         self._entry_mrp.setText("0.00")
         self._entry_qty.setText("1")
         self._entry_disc.setText("0.00")
+        self._current_item_batches = []
         self._entry_item.setFocus()
 
     def _on_delete_row(self, row_idx: int):
@@ -849,19 +1192,20 @@ class DuplicateSalesBillDialog(QDialog):
                 self._dup_id = DuplicateSalesDAO.insert_bill(head, self._items)
                 self._voucher_edit.setText(str(head["voucher_no"]))
 
+            self.saved.emit()
+
             reply = QMessageBox.question(
                 self,
                 "Saved",
                 f"Duplicate Sales Bill Voucher #{head['voucher_no']} saved successfully.\n"
                 "(Print-only record: no stock or ledger was affected)\n\n"
-                "Would you like to print now?",
+                "Would you like to print now on A6?",
                 QMessageBox.Yes | QMessageBox.No,
                 QMessageBox.Yes,
             )
             if reply == QMessageBox.Yes:
                 self._on_print()
 
-            self.saved.emit()
             self.accept()
             return True
         except Exception as exc:
@@ -875,11 +1219,8 @@ class DuplicateSalesBillDialog(QDialog):
 
         head = self._gather_head_dict()
         show_dup = self._show_duplicate_chk.isChecked()
-        pages = build_duplicate_sales_bill_report_pages(head, self._items, show_duplicate_copy=show_dup)
-
-        viewer = CrystalReportViewer(pages, self)
-        viewer.setWindowTitle("Duplicate Sales Bill Print Preview")
-        viewer.exec()
+        dlg = DuplicateSalesBillA6PreviewDialog(head, self._items, show_duplicate=show_dup, parent=self)
+        dlg.exec()
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -1120,8 +1461,5 @@ class DuplicateSalesBillListPage(QWidget):
             return
 
         items = DuplicateSalesDAO.get_bill_items(dup_id)
-        pages = build_duplicate_sales_bill_report_pages(head, items, show_duplicate_copy=True)
-
-        viewer = CrystalReportViewer(pages, self)
-        viewer.setWindowTitle("Duplicate Sales Bill Print Preview")
-        viewer.exec()
+        dlg = DuplicateSalesBillA6PreviewDialog(head, items, show_duplicate=True, parent=self)
+        dlg.exec()
