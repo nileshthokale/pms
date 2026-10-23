@@ -83,6 +83,15 @@ from screens.duplicate_sales_bill import (
     generate_duplicate_a6_pdf,
 )
 
+from screens.schedule_reports import (
+    ScheduleSalesDatewisePage,
+    ScheduleSalesItemwisePage,
+    ScheduleSalesAllItemsPage,
+    SchedulePurchaseDatewisePage,
+    SchedulePurchaseItemwisePage,
+    SchedulePurchaseAllItemsPage,
+)
+
 __all__ = [
 
     "CompanyMasterPage", "UnitMasterPage", "DrugMasterPage", "SupplierMasterPage",
@@ -104,5 +113,7 @@ __all__ = [
     "DailyProfitItemwisePage", "DailyProfitItemwiseDialog",
     "DoctorwiseItemSalePage", "DoctorwiseItemSaleDetailsPage",
     "DuplicateSalesBillListPage", "DuplicateSalesBillDialog", "DuplicateSalesBillA6PreviewDialog", "print_duplicate_a6_bill", "generate_duplicate_a6_pdf",
+    "ScheduleSalesDatewisePage", "ScheduleSalesItemwisePage", "ScheduleSalesAllItemsPage",
+    "SchedulePurchaseDatewisePage", "SchedulePurchaseItemwisePage", "SchedulePurchaseAllItemsPage",
 ]
 

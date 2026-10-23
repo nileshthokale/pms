@@ -88,24 +88,24 @@ class PharmacyMainWindow(QMainWindow):
         theme.theme_manager.on_changed(self._on_theme_changed)
         self._apply_theme()
 
-    @staticmethod
-    def _flatten_menu_items(items):
+    @classmethod
+    def _flatten_menu_items(cls, items, parent_path: str = ""):
         for item in items:
             if isinstance(item, dict):
                 for sub_title, sub_items in item.items():
-                    for name in sub_items:
-                        if name == "---" or (isinstance(name, str) and name.startswith("---")):
-                            continue
-                        yield name, sub_title
+                    current_path = f"{parent_path} > {sub_title}" if parent_path else sub_title
+                    if isinstance(sub_items, (list, tuple)):
+                        yield from cls._flatten_menu_items(sub_items, current_path)
+                    else:
+                        yield sub_items, current_path
             elif isinstance(item, tuple) and len(item) == 2 and isinstance(item[1], (list, tuple)):
-                for name in item[1]:
-                    if name == "---" or (isinstance(name, str) and name.startswith("---")):
-                        continue
-                    yield name, item[0]
+                sub_title, sub_items = item
+                current_path = f"{parent_path} > {sub_title}" if parent_path else sub_title
+                yield from cls._flatten_menu_items(sub_items, current_path)
             else:
                 if item == "---" or (isinstance(item, str) and item.startswith("---")):
                     continue
-                yield item, None
+                yield item, (parent_path if parent_path else None)
 
     def _build_pages(self):
         # Pages are resolved through the screens package attributes so a
@@ -326,6 +326,54 @@ class PharmacyMainWindow(QMainWindow):
                     page = screens.ProfitLossPage()
                 elif menu_name == "Account" and item_name == "Balance Sheet":
                     page = screens.BalanceSheetPage()
+                elif menu_name == "Schedule":
+                    st = "NRX" if (sub_title and "NRX" in sub_title) else "H1"
+                    is_sales = bool(sub_title and "Sales" in sub_title)
+                    if is_sales:
+                        if item_name == "Datewise Schedule":
+                            page = screens.ScheduleSalesDatewisePage(schedule_type=st)
+                        elif item_name == "Itemwise Schedule":
+                            page = screens.ScheduleSalesItemwisePage(schedule_type=st)
+                        elif item_name == "All Items Schedule":
+                            page = screens.ScheduleSalesAllItemsPage(schedule_type=st)
+                        else:
+                            page = PlaceholderPage(f"{menu_name}  >  {sub_title}  >  {item_name}")
+                    else:
+                        if item_name == "Datewise Schedule":
+                            page = screens.SchedulePurchaseDatewisePage(schedule_type=st)
+                        elif item_name == "Itemwise Schedule":
+                            page = screens.SchedulePurchaseItemwisePage(schedule_type=st)
+                        elif item_name == "All Items Schedule":
+                            page = screens.SchedulePurchaseAllItemsPage(schedule_type=st)
+                        else:
+                            page = PlaceholderPage(f"{menu_name}  >  {sub_title}  >  {item_name}")
+                    page.close_requested.connect(
+                        lambda: self._on_menu_action("Sales", "New Bill")
+                    )
+                elif menu_name == "Reports" and sub_title == "Sheduled H1 (Sales)":
+                    if item_name == "Datewise Schedule":
+                        page = screens.ScheduleSalesDatewisePage(schedule_type="H1")
+                    elif item_name == "Itemwise Schedule":
+                        page = screens.ScheduleSalesItemwisePage(schedule_type="H1")
+                    elif item_name == "All Items Schedule":
+                        page = screens.ScheduleSalesAllItemsPage(schedule_type="H1")
+                    else:
+                        page = PlaceholderPage(f"{menu_name}  >  {item_name}")
+                    page.close_requested.connect(
+                        lambda: self._on_menu_action("Sales", "New Bill")
+                    )
+                elif menu_name == "Reports" and sub_title == "Sheduled H1 (Purchase)":
+                    if item_name == "Datewise Schedule":
+                        page = screens.SchedulePurchaseDatewisePage(schedule_type="H1")
+                    elif item_name == "Itemwise Schedule":
+                        page = screens.SchedulePurchaseItemwisePage(schedule_type="H1")
+                    elif item_name == "All Items Schedule":
+                        page = screens.SchedulePurchaseAllItemsPage(schedule_type="H1")
+                    else:
+                        page = PlaceholderPage(f"{menu_name}  >  {item_name}")
+                    page.close_requested.connect(
+                        lambda: self._on_menu_action("Sales", "New Bill")
+                    )
                 else:
                     page = PlaceholderPage(f"{menu_name}  >  {item_name}")
                 ui.polish_page(page)
@@ -333,6 +381,7 @@ class PharmacyMainWindow(QMainWindow):
                 self._page_map[f"{menu_name}:{item_name}"] = page_index
                 if sub_title:
                     self._page_map[f"{menu_name}:{sub_title}:{item_name}"] = page_index
+                    self._page_map[f"{menu_name}:{sub_title} > {item_name}"] = page_index
                 page_index += 1
         if "Reports:Sales Report" not in self._page_map:
             page = screens.SalesReportPage()
@@ -363,14 +412,20 @@ class PharmacyMainWindow(QMainWindow):
                 QMessageBox.warning(self, "Permission denied", str(exc))
                 return
         key = f"{menu}:{action}"
+        target_index = None
         if key in self._page_map:
-            self._stack.setCurrentIndex(self._page_map[key])
-            self.setWindowTitle(_get_window_title(action))
-            self._nav.status_label.setText(f"{menu} / {action}")
+            target_index = self._page_map[key]
         elif f"Reports:{action}" in self._page_map:
-            self._stack.setCurrentIndex(self._page_map[f"Reports:{action}"])
-            self.setWindowTitle(_get_window_title(action))
-            self._nav.status_label.setText(f"Reports / {action}")
+            target_index = self._page_map[f"Reports:{action}"]
+        elif f"Schedule:{action}" in self._page_map:
+            target_index = self._page_map[f"Schedule:{action}"]
+
+        if target_index is not None:
+            self._stack.setCurrentIndex(target_index)
+            widget = self._stack.currentWidget()
+            win_title = getattr(widget, "window_title_text", None) or action
+            self.setWindowTitle(_get_window_title(win_title))
+            self._nav.status_label.setText(f"{menu} / {action}")
 
     # ── financial-year viewing ──────────────────────────────────
     def _on_financial_year_view(self, year: dict):

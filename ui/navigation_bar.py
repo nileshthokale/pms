@@ -198,6 +198,48 @@ class NavigationBar(QWidget):
         ml.setSpacing(0)
 
         self._menus: list[QMenu] = []
+
+        def _populate_menu_items(parent_menu: QMenu, menu_items: list, top_label: str, path_prefix: str = ""):
+            for item in menu_items:
+                if isinstance(item, dict):
+                    for sub_title, sub_items in item.items():
+                        sub_menu = parent_menu.addMenu(sub_title)
+                        sub_menu.setObjectName(f"NavSubMenu_{sub_title}")
+                        new_prefix = f"{path_prefix} > {sub_title}" if path_prefix else sub_title
+                        if sub_title in MENU_SHORTCUTS:
+                            sub_menu.menuAction().setShortcut(QKeySequence(MENU_SHORTCUTS[sub_title]))
+                            sub_menu.menuAction().triggered.connect(
+                                lambda checked=False, m=top_label, a=new_prefix: self.menu_action_triggered.emit(m, a)
+                            )
+                        self._menus.append(sub_menu)
+                        if isinstance(sub_items, (list, tuple)):
+                            _populate_menu_items(sub_menu, sub_items, top_label, new_prefix)
+                elif isinstance(item, tuple) and len(item) == 2 and isinstance(item[1], (list, tuple)):
+                    sub_title, sub_items = item
+                    sub_menu = parent_menu.addMenu(sub_title)
+                    sub_menu.setObjectName(f"NavSubMenu_{sub_title}")
+                    new_prefix = f"{path_prefix} > {sub_title}" if path_prefix else sub_title
+                    self._menus.append(sub_menu)
+                    _populate_menu_items(sub_menu, sub_items, top_label, new_prefix)
+                else:
+                    item_text = item
+                    if item_text == "---" or (isinstance(item_text, str) and item_text.startswith("---")):
+                        parent_menu.addSeparator()
+                    else:
+                        action = parent_menu.addAction(item_text)
+                        if item_text in MENU_SHORTCUTS:
+                            action.setShortcut(QKeySequence(MENU_SHORTCUTS[item_text]))
+                        if top_label == "Schedule":
+                            action_arg = f"{path_prefix} > {item_text}" if path_prefix else item_text
+                        elif top_label == "Reports" and path_prefix.startswith("Sheduled H1"):
+                            action_arg = f"{path_prefix} > {item_text}"
+                        else:
+                            action_arg = item_text
+
+                        action.triggered.connect(
+                            lambda checked=False, m=top_label, a=action_arg: self.menu_action_triggered.emit(m, a)
+                        )
+
         for label, items in MENUS.items():
             btn = QPushButton(label)
             btn.setObjectName("NavButton")
@@ -205,53 +247,7 @@ class NavigationBar(QWidget):
 
             menu = QMenu(btn)
             menu.setObjectName(f"NavMenu_{label}")
-            for item in items:
-                if isinstance(item, dict):
-                    for sub_title, sub_items in item.items():
-                        sub_menu = menu.addMenu(sub_title)
-                        sub_menu.setObjectName(f"NavSubMenu_{sub_title}")
-                        if sub_title in MENU_SHORTCUTS:
-                            sub_menu.menuAction().setShortcut(QKeySequence(MENU_SHORTCUTS[sub_title]))
-                            sub_menu.menuAction().triggered.connect(
-                                lambda checked=False, m=label, a=sub_title: self.menu_action_triggered.emit(m, a)
-                            )
-                        for sub_text in sub_items:
-                            if sub_text == "---" or (isinstance(sub_text, str) and sub_text.startswith("---")):
-                                sub_menu.addSeparator()
-                            else:
-                                sub_action = sub_menu.addAction(sub_text)
-                                if sub_text in MENU_SHORTCUTS:
-                                    sub_action.setShortcut(QKeySequence(MENU_SHORTCUTS[sub_text]))
-                                sub_action.triggered.connect(
-                                    lambda checked=False, m=label, a=sub_text: self.menu_action_triggered.emit(m, a)
-                                )
-                        self._menus.append(sub_menu)
-                elif isinstance(item, tuple) and len(item) == 2 and isinstance(item[1], (list, tuple)):
-                    sub_title, sub_items = item
-                    sub_menu = menu.addMenu(sub_title)
-                    sub_menu.setObjectName(f"NavSubMenu_{sub_title}")
-                    for sub_text in sub_items:
-                        if sub_text == "---" or (isinstance(sub_text, str) and sub_text.startswith("---")):
-                            sub_menu.addSeparator()
-                        else:
-                            sub_action = sub_menu.addAction(sub_text)
-                            if sub_text in MENU_SHORTCUTS:
-                                sub_action.setShortcut(QKeySequence(MENU_SHORTCUTS[sub_text]))
-                            sub_action.triggered.connect(
-                                lambda checked=False, m=label, a=sub_text: self.menu_action_triggered.emit(m, a)
-                            )
-                    self._menus.append(sub_menu)
-                else:
-                    item_text = item
-                    if item_text == "---" or (isinstance(item_text, str) and item_text.startswith("---")):
-                        menu.addSeparator()
-                    else:
-                        action = menu.addAction(item_text)
-                        if item_text in MENU_SHORTCUTS:
-                            action.setShortcut(QKeySequence(MENU_SHORTCUTS[item_text]))
-                        action.triggered.connect(
-                            lambda checked=False, m=label, a=item_text: self.menu_action_triggered.emit(m, a)
-                        )
+            _populate_menu_items(menu, items, label, "")
             btn.setMenu(menu)
             self._menus.append(menu)
             ml.addWidget(btn)
