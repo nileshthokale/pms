@@ -1089,11 +1089,13 @@ class SearchableComboBox(ConstrainedComboBox):
         visible_rows = min(max(count, 1), 8)
         height = row_height * visible_rows + 6
 
-        screen = QApplication.primaryScreen()
+        screen = QApplication.screenAt(bottom_left) or QApplication.primaryScreen()
         if screen:
             screen_geo = screen.availableGeometry()
             if y + height > screen_geo.bottom() and bottom_left.y() - self.height() - height >= screen_geo.top():
                 y = self.mapToGlobal(QPoint(0, 0)).y() - height - 2
+            if x + width > screen_geo.right():
+                x = max(screen_geo.left(), screen_geo.right() - width)
 
         popup.setGeometry(QRect(x, y, width, height))
 

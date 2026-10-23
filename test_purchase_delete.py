@@ -27,6 +27,15 @@ class PurchaseDeleteTests(unittest.TestCase):
         os.environ["PHARMACY_DB"] = cls.db_path
         init_database(); auth.ensure_auth_schema()
 
+    @classmethod
+    def tearDownClass(cls):
+        os.environ.pop("PHARMACY_DB", None)
+        if os.path.exists(cls.db_path):
+            try:
+                os.remove(cls.db_path)
+            except Exception:
+                pass
+
     def setUp(self):
         auth.session.user = None
         conn = get_connection()

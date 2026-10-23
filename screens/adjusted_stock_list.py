@@ -133,47 +133,54 @@ class AdjustedStockListPage(QWidget):
         fl.setContentsMargins(10, 2, 10, 2)
         fl.setSpacing(8)
 
-        lbl_item = QLabel("Item:")
-        lbl_item.setStyleSheet(f"font-weight: bold; font-size: {TYPE_FORM_LABEL}px; color: {p['text']};")
-        fl.addWidget(lbl_item)
-
-        self.item_filter_combo = QComboBox()
-        self.item_filter_combo.setMinimumWidth(260)
-        self.item_filter_combo.setFixedHeight(28)
-        self.item_filter_combo.setStyleSheet(
-            f"QComboBox {{ background-color: {p['surface']}; color: {p['text']}; border: 1px solid {p['border']}; "
-            f"padding: 2px 6px; font-size: {TYPE_INPUT}px; }}"
+        lbl_style = f"font-weight: bold; font-size: {TYPE_FORM_LABEL}px; color: {p['text']};"
+        date_edit_style = (
+            f"QDateEdit {{ background-color: {p['surface']}; color: {p['text']}; "
+            f"border: 1px solid {p['border']}; border-radius: 2px; padding: 2px 6px; font-size: {TYPE_INPUT}px; }}"
+            f"QDateEdit::drop-down {{ subcontrol-origin: padding; subcontrol-position: top right; width: 20px; "
+            f"border-left: 1px solid {p['border']}; }}"
         )
-        self.item_filter_combo.currentIndexChanged.connect(self._refresh_history)
-        fl.addWidget(self.item_filter_combo)
+        combo_style = (
+            f"QComboBox {{ background-color: {p['surface']}; color: {p['text']}; border: 1px solid {p['border']}; "
+            f"border-radius: 2px; padding: 2px 6px; font-size: {TYPE_INPUT}px; }}"
+        )
 
-        fl.addStretch()
+        # Date range filters neatly aligned on one row: From Date | AdjustedDate | To Date | Filter | Refresh
+        lbl_from = QLabel("From Date:")
+        lbl_from.setStyleSheet(lbl_style)
+        fl.addWidget(lbl_from)
 
-        # Date range filters matching reference: FromDate | AdjustedDate | ToDate | Filter
         self.from_date_edit = QDateEdit()
         self.from_date_edit.setCalendarPopup(True)
         self.from_date_edit.setDisplayFormat("dd/MM/yyyy")
         self.from_date_edit.setDate(QDate.currentDate())
-        self.from_date_edit.setFixedWidth(110)
+        self.from_date_edit.setFixedWidth(135)
         self.from_date_edit.setFixedHeight(28)
+        self.from_date_edit.setStyleSheet(date_edit_style)
         fl.addWidget(self.from_date_edit)
 
         self.date_type_combo = QComboBox()
         self.date_type_combo.addItem("AdjustedDate")
-        self.date_type_combo.setFixedWidth(120)
+        self.date_type_combo.setFixedWidth(125)
         self.date_type_combo.setFixedHeight(28)
+        self.date_type_combo.setStyleSheet(combo_style)
         fl.addWidget(self.date_type_combo)
+
+        lbl_to = QLabel("To Date:")
+        lbl_to.setStyleSheet(lbl_style)
+        fl.addWidget(lbl_to)
 
         self.to_date_edit = QDateEdit()
         self.to_date_edit.setCalendarPopup(True)
         self.to_date_edit.setDisplayFormat("dd/MM/yyyy")
         self.to_date_edit.setDate(QDate.currentDate())
-        self.to_date_edit.setFixedWidth(110)
+        self.to_date_edit.setFixedWidth(135)
         self.to_date_edit.setFixedHeight(28)
+        self.to_date_edit.setStyleSheet(date_edit_style)
         fl.addWidget(self.to_date_edit)
 
         self.btn_filter = QPushButton("Filter")
-        self.btn_filter.setFixedWidth(70)
+        self.btn_filter.setFixedWidth(75)
         self.btn_filter.setFixedHeight(28)
         self.btn_filter.setStyleSheet(
             f"QPushButton {{ background-color: {p['accent']}; color: #ffffff; border: 1px solid {p['accent']}; "
@@ -193,6 +200,8 @@ class AdjustedStockListPage(QWidget):
         )
         self.btn_refresh.clicked.connect(self._on_reset_filters)
         fl.addWidget(self.btn_refresh)
+
+        fl.addStretch()
 
         root.addWidget(filter_bar)
 
@@ -240,28 +249,17 @@ class AdjustedStockListPage(QWidget):
         root.addLayout(status_bar)
 
     def _load_item_filter(self):
-        """Populate the Item filter combo with 'ALL' and all distinct items."""
-        self.item_filter_combo.blockSignals(True)
-        self.item_filter_combo.clear()
-        self.item_filter_combo.addItem("ALL", None)
-
-        items = StockAdjustmentDAO.get_distinct_adjusted_items()
-        for it in items:
-            self.item_filter_combo.addItem(it["item_name"], int(it["id"]))
-        self.item_filter_combo.blockSignals(False)
+        """Backward compatibility no-op (item filter removed from history filter bar)."""
+        pass
 
     def _on_reset_filters(self):
-        """Reset date range and item filter, then reload records."""
+        """Reset date range and reload records."""
         self.from_date_edit.setDate(QDate.currentDate())
         self.to_date_edit.setDate(QDate.currentDate())
-        self.item_filter_combo.setCurrentIndex(0)
-        self._load_item_filter()
         self._refresh_history()
 
     def _refresh_history(self):
         """Load and display records matching current filter criteria."""
-        item_id = self.item_filter_combo.currentData()
-
         # Convert QDate to ISO format YYYY-MM-DD
         from_iso = self.from_date_edit.date().toString("yyyy-MM-dd")
         to_iso = self.to_date_edit.date().toString("yyyy-MM-dd")
@@ -269,7 +267,7 @@ class AdjustedStockListPage(QWidget):
         self._records = StockAdjustmentDAO.get_all_filtered(
             from_date=from_iso,
             to_date=to_iso,
-            item_id=item_id,
+            item_id=None,
         )
 
         self.table.setSortingEnabled(False)
@@ -352,7 +350,6 @@ class AdjustedStockListPage(QWidget):
         """Open the Stock Adjustment dialog to record a new adjustment."""
         dlg = StockAdjustmentDialog(self)
         if dlg.exec():
-            self._load_item_filter()
             self._refresh_history()
 
     def _on_edit(self):
