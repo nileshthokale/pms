@@ -1,3 +1,12 @@
+class SubmenuDict(dict):
+    """Submenu dict that compares equal to its string title for backward compatibility."""
+
+    def __eq__(self, other):
+        if isinstance(other, str) and other in self:
+            return True
+        return super().__eq__(other)
+
+
 REPORT_LEDGER_SUBMENU = [
     "Supplier Ledger",
     "Customer Ledger",
@@ -39,13 +48,32 @@ REPORT_DOCTOR_SUBMENU = [
 ]
 
 
-class SubmenuDict(dict):
-    """Submenu dict that compares equal to its string title for backward compatibility."""
+SCHEDULE_SALES_SUBMENU = [
+    "Datewise Schedule",
+    "Itemwise Schedule",
+    "All Items Schedule",
+]
 
-    def __eq__(self, other):
-        if isinstance(other, str) and other in self:
-            return True
-        return super().__eq__(other)
+SCHEDULE_PURCHASE_SUBMENU = [
+    "Datewise Schedule",
+    "Itemwise Schedule",
+    "All Items Schedule",
+]
+
+SCHEDULE_H1_SUBMENU = [
+    SubmenuDict({"Sales": SCHEDULE_SALES_SUBMENU}),
+    SubmenuDict({"Purchase": SCHEDULE_PURCHASE_SUBMENU}),
+]
+
+SCHEDULE_NRX_SUBMENU = [
+    SubmenuDict({"Sales": SCHEDULE_SALES_SUBMENU}),
+    SubmenuDict({"Purchase": SCHEDULE_PURCHASE_SUBMENU}),
+]
+
+SCHEDULE_MENU = [
+    SubmenuDict({"H1": SCHEDULE_H1_SUBMENU}),
+    SubmenuDict({"NRX": SCHEDULE_NRX_SUBMENU}),
+]
 
 
 MENUS = {
@@ -94,6 +122,12 @@ MENUS = {
         "Expiry Report",
         "Party Wise Report",
         "GST Report",
+        SubmenuDict({
+            "Sheduled H1 (Sales)": SCHEDULE_SALES_SUBMENU,
+        }),
+        SubmenuDict({
+            "Sheduled H1 (Purchase)": SCHEDULE_PURCHASE_SUBMENU,
+        }),
         {
             "Ledger": REPORT_LEDGER_SUBMENU,
         },
@@ -113,4 +147,5 @@ MENUS = {
         "User Master",
         "Backup & Restore",
     ],
+    "Schedule": SCHEDULE_MENU,
 }
