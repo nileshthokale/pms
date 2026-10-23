@@ -41,7 +41,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from PySide6.QtCore import QDate, Qt
 from PySide6.QtGui import QKeySequence
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QApplication, QMessageBox, QComboBox
 
 from database.connection import get_connection, init_database
 from database import auth, financial_year
@@ -560,14 +560,20 @@ class TestDuplicateSalesBillSuite(unittest.TestCase):
         dlg._entry_item.setText("TEST DOLO 650")
         dlg._autofill_item_and_batch("TEST DOLO 650")
 
+        self.assertTrue(isinstance(dlg._entry_batch, QComboBox))
+        self.assertTrue(dlg._entry_batch.isEditable())
+        self.assertGreaterEqual(dlg._entry_batch.count(), 2)
+        dropdown_items = [dlg._entry_batch.itemText(i) for i in range(dlg._entry_batch.count())]
+        self.assertIn("DL-2026X", dropdown_items)
+        self.assertIn("DL-OLD-9", dropdown_items)
+
         self.assertEqual(dlg._entry_batch.text(), "DL-2026X")
         self.assertEqual(float(dlg._entry_mrp.text()), 32.50)
         self.assertEqual(dlg._entry_pack.text(), "15 TAB")
         self.assertEqual(dlg._entry_exp.text(), "11/28")
 
-        # 4. Change batch to DL-OLD-9
-        dlg._entry_batch.setText("DL-OLD-9")
-        dlg._autofill_from_batch()
+        # 4. Change batch to DL-OLD-9 via selection from dropdown
+        dlg._on_batch_chosen("DL-OLD-9")
         self.assertEqual(float(dlg._entry_mrp.text()), 28.00)
 
         # 5. Add to bill and verify stock remains 100% untouched

@@ -509,6 +509,50 @@ class DuplicateSalesBillA6PreviewDialog(QDialog):
 # 2. POPUP ENTRY FORM ("Sales Bill" Modal Dialog)
 # ══════════════════════════════════════════════════════════════════════
 
+class _BatchComboBox(QComboBox):
+    """Editable combo box for Batch # that provides text() and setText() for backwards compatibility."""
+
+    def __init__(self, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setEditable(True)
+        self.setInsertPolicy(QComboBox.NoInsert)
+        self.setMaxVisibleItems(15)
+        if self.lineEdit():
+            attach_uppercase(self.lineEdit())
+
+    def text(self) -> str:
+        return self.currentText().strip()
+
+    def setText(self, val: str) -> None:
+        idx = self.findText(val, Qt.MatchFixedString)
+        if idx >= 0:
+            self.setCurrentIndex(idx)
+        else:
+            self.setEditText(val)
+
+    def setCompleter(self, completer: QCompleter | None) -> None:
+        if self.lineEdit():
+            self.lineEdit().setCompleter(completer)
+
+    @property
+    def returnPressed(self):
+        return self.lineEdit().returnPressed
+
+    @property
+    def editingFinished(self):
+        return self.lineEdit().editingFinished
+
+    def selectAll(self) -> None:
+        if self.lineEdit():
+            self.lineEdit().selectAll()
+
+    def setFocus(self, reason=Qt.OtherFocusReason) -> None:
+        if self.lineEdit():
+            self.lineEdit().setFocus(reason)
+        else:
+            super().setFocus(reason)
+
+
 class DuplicateSalesBillDialog(QDialog):
     """Modal dialog for creating and editing separate Duplicate Sales Bills.
 
@@ -548,6 +592,11 @@ class DuplicateSalesBillDialog(QDialog):
             f"}}"
             f"QLineEdit:focus, QComboBox:focus, QDateEdit:focus, QTextEdit:focus {{"
             f"  border: 1px solid {p['accent']};"
+            f"}}"
+            f"QComboBox QAbstractItemView {{"
+            f"  background-color: {p['surface']}; color: {p['text']};"
+            f"  selection-background-color: {p['accent']}; selection-color: #ffffff;"
+            f"  border: 1px solid {p['border']};"
             f"}}"
         )
 
@@ -720,9 +769,8 @@ class DuplicateSalesBillDialog(QDialog):
         box_batch = QVBoxLayout()
         box_batch.setSpacing(2)
         box_batch.addWidget(self._lbl("Batch #"))
-        self._entry_batch = QLineEdit("")
-        self._entry_batch.setFixedWidth(80)
-        attach_uppercase(self._entry_batch)
+        self._entry_batch = _BatchComboBox(self)
+        self._entry_batch.setFixedWidth(120)
         box_batch.addWidget(self._entry_batch)
         el.addLayout(box_batch)
 
@@ -777,6 +825,7 @@ class DuplicateSalesBillDialog(QDialog):
         box_disc.addWidget(self._entry_disc)
         el.addLayout(box_disc)
 
+        self._entry_batch.textActivated.connect(self._on_batch_chosen)
         self._entry_batch.editingFinished.connect(self._on_batch_editing_finished)
 
         # Connect returnPressed for smooth keyboard progression
@@ -963,10 +1012,21 @@ class DuplicateSalesBillDialog(QDialog):
     def _autofill_item_and_batch(self, item_name: str):
         batches = DuplicateSalesDAO.get_item_batch_suggestions(item_name)
         self._current_item_batches = batches
-        if batches:
+
+        self._entry_batch.blockSignals(True)
+        self._entry_batch.clear()
+
+        batch_list: list[str] = []
+        for b in batches:
+            b_no = str(b.get("batch_no") or "").strip()
+            if b_no and b_no not in batch_list:
+                batch_list.append(b_no)
+                self._entry_batch.addItem(b_no)
+
+        if batch_list:
             top = batches[0]
-            if top.get("batch_no"):
-                self._entry_batch.setText(str(top["batch_no"]))
+            top_bno = str(top.get("batch_no") or "").strip()
+            self._entry_batch.setText(top_bno)
             if top.get("mrp") is not None and float(top["mrp"]) > 0:
                 self._entry_mrp.setText(f"{float(top['mrp']):.2f}")
             if top.get("expiry"):
@@ -974,12 +1034,19 @@ class DuplicateSalesBillDialog(QDialog):
             if top.get("pack_size"):
                 self._entry_pack.setText(str(top["pack_size"]))
 
-            batch_list = [str(b["batch_no"]) for b in batches if b.get("batch_no")]
-            if batch_list:
-                b_completer = QCompleter(batch_list, self)
-                b_completer.setCaseSensitivity(Qt.CaseInsensitive)
-                self._entry_batch.setCompleter(b_completer)
-                b_completer.activated[str].connect(self._on_batch_chosen)
+            b_completer = QCompleter(batch_list, self)
+            b_completer.setCaseSensitivity(Qt.CaseInsensitive)
+            self._entry_batch.setCompleter(b_completer)
+            b_completer.activated[str].connect(self._on_batch_chosen)
+        else:
+            if batches:
+                top = batches[0]
+                if top.get("mrp") is not None and float(top["mrp"]) > 0:
+                    self._entry_mrp.setText(f"{float(top['mrp']):.2f}")
+                if top.get("pack_size"):
+                    self._entry_pack.setText(str(top["pack_size"]))
+
+        self._entry_batch.blockSignals(False)
 
     def _on_batch_chosen(self, batch_no: str):
         self._entry_batch.setText(batch_no)
