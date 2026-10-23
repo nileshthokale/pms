@@ -345,7 +345,7 @@ class DuplicateSalesDAO:
             conn.close()
 
     @staticmethod
-    def get_item_name_suggestions(query: str = "", limit: int = 25) -> list[str]:
+    def get_item_name_suggestions(query: str = "", limit: int = 5000) -> list[str]:
         """Read-only autocomplete suggestions from items table for convenient typing."""
         conn = get_connection()
         try:
@@ -370,6 +370,102 @@ class DuplicateSalesDAO:
             return [r[0] for r in cur.fetchall() if r[0]]
         except Exception:
             return []
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_item_batch_suggestions(item_name: str) -> list[dict[str, Any]]:
+        """Return available batch info (batch_no, expiry, mrp, pack_size) for an item name.
+
+        Strictly read-only query: purely for autocomplete/autofill in duplicate sales bill.
+        Does NOT alter stock, batches, or any transaction tables.
+        """
+        clean = (item_name or "").strip()
+        if not clean:
+            return []
+
+        conn = get_connection()
+        try:
+            # 1. Try exact match on stock_batches joined with items
+            cur = conn.execute(
+                """
+                SELECT sb.batch_no, sb.expiry, sb.mrp,
+                       COALESCE(NULLIF(sb.pack_size, ''), i.pack_size, '') AS pack_size,
+                       sb.stock_qty, i.item_name
+                FROM stock_batches sb
+                JOIN items i ON i.id = sb.item_id
+                WHERE UPPER(TRIM(i.item_name)) = UPPER(TRIM(?))
+                ORDER BY (sb.stock_qty > 0) DESC, sb.expiry DESC, sb.id DESC
+                """,
+                (clean,),
+            )
+            rows = [dict(r) for r in cur.fetchall()]
+
+            # 2. If no exact match, try prefix match
+            if not rows:
+                cur = conn.execute(
+                    """
+                    SELECT sb.batch_no, sb.expiry, sb.mrp,
+                           COALESCE(NULLIF(sb.pack_size, ''), i.pack_size, '') AS pack_size,
+                           sb.stock_qty, i.item_name
+                    FROM stock_batches sb
+                    JOIN items i ON i.id = sb.item_id
+                    WHERE UPPER(TRIM(i.item_name)) LIKE UPPER(TRIM(?)) || '%'
+                    ORDER BY (sb.stock_qty > 0) DESC, sb.expiry DESC, sb.id DESC
+                    LIMIT 20
+                    """,
+                    (clean,),
+                )
+                rows = [dict(r) for r in cur.fetchall()]
+
+            # 3. If still no batches found, fallback to default item master info
+            if not rows:
+                cur = conn.execute(
+                    """
+                    SELECT '' AS batch_no, '' AS expiry, mrp, pack_size, 0.0 AS stock_qty, item_name
+                    FROM items
+                    WHERE UPPER(TRIM(item_name)) = UPPER(TRIM(?))
+                       OR UPPER(TRIM(item_name)) LIKE UPPER(TRIM(?)) || '%'
+                    LIMIT 1
+                    """,
+                    (clean, clean),
+                )
+                r2 = cur.fetchone()
+                if r2:
+                    rows = [dict(r2)]
+
+            return rows
+        except Exception:
+            return []
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_batch_details(item_name: str, batch_no: str) -> dict[str, Any] | None:
+        """Fetch details for a specific batch of an item (read-only)."""
+        clean_item = (item_name or "").strip()
+        clean_batch = (batch_no or "").strip()
+        if not clean_item or not clean_batch:
+            return None
+
+        conn = get_connection()
+        try:
+            cur = conn.execute(
+                """
+                SELECT sb.batch_no, sb.expiry, sb.mrp,
+                       COALESCE(NULLIF(sb.pack_size, ''), i.pack_size, '') AS pack_size
+                FROM stock_batches sb
+                JOIN items i ON i.id = sb.item_id
+                WHERE UPPER(TRIM(i.item_name)) = UPPER(TRIM(?))
+                  AND UPPER(TRIM(sb.batch_no)) = UPPER(TRIM(?))
+                LIMIT 1
+                """,
+                (clean_item, clean_batch),
+            )
+            row = cur.fetchone()
+            return dict(row) if row else None
+        except Exception:
+            return None
         finally:
             conn.close()
 
