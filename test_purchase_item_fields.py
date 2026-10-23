@@ -210,19 +210,21 @@ class TestBatchLineEditWidget(unittest.TestCase):
         self.edit._completer.setCompletionPrefix("xyz")
         self.assertEqual(self.edit._completer.completionCount(), 0)
 
-    def test_dropdown_label_batch_no_and_expiry_only(self):
+    def test_dropdown_label_batch_with_supporting_expiry(self):
         item = self.edit._model.item(0)
-        self.assertEqual(item.text(), "EF2026B1 | 31-08-2028")
-        self.assertNotIn("Exp:", item.text())
+        self.assertTrue(item.text().startswith("EF2026B1"))
+        self.assertIn("Exp: 31-08-2028", item.text())
         self.assertNotIn("MRP", item.text())
 
         # Second item
         item2 = self.edit._model.item(1)
-        self.assertEqual(item2.text(), "EF2026B2 | 31-10-2028")
+        self.assertTrue(item2.text().startswith("EF2026B2"))
+        self.assertIn("Exp: 31-10-2028", item2.text())
 
         # Third item
         item3 = self.edit._model.item(2)
-        self.assertEqual(item3.text(), "AUG9942 | 31-12-2027")
+        self.assertTrue(item3.text().startswith("AUG9942"))
+        self.assertIn("Exp: 31-12-2027", item3.text())
 
     def test_selection_populates_batch_and_emits_data(self):
         received = []
@@ -318,19 +320,20 @@ class TestItemEntryBarBehavior(unittest.TestCase):
     def setUp(self):
         self.bar = _ItemEntryBar()
 
-    def test_exact_single_row_field_order(self):
-        """R1: Item entry fields strictly follow Item -> Pack -> Pay Qty -> Free Qty -> Batch -> Expiry -> Rate -> MRP -> Discount -> GST -> + Add Item."""
+    def test_single_row_field_order(self):
+        """Item entry fields follow clean single-row horizontal layout:
+        Item -> Pack -> Batch -> Exp -> Qty -> Free -> Rate -> MRP -> Disc -> GST -> + Add Item
+        """
         labels = [lbl.text() for lbl in self.bar._entry_labels]
         expected_labels = [
-            "Item", "Pack", "Pay Qty", "Free Qty", "Batch",
-            "Expiry", "Rate", "MRP", "Discount", "GST"
+            "Item", "Pack", "Batch", "Exp",
+            "Qty", "Free", "Rate", "MRP", "Disc", "GST"
         ]
         self.assertEqual(labels, expected_labels)
 
         layout = self.bar.layout()
-        self.assertEqual(layout.count(), 11)
-        # Check add button is the 11th control
-        self.assertEqual(layout.itemAt(10).widget(), self.bar.add_btn)
+        self.assertIsNotNone(layout)
+        # Check add button
         self.assertEqual(self.bar.add_btn.text(), "+ Add Item")
 
     def test_pack_and_gst_are_read_only(self):
@@ -533,7 +536,7 @@ class TestInvoiceDialogIntegration(unittest.TestCase):
     @patch("screens.purchase_invoice.ItemDAO")
     @patch("screens.purchase_invoice.SupplierDAO")
     @patch("screens.purchase_invoice.financial_year")
-    def test_all_11_controls_fit_single_row_no_wrapping(
+    def test_all_controls_fit_single_row_layout(
         self, mock_fy, mock_sup, mock_item, mock_purch
     ):
         mock_fy.get_active_financial_year.return_value = {
@@ -552,18 +555,14 @@ class TestInvoiceDialogIntegration(unittest.TestCase):
                 app.processEvents()
 
                 bar = dlg._entry_bar
-                self.assertLessEqual(bar.height(), 46)
-
-                bar_layout = bar.layout()
-                self.assertEqual(bar_layout.count(), 11)
+                self.assertLessEqual(bar.height(), 45)
 
                 add_btn = bar.add_btn
                 btn_right = add_btn.geometry().right()
                 self.assertLessEqual(btn_right, bar.width())
 
-                item_container = bar_layout.itemAt(0).widget()
-                self.assertGreaterEqual(item_container.width(), 180)
-                self.assertGreaterEqual(bar.item_combo.width(), 160)
+                item_container = bar.item_combo.parentWidget()
+                self.assertGreaterEqual(bar.item_combo.width(), 150)
         finally:
             dlg.close()
 

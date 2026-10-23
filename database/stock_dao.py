@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import calendar
+import re
 from datetime import date, datetime, timedelta
+from typing import Any, Optional
 from database.connection import get_connection
 from database.expiry_report_dao import parse_expiry
 
@@ -212,17 +215,17 @@ class StockDAO:
     def get_batches_for_adjustment(item_id: int) -> list[dict]:
         """Return all batches for an item for stock adjustment.
 
-        Orders batches prioritizing available stock:
-        1. Active unexpired batches with stock (FEFO: earliest expiry first).
-        2. Expired batches with stock (for write-off / adjustment).
-        3. Zero-stock and historical batches at the bottom.
+        Orders batches prioritizing available stock using actual date comparisons:
+        1. Active unexpired batches with stock (FEFO: earliest valid expiry date first).
+        2. Active unexpired batches with zero stock (available for addition).
+        3. Expired batches with stock (for write-off / adjustment).
+        4. Invalid/missing expiry or zero-stock historical batches at the bottom.
 
         Includes actual stored rates, tax percent from purchase history,
-        calculated net rate, and eligibility tags.
+        calculated net rate, real parsed date objects, and eligibility tags.
         """
         conn = get_connection()
         try:
-            today_iso = date.today().isoformat()
             cur = conn.execute(
                 """
                 SELECT
@@ -249,29 +252,52 @@ class StockDAO:
                 FROM stock_batches sb
                 JOIN items i ON i.id = sb.item_id
                 WHERE sb.item_id = ?
-                ORDER BY
-                    CASE
-                        WHEN sb.stock_qty > 0 AND (sb.expiry IS NULL OR sb.expiry >= ? OR sb.expiry = '') THEN 1
-                        WHEN sb.stock_qty > 0 THEN 2
-                        ELSE 3
-                    END ASC,
-                    CASE
-                        WHEN sb.stock_qty > 0 AND (sb.expiry IS NULL OR sb.expiry >= ? OR sb.expiry = '') THEN sb.expiry
-                        ELSE NULL
-                    END ASC,
-                    sb.expiry DESC,
-                    sb.batch_no ASC
                 """,
-                (item_id, today_iso, today_iso),
+                (item_id,),
             )
             rows = [dict(r) for r in cur.fetchall()]
+            today = date.today()
             for r in rows:
                 if not r.get("net_rate") and r.get("purchase_rate"):
                     tax = float(r.get("tax_percent") or 0.0)
                     r["net_rate"] = round(float(r["purchase_rate"]) * (1.0 + tax / 100.0), 2)
-                r["is_expired"] = StockDAO._is_expired(r.get("expiry", ""))
-                r["is_zero_stock"] = (float(r.get("stock_qty") or 0.0) <= 0.0)
-                r["is_eligible"] = (not r["is_expired"] and not r["is_zero_stock"])
+                parsed_exp = StockDAO.parse_expiry_date(r.get("expiry"))
+                is_valid_exp = (parsed_exp is not None)
+                is_exp = (parsed_exp is not None and parsed_exp < today)
+                is_unexp = (parsed_exp is not None and parsed_exp >= today)
+                stock_qty = float(r.get("stock_qty") or 0.0)
+                is_zero = (stock_qty <= 0.0)
+
+                r["parsed_expiry"] = parsed_exp
+                r["is_valid_expiry"] = is_valid_exp
+                r["is_expired"] = is_exp
+                r["is_unexpired"] = is_unexp
+                r["is_zero_stock"] = is_zero
+                # An eligible batch for active stock MUST have a valid, unexpired date and positive stock
+                r["is_eligible"] = (is_unexp and not is_zero)
+
+            def batch_sort_key(b: dict):
+                p_exp = b["parsed_expiry"]
+                s_qty = float(b.get("stock_qty") or 0.0)
+                is_unexp = b["is_unexpired"]
+                is_exp = b["is_expired"]
+
+                if is_unexp and s_qty > 0:
+                    group = 1
+                    exp_val = p_exp or date.max
+                elif is_exp and s_qty > 0:
+                    group = 2
+                    exp_val = p_exp or date.min
+                elif s_qty <= 0:
+                    group = 3
+                    exp_val = p_exp or date.max
+                else:
+                    group = 4
+                    exp_val = p_exp or date.min
+
+                return (group, exp_val, str(b.get("batch_no") or "").upper(), int(b["id"]))
+
+            rows.sort(key=batch_sort_key)
             return rows
         finally:
             conn.close()
@@ -283,23 +309,29 @@ class StockDAO:
         - All stock quantities in stock_batches, sales_invoice_items, and credit_note_items
           are stored in LOOSE UNITS (e.g. individual tablets/capsules).
         - Purchases and debit notes are stored in PACKS and converted via pack_size.
-        - eligible_stock: sum of stock_qty of active (unexpired) batches with stock_qty > 0.
-        - expired_stock: sum of stock_qty of expired batches with stock_qty > 0.
+        - eligible_stock: sum of stock_qty of active valid unexpired batches with stock_qty > 0.
+        - expired_stock: sum of stock_qty of expired or invalid batches with stock_qty > 0.
         - total_book_stock: sum of all stock_batches.stock_qty for the item.
         """
         batches = StockDAO.get_batches_for_adjustment(item_id)
         eligible_stock = sum(
             float(b.get("stock_qty") or 0.0) for b in batches
-            if not b.get("is_expired") and float(b.get("stock_qty") or 0.0) > 0.0
+            if b.get("is_unexpired") and float(b.get("stock_qty") or 0.0) > 0.0
         )
         expired_stock = sum(
             float(b.get("stock_qty") or 0.0) for b in batches
-            if b.get("is_expired") and float(b.get("stock_qty") or 0.0) > 0.0
+            if (b.get("is_expired") or not b.get("is_valid_expiry")) and float(b.get("stock_qty") or 0.0) > 0.0
         )
         total_book_stock = sum(float(b.get("stock_qty") or 0.0) for b in batches)
 
-        active_batches = [b for b in batches if not b.get("is_expired") and float(b.get("stock_qty") or 0.0) > 0.0]
-        expired_batches = [b for b in batches if b.get("is_expired") and float(b.get("stock_qty") or 0.0) > 0.0]
+        active_batches = [
+            b for b in batches
+            if b.get("is_unexpired") and float(b.get("stock_qty") or 0.0) > 0.0
+        ]
+        expired_batches = [
+            b for b in batches
+            if (b.get("is_expired") or not b.get("is_valid_expiry")) and float(b.get("stock_qty") or 0.0) > 0.0
+        ]
         zero_batches = [b for b in batches if float(b.get("stock_qty") or 0.0) <= 0.0]
 
         return {
@@ -429,14 +461,103 @@ class StockDAO:
             conn.close()
 
     @staticmethod
-    def _is_expired(expiry: str) -> bool:
-        """Check if expiry date (ISO YYYY-MM-DD or MM/YY) is before today."""
-        if not expiry:
+    def parse_expiry_date(val: Any) -> Optional[date]:
+        """Parse stored or entered expiry value into a datetime.date object.
+
+        Handles:
+        - date / datetime objects
+        - ISO format: YYYY-MM-DD
+        - Date formats: DD-MM-YYYY, DD/MM/YYYY, DD.MM.YYYY
+        - Month/Year formats: MM/YY, MM/YYYY, MM-YY, MM-YYYY, YYYY-MM (resolves to last day of month)
+        - Compact numeric strings: DDMMYYYY, MMYYYY, MMYY
+
+        Returns None for missing, empty, or unparseable values (never raises).
+        """
+        if not val:
+            return None
+        if isinstance(val, datetime):
+            return val.date()
+        if isinstance(val, date):
+            return val
+        s = str(val).strip()
+        if not s or s.upper() in ("NONE", "NULL", "DD-MM-YYYY", "MM/YY", "-", "--"):
+            return None
+
+        # Try standard date formats
+        for fmt in (
+            "%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d",
+            "%d.%m.%Y", "%d-%m-%y", "%d/%m/%y", "%d.%m.%y",
+        ):
+            try:
+                return datetime.strptime(s, fmt).date()
+            except ValueError:
+                pass
+
+        # Split on separators (-, /, .)
+        parts = [p.strip() for p in re.split(r"[-/.]", s) if p.strip()]
+        if len(parts) == 2:
+            try:
+                if len(parts[0]) == 4:
+                    y = int(parts[0])
+                    m = int(parts[1])
+                else:
+                    m = int(parts[0])
+                    y = int(parts[1])
+                    if y < 100:
+                        y += 2000
+                if 1 <= m <= 12:
+                    last_day = calendar.monthrange(y, m)[1]
+                    return date(y, m, last_day)
+            except Exception:
+                pass
+
+        if s.isdigit():
+            try:
+                if len(s) == 8:
+                    d, m, y = int(s[:2]), int(s[2:4]), int(s[4:])
+                    if 1 <= m <= 12 and 1 <= d <= 31 and 1900 <= y <= 2100:
+                        return date(y, m, d)
+                    y, m, d = int(s[:4]), int(s[4:6]), int(s[6:])
+                    if 1 <= m <= 12 and 1 <= d <= 31 and 1900 <= y <= 2100:
+                        return date(y, m, d)
+                elif len(s) == 6:
+                    d, m, y = int(s[:2]), int(s[2:4]), int(s[4:]) + 2000
+                    if 1 <= m <= 12 and 1 <= d <= 31:
+                        return date(y, m, d)
+                elif len(s) == 4:
+                    m, y = int(s[:2]), int(s[2:]) + 2000
+                    if 1 <= m <= 12:
+                        last_day = calendar.monthrange(y, m)[1]
+                        return date(y, m, last_day)
+            except Exception:
+                pass
+
+        return None
+
+    @staticmethod
+    def is_valid_and_unexpired(expiry: Any, today: date | None = None) -> bool:
+        """Return True only if expiry date is present, valid, and >= today."""
+        parsed = StockDAO.parse_expiry_date(expiry)
+        if parsed is None:
             return False
-        parsed = parse_expiry(expiry)
-        if not parsed:
+        if today is None:
+            today = date.today()
+        return parsed >= today
+
+    @staticmethod
+    def _is_expired(expiry: Any, today: date | None = None) -> bool:
+        """Check if expiry date is before today.
+
+        Note: Missing or invalid expiry dates return False here but are
+        NOT considered valid unexpired dates. Use is_valid_and_unexpired()
+        to check if a batch is valid and non-expired.
+        """
+        parsed = StockDAO.parse_expiry_date(expiry)
+        if parsed is None:
             return False
-        return parsed < date.today()
+        if today is None:
+            today = date.today()
+        return parsed < today
 
     @staticmethod
     def get_demand_order_items() -> list[dict]:
