@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-10-22T11:06:42.114937+00:00",
+  "generated_at": "2026-10-24T12:14:29.638838+00:00",
   "staging_path": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\staging\\pharmacy_staging.db",
-  "size_bytes": 45350912,
-  "sha256": "2dac6b3f4421a3d90a158b005c1146ba81eddfdf1526ed846e169f8eec0974c4",
+  "size_bytes": 57925632,
+  "sha256": "063e7fd20f73209122a899e32f341ec6ebc78430ba4d90fb39654d6baf36a57b",
   "ok": true,
   "integrity_check": [
     "ok"
@@ -16,20 +16,21 @@
     "companies": 1220,
     "units": 17,
     "categories": 0,
-    "purchase_invoices": 5723,
-    "purchase_invoice_items": 11914,
-    "sales_invoices": 72175,
-    "sales_invoice_items": 234063,
+    "purchase_invoices": 5727,
+    "purchase_invoice_items": 11921,
+    "sales_invoices": 72207,
+    "sales_invoice_items": 234183,
     "credit_notes": 1354,
     "credit_note_items": 3342,
     "debit_notes": 14,
     "supplier_payments": 786,
     "customer_receipts": 44,
-    "stock_batches": 7808,
+    "stock_batches": 7815,
     "account_ledgers": 124,
-    "ledger_transactions": 157586,
+    "ledger_transactions": 157682,
     "journal_entries": 0,
-    "app_users": 2
+    "app_users": 2,
+    "patient_addresses": 25815
   },
   "active_financial_years": [
     "2026-2027"
