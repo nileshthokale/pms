@@ -27,10 +27,11 @@ STAGING = ROOT / "staging" / "pharmacy_staging.db"
 OUTPUT = ROOT / "migration_backups" / "test_release_source_verification.json"
 
 EXPECTED = {
-    "sales_invoices": 72175,
+    "sales_invoices": 72207,
     "items": 940,
-    "purchase_invoices": 5723,
+    "purchase_invoices": 5727,
     "credit_notes": 1354,
+    "patient_addresses": 25815,
 }
 
 AUDIT_FILES = [
@@ -64,6 +65,7 @@ TABLES = [
     "ledger_transactions",
     "journal_entries",
     "app_users",
+    "patient_addresses",
 ]
 
 
