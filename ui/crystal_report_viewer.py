@@ -292,10 +292,11 @@ def _draw_report_page_content(painter: QPainter, page: ReportPage):
             # Bold Group Header: e.g. <ITEM NAME>   <FORM>
             painter.setFont(QFont("Segoe UI", 9, QFont.Bold))
             painter.setPen(QColor("#000000"))
+            hdr_text = block.data.get("text") or block.data.get("title") or ""
             painter.drawText(
                 QRectF(MARGIN_LEFT, curr_y, content_w, h),
                 Qt.AlignLeft | Qt.AlignVCenter,
-                block.data.get("text", ""),
+                hdr_text,
             )
 
         elif kind == BlockKind.TABLE_HEADER:
@@ -965,7 +966,7 @@ class CrystalReportViewer(QWidget):
             lines.append(f"{p.header.header_line_1} | {p.header.header_line_2}")
             for b in p.blocks:
                 if b.kind == BlockKind.GROUP_HEADER:
-                    lines.append(b.data.get("text", ""))
+                    lines.append(b.data.get("text") or b.data.get("title") or "")
                 elif b.kind == BlockKind.TABLE_HEADER:
                     lines.append("\t".join(b.data.get("columns", [])))
                 elif b.kind == BlockKind.DATA_ROW:
@@ -1711,17 +1712,25 @@ class BasePurchaseReportWindow(QWidget):
             header_written = False
             for p in self._pages:
                 for b in p.blocks:
-                    if b.kind == BlockKind.TABLE_HEADER:
+                    if b.kind == BlockKind.GROUP_HEADER:
+                        lines.append(f'"{b.data.get("text") or b.data.get("title") or ""}"')
+                    elif b.kind == BlockKind.TABLE_HEADER:
                         if not header_written:
                             lines.append(",".join(f'"{c}"' for c in b.data.get("columns", [])))
                             header_written = True
                     elif b.kind == BlockKind.DATA_ROW:
                         lines.append(",".join(f'"{c}"' for c in b.data.get("cells", [])))
                     elif b.kind in (BlockKind.ITEM_SUBTOTAL, BlockKind.BATCH_SUBTOTAL):
-                        lbl = b.data.get("batch_no", "") + " Total :" if b.kind == BlockKind.BATCH_SUBTOTAL else "Total :"
-                        lines.append(f'"{lbl}",,,,,,"{b.data.get("pay_str")}","{b.data.get("free_str")}","{b.data.get("amt_str")}"')
+                        if "cells" in b.data and any(b.data["cells"]):
+                            lines.append(",".join(f'"{c}"' for c in b.data["cells"]))
+                        else:
+                            lbl = b.data.get("batch_no", "") + " Total :" if b.kind == BlockKind.BATCH_SUBTOTAL else "Total :"
+                            lines.append(f'"{lbl}",,,,,,"{b.data.get("pay_str")}","{b.data.get("free_str")}","{b.data.get("amt_str")}"')
                     elif b.kind == BlockKind.GRAND_TOTAL:
-                        lines.append(f'"{b.data.get("label", "Grand Total :")}",,,,,,"{b.data.get("pay_str", "")}","{b.data.get("free_str", "")}","{b.data.get("amt_str")}"')
+                        if "cells" in b.data and any(b.data["cells"]):
+                            lines.append(",".join(f'"{c}"' for c in b.data["cells"]))
+                        else:
+                            lines.append(f'"{b.data.get("label", "Grand Total :")}",,,,,,"{b.data.get("pay_str", "")}","{b.data.get("free_str", "")}","{b.data.get("amt_str")}"')
             try:
                 with open(path, "w", encoding="utf-8") as f:
                     f.write("\n".join(lines))

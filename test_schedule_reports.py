@@ -363,10 +363,10 @@ class TestScheduleReports(unittest.TestCase):
             self.assertIn("Item Name : TRYLIQ-P", grp_headers)
             self.assertIn("Item Name : ZOSTUM 1GM", grp_headers)
 
-            # Verify continuous SrNo across groups (1, 2, 3)
+            # Verify SrNo resets to 1 within each section matching legacy report behavior
             data_rows = [b for b in rep_page.blocks if b.kind == BlockKind.DATA_ROW]
             sr_nos = [r.data["cells"][0] for r in data_rows]
-            self.assertEqual(sr_nos, ["1", "2", "3"])
+            self.assertEqual(sr_nos, ["1", "2", "1"])
 
             # Verify subtotals and grand total
             subtotals = [b for b in rep_page.blocks if b.kind == BlockKind.ITEM_SUBTOTAL]
@@ -513,6 +513,89 @@ class TestScheduleReports(unittest.TestCase):
             self.assertIn("custom_cells", grand_total.data)
             self.assertEqual(grand_total.data["custom_cells"][1]["text"], "50")
             self.assertEqual(grand_total.data["custom_cells"][2]["text"], "360.50")
+
+    def test_14_purchase_schedule_vhno_clean_formatting(self):
+        """Verify Datewise, Itemwise, and All Items purchase reports clean VhNo display."""
+        mock_rows = [
+            {
+                "inv_date": "2026-04-10",
+                "inv_no": "INV-101",
+                "supplier_name": "CIPLA LTD",
+                "vh_no": "2026-2027-Credit-0251",
+                "purchase_type": "Credit",
+                "vh_date": "2026-04-10",
+                "unit_name": "TAB",
+                "pack_size": "10",
+                "item_name": "TRAMAGOLD TABLET",
+                "batch_no": "TG201",
+                "expiry": "2028-01-01",
+                "pur_qty": 50.0,
+                "pur_value": 450.0,
+            },
+            {
+                "inv_date": "2026-04-11",
+                "inv_no": "INV-102",
+                "supplier_name": "SUN PHARMA",
+                "vh_no": "2025-2026-Cash-80",
+                "purchase_type": "Cash",
+                "vh_date": "2026-04-11",
+                "unit_name": "TAB",
+                "pack_size": "10",
+                "item_name": "TRAMAGOLD TABLET",
+                "batch_no": "TG202",
+                "expiry": "2028-02-01",
+                "pur_qty": 30.0,
+                "pur_value": 300.0,
+            },
+            {
+                "inv_date": "2026-04-12",
+                "inv_no": "INV-103",
+                "supplier_name": "INTAS",
+                "vh_no": "2026-2027-Credit-1905#12345",
+                "purchase_type": "Credit",
+                "vh_date": "2026-04-12",
+                "unit_name": "TAB",
+                "pack_size": "10",
+                "item_name": "TRAMAGOLD TABLET",
+                "batch_no": "TG203",
+                "expiry": "2028-03-01",
+                "pur_qty": 20.0,
+                "pur_value": 200.0,
+            },
+        ]
+
+        # Test Datewise
+        page_d = SchedulePurchaseDatewisePage(schedule_type="H1")
+        with mock.patch.object(ScheduleReportsDAO, "get_purchase_schedule", return_value=mock_rows):
+            page_d.generate_report()
+            rep_page = page_d._pages[0]
+            data_rows = [b for b in rep_page.blocks if b.kind == BlockKind.DATA_ROW]
+            self.assertEqual(len(data_rows), 3)
+            self.assertEqual(data_rows[0].data["cells"][4], "251")
+            self.assertEqual(data_rows[1].data["cells"][4], "80")
+            self.assertEqual(data_rows[2].data["cells"][4], "1905")
+
+        # Test Itemwise
+        page_e = SchedulePurchaseItemwisePage(schedule_type="H1")
+        with mock.patch.object(ScheduleReportsDAO, "get_purchase_schedule", return_value=mock_rows):
+            page_e.generate_report()
+            rep_page = page_e._pages[0]
+            data_rows = [b for b in rep_page.blocks if b.kind == BlockKind.DATA_ROW]
+            self.assertEqual(len(data_rows), 3)
+            self.assertEqual(data_rows[0].data["cells"][4], "251")
+            self.assertEqual(data_rows[1].data["cells"][4], "80")
+            self.assertEqual(data_rows[2].data["cells"][4], "1905")
+
+        # Test All Items
+        page_f = SchedulePurchaseAllItemsPage(schedule_type="H1")
+        with mock.patch.object(ScheduleReportsDAO, "get_purchase_schedule", return_value=mock_rows):
+            page_f.generate_report()
+            rep_page = page_f._pages[0]
+            data_rows = [b for b in rep_page.blocks if b.kind == BlockKind.DATA_ROW]
+            self.assertEqual(len(data_rows), 3)
+            self.assertEqual(data_rows[0].data["cells"][4], "251")
+            self.assertEqual(data_rows[1].data["cells"][4], "80")
+            self.assertEqual(data_rows[2].data["cells"][4], "1905")
 
     def test_13_print_and_export_all_12_reports(self):
         """Verify print_report and export_report execute successfully across all 12 reports."""

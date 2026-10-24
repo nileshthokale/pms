@@ -43,7 +43,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from core.doc_formatter import format_sales_bill_number
+from core.doc_formatter import format_purchase_voucher_number, format_sales_bill_number
 from database.schedule_reports_dao import ScheduleReportsDAO
 from database import financial_year
 from ui import theme
@@ -100,16 +100,19 @@ def _format_dmy_dash(date_val: str) -> str:
 
 
 def _format_expiry_display(exp_val: str) -> str:
-    """Format expiry date to MM/YY or dd/MM/yyyy."""
+    """Format expiry date to dd/MM/yyyy or MM/YY."""
     if not exp_val:
         return ""
     clean = str(exp_val).strip()
     try:
         parts = clean.split("-")
-        if len(parts) >= 2:
-            yy = parts[0][-2:]
-            mm = parts[1].zfill(2)
-            return f"{mm}/{yy}"
+        if len(parts) == 3 and len(parts[0]) == 4:
+            return f"{parts[2].zfill(2)}/{parts[1].zfill(2)}/{parts[0]}"
+        parts_slash = clean.split("/")
+        if len(parts_slash) == 3 and len(parts_slash[2]) == 4:
+            return f"{parts_slash[0].zfill(2)}/{parts_slash[1].zfill(2)}/{parts_slash[2]}"
+        if len(parts) == 2:
+            return f"{parts[1].zfill(2)}/{parts[0]}"
     except Exception:
         pass
     return clean
@@ -155,7 +158,14 @@ def paginate_schedule_blocks(
     current_h = 0.0
 
     for block in blocks:
-        needed_h = 45.0 if block.kind in (BlockKind.GROUP_HEADER, BlockKind.ITEM_SUBTOTAL) else block.height
+        if block.kind == BlockKind.GROUP_HEADER:
+            needed_h = 75.0
+        elif block.kind == BlockKind.TABLE_HEADER:
+            needed_h = 45.0
+        elif block.kind in (BlockKind.ITEM_SUBTOTAL, BlockKind.BATCH_SUBTOTAL):
+            needed_h = 30.0
+        else:
+            needed_h = block.height
         if current_blocks and (current_h + needed_h > max_h):
             pages.append(
                 ReportPage(
@@ -726,7 +736,7 @@ class ScheduleSalesAllItemsPage(_BaseScheduleReportPage):
             data={"columns": cols, "widths": widths, "aligns": aligns},
         )
 
-        blocks: List[ReportBlock] = [table_header_block]
+        blocks: List[ReportBlock] = []
 
         grand_tot_qty = 0.0
         prefix_w = sum(widths[:-1])
@@ -735,6 +745,7 @@ class ScheduleSalesAllItemsPage(_BaseScheduleReportPage):
             self.lbl_msg.setText("No records found.")
             self.lbl_msg.setVisible(True)
             self.btn_panel_print.setEnabled(True)
+            blocks.append(table_header_block)
             blocks.append(
                 ReportBlock(
                     kind=BlockKind.EMPTY,
@@ -746,24 +757,37 @@ class ScheduleSalesAllItemsPage(_BaseScheduleReportPage):
             self.lbl_msg.setVisible(False)
             self.btn_panel_print.setEnabled(True)
 
-            # Group rows by item_name
-            groups: dict[str, list[dict]] = {}
+            # Group rows by canonical item_id
+            groups: dict[Any, list[dict]] = {}
             for r in rows:
-                itm_name = str(r.get("item_name") or "Unknown Item").strip()
-                groups.setdefault(itm_name, []).append(r)
+                key = r.get("item_id") if r.get("item_id") is not None else str(r.get("item_name") or "Unknown Item").strip()
+                groups.setdefault(key, []).append(r)
 
-            sr_no = 1
-
-            for itm_name, itm_rows in groups.items():
+            for _, itm_rows in groups.items():
+                itm_name = str(itm_rows[0].get("item_name") or "Unknown Item").strip()
                 # Group Header: "Item Name : <ITEM>"
                 blocks.append(
                     ReportBlock(
                         kind=BlockKind.GROUP_HEADER,
                         height=26.0,
-                        data={"title": f"Item Name : {itm_name}", "width": CONTENT_WIDTH_LANDSCAPE},
+                        data={
+                            "text": f"Item Name : {itm_name}",
+                            "title": f"Item Name : {itm_name}",
+                            "width": CONTENT_WIDTH_LANDSCAPE,
+                        },
                     )
                 )
 
+                # Table header under every medicine heading
+                blocks.append(
+                    ReportBlock(
+                        kind=BlockKind.TABLE_HEADER,
+                        height=24.0,
+                        data={"columns": cols, "widths": widths, "aligns": aligns},
+                    )
+                )
+
+                sr_no = 1
                 item_sub_qty = 0.0
                 for r in itm_rows:
                     qty_val = float(r.get("qty") or 0.0)
@@ -916,7 +940,7 @@ class SchedulePurchaseDatewisePage(_BaseScheduleReportPage):
                     _format_dmy(r.get("inv_date", "")),
                     str(r.get("inv_no") or ""),
                     str(r.get("supplier_name") or ""),
-                    str(r.get("vh_no") or ""),
+                    format_purchase_voucher_number(r.get("vh_no"), purchase_type=r.get("purchase_type")),
                     _format_dmy(r.get("vh_date", "")),
                     str(r.get("unit_name") or ""),
                     str(r.get("pack_size") or ""),
@@ -1072,7 +1096,7 @@ class SchedulePurchaseItemwisePage(_BaseScheduleReportPage):
                     _format_dmy(r.get("inv_date", "")),
                     str(r.get("inv_no") or ""),
                     str(r.get("supplier_name") or ""),
-                    str(r.get("vh_no") or ""),
+                    format_purchase_voucher_number(r.get("vh_no"), purchase_type=r.get("purchase_type")),
                     _format_dmy(r.get("vh_date", "")),
                     str(r.get("unit_name") or ""),
                     str(r.get("pack_size") or ""),
@@ -1164,7 +1188,7 @@ class SchedulePurchaseAllItemsPage(_BaseScheduleReportPage):
             data={"columns": cols, "widths": widths, "aligns": aligns},
         )
 
-        blocks: List[ReportBlock] = [table_header_block]
+        blocks: List[ReportBlock] = []
 
         grand_tot_qty = 0.0
         grand_tot_val = 0.0
@@ -1174,6 +1198,7 @@ class SchedulePurchaseAllItemsPage(_BaseScheduleReportPage):
             self.lbl_msg.setText("No records found.")
             self.lbl_msg.setVisible(True)
             self.btn_panel_print.setEnabled(True)
+            blocks.append(table_header_block)
             blocks.append(
                 ReportBlock(
                     kind=BlockKind.EMPTY,
@@ -1185,19 +1210,31 @@ class SchedulePurchaseAllItemsPage(_BaseScheduleReportPage):
             self.lbl_msg.setVisible(False)
             self.btn_panel_print.setEnabled(True)
 
-            groups: dict[str, list[dict]] = {}
+            groups: dict[Any, list[dict]] = {}
             for r in rows:
-                itm_name = str(r.get("item_name") or "Unknown Item").strip()
-                groups.setdefault(itm_name, []).append(r)
+                key = r.get("item_id") if r.get("item_id") is not None else str(r.get("item_name") or "Unknown Item").strip()
+                groups.setdefault(key, []).append(r)
 
             sr_no = 1
-
-            for itm_name, itm_rows in groups.items():
+            for _, itm_rows in groups.items():
+                itm_name = str(itm_rows[0].get("item_name") or "Unknown Item").strip()
                 blocks.append(
                     ReportBlock(
                         kind=BlockKind.GROUP_HEADER,
                         height=26.0,
-                        data={"title": f"Item Name : {itm_name}", "width": CONTENT_WIDTH_LANDSCAPE},
+                        data={
+                            "text": f"Item Name : {itm_name}",
+                            "title": f"Item Name : {itm_name}",
+                            "width": CONTENT_WIDTH_LANDSCAPE,
+                        },
+                    )
+                )
+
+                blocks.append(
+                    ReportBlock(
+                        kind=BlockKind.TABLE_HEADER,
+                        height=24.0,
+                        data={"columns": cols, "widths": widths, "aligns": aligns},
                     )
                 )
 
@@ -1217,7 +1254,7 @@ class SchedulePurchaseAllItemsPage(_BaseScheduleReportPage):
                         _format_dmy(r.get("inv_date", "")),
                         str(r.get("inv_no") or ""),
                         str(r.get("supplier_name") or ""),
-                        str(r.get("vh_no") or ""),
+                        format_purchase_voucher_number(r.get("vh_no"), purchase_type=r.get("purchase_type")),
                         _format_dmy(r.get("vh_date", "")),
                         str(r.get("unit_name") or ""),
                         str(r.get("pack_size") or ""),

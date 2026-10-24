@@ -8,7 +8,7 @@ compound identifiers and database integrity internally.
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Any, Optional
 
 
 def format_document_number(value: Any, default: str = "") -> str:
@@ -102,16 +102,64 @@ def match_document_query(stored_value: Any, query: str) -> bool:
     return False
 
 
-def format_purchase_voucher_number(value: Any, default: str = "") -> str:
-    """Return only the numeric / sequence component of a purchase voucher for display,
-    stripping unnecessary leading zeros.
-    e.g. '2026-2027-Credit-0251' -> '251', '2026-2027-Credit-252' -> '252',
-    '2026-2027-Cash-0001' -> '1', '2026-2027-Cash-1' -> '1'.
+def format_purchase_voucher_number(
+    value: Any,
+    default: str = "",
+    purchase_type: Optional[str] = None,
+) -> str:
+    """Return only the original voucher number of a purchase voucher for display,
+    removing financial year and voucher-type prefix formatting, while stripping
+    unnecessary leading zeros for pure numeric vouchers to match Pharma-WINNER.
+
+    Examples:
+    - '2026-2027-Credit-0251' -> '251'
+    - '2026-2027-Credit-79' -> '79'
+    - '2025-2026-Cash-80' -> '80'
+    - '2024-2025-Credit-368' -> '368'
+    - '2026-2027-Challan-1' -> '1'
+    - '2026-2027-Credit-1905#12345' -> '1905'
+    - '2026-2027-Cash-187-S72213' -> '187'
+    - 'PV-0001' -> '1'
+    - 'PV-101' -> '101'
+    - '2026-2027-1905' -> '1905'
+    - '2026-2027-Credit-V001' -> 'V001'
+    - 'V001' -> 'V001'
+    - '0252' -> '252'
+    - '252' -> '252'
     """
-    val = format_document_number(value, default=default)
-    if val.isdigit():
-        return str(int(val))
-    return val
+    if value is None:
+        return default
+    text = str(value).strip()
+    if not text or text in ("--", "---"):
+        return text or default
+
+    # 1. Strip collision suffix (e.g. '#12345')
+    if "#" in text:
+        text = text.split("#", 1)[0].strip()
+
+    # 2. Strip legacy migration row ID suffix (e.g. '-S72213')
+    text = re.sub(r"-[sS]\d+$", "", text)
+
+    # 3. Strip financial year prefix (e.g. '2026-2027-', '2024-2025-', '2015-2016-')
+    text = re.sub(r"^(?:FY)?\d{4}-\d{2,4}-", "", text, flags=re.IGNORECASE)
+
+    # 4. Strip confirmed voucher-type prefix
+    pt = (purchase_type or "").strip()
+    if pt and text.lower().startswith(f"{pt.lower()}-"):
+        text = text[len(pt) + 1:].strip()
+    else:
+        text = re.sub(
+            r"^(?:Credit|Cash|Challan|Debit|Credit\s*Note|Debit\s*Note|Credit\s*Card|PV|PUR|P)-",
+            "",
+            text,
+            flags=re.IGNORECASE,
+        )
+
+    # 5. Pure digits: strip leading zeros to match Pharma-WINNER integer VhNo
+    if text.isdigit():
+        return str(int(text))
+
+    return text
 
 
 def format_time_12hr(value: Any, default: str = "") -> str:
