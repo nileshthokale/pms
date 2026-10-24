@@ -19,6 +19,7 @@ import sqlite3
 from typing import Any, Dict, List, Optional
 
 from database.connection import get_connection
+from core.doc_formatter import format_purchase_voucher_number
 
 
 class ScheduleReportsDAO:
@@ -69,7 +70,7 @@ class ScheduleReportsDAO:
             params.append(item_id)
 
         order_by = (
-            "UPPER(TRIM(i.item_name)) ASC, si.sale_date ASC, si.id ASC"
+            "UPPER(TRIM(i.item_name)) ASC, i.id ASC, si.sale_date ASC, si.id ASC"
             if grouped_by_item
             else "si.sale_date ASC, si.id ASC, UPPER(TRIM(i.item_name)) ASC"
         )
@@ -79,7 +80,7 @@ class ScheduleReportsDAO:
                 si.sale_date,
                 si.bill_no,
                 COALESCE(NULLIF(TRIM(si.patient_name), ''), 'WALKIN') AS patient_name,
-                COALESCE(NULLIF(TRIM(pa.address), ''), NULLIF(TRIM(c.address), ''), '') AS address,
+                COALESCE(NULLIF(TRIM(c.address), ''), '') AS cust_address,
                 COALESCE(u.unit_name, '') AS unit_name,
                 COALESCE(NULLIF(TRIM(sii.pack_size), ''), i.pack_size, '') AS pack_size,
                 i.item_name,
@@ -92,17 +93,6 @@ class ScheduleReportsDAO:
             JOIN items i ON i.id = sii.item_id
             LEFT JOIN units u ON u.id = i.unit_id
             LEFT JOIN customers c ON c.id = si.customer_id
-            LEFT JOIN (
-                SELECT patient_name, address
-                FROM (
-                    SELECT patient_name, address,
-                           ROW_NUMBER() OVER (
-                               PARTITION BY UPPER(TRIM(patient_name))
-                               ORDER BY updated_at DESC, id DESC
-                           ) as rn
-                    FROM patient_addresses
-                ) WHERE rn = 1
-            ) pa ON UPPER(TRIM(pa.patient_name)) = UPPER(TRIM(si.patient_name))
             WHERE si.sale_date BETWEEN ? AND ?
               AND {sched_sql}
               {item_filter}
@@ -111,7 +101,45 @@ class ScheduleReportsDAO:
         conn = get_connection()
         try:
             cur = conn.execute(sql, params)
-            return [dict(r) for r in cur.fetchall()]
+            rows = [dict(r) for r in cur.fetchall()]
+            if not rows:
+                return []
+
+            # Accurately resolve patient addresses matching the bill date or patient latest record
+            unique_names = list({
+                r["patient_name"].strip().upper()
+                for r in rows
+                if r["patient_name"] and r["patient_name"].strip().upper() not in ("WALKIN", "WALKIN CUSTOMER")
+            })
+            addr_map: dict[str, dict[str, Any]] = {}
+            if unique_names:
+                for chunk_start in range(0, len(unique_names), 500):
+                    chunk = unique_names[chunk_start:chunk_start + 500]
+                    placeholders = ",".join(["?"] * len(chunk))
+                    addr_sql = f"""
+                        SELECT patient_name, address, date(updated_at) AS addr_date
+                        FROM patient_addresses
+                        WHERE UPPER(TRIM(patient_name)) IN ({placeholders})
+                        ORDER BY updated_at DESC, id DESC
+                    """
+                    for p_name, addr, addr_date in conn.execute(addr_sql, chunk).fetchall():
+                        norm = (p_name or "").strip().upper()
+                        if norm not in addr_map:
+                            addr_map[norm] = {"by_date": {}, "latest": addr or ""}
+                        if addr_date and addr_date not in addr_map[norm]["by_date"]:
+                            addr_map[norm]["by_date"][addr_date] = addr or ""
+
+            for r in rows:
+                p_norm = (r.get("patient_name") or "").strip().upper()
+                info = addr_map.get(p_norm)
+                if info:
+                    resolved = info["by_date"].get(r.get("sale_date")) or info.get("latest") or ""
+                else:
+                    resolved = r.get("cust_address") or ""
+                r["address"] = resolved
+                r.pop("cust_address", None)
+
+            return rows
         finally:
             conn.close()
 
@@ -135,11 +163,28 @@ class ScheduleReportsDAO:
         if item_id:
             params.append(item_id)
 
-        order_by = (
-            "UPPER(TRIM(i.item_name)) ASC, pi.voucher_date ASC, pi.id ASC"
-            if grouped_by_item
-            else "pi.voucher_date ASC, pi.id ASC, UPPER(TRIM(i.item_name)) ASC"
-        )
+        if grouped_by_item:
+            order_by = "i.id ASC, pi.invoice_date ASC, pi.id ASC"
+            qty_expr = """
+                CASE
+                    WHEN CAST(COALESCE(NULLIF(TRIM(pii.pack_size), ''), i.pack_size, '1') AS INTEGER) > 1
+                    THEN (COALESCE(pii.pay_qty, 0.0) + COALESCE(pii.free_qty, 0.0)) * CAST(COALESCE(NULLIF(TRIM(pii.pack_size), ''), i.pack_size, '1') AS INTEGER)
+                    ELSE (COALESCE(pii.pay_qty, 0.0) + COALESCE(pii.free_qty, 0.0))
+                END
+            """
+            val_expr = """
+                ROUND(
+                    CASE
+                        WHEN pii.net_rate > 0 THEN pii.net_rate * pii.pay_qty
+                        ELSE pii.amount + COALESCE(pii.gst_amount, 0.0)
+                    END,
+                    2
+                )
+            """
+        else:
+            order_by = "pi.voucher_date ASC, pi.id ASC, UPPER(TRIM(i.item_name)) ASC"
+            qty_expr = "(COALESCE(pii.pay_qty, 0.0) + COALESCE(pii.free_qty, 0.0))"
+            val_expr = "COALESCE(pii.amount, 0.0)"
 
         sql = f"""
             SELECT
@@ -148,13 +193,14 @@ class ScheduleReportsDAO:
                 COALESCE(s.supplier_name, '') AS supplier_name,
                 COALESCE(pi.voucher_no, '') AS vh_no,
                 COALESCE(pi.voucher_date, '') AS vh_date,
+                COALESCE(pi.purchase_type, '') AS purchase_type,
                 COALESCE(u.unit_name, '') AS unit_name,
-                COALESCE(NULLIF(TRIM(pii.pack_size), ''), i.pack_size, '') AS pack_size,
+                COALESCE(NULLIF(TRIM(pii.pack_size), ''), i.pack_size, '1') AS pack_size,
                 i.item_name,
                 COALESCE(pii.batch_no, '') AS batch_no,
                 COALESCE(pii.expiry, '') AS expiry,
-                (COALESCE(pii.pay_qty, 0.0) + COALESCE(pii.free_qty, 0.0)) AS pur_qty,
-                COALESCE(pii.amount, 0.0) AS pur_value,
+                {qty_expr} AS pur_qty,
+                {val_expr} AS pur_value,
                 i.id AS item_id
             FROM purchase_invoice_items pii
             JOIN purchase_invoices pi ON pi.id = pii.purchase_invoice_id
@@ -169,7 +215,14 @@ class ScheduleReportsDAO:
         conn = get_connection()
         try:
             cur = conn.execute(sql, params)
-            return [dict(r) for r in cur.fetchall()]
+            rows = [dict(r) for r in cur.fetchall()]
+            for r in rows:
+                r["raw_voucher_no"] = r.get("vh_no", "")
+                r["vh_no"] = format_purchase_voucher_number(
+                    r.get("vh_no", ""),
+                    purchase_type=r.get("purchase_type", ""),
+                )
+            return rows
         finally:
             conn.close()
 
