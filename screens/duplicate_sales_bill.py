@@ -44,6 +44,7 @@ from PySide6.QtWidgets import (
 from database.duplicate_sales_dao import DuplicateSalesDAO
 from database import financial_year
 from database import pharmacy_a6_receipt as a6
+from database import duplicate_a6_cash_memo as memo_a6
 from ui.crystal_report_viewer import (
     BlockKind,
     CONTENT_WIDTH,
@@ -307,55 +308,35 @@ def print_duplicate_a6_bill(
     head: dict[str, Any],
     items: list[dict[str, Any]],
     parent=None,
-    title: str = "DUPLICATE SALES BILL",
+    title: str = "Cash Memo",
     show_dialog: bool = True,
     show_duplicate_copy: bool = True,
 ) -> bool:
-    """Print duplicate sales bill on A6 (105 x 148 mm) via standard Windows print dialog."""
-    try:
-        from PySide6.QtPrintSupport import QPrintDialog, QPrinter
-        from PySide6.QtGui import QPainter
-    except ImportError as exc:
-        raise ValueError("Printer support requires PySide6.") from exc
-
-    pages, page_profile = _build_a6_pages_for_duplicate_bill(head, items, show_duplicate_copy=show_duplicate_copy)
-
-    printer = QPrinter(QPrinter.HighResolution)
-    layout = a6.qt_page_layout(page_profile)
-    if layout is not None:
-        printer.setPageLayout(layout)
-
-    doc_title = title + (" [DUPLICATE COPY]" if show_duplicate_copy else "")
-    if show_dialog:
-        dialog = QPrintDialog(printer, parent)
-        dialog.setWindowTitle(f"Print {doc_title} - {page_profile.size_label}")
-        if dialog.exec() != QPrintDialog.Accepted:
-            return False
-
-    painter = QPainter()
-    try:
-        if not painter.begin(printer):
-            raise RuntimeError("Could not start print job on printer.")
-        painter.setRenderHint(QPainter.Antialiasing, True)
-        a6.draw_pages_on_painter(painter, pages, painter.viewport(), page_profile)
-    finally:
-        if painter.isActive():
-            painter.end()
-    return True
+    """Print duplicate sales bill on A6 Landscape (148 x 105 mm) via Canon LBP2900."""
+    return memo_a6.print_duplicate_a6_bill(
+        head=head,
+        items=items,
+        parent=parent,
+        title=title,
+        show_dialog=show_dialog,
+        show_duplicate=show_duplicate_copy,
+    )
 
 
 def generate_duplicate_a6_pdf(
     head: dict[str, Any],
     items: list[dict[str, Any]],
     output_path: str,
-    title: str = "DUPLICATE SALES BILL",
+    title: str = "Cash Memo",
     show_duplicate_copy: bool = True,
 ) -> str:
-    pages, page_profile = _build_a6_pages_for_duplicate_bill(head, items, show_duplicate_copy=show_duplicate_copy)
-    pdf_bytes = a6.pages_to_pdf_bytes(pages, page_profile)
-    with open(output_path, "wb") as f:
-        f.write(pdf_bytes)
-    return output_path
+    """Generate exact A6 Landscape PDF for Duplicate Sales Bill."""
+    return memo_a6.generate_duplicate_a6_pdf(
+        head=head,
+        items=items,
+        output_path=output_path,
+        show_duplicate=show_duplicate_copy,
+    )
 
 
 class DuplicateSalesBillA6PreviewDialog(QDialog):
@@ -378,8 +359,8 @@ class DuplicateSalesBillA6PreviewDialog(QDialog):
             self._show_duplicate = bool(show_duplicate)
 
         v_no = self._head.get("voucher_no") or 1
-        self.setWindowTitle(f"Duplicate Sales Bill #{v_no} - A6 Receipt (105 x 148 mm)")
-        self.resize(560, 780)
+        self.setWindowTitle(f"Duplicate Sales Bill #{v_no} - A6 Cash Memo (148 x 105 mm)")
+        self.resize(960, 720)
         self.setModal(True)
 
         p = palette()
@@ -394,7 +375,7 @@ class DuplicateSalesBillA6PreviewDialog(QDialog):
 
         # ── Toolbar ──────────────────────────────────────────────────
         tb = QHBoxLayout()
-        title_lbl = QLabel("A6 Receipt Preview")
+        title_lbl = QLabel("A6 Cash Memo Preview")
         title_lbl.setStyleSheet("font-size: 16px; font-weight: bold; color: #00838f;")
         tb.addWidget(title_lbl)
 
@@ -440,29 +421,18 @@ class DuplicateSalesBillA6PreviewDialog(QDialog):
         c_layout.setSpacing(16)
         c_layout.setAlignment(Qt.AlignCenter)
 
-        # Render A6 layout blocks & pages
-        self._pages, self._page_profile = _build_a6_pages_for_duplicate_bill(
-            self._head, self._items, show_duplicate_copy=self._show_duplicate
+        # Render A6 layout blocks & pages via dedicated Cash Memo engine
+        self._pages = memo_a6.paginate_duplicate_items(
+            self._head, self._items, show_duplicate=self._show_duplicate
         )
 
         dpi = 150.0
-        scale_factor = dpi / 72.0
-        w_px = int(round(self._page_profile.width_pt * scale_factor))
-        h_px = int(round(self._page_profile.height_pt * scale_factor))
-
-        for page_blocks in self._pages:
-            pixmap = QPixmap(w_px, h_px)
-            pixmap.fill(QColor("#ffffff"))
-
-            painter = QPainter(pixmap)
-            painter.setRenderHint(QPainter.Antialiasing, True)
-            painter.setRenderHint(QPainter.TextAntialiasing, True)
-            a6.draw_pages_on_painter(painter, [page_blocks], QRectF(0, 0, w_px, h_px), self._page_profile)
-            painter.end()
+        for page_data in self._pages:
+            pixmap = memo_a6.render_a6_cash_memo_pixmap(page_data, dpi=dpi)
 
             page_lbl = QLabel()
             page_lbl.setPixmap(pixmap)
-            page_lbl.setFixedSize(w_px, h_px)
+            page_lbl.setFixedSize(pixmap.size())
             page_lbl.setStyleSheet(
                 "QLabel { background: white; border: 1px solid #37474f; border-radius: 2px; }"
             )
@@ -744,6 +714,26 @@ class DuplicateSalesBillDialog(QDialog):
         box_item.addWidget(self._entry_item)
         el.addLayout(box_item, 3)
 
+        # Unit
+        box_unit = QVBoxLayout()
+        box_unit.setSpacing(2)
+        box_unit.addWidget(self._lbl("Unit"))
+        self._entry_unit = QLineEdit("10'S")
+        self._entry_unit.setFixedWidth(55)
+        attach_uppercase(self._entry_unit)
+        box_unit.addWidget(self._entry_unit)
+        el.addLayout(box_unit)
+
+        # Comp
+        box_comp = QVBoxLayout()
+        box_comp.setSpacing(2)
+        box_comp.addWidget(self._lbl("Comp."))
+        self._entry_comp = QLineEdit("")
+        self._entry_comp.setFixedWidth(60)
+        attach_uppercase(self._entry_comp)
+        box_comp.addWidget(self._entry_comp)
+        el.addLayout(box_comp)
+
         # Pack Size
         box_pack = QVBoxLayout()
         box_pack.setSpacing(2)
@@ -851,17 +841,17 @@ class DuplicateSalesBillDialog(QDialog):
 
         # ── Item Grid Table ──────────────────────────────────────────
         self._table = QTableWidget()
-        self._table.setColumnCount(11)
+        self._table.setColumnCount(13)
         self._table.setHorizontalHeaderLabels([
             "ItemName", "PackSize", "Location", "BatchNo", "Expiry",
-            "MRP", "SalesDate", "SalesQty", "DiscAmt", "Amount", "Del."
+            "MRP", "SalesDate", "SalesQty", "DiscAmt", "Amount", "Unit", "Comp", "Del."
         ])
         th = self._table.horizontalHeader()
         th.setSectionResizeMode(0, QHeaderView.Stretch)
-        for c in range(1, 10):
-            th.setSectionResizeMode(c, QHeaderView.ResizeToContents)
-        th.setSectionResizeMode(10, QHeaderView.Fixed)
-        self._table.setColumnWidth(10, 45)
+        for _col in range(1, 12):
+            th.setSectionResizeMode(_col, QHeaderView.ResizeToContents)
+        th.setSectionResizeMode(12, QHeaderView.Fixed)
+        self._table.setColumnWidth(12, 45)
         self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self._table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         root.addWidget(self._table, 1)
@@ -1013,6 +1003,12 @@ class DuplicateSalesBillDialog(QDialog):
         batches = DuplicateSalesDAO.get_item_batch_suggestions(item_name)
         self._current_item_batches = batches
 
+        u_mst, c_mst = DuplicateSalesDAO.get_item_master_unit_and_comp(item_name)
+        if u_mst:
+            self._entry_unit.setText(u_mst)
+        if c_mst:
+            self._entry_comp.setText(c_mst)
+
         self._entry_batch.blockSignals(True)
         self._entry_batch.clear()
 
@@ -1033,6 +1029,10 @@ class DuplicateSalesBillDialog(QDialog):
                 self._entry_exp.setText(_format_expiry_display(str(top["expiry"])))
             if top.get("pack_size"):
                 self._entry_pack.setText(str(top["pack_size"]))
+            if top.get("unit"):
+                self._entry_unit.setText(str(top["unit"]))
+            if top.get("comp"):
+                self._entry_comp.setText(str(top["comp"]))
 
             b_completer = QCompleter(batch_list, self)
             b_completer.setCaseSensitivity(Qt.CaseInsensitive)
@@ -1077,6 +1077,10 @@ class DuplicateSalesBillDialog(QDialog):
                 self._entry_exp.setText(_format_expiry_display(str(matched["expiry"])))
             if matched.get("pack_size"):
                 self._entry_pack.setText(str(matched["pack_size"]))
+            if matched.get("unit"):
+                self._entry_unit.setText(str(matched["unit"]))
+            if matched.get("comp"):
+                self._entry_comp.setText(str(matched["comp"]))
 
     def _load_existing_bill(self, dup_id: int):
         head = DuplicateSalesDAO.get_bill_by_id(dup_id)
@@ -1143,6 +1147,8 @@ class DuplicateSalesBillDialog(QDialog):
             "disc": disc_pct,
             "disc_amt": disc_amt,
             "amount": line_amt,
+            "unit": self._entry_unit.text().strip(),
+            "comp": self._entry_comp.text().strip(),
         }
         self._items.append(row_dict)
         self._refresh_table()
@@ -1155,6 +1161,8 @@ class DuplicateSalesBillDialog(QDialog):
         self._entry_mrp.setText("0.00")
         self._entry_qty.setText("1")
         self._entry_disc.setText("0.00")
+        self._entry_unit.setText("10'S")
+        self._entry_comp.clear()
         self._current_item_batches = []
         self._entry_item.setFocus()
 
@@ -1178,7 +1186,8 @@ class DuplicateSalesBillDialog(QDialog):
 
             self._table.setItem(r, 6, QTableWidgetItem(str(itm.get("sales_date") or "")))
 
-            qty_cell = QTableWidgetItem(fmt_qty(itm.get("sales_qty")))
+            qty_val = itm.get("sales_qty") if itm.get("sales_qty") is not None else itm.get("sale_qty")
+            qty_cell = QTableWidgetItem(fmt_qty(qty_val))
             qty_cell.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             self._table.setItem(r, 7, qty_cell)
 
@@ -1190,11 +1199,14 @@ class DuplicateSalesBillDialog(QDialog):
             amt_cell.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             self._table.setItem(r, 9, amt_cell)
 
+            self._table.setItem(r, 10, QTableWidgetItem(str(itm.get("unit") or "")))
+            self._table.setItem(r, 11, QTableWidgetItem(str(itm.get("comp") or "")))
+
             del_btn = QPushButton("✕")
             del_btn.setFixedWidth(28)
             del_btn.setStyleSheet("color: red; font-weight: bold;")
             del_btn.clicked.connect(lambda chk=False, idx=r: self._on_delete_row(idx))
-            self._table.setCellWidget(r, 10, del_btn)
+            self._table.setCellWidget(r, 12, del_btn)
 
         self._total_items_val.setText(str(len(self._items)))
         self._recalc_net_totals()

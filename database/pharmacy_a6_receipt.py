@@ -247,7 +247,7 @@ def store_profile() -> dict[str, str]:
         "name": "SHREE SAMARTH MEDICAL AND GEN STORE",
         "address": "GHORPADE HOSPITAL ,RAHURI",
         "jurisdiction": "AHMEDNAGAR",
-        "licence": "20-MH-AHM-61069,21-MH-AHM-61070,20C-MH-AHM-610",
+        "licence": "20-MH-AHM-61069,21-MH-AHM-61070,20C-MH-AHM-61071",
     }
 
 

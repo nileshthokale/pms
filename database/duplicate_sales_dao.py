@@ -61,9 +61,18 @@ def ensure_duplicate_sales_schema() -> None:
                 sales_qty           REAL DEFAULT 0.0,
                 disc                REAL DEFAULT 0.0,
                 disc_amt            REAL DEFAULT 0.0,
-                amount              REAL DEFAULT 0.0
+                amount              REAL DEFAULT 0.0,
+                unit                TEXT DEFAULT '',
+                comp                TEXT DEFAULT ''
             );
         """)
+        # Safe migration if table previously created without unit and comp
+        cur = conn.cursor()
+        existing_cols = {row[1] for row in cur.execute("PRAGMA table_info(dup_sales_bill_item)").fetchall()}
+        if "unit" not in existing_cols:
+            conn.execute("ALTER TABLE dup_sales_bill_item ADD COLUMN unit TEXT DEFAULT '';")
+        if "comp" not in existing_cols:
+            conn.execute("ALTER TABLE dup_sales_bill_item ADD COLUMN comp TEXT DEFAULT '';")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_dup_sales_vh_date ON dup_sales_bill_head(vh_date);")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_dup_sales_fy ON dup_sales_bill_head(financial_year);")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_dup_sales_items_bill ON dup_sales_bill_item(dup_bill_id);")
@@ -391,9 +400,13 @@ class DuplicateSalesDAO:
                 """
                 SELECT sb.batch_no, sb.expiry, sb.mrp,
                        COALESCE(NULLIF(sb.pack_size, ''), i.pack_size, '') AS pack_size,
-                       sb.stock_qty, i.item_name
+                       sb.stock_qty, i.item_name,
+                       COALESCE(u.unit_name, '') AS unit,
+                       COALESCE(NULLIF(c.short_name, ''), c.company_name, '') AS comp
                 FROM stock_batches sb
                 JOIN items i ON i.id = sb.item_id
+                LEFT JOIN units u ON u.id = i.unit_id
+                LEFT JOIN companies c ON c.id = i.company_id
                 WHERE UPPER(TRIM(i.item_name)) = UPPER(TRIM(?))
                 ORDER BY (sb.stock_qty > 0) DESC, sb.expiry DESC, sb.id DESC
                 """,
@@ -422,10 +435,14 @@ class DuplicateSalesDAO:
             if not rows:
                 cur = conn.execute(
                     """
-                    SELECT '' AS batch_no, '' AS expiry, mrp, pack_size, 0.0 AS stock_qty, item_name
-                    FROM items
-                    WHERE UPPER(TRIM(item_name)) = UPPER(TRIM(?))
-                       OR UPPER(TRIM(item_name)) LIKE UPPER(TRIM(?)) || '%'
+                    SELECT '' AS batch_no, '' AS expiry, i.mrp, i.pack_size, 0.0 AS stock_qty, i.item_name,
+                           COALESCE(u.unit_name, '') AS unit,
+                           COALESCE(NULLIF(c.short_name, ''), c.company_name, '') AS comp
+                    FROM items i
+                    LEFT JOIN units u ON u.id = i.unit_id
+                    LEFT JOIN companies c ON c.id = i.company_id
+                    WHERE UPPER(TRIM(i.item_name)) = UPPER(TRIM(?))
+                       OR UPPER(TRIM(i.item_name)) LIKE UPPER(TRIM(?)) || '%'
                     LIMIT 1
                     """,
                     (clean, clean),
@@ -453,9 +470,13 @@ class DuplicateSalesDAO:
             cur = conn.execute(
                 """
                 SELECT sb.batch_no, sb.expiry, sb.mrp,
-                       COALESCE(NULLIF(sb.pack_size, ''), i.pack_size, '') AS pack_size
+                       COALESCE(NULLIF(sb.pack_size, ''), i.pack_size, '') AS pack_size,
+                       COALESCE(u.unit_name, '') AS unit,
+                       COALESCE(NULLIF(c.short_name, ''), c.company_name, '') AS comp
                 FROM stock_batches sb
                 JOIN items i ON i.id = sb.item_id
+                LEFT JOIN units u ON u.id = i.unit_id
+                LEFT JOIN companies c ON c.id = i.company_id
                 WHERE UPPER(TRIM(i.item_name)) = UPPER(TRIM(?))
                   AND UPPER(TRIM(sb.batch_no)) = UPPER(TRIM(?))
                 LIMIT 1
@@ -469,3 +490,43 @@ class DuplicateSalesDAO:
         finally:
             conn.close()
 
+    @staticmethod
+    def get_item_master_unit_and_comp(item_name: str) -> tuple[str, str]:
+        """Fetch unit (e.g. TABLET) and comp short code (e.g. MCL) from item master (read-only)."""
+        clean = (item_name or "").strip()
+        if not clean:
+            return ("", "")
+        conn = get_connection()
+        try:
+            cur = conn.execute(
+                """
+                SELECT u.unit_name, COALESCE(NULLIF(c.short_name, ''), c.company_name, '')
+                FROM items i
+                LEFT JOIN units u ON u.id = i.unit_id
+                LEFT JOIN companies c ON c.id = i.company_id
+                WHERE UPPER(TRIM(i.item_name)) = UPPER(TRIM(?))
+                LIMIT 1
+                """,
+                (clean,),
+            )
+            row = cur.fetchone()
+            if not row:
+                cur = conn.execute(
+                    """
+                    SELECT u.unit_name, COALESCE(NULLIF(c.short_name, ''), c.company_name, '')
+                    FROM items i
+                    LEFT JOIN units u ON u.id = i.unit_id
+                    LEFT JOIN companies c ON c.id = i.company_id
+                    WHERE UPPER(TRIM(i.item_name)) LIKE UPPER(TRIM(?)) || '%'
+                    LIMIT 1
+                    """,
+                    (clean,),
+                )
+                row = cur.fetchone()
+            if row:
+                return (str(row[0] or "").strip(), str(row[1] or "").strip())
+            return ("", "")
+        except Exception:
+            return ("", "")
+        finally:
+            conn.close()
