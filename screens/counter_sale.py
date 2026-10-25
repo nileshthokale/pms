@@ -56,6 +56,11 @@ from database import financial_year
 from database.document_printing import (DocumentPrintError, a6_profile,
                                         generate_counter_sale_bill,
                                         print_pharmacy_a6_bill)
+from database.counter_sale_a6_bill import (
+    CounterSaleBillA6PreviewDialog,
+    generate_counter_sale_pdf,
+    print_counter_sale_bill,
+)
 from database.hold_bill_dao import (
     create_hold,
     ensure_hold_tables,
@@ -7995,25 +8000,37 @@ class CounterSalePage(QWidget):
         if not inv_id:
             QMessageBox.information(self, "Print Sale", "Please select a bill to print.")
             return
-        path, _ = QFileDialog.getSaveFileName(self, "Save Sales Bill PDF", "sales_bill.pdf", "PDF (*.pdf)")
+        default_name = f"sales_bill_A6_{inv_id}.pdf"
+        path, _ = QFileDialog.getSaveFileName(self, "Save A6 Sales Bill PDF", default_name, "PDF (*.pdf)")
         if not path:
             return
         try:
-            output = generate_counter_sale_bill(inv_id, path)
-            QMessageBox.information(self, "PDF Saved", f"A6 receipt saved to:\n{output}")
-        except DocumentPrintError as exc:
-            QMessageBox.warning(self, "Print Sale", str(exc))
+            output = generate_counter_sale_pdf(inv_id, path)
+            QMessageBox.information(self, "PDF Saved", f"A6 Cash Memo PDF saved to:\n{output}")
+            try:
+                import subprocess
+                if sys.platform.startswith("win"):
+                    os.startfile(output)
+                elif sys.platform.startswith("darwin"):
+                    subprocess.Popen(["open", output])
+                else:
+                    subprocess.Popen(["xdg-open", output])
+            except Exception:
+                pass
+        except Exception as exc:
+            QMessageBox.critical(self, "Print Sale", f"Failed to save PDF:\n{exc}")
 
     def _on_direct_print(self):
-        """Send the selected bill straight to the Windows print dialog on A6."""
+        """Open the Crystal Report preview dialog for the selected bill."""
         inv_id = self._selected_history_id()
         if not inv_id:
             QMessageBox.information(self, "Print Sale", "Please select a bill to print.")
             return
         try:
-            print_pharmacy_a6_bill(inv_id, self, "Counter Sale Bill")
-        except DocumentPrintError as exc:
-            QMessageBox.warning(self, "Print Sale", str(exc))
+            dlg = CounterSaleBillA6PreviewDialog(inv_id, parent=self)
+            dlg.exec()
+        except Exception as exc:
+            QMessageBox.critical(self, "Print Sale", f"Failed to preview/print A6 bill:\n{exc}")
 
     def _open_sale_dialog(self, invoice: dict | None = None,
                           hold_bill_data: dict | None = None):

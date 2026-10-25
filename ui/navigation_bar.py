@@ -231,8 +231,6 @@ class NavigationBar(QWidget):
                             action.setShortcut(QKeySequence(MENU_SHORTCUTS[item_text]))
                         if top_label == "Schedule":
                             action_arg = f"{path_prefix} > {item_text}" if path_prefix else item_text
-                        elif top_label == "Reports" and path_prefix.startswith("Sheduled H1"):
-                            action_arg = f"{path_prefix} > {item_text}"
                         else:
                             action_arg = item_text
 
