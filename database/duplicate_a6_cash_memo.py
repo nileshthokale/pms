@@ -1,27 +1,37 @@
-"""A6 Landscape (148 x 105 mm) Cash Memo Crystal Report Engine (Canon LBP2900).
+"""Cash Memo Crystal Report Engine (Canon LBP2900).
 
 Shared configuration and rendering engine for:
 1. Duplicate Sales Bill (reports/DuplicateSalesBill_A6.rpt)
 2. Real Counter Sale Bill (reports/CounterSaleBill_A6.rpt)
 
 Features:
-- Paper: A6 landscape (148 x 105 mm) explicitly.
-- Margins: safe clearance from all edges, OriginAtMargins = False (setFullPage(True)).
-- Typography: Arial ONLY. ALL text is BOLD (labels, values, numbers, headings).
-  Shop name: 11 pt, Address: 7 pt, Everything else: 8 pt.
-- Hairline rules: 0.25 pt cosmetic solid lines (QPen width 0, NearestNeighbor rendering).
-- Item Area: Exactly 10 fixed rows of 4.0 mm (ITEM_ROWS = 10, 40 mm total).
-  - BATCH: 28 mm, font 8 pt bold with shrink-to-fit down to 6 pt. Never cut, never '...'.
-  - DESCRIPTION: Cut at column width without dots, single line.
+- Default Paper: A5 landscape (210 x 148 mm), with A6 landscape (148 x 105 mm) profile support.
+- Margins: 12 mm left/right, 10 mm top/bottom (10-15 mm balanced margins), OriginAtMargins = False.
+- Full Page Width: Content fills full printable width evenly, horizontally centered, no side shift.
+- Typography: Arial ONLY. ALL text is EXTRA BOLD / BLACK (weight 900, toner overdraw):
+  - Shop name: 15.0 pt bold (centered)
+  - Address: 8.5 pt (centered)
+  - Name, Doctor, Cash Memo, Date: 10.5 pt
+  - Column Headings: 10.5 pt
+  - Item Rows: 10.5 pt
+  - Net Amt: 12.0 pt bold (prominent on right below table)
+  - Footer lines: 9.5 pt
+- Column Alignment & Fixed Widths (186 mm on A5):
+  - QTY: 14 mm (left-aligned)
+  - UNIT: 20 mm (left-aligned)
+  - DESCRIPTION: 50 mm (left-aligned)
+  - COMP.: 16 mm (left-aligned)
+  - BATCH: 32 mm (left-aligned, shrink-to-fit down to 7.5 pt, never cut, never '...')
+  - EXP. DT: 26 mm (left-aligned)
+  - AMT: 28 mm (right-aligned)
+- Divider rules: 0.35 mm solid lines (~4 px at 300 DPI) for deep black, crisp lines.
+- Item Area: Exactly 10 fixed rows of 5.0 mm (ITEM_ROWS = 10, 50 mm total).
 - Footer: Pinned at bottom, never shifts.
   - Left: E & O E. Subject to AHMEDNAGAR Jurisdiction, licence wrapped on 2 lines, GSTIN.
-  - Right: Net Amt as whole number (e.g. 890) on last page only ('Continued...' before).
-  - Suppress all internal debug text (no Category sales or header ID).
-  - Footer watermark: 'RPT v2' (5 pt grey text for duplicate report).
+  - Right: Net Amt (12 pt bold), Shop name (9.5 pt), Pharmacist/Sign (9.5 pt).
 - Canon LBP2900 feed rotation:
   - ROTATE_FOR_FEED = True (rotates 90 degrees for short-edge feed).
-  - ROTATE_DIRECTION = 90 (configurable to 270 if paper feed orientation requires).
-  - OFFSET_X_MM = 0.0, OFFSET_Y_MM = 0.0 (nudge offsets).
+  - ROTATE_DIRECTION = 90
 """
 
 from __future__ import annotations
@@ -56,56 +66,140 @@ REAL_RPT_FILE_PATH = os.path.join(_PROJECT_ROOT, "reports", "CounterSaleBill_A6.
 RPT_FILE_PATH = DUP_RPT_FILE_PATH
 REPORT_VERSION_TAG = "RPT v2"
 
-# ── Geometry Constants ────────────────────────────────────────────────
-ITEM_ROWS: int = 10           # Fixed number of item rows per page
-ITEM_LINES: int = ITEM_ROWS   # Backward compatibility alias
-ROW_HEIGHT_MM: float = 4.0    # Fixed height per item row (mm)
-
-PAGE_WIDTH_MM: float = 148.0
-PAGE_HEIGHT_MM: float = 105.0
-
-MARGIN_LEFT_MM: float = 4.0
-MARGIN_RIGHT_MM: float = 4.0
-MARGIN_TOP_MM: float = 5.0
-MARGIN_BOTTOM_MM: float = 5.0
-
-CONTENT_WIDTH_MM: float = 140.0   # 148 - 8 = 140.0 mm
-CONTENT_HEIGHT_MM: float = 95.0  # 105 - 10 = 95.0 mm
-
-# Exact Vertical Budget Coordinates (mm)
-HEADER_Y_START_MM: float = 5.0
-HEADER_HEIGHT_MM: float = 24.0
-HEADER_Y_END_MM: float = 29.0       # 5.0 + 24.0
-
-SPACING_1_MM: float = 2.0
-ITEM_START_Y_MM: float = 31.0       # 29.0 + 2.0
-ITEM_AREA_HEIGHT_MM: float = 40.0   # 10 rows * 4.0 mm
-ITEM_END_Y_MM: float = 71.0         # 31.0 + 40.0
-
-SPACING_2_MM: float = 4.0
-FOOTER_START_Y_MM: float = 75.0     # 71.0 + 4.0
-FOOTER_HEIGHT_MM: float = 25.0
-FOOTER_END_Y_MM: float = 100.0      # 75.0 + 25.0
-
-MM_TO_PT: float = 72.0 / 25.4       # ~2.8346 pt/mm
-
 # ── Canon LBP2900 Printer Settings (Shared Calibration) ───────────────
 ROTATE_FOR_FEED: bool = True
 ROTATE_DIRECTION: int = 90
 OFFSET_X_MM: float = 0.0
 OFFSET_Y_MM: float = 0.0
 
-# ── Table Columns (Sum of widths = 140.0 mm) ──────────────────────────
-# QTY 8 | UNIT 15 | DESCRIPTION 38 | COMP. 12 | BATCH 28 | EXP. DT 19 | AMT 20
-COLUMN_DEFS = [
-    ("qty", "QTY", 8.0, "right"),
-    ("unit", "UNIT", 15.0, "left"),
-    ("description", "DESCRIPTION", 38.0, "left"),
-    ("comp", "COMP.", 12.0, "left"),
-    ("batch", "BATCH", 28.0, "left"),
-    ("expiry", "EXP. DT", 19.0, "left"),
-    ("amount", "AMT", 20.0, "right"),
-]
+MM_TO_PT: float = 72.0 / 25.4       # ~2.8346 pt/mm
+
+# ── Paper Profiles (A6 Default matching printer paper & Image, A5 Supported) ──
+PAPER_PROFILES: dict[str, dict[str, Any]] = {
+    "A6": {
+        "page_width_mm": 148.0,
+        "page_height_mm": 105.0,
+        "margin_left_mm": 4.0,
+        "margin_right_mm": 4.0,
+        "margin_top_mm": 5.0,
+        "margin_bottom_mm": 5.0,
+        "content_width_mm": 140.0,
+        "content_height_mm": 95.0,
+        "header_y_start_mm": 5.0,
+        "rule1_y_mm": 24.5,
+        "headings_y_mm": 24.9,
+        "rule2_y_mm": 29.0,
+        "item_start_y_mm": 31.0,
+        "item_rows": 10,
+        "row_height_mm": 4.0,
+        "item_end_y_mm": 71.0,
+        "net_amt_y_mm": 75.0,
+        "footer_start_y_mm": 75.0,
+        "columns": [
+            ("qty", "QTY", 8.0, "left"),
+            ("unit", "UNIT", 15.0, "left"),
+            ("description", "DESCRIPTION", 38.0, "left"),
+            ("comp", "COMP.", 12.0, "left"),
+            ("batch", "BATCH", 28.0, "left"),
+            ("expiry", "EXP. DT", 19.0, "left"),
+            ("amount", "AMT", 20.0, "right"),
+        ],
+        "fonts": {
+            "shop_name": 12.0,
+            "address": 8.0,
+            "meta": 8.5,
+            "headings": 8.5,
+            "items": 8.5,
+            "batch_max": 8.5,
+            "batch_min": 6.5,
+            "net_amt": 11.0,
+            "footer": 8.5,
+            "watermark": 6.0,
+        },
+    },
+    "A5": {
+        "page_width_mm": 210.0,
+        "page_height_mm": 148.0,
+        "margin_left_mm": 12.0,
+        "margin_right_mm": 12.0,
+        "margin_top_mm": 10.0,
+        "margin_bottom_mm": 10.0,
+        "content_width_mm": 186.0,
+        "content_height_mm": 128.0,
+        "header_y_start_mm": 10.0,
+        "rule1_y_mm": 36.0,
+        "headings_y_mm": 36.8,
+        "rule2_y_mm": 42.5,
+        "item_start_y_mm": 44.0,
+        "item_rows": 10,
+        "row_height_mm": 5.0,
+        "item_end_y_mm": 94.0,
+        "net_amt_y_mm": 96.5,
+        "footer_start_y_mm": 105.0,
+        "columns": [
+            ("qty", "QTY", 14.0, "left"),
+            ("unit", "UNIT", 20.0, "left"),
+            ("description", "DESCRIPTION", 50.0, "left"),
+            ("comp", "COMP.", 16.0, "left"),
+            ("batch", "BATCH", 32.0, "left"),
+            ("expiry", "EXP. DT", 26.0, "left"),
+            ("amount", "AMT", 28.0, "right"),
+        ],
+        "fonts": {
+            "shop_name": 15.0,
+            "address": 8.5,
+            "meta": 10.5,
+            "headings": 10.5,
+            "items": 10.5,
+            "batch_max": 10.5,
+            "batch_min": 7.5,
+            "net_amt": 12.0,
+            "footer": 9.5,
+            "watermark": 6.0,
+        },
+    },
+}
+
+DEFAULT_PAPER_SIZE: str = os.environ.get("PMS_BILL_PAPER_SIZE", "A6").upper()
+
+
+def get_paper_profile(name: str | None = None) -> dict[str, Any]:
+    """Retrieve geometry and font configuration for the given paper size (A6 or A5)."""
+    key = str(name or DEFAULT_PAPER_SIZE).strip().upper()
+    return PAPER_PROFILES.get(key, PAPER_PROFILES["A6"])
+
+
+def set_default_paper_size(name: str) -> None:
+    """Set default paper size ('A6' or 'A5')."""
+    global DEFAULT_PAPER_SIZE
+    key = str(name).strip().upper()
+    if key in PAPER_PROFILES:
+        DEFAULT_PAPER_SIZE = key
+
+
+# Active profile aliases for backward compatibility
+_active_prof = get_paper_profile()
+ITEM_ROWS: int = _active_prof["item_rows"]
+ITEM_LINES: int = ITEM_ROWS
+ROW_HEIGHT_MM: float = _active_prof["row_height_mm"]
+
+PAGE_WIDTH_MM: float = _active_prof["page_width_mm"]
+PAGE_HEIGHT_MM: float = _active_prof["page_height_mm"]
+
+MARGIN_LEFT_MM: float = _active_prof["margin_left_mm"]
+MARGIN_RIGHT_MM: float = _active_prof["margin_right_mm"]
+MARGIN_TOP_MM: float = _active_prof["margin_top_mm"]
+MARGIN_BOTTOM_MM: float = _active_prof["margin_bottom_mm"]
+
+CONTENT_WIDTH_MM: float = _active_prof["content_width_mm"]
+CONTENT_HEIGHT_MM: float = _active_prof["content_height_mm"]
+
+HEADER_Y_START_MM: float = _active_prof["header_y_start_mm"]
+ITEM_START_Y_MM: float = _active_prof["item_start_y_mm"]
+ITEM_END_Y_MM: float = _active_prof["item_end_y_mm"]
+FOOTER_START_Y_MM: float = _active_prof["footer_start_y_mm"]
+
+COLUMN_DEFS = _active_prof["columns"]
 
 
 def log_loaded_report_path(report_file: str | None = None) -> str:
@@ -205,21 +299,26 @@ def paginate_items(
     show_duplicate: bool = False,
     report_file: str | None = None,
     watermark: str | None = None,
+    paper_size: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Paginate item rows into fixed-size A6 pages with exactly ITEM_ROWS rows each."""
+    """Paginate item rows into fixed-size pages with exactly 10 rows each."""
     log_loaded_report_path(report_file)
     total_items = len(items)
-    num_pages = max(1, math.ceil(total_items / ITEM_ROWS)) if total_items > 0 else 1
+    prof = get_paper_profile(paper_size)
+    num_rows = prof["item_rows"]
+    num_pages = max(1, math.ceil(total_items / num_rows)) if total_items > 0 else 1
     store = get_store_identity()
+
+    effective_paper_size = (paper_size or DEFAULT_PAPER_SIZE).upper()
 
     pages: list[dict[str, Any]] = []
     for page_idx in range(num_pages):
-        start_idx = page_idx * ITEM_ROWS
-        end_idx = min(start_idx + ITEM_ROWS, total_items)
+        start_idx = page_idx * num_rows
+        end_idx = min(start_idx + num_rows, total_items)
         page_items = items[start_idx:end_idx]
 
         padded_items = list(page_items)
-        while len(padded_items) < ITEM_ROWS:
+        while len(padded_items) < num_rows:
             padded_items.append({})
 
         is_last = (page_idx == num_pages - 1)
@@ -232,6 +331,7 @@ def paginate_items(
             "store": store,
             "show_duplicate": show_duplicate,
             "watermark": watermark,
+            "paper_size": effective_paper_size,
         })
     return pages
 
@@ -240,6 +340,7 @@ def paginate_duplicate_items(
     head: dict[str, Any],
     items: list[dict[str, Any]],
     show_duplicate: bool = True,
+    paper_size: str | None = None,
 ) -> list[dict[str, Any]]:
     """Pagination alias for Duplicate Sales Bill with 'RPT v2' watermark."""
     return paginate_items(
@@ -248,6 +349,7 @@ def paginate_duplicate_items(
         show_duplicate=show_duplicate,
         report_file=DUP_RPT_FILE_PATH,
         watermark=REPORT_VERSION_TAG,
+        paper_size=paper_size,
     )
 
 
@@ -260,15 +362,27 @@ def _draw_bold_text(
     text: str,
     pt_size: float,
     align: str = "left",
+    weight: int = 900,
+    overdraw: bool = True,
+    scale: float | None = None,
 ) -> None:
-    """Draw bold Arial text inside specified bounding rect."""
+    """Draw heavy bold Arial text inside specified bounding rect with toner thickening.
+
+    When scale is provided (> 0), sets pixelSize directly derived from resolution
+    so text renders in identical proportions at 300 DPI, 150 DPI, or on paper.
+    """
     clean_text = str(text or "").strip()
     if not clean_text:
         return
     font = QFont("Arial", -1)
-    font.setPointSizeF(pt_size)
-    font.setBold(True)
+    if scale is not None and scale > 0:
+        px_size = max(1, int(round(pt_size * scale / MM_TO_PT)))
+        font.setPixelSize(px_size)
+    else:
+        font.setPointSizeF(pt_size)
+    font.setWeight(QFont.Weight(weight))
     painter.setFont(font)
+    painter.setPen(QColor("#000000"))
 
     qt_align = Qt.AlignVCenter
     if align == "right":
@@ -280,6 +394,11 @@ def _draw_bold_text(
 
     rect = QRectF(x, y, w, h)
     painter.drawText(rect, qt_align, clean_text)
+    if overdraw:
+        # Subtle horizontal & vertical overdraw for solid, dark laser printer toner deposition
+        ov = max(0.5, 0.08 * scale) if (scale and scale > 0) else 1.0
+        painter.drawText(rect.translated(ov, 0.0), qt_align, clean_text)
+        painter.drawText(rect.translated(0.0, ov * 0.5), qt_align, clean_text)
 
 
 def _draw_shrink_to_fit_bold(
@@ -289,11 +408,14 @@ def _draw_shrink_to_fit_bold(
     w: float,
     h: float,
     text: str,
-    max_pt: float = 8.0,
-    min_pt: float = 6.0,
+    max_pt: float = 8.5,
+    min_pt: float = 6.5,
     align: str = "left",
+    weight: int = 900,
+    overdraw: bool = True,
+    scale: float | None = None,
 ) -> None:
-    """Draw bold Arial text with shrink-to-fit down to min_pt.
+    """Draw heavy bold Arial text with shrink-to-fit down to min_pt.
 
     NEVER truncates with '...' and NEVER cuts characters.
     """
@@ -302,11 +424,14 @@ def _draw_shrink_to_fit_bold(
         return
 
     font = QFont("Arial", -1)
-    font.setBold(True)
+    font.setWeight(QFont.Weight(weight))
 
     pt = max_pt
     while pt > min_pt:
-        font.setPointSizeF(pt)
+        if scale is not None and scale > 0:
+            font.setPixelSize(max(1, int(round(pt * scale / MM_TO_PT))))
+        else:
+            font.setPointSizeF(pt)
         fm = QFontMetricsF(font)
         if fm.horizontalAdvance(clean_text) <= w:
             break
@@ -314,19 +439,7 @@ def _draw_shrink_to_fit_bold(
     if pt < min_pt:
         pt = min_pt
 
-    font.setPointSizeF(pt)
-    painter.setFont(font)
-
-    qt_align = Qt.AlignVCenter
-    if align == "right":
-        qt_align |= Qt.AlignRight
-    elif align == "center":
-        qt_align |= Qt.AlignHCenter
-    else:
-        qt_align |= Qt.AlignLeft
-
-    rect = QRectF(x, y, w, h)
-    painter.drawText(rect, qt_align, clean_text)
+    _draw_bold_text(painter, x, y, w, h, clean_text, pt, align, weight, overdraw, scale=scale)
 
 
 def _draw_cut_to_fit_bold(
@@ -336,18 +449,23 @@ def _draw_cut_to_fit_bold(
     w: float,
     h: float,
     text: str,
-    pt_size: float = 8.0,
+    pt_size: float = 8.5,
     align: str = "left",
+    weight: int = 900,
+    overdraw: bool = True,
+    scale: float | None = None,
 ) -> None:
-    """Draw bold Arial text cut to column width without dots, single line."""
+    """Draw heavy bold Arial text cut to column width without dots, single line."""
     clean_text = str(text or "").strip()
     if not clean_text:
         return
 
     font = QFont("Arial", -1)
-    font.setPointSizeF(pt_size)
-    font.setBold(True)
-    painter.setFont(font)
+    if scale is not None and scale > 0:
+        font.setPixelSize(max(1, int(round(pt_size * scale / MM_TO_PT))))
+    else:
+        font.setPointSizeF(pt_size)
+    font.setWeight(QFont.Weight(weight))
     fm = QFontMetricsF(font)
 
     if fm.horizontalAdvance(clean_text) > w:
@@ -356,30 +474,14 @@ def _draw_cut_to_fit_bold(
             cut_len -= 1
         clean_text = clean_text[:cut_len]
 
-    qt_align = Qt.AlignVCenter
-    if align == "right":
-        qt_align |= Qt.AlignRight
-    elif align == "center":
-        qt_align |= Qt.AlignHCenter
-    else:
-        qt_align |= Qt.AlignLeft
-
-    rect = QRectF(x, y, w, h)
-    painter.drawText(rect, qt_align, clean_text)
+    _draw_bold_text(painter, x, y, w, h, clean_text, pt_size, align, weight, overdraw, scale=scale)
 
 
 def draw_a6_cash_memo_page(painter: QPainter, page: dict[str, Any], scale: float = 1.0) -> None:
-    """Render a single A6 Landscape Cash Memo page with 100% precision.
+    """Render a single Cash Memo page with 100% precision matching Image 1."""
+    paper_size = page.get("paper_size") or DEFAULT_PAPER_SIZE
+    prof = get_paper_profile(paper_size)
 
-    Fixed layout:
-    - Top: 5.0 mm to 29.0 mm (Header: Store name, address, patient, doctor, memo#, date)
-    - Thin Rule 1 (0.25 pt): Y = 24.5 mm
-    - Column Headers: Y = 24.9 mm to 28.7 mm
-    - Thin Rule 2 (0.25 pt): Y = 29.0 mm
-    - Middle: Y = 31.0 mm to 71.0 mm (Exactly 10 item rows x 4.0 mm = 40 mm)
-    - Thin Rule 3 (0.25 pt): Y = 71.0 mm
-    - Bottom: Y = 75.0 mm to 100.0 mm (Fixed Footer: Jurisdiction, Licences, GSTIN, Net Amt)
-    """
     head = page.get("head") or {}
     store = page.get("store") or {}
     show_duplicate = bool(page.get("show_duplicate", False))
@@ -400,29 +502,36 @@ def draw_a6_cash_memo_page(painter: QPainter, page: dict[str, Any], scale: float
     def rh(mm: float) -> float:
         return mm * scale
 
-    x0 = rx(MARGIN_LEFT_MM)
-    x1 = rx(MARGIN_LEFT_MM + CONTENT_WIDTH_MM)
-    w_content = rw(CONTENT_WIDTH_MM)
+    margin_left = prof["margin_left_mm"]
+    content_width = prof["content_width_mm"]
+    x0 = rx(margin_left)
+    x1 = rx(margin_left + content_width)
+    w_content = rw(content_width)
 
-    # Cosmetic hairline pen (0.25 pt)
-    pen_hairline = QPen(QColor("#000000"), 0, Qt.SolidLine)
-    pen_hairline.setCosmetic(True)
-    painter.setPen(pen_hairline)
+    fonts = prof["fonts"]
+    columns = prof["columns"]
+
+    # Solid crisp rule pen (0.35 mm width, ~4 px at 300 DPI) for dark visible separator rules
+    pen_rule = QPen(QColor("#000000"), max(2.5, rw(0.35)), Qt.SolidLine, Qt.SquareCap)
+    painter.setPen(pen_rule)
 
     # ══════════════════════════════════════════════════════════════════
-    # 1. HEADER (Fixed at top, Y = 5.0 to 29.0 mm)
+    # 1. HEADER (Fixed at top, centered, balanced)
     # ══════════════════════════════════════════════════════════════════
-    # Line 1: Shop Name (centered, 11 pt bold, from firm master)
     shop_name = store.get("name", "SHREE SAMARTH MEDICAL AND GEN STORE")
+    h_y_start = prof["header_y_start_mm"]
+
+    # Line 1: Shop Name (centered, 12.0 pt on A6 / 15.0 pt on A5)
     _draw_bold_text(
         painter,
         x=x0,
-        y=ry(5.2),
+        y=ry(h_y_start),
         w=w_content,
-        h=rh(4.8),
+        h=rh(6.0 if paper_size == "A5" else 5.0),
         text=shop_name,
-        pt_size=11.0,
+        pt_size=fonts["shop_name"],
         align="center",
+        scale=scale,
     )
 
     # Page number at top-right only if multi-page
@@ -430,29 +539,32 @@ def draw_a6_cash_memo_page(painter: QPainter, page: dict[str, Any], scale: float
         page_str = f"Page {page_num} of {total_pages}"
         _draw_bold_text(
             painter,
-            x=rx(MARGIN_LEFT_MM + CONTENT_WIDTH_MM - 35.0),
-            y=ry(5.2),
-            w=rw(35.0),
-            h=rh(4.0),
+            x=rx(margin_left + content_width - 38.0),
+            y=ry(h_y_start),
+            w=rw(38.0),
+            h=rh(4.5),
             text=page_str,
-            pt_size=8.0,
+            pt_size=fonts["meta"],
             align="right",
+            scale=scale,
         )
 
-    # Line 2: Shop Address (centered, 7 pt bold, from firm master)
+    # Line 2: Shop Address (centered, 8.0 pt on A6 / 8.5 pt on A5)
     shop_addr = store.get("address", "GHORPADE HOSPITAL, RAHURI")
+    addr_y = h_y_start + (6.5 if paper_size == "A5" else 5.2)
     _draw_bold_text(
         painter,
         x=x0,
-        y=ry(10.4),
+        y=ry(addr_y),
         w=w_content,
-        h=rh(3.6),
+        h=rh(4.2 if paper_size == "A5" else 3.8),
         text=shop_addr,
-        pt_size=7.0,
+        pt_size=fonts["address"],
         align="center",
+        scale=scale,
     )
 
-    # Left & Right Block (8 pt bold)
+    # Left & Right Block (8.5 pt on A6 / 10.5 pt on A5)
     cust_name = str(head.get("patient_name") or head.get("customer_name") or "WALKIN").strip()
     addr = str(head.get("address") or "").strip()
     name_str = f"Name : {cust_name}" + (f", {addr}" if addr else "")
@@ -470,50 +582,62 @@ def draw_a6_cash_memo_page(painter: QPainter, page: dict[str, Any], scale: float
     sale_date_raw = head.get("vh_date") or head.get("sale_date")
     dt_str = f"Date : {format_display_date(sale_date_raw)}"
 
-    left_w = rw(CONTENT_WIDTH_MM * 0.58)
-    right_w = rw(CONTENT_WIDTH_MM * 0.42)
+    left_w = rw(content_width * 0.60)
+    right_w = rw(content_width * 0.40)
     right_x = x0 + left_w
 
-    # Meta Row 1 (Y: 14.5 mm)
-    _draw_cut_to_fit_bold(painter, x0, ry(14.5), left_w, rh(3.8), name_str, 8.0, "left")
-    _draw_cut_to_fit_bold(painter, right_x, ry(14.5), right_w, rh(3.8), memo_str, 8.0, "right")
+    meta_y1 = h_y_start + (12.0 if paper_size == "A5" else 9.3)
+    meta_y2 = h_y_start + (18.0 if paper_size == "A5" else 13.5)
+    meta_h = 5.0 if paper_size == "A5" else 4.0
 
-    # Meta Row 2 (Y: 18.5 mm)
-    _draw_cut_to_fit_bold(painter, x0, ry(18.5), left_w, rh(3.8), doc_str, 8.0, "left")
-    _draw_cut_to_fit_bold(painter, right_x, ry(18.5), right_w, rh(3.8), dt_str, 8.0, "right")
+    # Meta Row 1
+    _draw_cut_to_fit_bold(painter, x0, ry(meta_y1), left_w, rh(meta_h), name_str, fonts["meta"], "left", scale=scale)
+    _draw_cut_to_fit_bold(painter, right_x, ry(meta_y1), right_w, rh(meta_h), memo_str, fonts["meta"], "right", scale=scale)
 
-    # Thin Rule 1 (0.25 pt): Above Column Headings (Y = 24.5 mm)
-    painter.setPen(pen_hairline)
-    painter.drawLine(QPointF(x0, ry(24.5)), QPointF(x1, ry(24.5)))
+    # Meta Row 2
+    _draw_cut_to_fit_bold(painter, x0, ry(meta_y2), left_w, rh(meta_h), doc_str, fonts["meta"], "left", scale=scale)
+    _draw_cut_to_fit_bold(painter, right_x, ry(meta_y2), right_w, rh(meta_h), dt_str, fonts["meta"], "right", scale=scale)
 
-    # Column Headings (8 pt bold, Y: 24.9 to 28.7 mm)
-    col_x_mm = MARGIN_LEFT_MM
-    for key, title, width_mm, align in COLUMN_DEFS:
+    # Thin Rule 1 (0.35 mm solid): Above Column Headings
+    rule1_y = prof["rule1_y_mm"]
+    painter.setPen(pen_rule)
+    painter.drawLine(QPointF(x0, ry(rule1_y)), QPointF(x1, ry(rule1_y)))
+
+    # Column Headings
+    headings_y = prof["headings_y_mm"]
+    col_x_mm = margin_left
+    for key, title, width_mm, align in columns:
         cx = rx(col_x_mm)
         cw = rw(width_mm)
-        pad = rw(0.6) if align == "left" else 0.0
-        r_pad = rw(0.6) if align == "right" else 0.0
-        _draw_bold_text(
+        pad = rw(0.8) if align == "left" else 0.0
+        r_pad = rw(0.8) if align == "right" else 0.0
+        _draw_shrink_to_fit_bold(
             painter,
             cx + pad,
-            ry(24.9),
+            ry(headings_y),
             cw - pad - r_pad,
-            rh(3.8),
+            rh(5.0 if paper_size == "A5" else 3.8),
             title,
-            8.0,
-            align,
+            max_pt=fonts["headings"],
+            min_pt=7.5,
+            align=align,
+            scale=scale,
         )
         col_x_mm += width_mm
 
-    # Thin Rule 2 (0.25 pt): Below Column Headings (Y = 29.0 mm)
-    painter.drawLine(QPointF(x0, ry(29.0)), QPointF(x1, ry(29.0)))
+    # Thin Rule 2 (0.35 mm solid): Below Column Headings
+    rule2_y = prof["rule2_y_mm"]
+    painter.drawLine(QPointF(x0, ry(rule2_y)), QPointF(x1, ry(rule2_y)))
 
     # ══════════════════════════════════════════════════════════════════
-    # 2. MIDDLE - RESERVED ITEM AREA (Exactly ITEM_ROWS = 10 rows)
+    # 2. MIDDLE - RESERVED ITEM AREA (Exactly 10 rows)
     # ══════════════════════════════════════════════════════════════════
-    # Y = 31.0 mm to 71.0 mm (40.0 mm height, 10 rows x 4.0 mm)
-    for r_idx in range(ITEM_ROWS):
-        curr_y_mm = ITEM_START_Y_MM + r_idx * ROW_HEIGHT_MM
+    num_rows = prof["item_rows"]
+    row_h = prof["row_height_mm"]
+    item_start_y = prof["item_start_y_mm"]
+
+    for r_idx in range(num_rows):
+        curr_y_mm = item_start_y + r_idx * row_h
         itm = page["items"][r_idx]
 
         if itm and (itm.get("item_name") or itm.get("sales_qty") or itm.get("sale_qty") or itm.get("amount") or itm.get("batch_no")):
@@ -536,26 +660,27 @@ def draw_a6_cash_memo_page(painter: QPainter, page: dict[str, Any], scale: float
                 "amount": amt_str,
             }
 
-            col_x_mm = MARGIN_LEFT_MM
-            for key, title, width_mm, align in COLUMN_DEFS:
+            col_x_mm = margin_left
+            for key, title, width_mm, align in columns:
                 val = row_map.get(key, "")
                 cx = rx(col_x_mm)
                 cw = rw(width_mm)
-                pad = rw(0.6) if align == "left" else 0.0
-                r_pad = rw(0.6) if align == "right" else 0.0
+                pad = rw(0.8) if align == "left" else 0.0
+                r_pad = rw(0.8) if align == "right" else 0.0
 
                 if key == "batch":
-                    # BATCH: Shrink-to-fit down to 6 pt, NEVER cut, NEVER '...'
+                    # BATCH: Shrink-to-fit down to min_pt, NEVER cut, NEVER '...'
                     _draw_shrink_to_fit_bold(
                         painter,
                         cx + pad,
                         ry(curr_y_mm),
                         cw - pad - r_pad,
-                        rh(ROW_HEIGHT_MM),
+                        rh(row_h),
                         val,
-                        max_pt=8.0,
-                        min_pt=6.0,
+                        max_pt=fonts["batch_max"],
+                        min_pt=fonts["batch_min"],
                         align=align,
+                        scale=scale,
                     )
                 elif key == "description":
                     # DESCRIPTION: Cut at column width without dots
@@ -564,32 +689,55 @@ def draw_a6_cash_memo_page(painter: QPainter, page: dict[str, Any], scale: float
                         cx + pad,
                         ry(curr_y_mm),
                         cw - pad - r_pad,
-                        rh(ROW_HEIGHT_MM),
+                        rh(row_h),
                         val,
-                        pt_size=8.0,
+                        pt_size=fonts["items"],
                         align=align,
+                        scale=scale,
                     )
                 else:
-                    _draw_bold_text(
+                    _draw_shrink_to_fit_bold(
                         painter,
                         cx + pad,
                         ry(curr_y_mm),
                         cw - pad - r_pad,
-                        rh(ROW_HEIGHT_MM),
+                        rh(row_h),
                         val,
-                        pt_size=8.0,
+                        max_pt=fonts["items"],
+                        min_pt=6.5,
                         align=align,
+                        scale=scale,
                     )
                 col_x_mm += width_mm
 
-    # Thin Rule 3 (0.25 pt): Below Items (Y = 71.0 mm)
-    painter.setPen(pen_hairline)
-    painter.drawLine(QPointF(x0, ry(ITEM_END_Y_MM)), QPointF(x1, ry(ITEM_END_Y_MM)))
+    # Thin Rule 3 (0.35 mm solid): Below Items
+    item_end_y = prof["item_end_y_mm"]
+    painter.setPen(pen_rule)
+    painter.drawLine(QPointF(x0, ry(item_end_y)), QPointF(x1, ry(item_end_y)))
+
+    # Net Amt on the right, below the table (11 pt prominent bold on A6)
+    if is_last:
+        net_val = float(head.get("net_amount") or 0.0)
+        net_str = f"Net Amt : {int(round(net_val))}"
+    else:
+        net_str = "Continued..."
+
+    net_amt_y = prof["net_amt_y_mm"]
+    _draw_bold_text(
+        painter,
+        right_x,
+        ry(net_amt_y),
+        right_w,
+        rh(6.0 if paper_size == "A5" else 4.8),
+        net_str,
+        fonts["net_amt"],
+        "right",
+        scale=scale,
+    )
 
     # ══════════════════════════════════════════════════════════════════
-    # 3. FOOTER (Fixed at Bottom, Y = 75.0 to 100.0 mm)
+    # 3. FOOTER (Fixed at Bottom, balanced margins)
     # ══════════════════════════════════════════════════════════════════
-    # Left Block (8 pt bold): Jurisdiction, Licences (wrapped up to 2 lines), GSTIN
     jur = store.get("jurisdiction", "AHMEDNAGAR")
     jur_line = f"E & O E. Subject to {jur} Jurisdiction"
     licence_raw = store.get("licence", "")
@@ -604,55 +752,65 @@ def draw_a6_cash_memo_page(painter: QPainter, page: dict[str, Any], scale: float
             lic_line1 = licence_raw[:split_idx + 1].strip()
             lic_line2 = licence_raw[split_idx + 1:].strip()
 
-    foot_left_w = rw(CONTENT_WIDTH_MM * 0.58)
+    foot_left_w = rw(content_width * 0.65)
+    foot_right_w = rw(content_width * 0.35)
+    foot_right_x = x0 + foot_left_w
+    foot_y = prof["footer_start_y_mm"]
 
     # Line 1: Jurisdiction
-    _draw_bold_text(painter, x0, ry(75.5), foot_left_w, rh(4.0), jur_line, 8.0, "left")
+    _draw_shrink_to_fit_bold(
+        painter,
+        x0,
+        ry(foot_y),
+        foot_left_w,
+        rh(4.5),
+        jur_line,
+        max_pt=fonts["footer"],
+        min_pt=7.5,
+        align="left",
+        scale=scale,
+    )
 
     # Line 2 & 3: Licences (wrapped so never clipped)
-    _draw_bold_text(painter, x0, ry(80.0), foot_left_w, rh(4.0), lic_line1, 8.0, "left")
-    curr_foot_y_mm = 84.5
+    lic_y1 = foot_y + (5.0 if paper_size == "A5" else 4.5)
+    _draw_bold_text(painter, x0, ry(lic_y1), foot_left_w, rh(4.5), lic_line1, fonts["footer"], "left", scale=scale)
+    curr_foot_y_mm = lic_y1 + (5.0 if paper_size == "A5" else 4.5)
     if lic_line2:
-        _draw_bold_text(painter, x0, ry(curr_foot_y_mm), foot_left_w, rh(4.0), lic_line2, 8.0, "left")
-        curr_foot_y_mm += 4.5
+        _draw_bold_text(painter, x0, ry(curr_foot_y_mm), foot_left_w, rh(4.5), lic_line2, fonts["footer"], "left", scale=scale)
+        curr_foot_y_mm += (5.0 if paper_size == "A5" else 4.5)
 
-    # Line 4: GSTIN (no debug ID or remarks printed!)
-    if gstin_raw:
-        _draw_bold_text(painter, x0, ry(curr_foot_y_mm), foot_left_w, rh(4.0), f"GSTIN: {gstin_raw}", 8.0, "left")
+    # Line 4: GSTIN
+    gstin_display = f"GSTIN: {gstin_raw}" if gstin_raw else "GSTIN:"
+    _draw_bold_text(painter, x0, ry(curr_foot_y_mm), foot_left_w, rh(4.5), gstin_display, fonts["footer"], "left", scale=scale)
 
-    # Right Block (8 pt bold): Net Amt (or Continued...), Shop Name, Pharmacist/Sign
-    foot_right_w = rw(CONTENT_WIDTH_MM * 0.42)
-    foot_right_x = x0 + foot_left_w
+    # Right Block: Shop Name, Pharmacist/Sign
+    shop_foot_y = foot_y + (5.0 if paper_size == "A5" else 8.5)
+    sign_foot_y = foot_y + (15.0 if paper_size == "A5" else 17.5)
+    # Shop Name: wide right bounding box from left margin offset to prevent clipping the first letter 'S'
+    _draw_bold_text(painter, rx(margin_left + 35.0), ry(shop_foot_y), rw(content_width - 35.0), rh(4.5), shop_name, fonts["footer"], "right", scale=scale)
+    _draw_bold_text(painter, foot_right_x, ry(sign_foot_y), foot_right_w, rh(4.5), "Pharmacist/Sign", fonts["footer"], "right", scale=scale)
 
-    if is_last:
-        net_val = float(head.get("net_amount") or 0.0)
-        net_str = f"Net Amt : {int(round(net_val))}"
-    else:
-        net_str = "Continued..."
-
-    # Row 1: Net Amt / Continued...
-    _draw_bold_text(painter, foot_right_x, ry(75.5), foot_right_w, rh(4.8), net_str, 8.0, "right")
-
-    # Row 2: Shop Name
-    _draw_bold_text(painter, foot_right_x, ry(83.5), foot_right_w, rh(4.2), shop_name, 8.0, "right")
-
-    # Row 3: Pharmacist/Sign
-    _draw_bold_text(painter, foot_right_x, ry(92.5), foot_right_w, rh(4.2), "Pharmacist/Sign", 8.0, "right")
-
-    # Watermark (if present, tiny 5 pt grey text)
+    # Watermark (if present, tiny 6 pt grey text)
     if watermark_text:
         f_watermark = QFont("Arial", -1)
-        f_watermark.setPointSizeF(5.0)
+        if scale > 0:
+            f_watermark.setPixelSize(max(1, int(round(fonts["watermark"] * scale / MM_TO_PT))))
+        else:
+            f_watermark.setPointSizeF(fonts["watermark"])
         painter.setFont(f_watermark)
         painter.setPen(QColor("#888888"))
-        painter.drawText(QRectF(x0, ry(98.5), w_content, rh(3.0)), Qt.AlignRight | Qt.AlignVCenter, watermark_text)
+        wm_y = prof["page_height_mm"] - prof["margin_bottom_mm"] - 4.0
+        painter.drawText(QRectF(x0, ry(wm_y), w_content, rh(3.5)), Qt.AlignRight | Qt.AlignVCenter, watermark_text)
 
 
 def render_a6_cash_memo_pixmap(page: dict[str, Any], dpi: float = 300.0) -> QPixmap:
-    """Render page dict into an A6 Landscape QPixmap at specified DPI (default 300 DPI)."""
+    """Render page dict into an A5 (or A6) Landscape QPixmap at specified DPI (default 300 DPI)."""
+    paper_size = page.get("paper_size") or DEFAULT_PAPER_SIZE
+    prof = get_paper_profile(paper_size)
+
     scale = (dpi / 25.4)
-    w_px = int(round(PAGE_WIDTH_MM * scale))
-    h_px = int(round(PAGE_HEIGHT_MM * scale))
+    w_px = int(round(prof["page_width_mm"] * scale))
+    h_px = int(round(prof["page_height_mm"] * scale))
 
     pix = QPixmap(w_px, h_px)
     pix.fill(QColor("#ffffff"))
@@ -670,15 +828,20 @@ def generate_a6_cash_memo_pdf(
     pages: list[dict[str, Any]],
     output_path: str,
 ) -> str:
-    """Generate exact A6 Landscape PDF from pre-paginated pages."""
+    """Generate exact A5 (or A6) Landscape PDF from pre-paginated pages."""
     from PySide6.QtGui import QPdfWriter
 
     app = QApplication.instance() or QApplication([])
 
+    paper_size = pages[0].get("paper_size") if pages else DEFAULT_PAPER_SIZE
+    prof = get_paper_profile(paper_size)
+
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
     writer = QPdfWriter(output_path)
+
+    q_page_size = QPageSize.A5 if str(paper_size).upper() == "A5" else QPageSize.A6
     layout = QPageLayout(
-        QPageSize(QPageSize.A6),
+        QPageSize(q_page_size),
         QPageLayout.Landscape,
         QMarginsF(0, 0, 0, 0),
         QPageLayout.Millimeter,
@@ -706,9 +869,10 @@ def generate_duplicate_a6_pdf(
     items: list[dict[str, Any]],
     output_path: str,
     show_duplicate: bool = True,
+    paper_size: str | None = None,
 ) -> str:
-    """Generate exact A6 Landscape PDF for Duplicate Sales Bill."""
-    pages = paginate_duplicate_items(head, items, show_duplicate=show_duplicate)
+    """Generate exact Landscape PDF for Duplicate Sales Bill."""
+    pages = paginate_duplicate_items(head, items, show_duplicate=show_duplicate, paper_size=paper_size)
     return generate_a6_cash_memo_pdf(pages, output_path)
 
 
@@ -720,34 +884,40 @@ def print_a6_cash_memo(
     rotate_for_feed: bool = ROTATE_FOR_FEED,
     rotate_direction: int = ROTATE_DIRECTION,
 ) -> bool:
-    """Print A6 Landscape Cash Memo using Windows print system (Canon LBP2900).
+    """Print Landscape Cash Memo using Windows print system (Canon LBP2900).
 
     Fixes:
     1. OriginAtMargins = False (printer.setFullPage(True)) to eliminate driver margin shift.
     2. Render at 300 DPI, draw at 100% scale with integer pixel mapping (no 'fit to page').
-    3. NearestNeighbor rendering (SmoothPixmapTransform = False) so hairline rules stay crisp.
-    4. Short-edge feeding rotation (rotate_direction: 90 or 270 degrees).
+    3. Paper size matches physical sheet (A5 default or A6).
+    4. Short-edge feeding rotation (rotate_direction: 90 or 270 degrees) fills 100% of page.
     """
     try:
         from PySide6.QtPrintSupport import QPrintDialog, QPrinter
     except ImportError as exc:
         raise RuntimeError("Printer support requires PySide6.") from exc
 
+    paper_size = pages[0].get("paper_size") if pages else DEFAULT_PAPER_SIZE
+    prof = get_paper_profile(paper_size)
+
     printer = QPrinter(QPrinter.HighResolution)
     voucher_no = pages[0]["head"].get("voucher_no") or pages[0]["head"].get("bill_no") or "1" if pages else "1"
     printer.setDocName(f"{title} #{voucher_no}")
 
-    # Set paper size explicitly to A6 (105 x 148 mm Portrait feed or A6 Landscape)
+    # Set paper size explicitly to A5 (or A6)
+    q_page_size = QPageSize.A5 if str(paper_size).upper() == "A5" else QPageSize.A6
+
     if rotate_for_feed:
+        # In portrait feed, short edge is fed first
         layout = QPageLayout(
-            QPageSize(QSizeF(105, 148), QPageSize.Millimeter),
+            QPageSize(q_page_size),
             QPageLayout.Portrait,
             QMarginsF(0, 0, 0, 0),
             QPageLayout.Millimeter,
         )
     else:
         layout = QPageLayout(
-            QPageSize(QPageSize.A6),
+            QPageSize(q_page_size),
             QPageLayout.Landscape,
             QMarginsF(0, 0, 0, 0),
             QPageLayout.Millimeter,
@@ -759,7 +929,7 @@ def print_a6_cash_memo(
 
     if show_dialog:
         dlg = QPrintDialog(printer, parent)
-        dlg.setWindowTitle(f"Print {title} #{voucher_no} - A6 (148 x 105 mm)")
+        dlg.setWindowTitle(f"Print {title} #{voucher_no} - {paper_size} ({prof['page_width_mm']} x {prof['page_height_mm']} mm)")
         if dlg.exec() != QPrintDialog.Accepted:
             return False
 
@@ -768,7 +938,7 @@ def print_a6_cash_memo(
 
     painter = QPainter()
     if not painter.begin(printer):
-        raise RuntimeError("Could not open printer for A6 Landscape Cash Memo.")
+        raise RuntimeError(f"Could not open printer for {paper_size} Landscape Cash Memo.")
 
     painter.setRenderHint(QPainter.Antialiasing, False)
     painter.setRenderHint(QPainter.SmoothPixmapTransform, False)
@@ -809,9 +979,10 @@ def print_duplicate_a6_bill(
     show_duplicate: bool = True,
     rotate_for_feed: bool = ROTATE_FOR_FEED,
     rotate_direction: int = ROTATE_DIRECTION,
+    paper_size: str | None = None,
 ) -> bool:
-    """Print Duplicate Sales Bill on A6 Landscape."""
-    pages = paginate_duplicate_items(head, items, show_duplicate=show_duplicate)
+    """Print Duplicate Sales Bill on Landscape paper."""
+    pages = paginate_duplicate_items(head, items, show_duplicate=show_duplicate, paper_size=paper_size)
     return print_a6_cash_memo(
         pages=pages,
         parent=parent,
