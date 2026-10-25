@@ -195,7 +195,13 @@ class LegacyFlagDialogTests(unittest.TestCase):
         QApplication.processEvents()
         cells = {page._table.item(r, 1).text(): page._table.item(r, 7).text()
                  for r in range(page._table.rowCount())}
-        self.assertEqual(cells["Grid Flagged"], "Legacy Tax Code 6 \u2014 Mapping Required")
+        self.assertEqual(cells["Grid Flagged"], "GST @ 5% (CGST-2.5% & SGST-2.5%)")
+        ItemDAO.insert(item_name="Grid Code 1", tax_structure="1")
+        page._refresh()
+        QApplication.processEvents()
+        cells2 = {page._table.item(r, 1).text(): page._table.item(r, 7).text()
+                  for r in range(page._table.rowCount())}
+        self.assertEqual(cells2["Grid Code 1"], "Legacy Tax Code 1 \u2014 Mapping Required")
 
 
 if __name__ == "__main__":
