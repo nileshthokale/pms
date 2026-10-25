@@ -122,12 +122,6 @@ MENUS = {
         "Expiry Report",
         "Party Wise Report",
         "GST Report",
-        SubmenuDict({
-            "Sheduled H1 (Sales)": SCHEDULE_SALES_SUBMENU,
-        }),
-        SubmenuDict({
-            "Sheduled H1 (Purchase)": SCHEDULE_PURCHASE_SUBMENU,
-        }),
         {
             "Ledger": REPORT_LEDGER_SUBMENU,
         },
