@@ -80,16 +80,13 @@ MENUS = {
     "Sales": [
         "New Bill",
         "Hold Bill",
-        "Return Bill",
         "Sales History",
         "Day End",
     ],
     "Purchase": [
         "New Purchase",
-        "Purchase Return",
         "Purchase History",
         "Stock Adjustment",
-        "Supplier Payment",
     ],
     "Account": [
         "Debit Note (Return to Supplier)",

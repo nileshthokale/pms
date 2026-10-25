@@ -477,6 +477,18 @@ class SalesDAO:
             )
             invoice_id = cur.lastrowid
 
+            # Require valid medicine items before saving
+            if not items:
+                raise ValueError("Please select a medicine name before saving.")
+            for itm in items:
+                i_id = itm.get("item_id")
+                if not i_id:
+                    raise ValueError("Please select a medicine name before saving.")
+                cur.execute("SELECT id, item_name FROM items WHERE id = ?", (i_id,))
+                row_check = cur.fetchone()
+                if not row_check or not (row_check["item_name"] or "").strip():
+                    raise ValueError("Please select a medicine name before saving.")
+
             # Insert items and deduct stock
             for item in items:
                 cur.execute(
@@ -604,6 +616,18 @@ class SalesDAO:
                     net_amount, remarks, invoice_id,
                 ),
             )
+
+            # Require valid medicine items before saving
+            if not items:
+                raise ValueError("Please select a medicine name before saving.")
+            for itm in items:
+                i_id = itm.get("item_id")
+                if not i_id:
+                    raise ValueError("Please select a medicine name before saving.")
+                cur.execute("SELECT id, item_name FROM items WHERE id = ?", (i_id,))
+                row_check = cur.fetchone()
+                if not row_check or not (row_check["item_name"] or "").strip():
+                    raise ValueError("Please select a medicine name before saving.")
 
             # Insert new items and deduct stock (same checks as insert)
             for item in items:

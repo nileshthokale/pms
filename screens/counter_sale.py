@@ -43,7 +43,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from PySide6.QtGui import QFontMetrics, QStandardItem, QStandardItemModel
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QPalette, QStandardItem, QStandardItemModel
 
 from database.customer_dao import CustomerDAO, PatientOption
 from database.connection import get_connection
@@ -1612,15 +1612,48 @@ class _DBLookupCombo(_KeyboardCombo):
 # Bill line item data class
 # ======================================================================
 
+def is_schedule_h1(scheduled_val: object) -> bool:
+    """Return True if classification represents Schedule H1 (e.g. '2' or 'H1')."""
+    if not scheduled_val:
+        return False
+    s = str(scheduled_val).strip().upper()
+    return s in ("2", "H1") or "H1" in s
+
+
+def is_schedule_nrx(scheduled_val: object) -> bool:
+    """Return True if classification represents NRX (e.g. '4' or 'NRX')."""
+    if not scheduled_val:
+        return False
+    s = str(scheduled_val).strip().upper()
+    return s in ("4", "NRX") or "NRX" in s
+
+
+def is_schedule_h1_or_nrx(scheduled_val: object) -> bool:
+    """Return True if classification represents Schedule H1 or NRX."""
+    return is_schedule_h1(scheduled_val) or is_schedule_nrx(scheduled_val)
+
+
+def is_walkin_name(name: object) -> bool:
+    """Return True if the name is empty or represents WALKIN / walk-in customer."""
+    if not name:
+        return True
+    s = str(name).strip().upper()
+    if not s:
+        return True
+    cleaned = s.replace("-", "").replace(" ", "").replace("_", "")
+    return cleaned in ("WALKIN", "WALKINCUSTOMER") or s in ("WALKIN", "WALK-IN", "WALK IN", "WALKIN CUSTOMER")
+
 class _BillItemRow:
     """One line item in the current bill."""
 
     def __init__(self, item_id: int, item_name: str, stock_batch_id: int,
                  pack_size: str, location: str, batch_no: str, expiry: str,
                  mrp: float, sale_qty: float, discount_amount: float,
-                 amount: float, net_rate: float = 0.0, purchase_rate: float = 0.0):
+                 amount: float, net_rate: float = 0.0, purchase_rate: float = 0.0,
+                 scheduled: str = ""):
         self.item_id = item_id
         self.item_name = item_name
+        self.scheduled = scheduled
         self.stock_batch_id = stock_batch_id
         self.pack_size = pack_size
         self.location = location
@@ -2230,15 +2263,64 @@ class _ItemEntryBar(QWidget):
             item_name = (it["item_name"] or "").strip()
             self.item_combo.addItem(item_name, it["id"])
             self._items_by_id[it["id"]] = it
+            idx = self.item_combo.count() - 1
+            is_sched = is_schedule_h1_or_nrx(it.get("scheduled"))
+            sched_color = QColor(Qt.red) if is_sched else QColor(Qt.black)
+            self.item_combo.setItemData(idx, sched_color, Qt.ForegroundRole)
+
             completion_item = QStandardItem(item_name)
             completion_item.setData(it["id"], Qt.UserRole)
             completion_item.setData(item_name, Qt.UserRole + 1)
+            completion_item.setForeground(sched_color)
             self._item_completion_model.appendRow(completion_item)
             self._item_search_values.append(item_name.casefold())
         self.item_combo.blockSignals(False)
         self.item_combo.setCurrentIndex(0)
         self.item_combo.lineEdit().setPlaceholderText("Search products")
         self.item_combo.lineEdit().clear()
+        self._update_item_text_color("")
+
+
+    def _update_item_text_color(self, scheduled: object) -> None:
+        is_red = is_schedule_h1_or_nrx(scheduled)
+        line_edit = self.item_combo.lineEdit() if hasattr(self, "item_combo") else None
+        if line_edit is not None:
+            color = QColor(Qt.red) if is_red else QColor(Qt.black)
+            pal = line_edit.palette()
+            pal.setColor(QPalette.Text, color)
+            line_edit.setPalette(pal)
+            if is_red:
+                line_edit.setStyleSheet("color: red; font-weight: bold;")
+            else:
+                line_edit.setStyleSheet("color: black;")
+
+    def item_name_color(self) -> QColor:
+        item = self.get_selected_item()
+        if item and is_schedule_h1_or_nrx(item.get("scheduled")):
+            return QColor(Qt.red)
+        return QColor(Qt.black)
+
+    def get_selected_item(self) -> dict | None:
+        """Return the selected item dictionary from Item Master, or None if invalid/empty."""
+        if not hasattr(self, "item_combo"):
+            return None
+        text = self.item_combo.currentText().strip()
+        if not text or text == "-- Select --" or text == "No products found":
+            return None
+        item_id = self.item_combo.currentData()
+        if item_id is not None and hasattr(self, "_items_by_id") and item_id in self._items_by_id:
+            item = self._items_by_id[item_id]
+            expected_name = (item.get("item_name") or "").strip()
+            if text.casefold() == expected_name.casefold():
+                return item
+        if hasattr(self, "_items_by_id"):
+            for it in self._items_by_id.values():
+                if text.casefold() == (it.get("item_name") or "").strip().casefold():
+                    return it
+        return None
+
+    def is_valid_medicine_selected(self) -> bool:
+        return self.get_selected_item() is not None
 
     def _on_item_search_text_changed(self, _text: str):
         """Filter the item suggestions for what the operator has typed.
@@ -2262,6 +2344,11 @@ class _ItemEntryBar(QWidget):
             self._has_no_match_row = True
         completer = self.item_combo.completer()
         completer.setCompletionPrefix(query)
+        item = self.get_selected_item()
+        if item:
+            self._update_item_text_color(item.get("scheduled"))
+        else:
+            self._update_item_text_color("")
         if text:
             completer.complete()
 
@@ -2300,9 +2387,11 @@ class _ItemEntryBar(QWidget):
         self.stock_edit.clear()
         self.amount_edit.clear()
         if item_id is None:
+            self._update_item_text_color("")
             self.batch_combo.blockSignals(False)
             return
         item = self._items_by_id.get(item_id, {})
+        self._update_item_text_color(item.get("scheduled"))
         self.location_edit.setText(item.get("location", "") or "")
 
         # Load available batches
@@ -2472,10 +2561,12 @@ class _ItemEntryBar(QWidget):
         self.amount_edit.clear()
         self.qty_edit.setText("1")
         self.discount_edit.setText("0.00")
+        self._update_item_text_color("")
 
     def selected_item_id(self) -> int | None:
         """Return the currently selected item's database ID or None."""
-        return self.item_combo.currentData() if hasattr(self, "item_combo") else None
+        item = self.get_selected_item()
+        return item["id"] if item else None
 
     def selected_batch_id(self) -> int | None:
         """Return the currently selected batch's database ID or None."""
@@ -2539,11 +2630,10 @@ class _ItemEntryBar(QWidget):
         self.cno_label.setToolTip(full)
 
     def get_current_data(self) -> dict | None:
-        item_index = self.item_combo.currentIndex()
-        item_id = self.item_combo.currentData()
-        if (item_id is None or item_index < 0 or
-                self.item_combo.currentText() != self.item_combo.itemText(item_index)):
+        item = self.get_selected_item()
+        if item is None:
             return None
+        item_id = item["id"]
         batch_index = self.batch_combo.currentIndex()
         batch_id = self.batch_combo.currentData()
         if (batch_id is None or batch_index < 0 or
@@ -2568,7 +2658,8 @@ class _ItemEntryBar(QWidget):
             return None
         return {
             "item_id": item_id,
-            "item_name": self.item_combo.currentText(),
+            "item_name": item.get("item_name") or self.item_combo.currentText(),
+            "scheduled": item.get("scheduled", ""),
             "stock_batch_id": batch_id,
             "pack_size": batch.get("pack_size", ""),
             "location": batch.get("location") or self.location_edit.text(),
@@ -3804,6 +3895,7 @@ class _SalePanel(QWidget):
 
         outer.addLayout(row2)
 
+        self.customer_combo.currentIndexChanged.connect(self._refresh_customer_info)
         self._load_customers()
         self._load_doctors()
 
@@ -4189,9 +4281,15 @@ class _SalePanel(QWidget):
             self._qty_delegate.closeEditor.emit(ed, QStyledItemDelegate.SubmitModelCache)
 
     def _on_add_item(self):
+        if not self._entry_bar.is_valid_medicine_selected():
+            self._entry_bar.item_combo.lineEdit().setFocus()
+            QMessageBox.warning(self, "Validation", "Please select a medicine name before saving.")
+            return
+
         data = self._entry_bar.get_current_data()
         if data is None:
-            QMessageBox.warning(self, "Validation", "Please select an item and batch.")
+            self._entry_bar.batch_combo.lineEdit().setFocus()
+            QMessageBox.warning(self, "Validation", "Please select a batch.")
             return
 
         qty_text = self._entry_bar.qty_edit.text().strip()
@@ -4293,6 +4391,7 @@ class _SalePanel(QWidget):
                 expiry=data["expiry"], mrp=mrp, sale_qty=sale_qty,
                 discount_amount=discount, amount=amount,
                 net_rate=net_rate, purchase_rate=purchase_rate,
+                scheduled=data.get("scheduled", ""),
             )
             self._item_rows.append(row)
         self._refresh_table()
@@ -4313,6 +4412,13 @@ class _SalePanel(QWidget):
 
             name_item = QTableWidgetItem(r.item_name)
             name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
+            if self._is_item_scheduled_h1_or_nrx(r.item_id):
+                name_item.setForeground(QColor(Qt.red))
+                f = name_item.font()
+                f.setBold(True)
+                name_item.setFont(f)
+            else:
+                name_item.setForeground(QColor(Qt.black))
             self._table.setItem(i, 1, name_item)
 
             pack_item = QTableWidgetItem(r.pack_size)
@@ -4394,6 +4500,49 @@ class _SalePanel(QWidget):
         cell.setFixedWidth(column)
         cell.setFixedHeight(_BILL_ROW_HEIGHT)
         return cell
+
+
+    def _has_scheduled_h1_or_nrx_items(self) -> bool:
+        """Return True if any item in the current bill is Schedule H1 or NRX."""
+        for r in self._item_rows:
+            sched = getattr(r, "scheduled", None)
+            if sched and is_schedule_h1_or_nrx(sched):
+                return True
+            if self._is_item_scheduled_h1_or_nrx(r.item_id):
+                return True
+        return False
+
+    def _is_item_scheduled_h1_or_nrx(self, item_id: int | None) -> bool:
+        if not item_id:
+            return False
+        if hasattr(self, "_entry_bar") and hasattr(self._entry_bar, "_items_by_id"):
+            it = self._entry_bar._items_by_id.get(item_id)
+            if it is not None:
+                return is_schedule_h1_or_nrx(it.get("scheduled"))
+        it = ItemDAO.get_by_id(item_id)
+        if it is not None:
+            return is_schedule_h1_or_nrx(it.get("scheduled"))
+        return False
+
+    def is_item_scheduled_h1(self, item_id: int | None) -> bool:
+        if not item_id:
+            return False
+        if hasattr(self, "_entry_bar") and hasattr(self._entry_bar, "_items_by_id"):
+            it = self._entry_bar._items_by_id.get(item_id)
+            if it is not None:
+                return is_schedule_h1(it.get("scheduled"))
+        it = ItemDAO.get_by_id(item_id)
+        return is_schedule_h1(it.get("scheduled")) if it else False
+
+    def is_item_scheduled_nrx(self, item_id: int | None) -> bool:
+        if not item_id:
+            return False
+        if hasattr(self, "_entry_bar") and hasattr(self._entry_bar, "_items_by_id"):
+            it = self._entry_bar._items_by_id.get(item_id)
+            if it is not None:
+                return is_schedule_nrx(it.get("scheduled"))
+        it = ItemDAO.get_by_id(item_id)
+        return is_schedule_nrx(it.get("scheduled")) if it else False
 
     def _delete_item(self, idx: int):
         self._commit_table_edits()
@@ -4849,9 +4998,14 @@ class _SalePanel(QWidget):
     def _validate_sale_items(self) -> bool:
         batches = {}
         for row in self._item_rows:
-            if row.item_id is None:
+            if row.item_id is None or not (getattr(row, "item_name", "") or "").strip():
                 self._entry_bar.item_combo.lineEdit().setFocus()
-                QMessageBox.warning(self, "Validation", "An item is required for every bill row.")
+                QMessageBox.warning(self, "Validation", "Please select a medicine name before saving.")
+                return False
+            item_check = ItemDAO.get_by_id(row.item_id)
+            if not item_check or not (item_check.get("item_name") or "").strip():
+                self._entry_bar.item_combo.lineEdit().setFocus()
+                QMessageBox.warning(self, "Validation", "Please select a medicine name before saving.")
                 return False
             if row.stock_batch_id is None:
                 self._entry_bar.batch_combo.lineEdit().setFocus()
@@ -4956,7 +5110,7 @@ class _SalePanel(QWidget):
             del self._review_dialog
         self._entry_bar.close_popups()
 
-    def _validate_for_commit(self) -> bool:
+    def _validate_for_commit(self, check_patient: bool = None) -> bool:
         """Every business rule that must pass before a sale may be written.
 
         Used by both the Counter Sale Save Sale step and the popup's final
@@ -4994,13 +5148,46 @@ class _SalePanel(QWidget):
             QMessageBox.warning(self, "Validation", "Bill number is required.")
             return False
 
+        typed_text = self._entry_bar.item_combo.currentText().strip()
+        if typed_text and typed_text != "-- Select --":
+            if not self._entry_bar.is_valid_medicine_selected():
+                self._entry_bar.item_combo.lineEdit().setFocus()
+                QMessageBox.warning(self, "Validation", "Please select a medicine name before saving.")
+                return False
+
         if not self._item_rows:
             self._entry_bar.item_combo.lineEdit().setFocus()
-            QMessageBox.warning(self, "Validation", "At least one item is required.")
+            QMessageBox.warning(self, "Validation", "Please select a medicine name before saving.")
             return False
 
         if not self._validate_sale_items():
             return False
+
+        # Patient name validation: only required on final save (inside review popup)
+        # AND only when the bill contains Schedule H1 or NRX medicines!
+        # When only non-H1 / non-NRX medicines are in the bill, saving without name (WALKIN) is permitted.
+        if check_patient is None:
+            check_patient = bool(self._in_review_popup)
+
+        if check_patient and self._has_scheduled_h1_or_nrx_items():
+            pat_name = self.patient_name_edit.text().strip() if hasattr(self, "patient_name_edit") else ""
+            if not pat_name:
+                if hasattr(self, "patient_name_edit"):
+                    if hasattr(self.patient_name_edit, "lineEdit") and self.patient_name_edit.lineEdit():
+                        self.patient_name_edit.lineEdit().setFocus()
+                    else:
+                        self.patient_name_edit.setFocus()
+                QMessageBox.warning(self, "Validation", "Patient name is required before saving.")
+                return False
+
+            if is_walkin_name(pat_name):
+                if hasattr(self, "patient_name_edit"):
+                    if hasattr(self.patient_name_edit, "lineEdit") and self.patient_name_edit.lineEdit():
+                        self.patient_name_edit.lineEdit().setFocus()
+                    else:
+                        self.patient_name_edit.setFocus()
+                QMessageBox.warning(self, "Validation", "Patient name cannot be WALKIN. Name is required.")
+                return False
 
         sale_time = self.sale_time_edit.text().strip()
         try:
@@ -5065,28 +5252,36 @@ class _SalePanel(QWidget):
             sale_date = self.sale_date.date().toString("yyyy-MM-dd")
             sale_time = self.sale_time_edit.text().strip()
             sale_type = self.sale_type_combo.currentText()
-            pat_text = self.patient_name_edit.text().strip()
-            # Emptiness is decided before the WALKIN business default below:
-            # a sale saved without a patient name keeps a genuinely blank
-            # Bill No, while a named sale keeps the existing numbering flow.
+            pat_text = self.patient_name_edit.text().strip() if hasattr(self, "patient_name_edit") else ""
+            # Patient name is required only when the bill contains Schedule H1 or NRX medicines
+            if self._has_scheduled_h1_or_nrx_items() and (not pat_text or is_walkin_name(pat_text)):
+                if hasattr(self, "patient_name_edit"):
+                    if hasattr(self.patient_name_edit, "lineEdit") and self.patient_name_edit.lineEdit():
+                        self.patient_name_edit.lineEdit().setFocus()
+                    else:
+                        self.patient_name_edit.setFocus()
+                self._commit_locked = False
+                QMessageBox.warning(
+                    self, "Validation",
+                    "Patient name cannot be WALKIN. Name is required."
+                    if pat_text else "Patient name is required before saving."
+                )
+                return
+
             patient_was_empty = not pat_text
+            patient_name = pat_text if pat_text else "WALKIN"
             cid = self.customer_combo.currentData()
             did = self.doctor_combo.currentData()
-            if not pat_text:
-                patient_name = "WALKIN"
-                if cid is None:
-                    cid = CustomerDAO.get_or_create_walkin()
-            else:
-                patient_name = pat_text
+            if cid is None:
+                cid = CustomerDAO.get_or_create_walkin()
 
             if self._invoice:
                 bill_no = getattr(self, "_full_bill_no", None)
-                if bill_no is None:
-                    bill_no = self._invoice.get("bill_no") or ""
+                if not bill_no:
+                    bill_no = (self._invoice.get("bill_no") or "").strip()
                 bill_no = str(bill_no).strip()
             elif patient_was_empty:
-                # Explicit blank: never pass the provisional preview or a
-                # freshly generated number for an unnamed sale.
+                # An unnamed sale without H1/NRX keeps a blank Bill No
                 bill_no = ""
             else:
                 raw_cand = getattr(self, "_full_bill_no", None) or SalesDAO.generate_next_bill_no()
@@ -6302,7 +6497,7 @@ class CounterSalePage(QWidget):
         else:
             win = self.window()
             if win is not None and hasattr(win, "_on_menu_action"):
-                win._on_menu_action("Purchase", "Purchase Return")
+                win._on_menu_action("Account", "Debit Note (Return to Supplier)")
 
     def _open_credit_note(self) -> None:
         if self.credit_note_requested.receivers(self.credit_note_requested) > 0:
@@ -6310,7 +6505,7 @@ class CounterSalePage(QWidget):
         else:
             win = self.window()
             if win is not None and hasattr(win, "_on_menu_action"):
-                win._on_menu_action("Sales", "Return Bill")
+                win._on_menu_action("Account", "Credit Note (Return from Customer)")
 
     def _on_ctrl_c_pressed(self) -> None:
         from PySide6.QtWidgets import QApplication, QLineEdit, QTextEdit, QPlainTextEdit, QTableWidget
