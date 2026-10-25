@@ -944,6 +944,36 @@ def print_a6_cash_memo(
     painter.setRenderHint(QPainter.SmoothPixmapTransform, False)
 
     try:
+        # Query the printer's actual printable rectangle to avoid hard-margin clipping.
+        # With setFullPage(True), painter origin is at the paper edge, but the printer
+        # physically cannot print in the hard-margin zone. We query the difference
+        # between the full page rect and the printable rect to find the hard margins,
+        # then fit and center the image within the printable area.
+        full_rect = printer.pageRect(QPrinter.DevicePixel)
+        printable_rect = printer.pageLayout().paintRectPixels(dpi)
+
+        # On a real printer, pageRect with fullPage=True gives the whole page,
+        # while the printer also exposes the paintable area. We need to use
+        # the printer's own methods to get the hardware-limited paint area.
+        # QPrinter in fullPage mode: pageRect = full paper, 
+        # but we can temporarily check non-fullPage rect for the safe area.
+        printer.setFullPage(False)
+        safe_rect = printer.pageRect(QPrinter.DevicePixel)
+        printer.setFullPage(True)
+
+        # Hard margin offsets (how much the printable area is inset from paper edge)
+        hm_left = safe_rect.x()
+        hm_top = safe_rect.y()
+        safe_w = safe_rect.width()
+        safe_h = safe_rect.height()
+
+        # If we couldn't detect margins (virtual printer), fall back to full page
+        if safe_w <= 0 or safe_h <= 0:
+            hm_left = 0
+            hm_top = 0
+            safe_w = full_rect.width()
+            safe_h = full_rect.height()
+
         for idx, page in enumerate(pages):
             if idx > 0:
                 printer.newPage()
@@ -958,11 +988,21 @@ def print_a6_cash_memo(
             else:
                 rotated_img = img
 
-            scale_factor = float(dpi) / target_dpi
-            dest_w = rotated_img.width() * scale_factor
-            dest_h = rotated_img.height() * scale_factor
-            target_rect = QRectF(0.0, 0.0, dest_w, dest_h)
+            # Scale the image to fit within the safe (printable) area
+            img_w = rotated_img.width()
+            img_h = rotated_img.height()
+            scale_x = float(safe_w) / img_w
+            scale_y = float(safe_h) / img_h
+            fit_scale = min(scale_x, scale_y)
 
+            dest_w = img_w * fit_scale
+            dest_h = img_h * fit_scale
+
+            # Center within the safe printable rectangle
+            offset_x = hm_left + (safe_w - dest_w) / 2.0
+            offset_y = hm_top + (safe_h - dest_h) / 2.0
+
+            target_rect = QRectF(offset_x, offset_y, dest_w, dest_h)
             painter.drawImage(target_rect, rotated_img)
     finally:
         painter.end()
