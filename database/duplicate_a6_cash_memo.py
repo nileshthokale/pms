@@ -220,7 +220,7 @@ def get_store_identity() -> dict[str, str]:
             "name": str(prof.get("name") or "SHREE SAMARTH MEDICAL AND GEN STORE").strip(),
             "address": str(prof.get("address") or "GHORPADE HOSPITAL, RAHURI").strip(),
             "jurisdiction": str(prof.get("jurisdiction") or "AHMEDNAGAR").strip(),
-            "licence": str(prof.get("licence") or "20-MH-AHM-61069,21-MH-AHM-61070,20C-MH-AHM-610").strip(),
+            "licence": str(prof.get("licence") or "20-MH-AHM-61069,21-MH-AHM-61070,20C-MH-AHM-61071").strip(),
             "gstin": str(prof.get("gstin") or "").strip(),
         }
     except Exception:
@@ -228,7 +228,7 @@ def get_store_identity() -> dict[str, str]:
             "name": "SHREE SAMARTH MEDICAL AND GEN STORE",
             "address": "GHORPADE HOSPITAL, RAHURI",
             "jurisdiction": "AHMEDNAGAR",
-            "licence": "20-MH-AHM-61069,21-MH-AHM-61070,20C-MH-AHM-610",
+            "licence": "20-MH-AHM-61069,21-MH-AHM-61070,20C-MH-AHM-61071",
             "gstin": "",
         }
 
