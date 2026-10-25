@@ -166,11 +166,6 @@ class PharmacyMainWindow(QMainWindow):
                     page.close_requested.connect(
                         lambda: self._on_menu_action("Sales", "New Bill")
                     )
-                elif menu_name == "Reports" and item_name == "Stock Report":
-                    page = screens.ItemsAllStockPage()
-                    page.close_requested.connect(
-                        lambda: self._on_menu_action("Sales", "New Bill")
-                    )
                 elif menu_name == "Reports" and item_name == "Daily Billwise Sales":
                     page = screens.DailyBillwiseSalesPage()
                     page.close_requested.connect(
@@ -277,10 +272,10 @@ class PharmacyMainWindow(QMainWindow):
                         lambda: self._on_menu_action("Reports", "Supplierwise Itemwise Purchase (Challan)")
                     )
                     page.debit_note_requested.connect(
-                        lambda: self._on_menu_action("Purchase", "Purchase Return")
+                        lambda: self._on_menu_action("Account", "Debit Note (Return to Supplier)")
                     )
                     page.credit_note_requested.connect(
-                        lambda: self._on_menu_action("Sales", "Return Bill")
+                        lambda: self._on_menu_action("Account", "Credit Note (Return from Customer)")
                     )
                 elif menu_name == "Sales" and item_name == "Hold Bill":
                     page = screens.HoldBillPage()
@@ -288,12 +283,6 @@ class PharmacyMainWindow(QMainWindow):
                     page = screens.DayEndPage()
                 elif menu_name == "Sales" and item_name == "Sales History":
                     page = screens.SalesHistoryPage()
-                elif menu_name == "Sales" and item_name == "Return Bill":
-                    page = screens.CreditNotePage()
-                elif menu_name == "Purchase" and item_name == "Purchase Return":
-                    page = screens.DebitNotePage()
-                elif menu_name == "Purchase" and item_name == "Supplier Payment":
-                    page = screens.SupplierPaymentPage()
                 elif menu_name == "Account" and item_name in (
                     "Debit Note (Return to Supplier)", "Debit Note"
                 ):
@@ -397,12 +386,18 @@ class PharmacyMainWindow(QMainWindow):
             self._stack.addWidget(page)
             self._page_map["Reports:Purchase Report"] = page_index
             page_index += 1
-        if "Reports:Stock Report" not in self._page_map and "Reports:Items (All) Stock" in self._page_map:
-            self._page_map["Reports:Stock Report"] = self._page_map["Reports:Items (All) Stock"]
         if "Reports:Doctor's Reports" not in self._page_map and "Reports:Doctorwise Item Sale" in self._page_map:
             self._page_map["Reports:Doctor's Reports"] = self._page_map["Reports:Doctorwise Item Sale"]
 
     def _on_menu_action(self, menu: str, action: str):
+        _LEGACY_REDIRECTS = {
+            ("Sales", "Return Bill"): ("Account", "Credit Note (Return from Customer)"),
+            ("Purchase", "Purchase Return"): ("Account", "Debit Note (Return to Supplier)"),
+            ("Purchase", "Supplier Payment"): ("Account", "Supplier Payment Voucher"),
+            ("Reports", "Stock Report"): ("Reports", "Items (All) Stock"),
+        }
+        if (menu, action) in _LEGACY_REDIRECTS:
+            menu, action = _LEGACY_REDIRECTS[(menu, action)]
         permission = auth.MENU_PERMISSIONS.get(action)
         if permission:
             try:
