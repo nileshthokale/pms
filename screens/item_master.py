@@ -70,6 +70,15 @@ _REMOVE_GLYPH_STROKE = 2.4
 _REMOVE_TOOLTIP = "Remove ingredient"
 
 
+_REMAP_LEGACY_TAX_FLAGS = {
+    f"Legacy Tax Code {c} — Mapping Required" for c in ("2", "6", "7", "11", "13", "14")
+} | {
+    f"Legacy Tax Code {c} - Mapping Required" for c in ("2", "6", "7", "11", "13", "14")
+}
+_REMAP_TAX_CODES = {"2", "6", "7", "11", "13", "14"}
+_REMAP_GST_5_LABEL = "GST @ 5% (CGST-2.5% & SGST-2.5%)"
+
+
 def _tax_cell_text(item: dict) -> str:
     """Grid text for an item row.
 
@@ -78,10 +87,19 @@ def _tax_cell_text(item: dict) -> str:
     which the owner remapped for the imported items carrying it), an unmapped
     legacy code shows the explicit mapping-required flag, and EMPTY (a
     VAT-only imported item) shows blank.
+
+    For Item Master display only: legacy tax codes 2, 6, 7, 11, 13, 14 that
+    currently show "Mapping Required" display as GST @ 5% (CGST-2.5% & SGST-2.5%).
     """
     from database.tax_structures import resolve_tax_display
 
-    return resolve_tax_display(item.get("tax_structure"), item.get("legacy_tax_id"))
+    text = resolve_tax_display(item.get("tax_structure"), item.get("legacy_tax_id"))
+    if text in _REMAP_LEGACY_TAX_FLAGS:
+        return _REMAP_GST_5_LABEL
+    tax_code = str(item.get("tax_structure") if item.get("tax_structure") is not None else (item.get("legacy_tax_id") or "")).strip()
+    if tax_code in _REMAP_TAX_CODES and "Mapping Required" in text:
+        return _REMAP_GST_5_LABEL
+    return text
 
 
 _DRUG_POPUP_MAX_ROWS = 12
