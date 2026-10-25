@@ -111,8 +111,8 @@ class TestScheduleReports(unittest.TestCase):
                 reports_titles.extend(item.keys())
             elif isinstance(item, str):
                 reports_titles.append(item)
-        self.assertIn("Sheduled H1 (Sales)", reports_titles)
-        self.assertIn("Sheduled H1 (Purchase)", reports_titles)
+        self.assertNotIn("Sheduled H1 (Sales)", reports_titles)
+        self.assertNotIn("Sheduled H1 (Purchase)", reports_titles)
 
     def test_02_schedule_menu_hierarchy_12_leaf_items(self):
         """Verify the 12 leaf items in Schedule menu hierarchy."""
@@ -192,8 +192,7 @@ class TestScheduleReports(unittest.TestCase):
             ("Schedule", "NRX > Purchase > Datewise Schedule", SchedulePurchaseDatewisePage, "NRX"),
             ("Schedule", "NRX > Purchase > Itemwise Schedule", SchedulePurchaseItemwisePage, "NRX"),
             ("Schedule", "NRX > Purchase > All Items Schedule", SchedulePurchaseAllItemsPage, "NRX"),
-            ("Reports", "Sheduled H1 (Sales) > Datewise Schedule", ScheduleSalesDatewisePage, "H1"),
-            ("Reports", "Sheduled H1 (Purchase) > Datewise Schedule", SchedulePurchaseDatewisePage, "H1"),
+
         ]
 
         for menu, action, expected_cls, expected_st in test_actions:

@@ -350,30 +350,7 @@ class PharmacyMainWindow(QMainWindow):
                     page.close_requested.connect(
                         lambda: self._on_menu_action("Sales", "New Bill")
                     )
-                elif menu_name == "Reports" and sub_title == "Sheduled H1 (Sales)":
-                    if item_name == "Datewise Schedule":
-                        page = screens.ScheduleSalesDatewisePage(schedule_type="H1")
-                    elif item_name == "Itemwise Schedule":
-                        page = screens.ScheduleSalesItemwisePage(schedule_type="H1")
-                    elif item_name == "All Items Schedule":
-                        page = screens.ScheduleSalesAllItemsPage(schedule_type="H1")
-                    else:
-                        page = PlaceholderPage(f"{menu_name}  >  {item_name}")
-                    page.close_requested.connect(
-                        lambda: self._on_menu_action("Sales", "New Bill")
-                    )
-                elif menu_name == "Reports" and sub_title == "Sheduled H1 (Purchase)":
-                    if item_name == "Datewise Schedule":
-                        page = screens.SchedulePurchaseDatewisePage(schedule_type="H1")
-                    elif item_name == "Itemwise Schedule":
-                        page = screens.SchedulePurchaseItemwisePage(schedule_type="H1")
-                    elif item_name == "All Items Schedule":
-                        page = screens.SchedulePurchaseAllItemsPage(schedule_type="H1")
-                    else:
-                        page = PlaceholderPage(f"{menu_name}  >  {item_name}")
-                    page.close_requested.connect(
-                        lambda: self._on_menu_action("Sales", "New Bill")
-                    )
+
                 else:
                     page = PlaceholderPage(f"{menu_name}  >  {item_name}")
                 ui.polish_page(page)
