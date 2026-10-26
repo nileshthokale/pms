@@ -83,6 +83,7 @@ from screens.duplicate_sales_bill import (
     generate_duplicate_a6_pdf,
 )
 
+from screens.patient_history_bill_wise import PatientHistoryBillWisePage
 from screens.schedule_reports import (
     ScheduleSalesDatewisePage,
     ScheduleSalesItemwisePage,
@@ -115,5 +116,6 @@ __all__ = [
     "DuplicateSalesBillListPage", "DuplicateSalesBillDialog", "DuplicateSalesBillA6PreviewDialog", "print_duplicate_a6_bill", "generate_duplicate_a6_pdf",
     "ScheduleSalesDatewisePage", "ScheduleSalesItemwisePage", "ScheduleSalesAllItemsPage",
     "SchedulePurchaseDatewisePage", "SchedulePurchaseItemwisePage", "SchedulePurchaseAllItemsPage",
+    "PatientHistoryBillWisePage",
 ]
 

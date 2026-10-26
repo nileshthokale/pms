@@ -1014,3 +1014,134 @@ class SalesDAO:
             return [r[0] for r in cur.fetchall() if r[0]]
         finally:
             conn.close()
+
+
+    @staticmethod
+    def search_patient_bill_history(
+        *,
+        bill_no: str = "",
+        patient_name: str = "",
+        start_date: str = "",
+        end_date: str = "",
+        limit: int = 100,
+        offset: int = 0,
+    ) -> tuple[list[dict], int]:
+        """Search patient bill history with item counts, doctors, and amounts.
+
+        Allows finding previous sales bills by bill number (exact, prefixed,
+        padded) and/or patient name (word-by-word matching in any order),
+        with optional date range filtering.
+
+        Returns (rows, total_count).
+        """
+        conn = get_connection()
+        try:
+            clauses: list[str] = []
+            params: list = []
+
+            if bill_no and bill_no.strip():
+                clean_bno = bill_no.strip()
+                if clean_bno.isdigit():
+                    num_val = str(int(clean_bno))
+                    numeric_patterns = [clean_bno, num_val]
+                    like_patterns = [
+                        f"%-{clean_bno}",
+                        f"%-{clean_bno}#%",
+                        f"%-{clean_bno}-S%",
+                        f"%-{num_val}",
+                        f"%-{num_val}#%",
+                        f"%-{num_val}-S%",
+                    ]
+                    if len(num_val) < 4:
+                        for pad_len in range(len(num_val) + 1, 5):
+                            padded = num_val.zfill(pad_len)
+                            like_patterns.extend([
+                                f"%-{padded}",
+                                f"%-{padded}#%",
+                                f"%-{padded}-S%",
+                            ])
+                    exact_conds = []
+                    seen_exact = set()
+                    for p in numeric_patterns:
+                        if p not in seen_exact:
+                            seen_exact.add(p)
+                            exact_conds.append("si.bill_no = ?")
+                            params.append(p)
+                    like_conds = []
+                    seen_like = set()
+                    for p in like_patterns:
+                        if p not in seen_like:
+                            seen_like.add(p)
+                            like_conds.append("si.bill_no LIKE ?")
+                            params.append(p)
+                    clauses.append(f"({' OR '.join(exact_conds + like_conds)})")
+                else:
+                    clauses.append("si.bill_no LIKE ?")
+                    params.append(f"%{clean_bno}%")
+
+            if patient_name and patient_name.strip():
+                for word in patient_name.split():
+                    clauses.append("si.patient_name LIKE ?")
+                    params.append(f"%{word}%")
+
+            if start_date and start_date.strip():
+                clauses.append("substr(si.sale_date, 1, 10) >= ?")
+                params.append(start_date.strip())
+
+            if end_date and end_date.strip():
+                clauses.append("substr(si.sale_date, 1, 10) <= ?")
+                params.append(end_date.strip())
+
+            where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+
+            count_cur = conn.execute(
+                f"SELECT COUNT(*) FROM sales_invoices si {where}",
+                params,
+            )
+            total_count = count_cur.fetchone()[0]
+
+            cur = conn.execute(
+                f"""
+                SELECT si.id, si.bill_no, si.sale_date, si.sale_time,
+                       COALESCE(NULLIF(TRIM(si.patient_name), ''), 'WALKIN') AS patient_name,
+                       COALESCE(d.doctor_name, '') AS doctor_name,
+                       COALESCE(si.total_amount, 0.0) AS total_amount,
+                       COALESCE(si.discount, 0.0) AS discount,
+                       COALESCE(si.paid_amount, 0.0) AS paid_amount,
+                       COALESCE(si.round_off, 0.0) AS round_off,
+                       COALESCE(si.net_amount, 0.0) AS net_amount,
+                       COALESCE(si.remarks, '') AS remarks
+                FROM sales_invoices si
+                LEFT JOIN doctors d ON d.id = si.doctor_id
+                {where}
+                ORDER BY si.sale_date DESC, si.id DESC
+                LIMIT ? OFFSET ?
+                """,
+                (*params, limit, offset),
+            )
+            rows = [dict(r) for r in cur.fetchall()]
+
+            if rows:
+                ids = [r["id"] for r in rows]
+                placeholders = ",".join("?" * len(ids))
+                item_counts = dict(
+                    conn.execute(
+                        f"""
+                        SELECT sales_invoice_id, COUNT(*)
+                        FROM sales_invoice_items
+                        WHERE sales_invoice_id IN ({placeholders})
+                        GROUP BY sales_invoice_id
+                        """,
+                        ids,
+                    ).fetchall()
+                )
+                for r in rows:
+                    r["total_items"] = item_counts.get(r["id"], 0)
+                    r["raw_bill_no"] = r.get("bill_no", "")
+                    r["display_bill_no"] = SalesDAO.display_bill_no(
+                        r.get("bill_no", ""),
+                        patient_name=r.get("patient_name", ""),
+                    )
+            return rows, total_count
+        finally:
+            conn.close()
