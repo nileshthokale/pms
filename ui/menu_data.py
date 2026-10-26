@@ -81,6 +81,7 @@ MENUS = {
         "New Bill",
         "Hold Bill",
         "Patient Bill History",
+        "Patient History – Bill Number Wise",
         "Day End",
     ],
     "Purchase": [

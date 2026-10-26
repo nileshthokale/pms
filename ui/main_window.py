@@ -283,6 +283,14 @@ class PharmacyMainWindow(QMainWindow):
                     page = screens.DayEndPage()
                 elif menu_name == "Sales" and item_name == "Patient Bill History":
                     page = screens.SalesHistoryPage()
+                elif menu_name == "Sales" and item_name in (
+                    "Patient History – Bill Number Wise",
+                    "Patient History - Bill Number Wise",
+                ):
+                    page = screens.PatientHistoryBillWisePage()
+                    page.close_requested.connect(
+                        lambda: self._on_menu_action("Sales", "New Bill")
+                    )
                 elif menu_name == "Account" and item_name in (
                     "Debit Note (Return to Supplier)", "Debit Note"
                 ):

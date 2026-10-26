@@ -395,16 +395,16 @@ _ENTRY_ITEM_BATCH_GAP = 10
 # and Batch lead -- they hold the text a cashier actually reads -- while Pack
 # and Qty stay compact by design.
 _ENTRY_PREFERRED_WIDTHS = {
-    "item_combo": 250,          # the primary search box
+    "item_combo": 240,          # the primary search box
     "batch_combo": 110,         # batch input stays 100-110 px (compact)
     "pack_edit": 50,
     "location_edit": 80,
-    "expiry_edit": 98,          # complete date (2029-02-28) stays visible
+    "expiry_edit": 103,         # complete date (2029-02-28) stays visible
     "mrp_edit": 80,
     "stock_edit": 80,
     "qty_edit": 48,
     "discount_edit": 75,
-    "amount_edit": 60,          # compact amount read-out (55-65 px)
+    "amount_edit": 65,          # compact amount read-out (55-65 px)
 }
 _ENTRY_FLOOR_WIDTHS = {
     "item_combo": 150,
