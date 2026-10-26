@@ -212,13 +212,13 @@ class CounterSaleSalesHistoryButtonTests(unittest.TestCase):
     def test_02_original_menu_entry_still_navigates(self):
         win = self._make_window()
 
-        win._on_menu_action("Sales", "Sales History")
+        win._on_menu_action("Sales", "Patient Bill History")
         self._pump()
 
         current = win._stack.currentWidget()
         self.assertEqual(current.__class__.__name__, "SalesHistoryPage")
         self.assertIs(
-            current, win._stack.widget(win._page_map["Sales:Sales History"])
+            current, win._stack.widget(win._page_map["Sales:Patient Bill History"])
         )
 
     # ------------------------------------------------------------------
@@ -235,12 +235,12 @@ class CounterSaleSalesHistoryButtonTests(unittest.TestCase):
         counter._hist_sales_history_btn.click()
         self._pump()
 
-        hist = win._stack.widget(win._page_map["Sales:Sales History"])
+        hist = win._stack.widget(win._page_map["Sales:Patient Bill History"])
         self.assertIs(win._stack.currentWidget(), hist)
         self.assertEqual(
             win._stack.currentWidget().__class__.__name__, "SalesHistoryPage"
         )
-        self.assertEqual(win._nav.status_label.text(), "Sales / Sales History")
+        self.assertEqual(win._nav.status_label.text(), "Sales / Patient Bill History")
 
     # ------------------------------------------------------------------
     # Criterion 4: real saved records load after the button navigation.

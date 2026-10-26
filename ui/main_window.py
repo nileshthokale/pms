@@ -257,13 +257,13 @@ class PharmacyMainWindow(QMainWindow):
                     )
                 elif menu_name == "Sales" and item_name == "New Bill":
                     page = screens.CounterSalePage()
-                    # The Counter Sale toolbar's "Sales History" button is
+                    # The Counter Sale toolbar's patient bill history button is
                     # a second entry point: route it through the identical
                     # menu action so both open the same page, view and
                     # status text (one navigation path, no duplicate
                     # handlers or routes).
                     page.sales_history_requested.connect(
-                        lambda: self._on_menu_action("Sales", "Sales History")
+                        lambda: self._on_menu_action("Sales", "Patient Bill History")
                     )
                     page.pur_invoice_requested.connect(
                         lambda: self._on_menu_action("Purchase", "New Purchase")
@@ -281,7 +281,7 @@ class PharmacyMainWindow(QMainWindow):
                     page = screens.HoldBillPage()
                 elif menu_name == "Sales" and item_name == "Day End":
                     page = screens.DayEndPage()
-                elif menu_name == "Sales" and item_name == "Sales History":
+                elif menu_name == "Sales" and item_name == "Patient Bill History":
                     page = screens.SalesHistoryPage()
                 elif menu_name == "Account" and item_name in (
                     "Debit Note (Return to Supplier)", "Debit Note"

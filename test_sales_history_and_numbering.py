@@ -268,7 +268,7 @@ class SalesHistoryAndNumberingTests(unittest.TestCase):
         self.addCleanup(lambda: (main_win.hide(), main_win.deleteLater()))
 
         # Trigger Sales -> Sales History menu action
-        main_win._on_menu_action("Sales", "Sales History")
+        main_win._on_menu_action("Sales", "Patient Bill History")
         self._pump()
 
         current_widget = main_win._stack.currentWidget()

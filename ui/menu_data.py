@@ -80,7 +80,7 @@ MENUS = {
     "Sales": [
         "New Bill",
         "Hold Bill",
-        "Sales History",
+        "Patient Bill History",
         "Day End",
     ],
     "Purchase": [
