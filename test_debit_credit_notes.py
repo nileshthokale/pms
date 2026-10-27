@@ -621,13 +621,17 @@ class TestDebitAndCreditNotes(unittest.TestCase):
     # ──────────────────────────────────────────────────────────────────
 
     def test_11_menu_and_shortcut_registration(self):
-        """Verify Account menu items and shortcuts Ctrl+D / Ctrl+C."""
+        """Verify Purchase menu items, removal from Account, and shortcuts Ctrl+D / Ctrl+C."""
         from ui.menu_data import MENUS
         from ui.navigation_bar import MENU_SHORTCUTS
 
+        purchase_menu = MENUS.get("Purchase", [])
+        self.assertIn("Debit Note (Return to Supplier)", purchase_menu)
+        self.assertIn("Credit Note (Return from Customer)", purchase_menu)
+
         account_menu = MENUS.get("Account", [])
-        self.assertIn("Debit Note (Return to Supplier)", account_menu)
-        self.assertIn("Credit Note (Return from Customer)", account_menu)
+        self.assertNotIn("Debit Note (Return to Supplier)", account_menu)
+        self.assertNotIn("Credit Note (Return from Customer)", account_menu)
 
         self.assertEqual(MENU_SHORTCUTS.get("Debit Note (Return to Supplier)"), "Ctrl+D")
         self.assertEqual(MENU_SHORTCUTS.get("Credit Note (Return from Customer)"), "Ctrl+C")

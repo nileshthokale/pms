@@ -87,27 +87,29 @@ class TaxStructureDefinitionTests(unittest.TestCase):
         self.assertEqual(rate_percent("28"), 28.0)
 
     def test_06_legacy_codes_are_not_gst_rates(self):
-        """An imported tax code must never be read as a GST percentage."""
+        """Unmapped legacy codes must not invent a GST rate; verified ones resolve."""
         from database.tax_structures import is_gst_rate, rate_percent
-        for code in ("1", "2", "4", "6", "7", "11", "13", "14", "15"):
+        for code in ("1", "4", "15"):
             with self.subTest(code=code):
                 self.assertFalse(is_gst_rate(code))
                 self.assertIsNone(rate_percent(code),
-                                  "legacy code must not invent a GST rate")
+                                  "unmapped legacy code must not invent a GST rate")
+        for code in ("2", "6", "7", "11", "13", "14"):
+            with self.subTest(code=code):
+                self.assertFalse(is_gst_rate(code))
+                self.assertEqual(rate_percent(code), 5.0)
+        self.assertEqual(rate_percent("12"), 12.0)
 
     def test_07_display_for_flags_known_legacy_codes(self):
-        """A known legacy code is flagged, never shown bare or as GST.
-
-        Superseded contract: this used to assert ``display_for("11") == "11"``,
-        which displayed a bare legacy number.  See
-        ``test_item_tax_flag_display.py`` and
-        ``docs/item_master_tax_mapping_phase1.md`` ("flag all, convert none").
-        """
+        """Unmapped legacy codes are flagged; verified legacy codes show GST."""
         from database.tax_structures import display_for, legacy_flag_label
-        self.assertEqual(display_for("11"),
-                         "Legacy Tax Code 11 — Mapping Required")
-        self.assertEqual(display_for("11"), legacy_flag_label("11"))
-        self.assertEqual(display_for("6"), legacy_flag_label("6"))
+        for code in ("1", "4", "15"):
+            self.assertEqual(display_for(code),
+                             f"Legacy Tax Code {code} — Mapping Required")
+            self.assertEqual(display_for(code), legacy_flag_label(code))
+        self.assertEqual(display_for("11"), "GST @ 5% (CGST-2.5% & SGST-2.5%)")
+        self.assertEqual(display_for("6"), "GST @ 5% (CGST-2.5% & SGST-2.5%)")
+        self.assertEqual(display_for("12"), "GST @ 12% (CGST-6% & SGST-6%)")
         # A value that is not a known legacy code is still returned verbatim.
         self.assertEqual(display_for("VAT @ 12.50%"), "VAT @ 12.50%")
         self.assertEqual(display_for(""), "")
@@ -340,11 +342,11 @@ class ItemMasterTaxDialogTests(unittest.TestCase):
         self.assertEqual(ItemDAO.get_by_id(item_id)["tax_structure"], "18")
 
     def test_42_change_legacy_code_to_gst_rate(self):
-        """A user may intentionally move a legacy item onto a GST rate."""
+        """A user may intentionally move an unmapped legacy item onto a GST rate."""
         from database.item_dao import ItemDAO
-        item_id = self._make_item("Legacy To Gst", "11")
+        item_id = self._make_item("Legacy To Gst", "1")
         dialog = self._edit_dialog(item_id)
-        self.assertEqual(dialog._tax_structure_combo.currentData(), "11")
+        self.assertEqual(dialog._tax_structure_combo.currentData(), "1")
         dialog._tax_structure_combo.setCurrentIndex(
             dialog._tax_structure_combo.findData("12"))
         dialog._on_save()
@@ -354,34 +356,34 @@ class ItemMasterTaxDialogTests(unittest.TestCase):
     # -- legacy / imported items ---------------------------------------
     def test_50_legacy_code_shown_and_preserved_on_edit(self):
         from database.item_dao import ItemDAO
-        item_id = self._make_item("Legacy Eleven", "11")
+        item_id = self._make_item("Legacy One", "1")
         dialog = self._edit_dialog(item_id)
         combo = dialog._tax_structure_combo
         self.assertEqual(combo.count(), 6,
                          "the legacy value is shown as one extra entry")
-        self.assertEqual(combo.currentData(), "11",
+        self.assertEqual(combo.currentData(), "1",
                          "the stored legacy value must stay selected")
-        self.assertIn("11", combo.currentText())
+        self.assertIn("1", combo.currentText())
         self.assertIn("legacy", combo.currentText().lower())
 
     def test_51_saving_unrelated_field_keeps_legacy_code(self):
-        """Editing only the MRP must not convert or destroy the tax value."""
+        """Editing only the MRP must not convert or destroy the unmapped tax value."""
         from database.item_dao import ItemDAO
-        item_id = self._make_item("Legacy Untouched", "11")
+        item_id = self._make_item("Legacy Untouched", "1")
         dialog = self._edit_dialog(item_id)
         dialog._mrp_edit.setText("199.99")
         dialog._on_save()
         self.assertTrue(dialog.was_saved,
                         "an unrelated edit must not be blocked by tax")
         saved = ItemDAO.get_by_id(item_id)
-        self.assertEqual(saved["tax_structure"], "11",
+        self.assertEqual(saved["tax_structure"], "1",
                          "legacy tax value must survive an unrelated edit")
         self.assertEqual(saved["mrp"], 199.99)
 
     def test_52_no_mass_update_of_legacy_values(self):
-        """Opening and saving many legacy items changes no tax value."""
+        """Opening and saving unmapped legacy items changes no tax value."""
         from database.item_dao import ItemDAO
-        codes = ("11", "6", "13", "7", "2")
+        codes = ("1", "4", "15")
         for index, code in enumerate(codes):
             self._make_item(f"Bulk Legacy {index}", code)
         for index, code in enumerate(codes):
@@ -397,7 +399,8 @@ class ItemMasterTaxDialogTests(unittest.TestCase):
     def test_53_grid_shows_readable_label_and_keeps_legacy_raw(self):
         from database.item_dao import ItemDAO
         ItemDAO.insert(item_name="Grid Gst", tax_structure="18")
-        ItemDAO.insert(item_name="Grid Legacy", tax_structure="11")
+        ItemDAO.insert(item_name="Grid Legacy", tax_structure="1")
+        ItemDAO.insert(item_name="Grid Verified", tax_structure="11")
         from screens.item_master import ItemMasterPage
         page = ItemMasterPage()
         self.addCleanup(page.deleteLater)
@@ -411,11 +414,12 @@ class ItemMasterTaxDialogTests(unittest.TestCase):
             name = page._table.item(row, 1).text()
             cells[name] = page._table.item(row, 7).text()
         self.assertEqual(cells["Grid Gst"], "GST @ 18% (CGST-9% & SGST-9%)")
-        # The grid flags the legacy code rather than showing the bare number;
-        # the stored value itself is untouched (checked below).
         self.assertEqual(cells["Grid Legacy"],
-                         "Legacy Tax Code 11 — Mapping Required")
-        self.assertEqual(ItemDAO.search("Grid Legacy")[0]["tax_structure"], "11")
+                         "Legacy Tax Code 1 — Mapping Required")
+        self.assertEqual(cells["Grid Verified"],
+                         "GST @ 5% (CGST-2.5% & SGST-2.5%)")
+        self.assertEqual(ItemDAO.search("Grid Legacy")[0]["tax_structure"], "1")
+        self.assertEqual(ItemDAO.search("Grid Verified")[0]["tax_structure"], "11")
 
 
 # ======================================================================
@@ -486,12 +490,20 @@ class PurchaseInvoiceTaxCompatibilityTests(unittest.TestCase):
 
     def test_61_purchase_does_not_invent_tax_for_legacy_item(self):
         from database.item_dao import ItemDAO
-        item_id = ItemDAO.insert(item_name="Pur Legacy", tax_structure="11")
+        # Unmapped legacy item defaults to "0" in purchase invoice
+        item_id = ItemDAO.insert(item_name="Pur Legacy Unmapped", tax_structure="1")
         dialog = self._dialog()
         entry = self._select_item(dialog, item_id)
-        self.assertEqual(entry.gst_edit.text(), "",
-                         "a legacy code must not produce a GST percentage")
+        self.assertEqual(entry.gst_edit.text(), "0",
+                         "an unmapped legacy code defaults to 0")
         dialog.hide()
+        # Verified legacy item prefills mapped GST rate
+        item_id_v = ItemDAO.insert(item_name="Pur Legacy Verified", tax_structure="11")
+        dialog_v = self._dialog()
+        entry_v = self._select_item(dialog_v, item_id_v)
+        self.assertEqual(entry_v.gst_edit.text(), "5",
+                         "a verified legacy code prefills mapped GST rate")
+        dialog_v.hide()
 
     def test_62_purchase_gst_arithmetic_unchanged(self):
         """amount x gst% / 100 still produces the same GST amount."""
@@ -504,16 +516,16 @@ class PurchaseInvoiceTaxCompatibilityTests(unittest.TestCase):
             with self.subTest(rate=rate):
                 self.assertEqual(_round2(amount * rate / 100.0), expected)
 
-    def test_63_purchase_gst_box_remains_user_overridable(self):
+    def test_63_purchase_gst_box_is_readonly_from_item(self):
         from database.item_dao import ItemDAO
-        item_id = ItemDAO.insert(item_name="Override Item",
+        item_id = ItemDAO.insert(item_name="Sync Item",
                                  tax_structure="18")
         dialog = self._dialog()
         entry = dialog._entry_bar
-        entry.gst_edit.setText("5")
+        self.assertTrue(entry.gst_edit.isReadOnly(), "GST box is read-only")
         self._select_item(dialog, item_id)
-        self.assertEqual(entry.gst_edit.text(), "5",
-                         "an existing user entry must not be overwritten")
+        self.assertEqual(entry.gst_edit.text(), "18",
+                         "GST box loads the item\'s tax rate")
         dialog.hide()
 
     def test_64_stored_purchase_gst_values_are_not_touched(self):
@@ -607,3 +619,6 @@ class TaxDataSafetyTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+def tearDownModule():
+    os.environ.pop('PHARMACY_DB', None)

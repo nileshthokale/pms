@@ -17,7 +17,9 @@ from PySide6.QtWidgets import (
 )
 
 from database import document_printing
+from database.purchase_dao import PurchaseDAO
 from database.purchase_report_dao import PurchaseReportDAO
+from screens.purchase_invoice import _InvoiceDialog
 from ui.fy_view import view_year_bounds
 from ui.searchable_filter import SearchableFilterEdit
 from ui.theme import palette
@@ -206,6 +208,12 @@ class PurchaseReportPage(QWidget):
         print_btn.setStyleSheet(_BTN_SECONDARY)
         print_btn.clicked.connect(self._on_print)
         row1.addWidget(print_btn)
+
+        edit_btn = QPushButton("Edit Invoice")
+        edit_btn.setStyleSheet(_BTN_SECONDARY)
+        edit_btn.setToolTip("Open and edit the selected invoice (Enter or Double-Click)")
+        edit_btn.clicked.connect(self._on_edit_selected_invoice)
+        row1.addWidget(edit_btn)
         fv.addLayout(row1)
 
         root.addWidget(filters)
@@ -246,6 +254,7 @@ class PurchaseReportPage(QWidget):
             f"}}"
             f"QTableWidget::item {{ padding: 2px 5px; }}"
         )
+        self._table.cellDoubleClicked.connect(self._on_row_double_clicked)
         root.addWidget(self._table, 1)
 
         # ── Summary bar ──────────────────────────────────────────
@@ -343,8 +352,11 @@ class PurchaseReportPage(QWidget):
                 f"{r['purchase_rate']:,.2f}",
                 f"{r['net_rate']:,.2f}",
             ]
+            purchase_id = r.get("purchase_id")
             for col, value in enumerate(values):
                 item = QTableWidgetItem(str(value))
+                if col == 0 and purchase_id:
+                    item.setData(Qt.UserRole, purchase_id)
                 if col >= 10:
                     item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 self._table.setItem(i, col, item)
@@ -385,6 +397,55 @@ class PurchaseReportPage(QWidget):
         self.voucher_edit.clear()
         self.batch_edit.clear()
         self._on_generate()
+
+    def _on_row_double_clicked(self, row: int, column: int):
+        item = self._table.item(row, 0)
+        if not item:
+            return
+        purchase_id = item.data(Qt.UserRole)
+        if purchase_id:
+            self._open_invoice(purchase_id)
+
+    def _on_edit_selected_invoice(self):
+        row = self._table.currentRow()
+        if row < 0:
+            QMessageBox.information(
+                self, "Edit Invoice", "Please select an invoice from the table to edit."
+            )
+            return
+        item = self._table.item(row, 0)
+        if not item:
+            return
+        purchase_id = item.data(Qt.UserRole)
+        if not purchase_id:
+            QMessageBox.warning(
+                self, "Edit Invoice", "The selected row does not contain a valid purchase ID."
+            )
+            return
+        self._open_invoice(purchase_id)
+
+    def _open_invoice(self, purchase_id: int):
+        try:
+            inv = PurchaseDAO.get_by_id(purchase_id)
+        except Exception as exc:
+            QMessageBox.critical(self, "Error", f"Failed to load invoice: {exc}")
+            return
+        if not inv:
+            QMessageBox.warning(self, "Edit Invoice", "Could not load invoice data from database.")
+            return
+
+        dlg = _InvoiceDialog(self, invoice=inv)
+        dlg.exec()
+        if getattr(dlg, "was_saved", False):
+            self._on_generate()
+
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter):
+            if self._table.hasFocus() or self._table.currentRow() >= 0:
+                self._on_edit_selected_invoice()
+                event.accept()
+                return
+        super().keyPressEvent(event)
 
     def _financial_year_name(self) -> str:
         year = self._history_financial_year or {}

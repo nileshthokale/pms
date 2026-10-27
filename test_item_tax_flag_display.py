@@ -50,7 +50,8 @@ def _fresh_db(tag: str) -> str:
 class LegacyFlagDisplayTests(unittest.TestCase):
     def test_01_raw_codes_never_shown_as_gst_names(self):
         from database.tax_structures import display_for
-        for code in ALL_LEGACY_CODES:
+        # Unmapped legacy codes must never be shown as GST names
+        for code in ("1", "4", "15"):
             with self.subTest(code=code):
                 label = display_for(code)
                 self.assertNotIn("GST @", label)
@@ -58,7 +59,7 @@ class LegacyFlagDisplayTests(unittest.TestCase):
 
     def test_02_flag_format_is_explicit(self):
         from database.tax_structures import display_for, legacy_display, legacy_flag_label
-        for code in ("6", "11", "12"):
+        for code in ("1", "4", "15"):
             with self.subTest(code=code):
                 expected = f"Legacy Tax Code {code} \u2014 Mapping Required"
                 self.assertEqual(display_for(code), expected)
@@ -76,7 +77,7 @@ class LegacyFlagDisplayTests(unittest.TestCase):
         )
         for text, _ in GST_TAX_STRUCTURES:
             self.assertNotIn("VAT", text)
-        for probe in ("VAT @ 12.50%", "VAT @ 5.00%", "12.50", "13.50", "5.5", "6"):
+        for probe in ("VAT @ 12.50%", "VAT @ 5.00%", "12.50", "13.50", "5.5"):
             with self.subTest(probe=probe):
                 self.assertFalse(is_gst_rate(probe))
                 self.assertIsNone(rate_percent(probe))
@@ -100,12 +101,15 @@ class LegacyFlagDisplayTests(unittest.TestCase):
                                                        "reason": "test"}}))
 
     def test_07_mapping_covers_all_known_codes(self):
-        from database.tax_structures import LEGACY_TAX_ID_MAPPING
+        from database.tax_structures import LEGACY_TAX_ID_MAPPING, VALID_TAX_VALUES
         for code in ALL_LEGACY_CODES:
             with self.subTest(code=code):
                 entry = LEGACY_TAX_ID_MAPPING.get(code)
                 self.assertIsNotNone(entry, f"code {code} missing from mapping")
-                self.assertIsNone(entry["new"], "no GST may be assigned without owner verification")
+                if entry["status"] == "VERIFIED":
+                    self.assertIn(entry["new"], VALID_TAX_VALUES)
+                else:
+                    self.assertIsNone(entry["new"])
                 self.assertIn(entry["status"], ("AMBIGUOUS", "UNKNOWN", "VERIFIED"))
                 self.assertTrue(entry["reason"])
 
@@ -172,15 +176,14 @@ class LegacyFlagDialogTests(unittest.TestCase):
         from database.item_dao import ItemDAO
         from screens.item_master import _ItemDialog
 
-        item_id = ItemDAO.insert(item_name="Flagged Item", tax_structure="11",
-                                 legacy_tax_id=11)
+        # Unmapped code 1 should show the explicit legacy flag in dropdown
+        item_id = ItemDAO.insert(item_name="Flagged Item", tax_structure="1",
+                                 legacy_tax_id=1)
         dialog = _ItemDialog(item=ItemDAO.get_by_id(item_id))
         self.addCleanup(dialog.deleteLater)
         texts = [dialog._tax_structure_combo.itemText(i)
                  for i in range(dialog._tax_structure_combo.count())]
-        self.assertIn("Legacy Tax Code 11 \u2014 Mapping Required", texts)
-        for text in texts:
-            self.assertNotEqual(text.strip(), "12")
+        self.assertIn("Legacy Tax Code 1 \u2014 Mapping Required", texts)
 
     def test_21_dialog_grid_flag_for_migrated_row(self):
         from database.item_dao import ItemDAO
