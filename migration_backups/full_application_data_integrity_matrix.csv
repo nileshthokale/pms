@@ -1,0 +1,47 @@
+screen_file,domain,daos_used,handles_batches,handles_expiry,handles_party_balance,has_string_sorting_risk,identified_issues,integrity_status
+account_group_master.py,Master Setup,AccountGroupDAO,NO,NO,YES,NO,None,VERIFIED_OK
+account_ledger.py,Finance & Ledgers,LedgerDAO; AccountGroupDAO,NO,NO,YES,NO,None,VERIFIED_OK
+account_roles.py,Utility / Other,ensure_system_ledgers,NO,NO,NO,NO,None,VERIFIED_OK
+backup_restore.py,Utility / Other,get_db_path,NO,NO,NO,NO,None,VERIFIED_OK
+balance_sheet.py,Finance & Ledgers,BalanceSheetDAO; active_date_range,NO,NO,YES,NO,None,VERIFIED_OK
+bank_book.py,Finance & Ledgers,BankBookDAO,NO,NO,YES,NO,None,VERIFIED_OK
+cash_book.py,Finance & Ledgers,CashBookDAO,NO,NO,YES,NO,None,VERIFIED_OK
+category_master.py,Master Setup,CategoryDAO,NO,NO,NO,NO,None,VERIFIED_OK
+company_master.py,Master Setup,CompanyDAO,NO,NO,NO,NO,None,VERIFIED_OK
+counter_sale.py,Sales & Billing,get_connection; DoctorDAO; CustomerDAO; ItemDAO; SalesDAO; available_quantity,YES,YES,YES,YES,Single-batch popup auto-selected numeric batches (fixed in Phase 1),NEEDS_FIX
+counter_sale_actions.py,Sales & Billing,PartyWiseReportDAO; get_connection; DrugDAO; LedgerDAO; StockDAO,YES,YES,YES,NO,None,VERIFIED_OK
+credit_note.py,Sales Returns,DocumentPrintError; get_connection; CustomerDAO; ItemDAO; StockDAO; CreditNoteDAO,YES,YES,NO,YES,StockDAO.get_stock_batches_for_item excludes 0-stock batches preventing returns,NEEDS_FIX
+customer_ledger.py,Finance & Ledgers,LedgerReportDAO,NO,NO,YES,NO,None,VERIFIED_OK
+customer_master.py,Master Setup,CustomerDAO,NO,NO,YES,NO,None,VERIFIED_OK
+customer_receipt.py,Finance & Ledgers,DocumentPrintError; get_connection; CustomerDAO; LedgerDAO; CustomerReceiptDAO,NO,NO,YES,YES,get_customer_balance omits ledger opening balance,NEEDS_FIX
+day_end.py,Utility / Other,DayEndDAO,NO,NO,YES,NO,None,VERIFIED_OK
+debit_note.py,Purchases & Inward,DocumentPrintError; get_connection; ItemDAO; StockDAO; DebitNoteDAO; SupplierDAO,YES,YES,NO,YES,None,VERIFIED_OK
+doctor_master.py,Master Setup,DoctorDAO,NO,NO,NO,NO,None,VERIFIED_OK
+doctor_reports.py,Reports & Analytics,DoctorReportsDAO,NO,NO,NO,NO,None,VERIFIED_OK
+drug_master.py,Master Setup,DrugDAO,NO,NO,NO,NO,None,VERIFIED_OK
+expiry_report.py,Inventory & Stock,ExpiryReportDAO,YES,YES,NO,NO,None,VERIFIED_OK
+financial_year.py,Master Setup,,NO,NO,NO,NO,None,VERIFIED_OK
+gst_report.py,Reports & Analytics,active_date_range; GSTReportDAO,YES,NO,NO,NO,None,VERIFIED_OK
+hold_bill.py,Sales & Billing,,NO,NO,YES,YES,None,VERIFIED_OK
+import_data.py,Utility / Other,,NO,NO,NO,NO,None,VERIFIED_OK
+item_master.py,Master Setup,DrugDAO; resolve_tax_display; ItemDAO; UnitDAO; CompanyDAO,NO,NO,NO,NO,Table displays target internal ID rather than legacy item ID,NEEDS_FIX
+itemwise_ledger.py,Finance & Ledgers,LedgerReportDAO,YES,YES,NO,NO,None,VERIFIED_OK
+journal_entry.py,Finance & Ledgers,LedgerDAO; get_connection; JournalDAO,NO,NO,NO,YES,None,VERIFIED_OK
+ledger_widgets.py,Finance & Ledgers,,NO,NO,NO,NO,None,VERIFIED_OK
+login.py,Utility / Other,,NO,NO,NO,NO,None,VERIFIED_OK
+party_wise_report.py,Reports & Analytics,PartyWiseReportDAO; active_date_range,NO,NO,YES,NO,None,VERIFIED_OK
+profit_loss.py,Finance & Ledgers,ProfitLossDAO; active_date_range,NO,NO,NO,NO,None,VERIFIED_OK
+purchase_invoice.py,Purchases & Inward,rate_percent; DocumentPrintError; ItemDAO; LedgerDAO; PurchaseDAO; SupplierDAO,YES,YES,YES,YES,"pack_factor fails on strings with letters/symbols like 10'S, 10TAB, 1*10",NEEDS_FIX
+purchase_report.py,Purchases & Inward,PurchaseReportDAO,YES,YES,YES,NO,None,VERIFIED_OK
+purchase_reports.py,Purchases & Inward,PurchaseReportsDAO,YES,YES,NO,NO,None,VERIFIED_OK
+sales_history.py,Sales & Billing,SalesDAO; get_connection,YES,YES,YES,YES,None,VERIFIED_OK
+sales_report.py,Sales & Billing,SalesReportDAO,YES,YES,NO,NO,None,VERIFIED_OK
+sales_reports.py,Sales & Billing,SalesReportsDAO,YES,YES,NO,NO,None,VERIFIED_OK
+stock_master.py,Inventory & Stock,StockDAO; CompanyDAO,YES,YES,NO,NO,StockDAO._is_expired format mismatch hides all expired batches | String-formatted numeric cells cause lexicographical sorting,NEEDS_FIX
+stock_reports.py,Inventory & Stock,StockReportsDAO,YES,YES,YES,NO,None,VERIFIED_OK
+supplier_ledger.py,Finance & Ledgers,LedgerReportDAO,NO,NO,YES,NO,None,VERIFIED_OK
+supplier_master.py,Master Setup,SupplierDAO,NO,NO,YES,NO,None,VERIFIED_OK
+supplier_payment.py,Finance & Ledgers,DocumentPrintError; get_connection; LedgerDAO; SupplierPaymentDAO; SupplierDAO,NO,NO,YES,YES,get_supplier_balance omits ledger opening balance,NEEDS_FIX
+trial_balance.py,Finance & Ledgers,active_date_range; TrialBalanceDAO,NO,NO,YES,NO,None,VERIFIED_OK
+unit_master.py,Master Setup,UnitDAO,NO,NO,NO,NO,None,VERIFIED_OK
+user_management.py,Master Setup,,NO,NO,NO,NO,None,VERIFIED_OK
