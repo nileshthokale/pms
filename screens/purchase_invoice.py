@@ -1604,7 +1604,7 @@ class _InvoiceDialog(QDialog):
             # 1. Update Pack and GST from Item Master (read-only)
             self._entry_bar.pack_edit.setText(str(item.get("pack_size", "") or ""))
             tax = item.get("tax_structure", "")
-            percent = rate_percent(tax)
+            percent = rate_percent(tax, item.get("legacy_tax_id"))
             if percent is None and isinstance(tax, str):
                 m = re.search(r"GST\s*@?\s*(\d+(?:\.\d+)?)", tax, re.I) or re.search(r"(\d+(?:\.\d+)?)\s*%", tax)
                 if m:

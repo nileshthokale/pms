@@ -49,6 +49,10 @@ class _DBBase(unittest.TestCase):
         init_database()
         auth.ensure_auth_schema()
 
+    @classmethod
+    def tearDownClass(cls):
+        os.environ.pop("PHARMACY_DB", None)
+
     def setUp(self):
         from database.connection import get_connection
 
@@ -65,12 +69,12 @@ class ProvenanceDisplayTests(_DBBase):
         from database.tax_structures import resolve_tax_display
 
         # Unmapped legacy code with provenance still flags...
-        item_id = ItemDAO.insert(item_name="Legacy Eleven", tax_structure="11",
-                                 legacy_tax_id=11)
+        item_id = ItemDAO.insert(item_name="Legacy One", tax_structure="1",
+                                 legacy_tax_id=1)
         row = ItemDAO.get_by_id(item_id)
-        self.assertEqual(row["legacy_tax_id"], 11)
+        self.assertEqual(row["legacy_tax_id"], 1)
         self.assertEqual(resolve_tax_display(row["tax_structure"], row["legacy_tax_id"]),
-                         "Legacy Tax Code 11 \u2014 Mapping Required")
+                         "Legacy Tax Code 1 \u2014 Mapping Required")
         # ...while a GST-mapped legacy item shows its GST name.
         mapped = ItemDAO.insert(item_name="Mapped Twelve", tax_structure="12",
                                 legacy_tax_id=12)
@@ -121,6 +125,8 @@ class ProvenanceDisplayTests(_DBBase):
                                             row["legacy_tax_id"])
                 if row["tax_structure"] == "12":
                     self.assertIn("GST @ 12%", label)
+                elif row["tax_structure"] in ("2", "6", "7", "11", "13", "14"):
+                    self.assertIn("GST @ 5%", label)
                 else:
                     self.assertIn("Mapping Required", label)
 
@@ -261,8 +267,9 @@ class ProvenanceDialogTests(_DBBase):
         from database.item_dao import ItemDAO
         from screens.item_master import _ItemDialog
 
-        item_id = ItemDAO.insert(item_name="Dialog Legacy Eleven",
-                                 tax_structure="11", legacy_tax_id=11)
+        # Unmapped code 1 displays the Mapping Required flag in dialog
+        item_id = ItemDAO.insert(item_name="Dialog Legacy One",
+                                 tax_structure="1", legacy_tax_id=1)
         dialog = _ItemDialog(item=ItemDAO.get_by_id(item_id))
         self.addCleanup(dialog.deleteLater)
         self.assertIn("Mapping Required",
@@ -272,7 +279,8 @@ class ProvenanceDialogTests(_DBBase):
         from database.item_dao import ItemDAO
         from screens.item_master import _ItemDialog
 
-        item_id = ItemDAO.insert(item_name="Dialog Legacy", tax_structure="6",
+        # For mapped item: GST 5% is preserved
+        item_id = ItemDAO.insert(item_name="Dialog Legacy", tax_structure="5",
                                  legacy_tax_id=6)
         dialog = _ItemDialog(item=ItemDAO.get_by_id(item_id))
         self.addCleanup(dialog.deleteLater)
@@ -281,7 +289,19 @@ class ProvenanceDialogTests(_DBBase):
         self.assertTrue(dialog.was_saved)
         row = ItemDAO.get_by_id(item_id)
         self.assertEqual((row["tax_structure"], row["legacy_tax_id"], row["mrp"]),
-                         ("6", 6, 55.0))
+                         ("5", 6, 55.0))
+
+        # For unmapped item: legacy code 1 is preserved
+        item_u = ItemDAO.insert(item_name="Dialog Unmapped", tax_structure="1",
+                                legacy_tax_id=1)
+        dialog_u = _ItemDialog(item=ItemDAO.get_by_id(item_u))
+        self.addCleanup(dialog_u.deleteLater)
+        dialog_u._mrp_edit.setText("25.0")
+        dialog_u._on_save()
+        self.assertTrue(dialog_u.was_saved)
+        row_u = ItemDAO.get_by_id(item_u)
+        self.assertEqual((row_u["tax_structure"], row_u["legacy_tax_id"], row_u["mrp"]),
+                         ("1", 1, 25.0))
 
     def test_h_dialog_explicit_conversion_clears(self):
         from database.item_dao import ItemDAO

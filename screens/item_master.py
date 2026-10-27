@@ -40,6 +40,9 @@ from database.tax_structures import (
     VALID_TAX_VALUES,
     is_gst_rate,
     legacy_display,
+    rate_percent,
+    resolve_gst_rate,
+    resolve_tax_display,
 )
 
 from ui.input_rules import attach_uppercase
@@ -70,36 +73,9 @@ _REMOVE_GLYPH_STROKE = 2.4
 _REMOVE_TOOLTIP = "Remove ingredient"
 
 
-_REMAP_LEGACY_TAX_FLAGS = {
-    f"Legacy Tax Code {c} — Mapping Required" for c in ("2", "6", "7", "11", "13", "14")
-} | {
-    f"Legacy Tax Code {c} - Mapping Required" for c in ("2", "6", "7", "11", "13", "14")
-}
-_REMAP_TAX_CODES = {"2", "6", "7", "11", "13", "14"}
-_REMAP_GST_5_LABEL = "GST @ 5% (CGST-2.5% & SGST-2.5%)"
-
-
 def _tax_cell_text(item: dict) -> str:
-    """Grid text for an item row.
-
-    The stored value decides, with the provenance column consulted for a
-    legacy code: a genuine GST rate shows its GST name (including ``12``,
-    which the owner remapped for the imported items carrying it), an unmapped
-    legacy code shows the explicit mapping-required flag, and EMPTY (a
-    VAT-only imported item) shows blank.
-
-    For Item Master display only: legacy tax codes 2, 6, 7, 11, 13, 14 that
-    currently show "Mapping Required" display as GST @ 5% (CGST-2.5% & SGST-2.5%).
-    """
-    from database.tax_structures import resolve_tax_display
-
-    text = resolve_tax_display(item.get("tax_structure"), item.get("legacy_tax_id"))
-    if text in _REMAP_LEGACY_TAX_FLAGS:
-        return _REMAP_GST_5_LABEL
-    tax_code = str(item.get("tax_structure") if item.get("tax_structure") is not None else (item.get("legacy_tax_id") or "")).strip()
-    if tax_code in _REMAP_TAX_CODES and "Mapping Required" in text:
-        return _REMAP_GST_5_LABEL
-    return text
+    """Grid text for an item row using its verified GST mapping."""
+    return resolve_tax_display(item.get("tax_structure"), item.get("legacy_tax_id"))
 
 
 _DRUG_POPUP_MAX_ROWS = 12
@@ -803,34 +779,33 @@ class _ItemDialog(QDialog):
                 self._add_ingredient_row(drugs=drug_data, power=ing.get("power", ""))
 
     def _select_tax_structure(self, item: dict) -> None:
-        """Show an item's stored tax value without rewriting it.
-
-        The stored value decides, not the provenance:
-
-        * EMPTY (a VAT-only imported item) falls back to the ZERO GST default;
-        * a genuine GST rate selects that GST option — including ``12``, which
-          the owner remapped for every imported item that carried it;
-        * anything else is an unmapped legacy code, so the dialog appends one
-          clearly flagged entry and selects it.
-
-        Saving an unrelated field change keeps value and provenance exactly as
-        they were.  Nothing is silently converted.
-        """
+        """Select item's tax structure, matching its verified GST rate or displaying unmapped legacy flag."""
+        self._tax_touched = False
         value = "" if item.get("tax_structure") is None else str(item.get("tax_structure")).strip()
+        legacy_id = item.get("legacy_tax_id")
+
+        # 1. Check if the value is directly a valid GST rate
+        if is_gst_rate(value):
+            index = self._tax_structure_combo.findData(value)
+            if index >= 0:
+                self._tax_structure_combo.setCurrentIndex(index)
+                return
+
+        # 2. Check if the value or legacy_tax_id resolves to a verified GST rate
+        resolved_rate = resolve_gst_rate(value, legacy_id)
+        if resolved_rate is not None:
+            index = self._tax_structure_combo.findData(resolved_rate)
+            if index >= 0:
+                self._tax_structure_combo.setCurrentIndex(index)
+                return
+
+        # 3. If empty, select default
         if not value:
             self._tax_structure_combo.setCurrentIndex(
                 self._tax_structure_combo.findData(DEFAULT_TAX_VALUE))
             return
 
-        index = self._tax_structure_combo.findData(value)
-        if index >= 0:
-            self._tax_structure_combo.setCurrentIndex(index)
-            return
-
-        # addItem() does not report the new row index, so derive it.  The
-        # flagged entry is appended last and carries the stored value, so
-        # findData() could also return an earlier GST option sharing the same
-        # numeric data (e.g. '12'); the count-based index avoids that.
+        # 4. Truly unmapped legacy tax code (e.g. 1, 4, 15): append flagged entry
         self._tax_structure_combo.addItem(legacy_display(value), value)
         index = self._tax_structure_combo.count() - 1
         self._legacy_tax_index = index
@@ -882,10 +857,20 @@ class _ItemDialog(QDialog):
             original_tax = str(self._item.get("tax_structure") or "").strip()
             original_legacy = self._item.get("legacy_tax_id")
         if self._item and not self._tax_touched:
-            # Untouched edit: keep value and provenance byte-for-byte,
-            # including EMPTY tax values that display the GST default.
-            tax_value = original_tax
-            new_legacy_tax_id = original_legacy
+            # Untouched edit: keep EMPTY tax values that display the GST default
+            if not original_tax:
+                tax_value = ""
+                new_legacy_tax_id = original_legacy
+            else:
+                resolved = resolve_gst_rate(original_tax, original_legacy)
+                if resolved is not None:
+                    tax_value = resolved
+                    new_legacy_tax_id = original_legacy if original_legacy is not None else (
+                        int(original_tax) if original_tax.isdigit() and original_tax not in VALID_TAX_VALUES else None
+                    )
+                else:
+                    tax_value = original_tax
+                    new_legacy_tax_id = original_legacy
         else:
             is_new_selection = (
                 not self._item
@@ -903,9 +888,8 @@ class _ItemDialog(QDialog):
 
             if not self._item:
                 new_legacy_tax_id = None
-            elif tax_value != original_tax:
-                # Deliberate conversion: the new GST value replaces the legacy
-                # code, so provenance is cleared.  Nothing converts automatically.
+            elif tax_value != original_tax and tax_value != resolve_gst_rate(original_tax, original_legacy):
+                # Deliberate conversion to a different GST value: provenance is cleared.
                 new_legacy_tax_id = None
             else:
                 new_legacy_tax_id = original_legacy
