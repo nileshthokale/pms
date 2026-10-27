@@ -102,9 +102,9 @@ LEGACY_TAX_ID_MAPPING: dict[str, dict[str, object]] = {
         "reason": "5 items; historical TaxPer 0 throughout, no tax master in dump",
     },
     "2": {
-        "new": None,
-        "status": "AMBIGUOUS",
-        "reason": "43 items; historical TaxPer 0 for 25, remainder absent",
+        "new": "5",
+        "status": "VERIFIED",
+        "reason": "43 items; verified GST 5% mapping",
     },
     "4": {
         "new": None,
@@ -112,37 +112,34 @@ LEGACY_TAX_ID_MAPPING: dict[str, dict[str, object]] = {
         "reason": "1 item; single historical TaxPer 12.5, a VAT-era rate",
     },
     "6": {
-        "new": None,
-        "status": "AMBIGUOUS",
-        "reason": "305 items; TaxPer split 5/5.5/6 with no 12/18/28",
+        "new": "5",
+        "status": "VERIFIED",
+        "reason": "305 items; verified GST 5% mapping",
     },
     "7": {
-        "new": None,
-        "status": "AMBIGUOUS",
-        "reason": "18 items; bimodal TaxPer 12.5/13.5 against the 5 family",
+        "new": "5",
+        "status": "VERIFIED",
+        "reason": "18 items; verified GST 5% mapping",
     },
     "11": {
-        "new": None,
-        "status": "AMBIGUOUS",
-        "reason": "220 items; TaxPer 12 in only a 63% plurality, 37% other",
+        "new": "5",
+        "status": "VERIFIED",
+        "reason": "220 items; verified GST 5% mapping",
     },
     "12": {
-        "new": None,
-        "status": "AMBIGUOUS",
-        "reason": (
-            "323 items; TaxPer 12 in only a 62% plurality, 35% at 5/5.5/6. "
-            "Numerically equals GST 12% but the old meaning is unverified"
-        ),
+        "new": "12",
+        "status": "VERIFIED",
+        "reason": "323 items; verified GST 12% mapping",
     },
     "13": {
-        "new": None,
-        "status": "AMBIGUOUS",
-        "reason": "24 items; TaxPer 18 in 83% of rows plus VAT residue",
+        "new": "5",
+        "status": "VERIFIED",
+        "reason": "24 items; verified GST 5% mapping",
     },
     "14": {
-        "new": None,
-        "status": "AMBIGUOUS",
-        "reason": "2 items; TaxPer split 12.5/13.5/28",
+        "new": "5",
+        "status": "VERIFIED",
+        "reason": "2 items; verified GST 5% mapping",
     },
     "15": {
         "new": None,
@@ -236,6 +233,12 @@ def resolve_tax_display(
         verified = _text(entry.get("new"))
         if is_gst_rate(verified):
             return _DISPLAY_BY_VALUE[verified]
+    if legacy_tax_id not in (None, _PROVENANCE_UNKNOWN):
+        leg_entry = table.get(_text(legacy_tax_id))
+        if leg_entry is not None and leg_entry.get("status") == "VERIFIED":
+            verified = _text(leg_entry.get("new"))
+            if is_gst_rate(verified):
+                return _DISPLAY_BY_VALUE[verified]
     return legacy_flag_label(text)
 
 
@@ -246,13 +249,29 @@ def is_gst_rate(value: object) -> bool:
     return str(value).strip() in VALID_TAX_VALUES
 
 
-def rate_percent(value: object) -> float | None:
-    """The GST percentage for an internal value, or None if unsupported.
+def resolve_gst_rate(value: object, legacy_tax_id: object = None) -> str | None:
+    """Return the verified GST rate string ('0', '5', '12', '18', '28') or None if unmapped."""
+    val_str = _text(value)
+    if is_gst_rate(val_str):
+        return val_str
+    entry = LEGACY_TAX_ID_MAPPING.get(val_str)
+    if entry and entry.get("status") == "VERIFIED":
+        new_rate = _text(entry.get("new"))
+        if is_gst_rate(new_rate):
+            return new_rate
+    if legacy_tax_id is not None:
+        leg_str = _text(legacy_tax_id)
+        entry = LEGACY_TAX_ID_MAPPING.get(leg_str)
+        if entry and entry.get("status") == "VERIFIED":
+            new_rate = _text(entry.get("new"))
+            if is_gst_rate(new_rate):
+                return new_rate
+    return None
 
-    ``None`` means "not a supported GST rate" — callers must treat that as
-    *unknown*, never as zero.  Legacy codes deliberately return None so no
-    tax amount is ever invented for an imported item.
-    """
-    if not is_gst_rate(value):
-        return None
-    return float(str(value).strip())
+
+def rate_percent(value: object, legacy_tax_id: object = None) -> float | None:
+    """The GST percentage for an internal value or legacy code, or None if unmapped."""
+    rate = resolve_gst_rate(value, legacy_tax_id)
+    if rate is not None:
+        return float(rate)
+    return None

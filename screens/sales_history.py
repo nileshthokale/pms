@@ -27,6 +27,11 @@ from PySide6.QtWidgets import (
 )
 
 from database import document_printing, financial_year
+from database.counter_sale_a6_bill import (
+    CounterSaleBillA6PreviewDialog,
+    generate_counter_sale_pdf,
+    print_counter_sale_bill,
+)
 from database.sales_dao import SalesDAO
 from ui.components import FONT_FAMILY
 from ui.crystal_report_viewer import (
@@ -545,21 +550,22 @@ class SalesBillDetailsDialog(QDialog):
 
     def _on_direct_print(self):
         try:
-            document_printing.print_pharmacy_a6_bill(self.invoice_id, self, "Counter Sale Bill")
-        except document_printing.DocumentPrintError as exc:
-            QMessageBox.warning(self, "Print Bill", str(exc))
+            dlg = CounterSaleBillA6PreviewDialog(self.invoice_id, parent=self)
+            dlg.exec()
+        except Exception as exc:
+            QMessageBox.critical(self, "Print Bill", f"Failed to preview/print A6 bill:\n{exc}")
 
     def _on_save_pdf(self):
         bill_no = (self._invoice.get("bill_no") or f"bill_{self.invoice_id}").replace("/", "_")
-        default_name = f"sale_bill_{bill_no}.pdf"
-        path, _ = QFileDialog.getSaveFileName(self, "Save Bill PDF", default_name, "PDF (*.pdf)")
+        default_name = f"sales_bill_A6_{bill_no}.pdf"
+        path, _ = QFileDialog.getSaveFileName(self, "Save A6 Sales Bill PDF", default_name, "PDF (*.pdf)")
         if not path:
             return
         try:
-            output = document_printing.generate_counter_sale_bill(self.invoice_id, path)
-            QMessageBox.information(self, "PDF Saved", f"Bill saved to:\n{output}")
-        except document_printing.DocumentPrintError as exc:
-            QMessageBox.warning(self, "Save PDF", str(exc))
+            output = generate_counter_sale_pdf(self.invoice_id, path)
+            QMessageBox.information(self, "PDF Saved", f"A6 Cash Memo PDF saved to:\n{output}")
+        except Exception as exc:
+            QMessageBox.critical(self, "Save PDF", f"Failed to save PDF:\n{exc}")
 
     def refresh_theme(self):
         p = palette()
@@ -1197,11 +1203,16 @@ class SalesHistoryPage(QWidget):
         self._view_details_btn.clicked.connect(self._on_view_details)
         footer_layout.addWidget(self._view_details_btn)
 
-        # Retained as hidden attributes for backwards compatibility
-        self._print_btn = QPushButton("Print / Direct Print")
-        self._print_btn.setVisible(False)
-        self._save_pdf_btn = QPushButton("Save PDF")
-        self._save_pdf_btn.setVisible(False)
+        self._print_btn = QPushButton("Print Bill")
+        self._print_btn.setEnabled(False)
+        self._print_btn.clicked.connect(self._on_direct_print)
+        footer_layout.addWidget(self._print_btn)
+
+        self._save_pdf_btn = QPushButton("Print / PDF")
+        self._save_pdf_btn.setEnabled(False)
+        self._save_pdf_btn.clicked.connect(self._on_save_pdf)
+        footer_layout.addWidget(self._save_pdf_btn)
+
         self._footer_report_btn = QPushButton("Print Report")
         self._footer_report_btn.setVisible(False)
 
@@ -1404,27 +1415,30 @@ class SalesHistoryPage(QWidget):
     def _on_direct_print(self):
         inv_id = self._selected_invoice_id()
         if not inv_id:
+            QMessageBox.information(self, "Print Bill", "Please select a bill to print.")
             return
         try:
-            document_printing.print_pharmacy_a6_bill(inv_id, self, "Counter Sale Bill")
-        except document_printing.DocumentPrintError as exc:
-            QMessageBox.warning(self, "Print Bill", str(exc))
+            dlg = CounterSaleBillA6PreviewDialog(inv_id, parent=self)
+            dlg.exec()
+        except Exception as exc:
+            QMessageBox.critical(self, "Print Bill", f"Failed to preview/print A6 bill:\n{exc}")
 
     def _on_save_pdf(self):
         inv_id = self._selected_invoice_id()
         if not inv_id:
+            QMessageBox.information(self, "Print Bill", "Please select a bill to print.")
             return
         inv = SalesDAO.get_by_id(inv_id) or {}
         bill_no = (inv.get("bill_no") or f"bill_{inv_id}").replace("/", "_")
-        default_name = f"sale_bill_{bill_no}.pdf"
-        path, _ = QFileDialog.getSaveFileName(self, "Save Bill PDF", default_name, "PDF (*.pdf)")
+        default_name = f"sales_bill_A6_{bill_no}.pdf"
+        path, _ = QFileDialog.getSaveFileName(self, "Save A6 Sales Bill PDF", default_name, "PDF (*.pdf)")
         if not path:
             return
         try:
-            output = document_printing.generate_counter_sale_bill(inv_id, path)
-            QMessageBox.information(self, "PDF Saved", f"Bill saved to:\n{output}")
-        except document_printing.DocumentPrintError as exc:
-            QMessageBox.warning(self, "Save PDF", str(exc))
+            output = generate_counter_sale_pdf(inv_id, path)
+            QMessageBox.information(self, "PDF Saved", f"A6 Cash Memo PDF saved to:\n{output}")
+        except Exception as exc:
+            QMessageBox.critical(self, "Save PDF", f"Failed to save PDF:\n{exc}")
 
     def _perform_search(self):
         """Execute database query with filters and populate the results table."""

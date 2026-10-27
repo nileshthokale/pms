@@ -1,16 +1,15 @@
 """Tests for Patient History – Bill Number Wise screen.
 
 Validates:
-1. Search and filtering by Bill Number (with and without patient name).
-2. Search and filtering by Patient Name (single word, multi-word, case-insensitive).
-3. Multiple bills for the same patient listed chronologically.
-4. Optional date range filtering.
-5. Bill details pane populates with exact line items of the selected bill.
-6. Summary strip (Total Items, Bill Amount, Discount, Net Amount) updates properly.
-7. Reset and Refresh buttons.
-8. Action buttons (View Details, Print Bill, Print / PDF, Close).
-9. Integration with Main Window (menu navigation and close routing).
-10. Theme refresh handling.
+1. Patient Name, From Date, To Date, and date checkbox filters are removed from the search section.
+2. Search and filtering by Bill Number works directly without requiring patient name or dates.
+3. "No bill found" message displayed clearly when searching for non-existent bill number.
+4. Bill details pane populates with exact line items of the selected bill (medicines, batches, dates, etc.).
+5. Summary strip (Total Items, Bill Amount, Discount, Net Amount) updates properly.
+6. Reset and Refresh buttons.
+7. Action buttons (View Details, Print Bill, Print / PDF, Close).
+8. Integration with Main Window (menu navigation and close routing).
+9. Theme refresh handling.
 """
 
 from __future__ import annotations
@@ -172,8 +171,21 @@ class PatientHistoryBillWiseTests(unittest.TestCase):
         finally:
             conn.close()
 
+    def test_unnecessary_filters_removed_from_page(self):
+        """Verify Patient Name, From Date, To Date, and Date Checkbox are removed."""
+        page = PatientHistoryBillWisePage()
+        self.assertFalse(hasattr(page, "_patient_edit"))
+        self.assertFalse(hasattr(page, "_from_date"))
+        self.assertFalse(hasattr(page, "_to_date"))
+        self.assertFalse(hasattr(page, "_date_check"))
+
+        self.assertTrue(hasattr(page, "_bill_no_edit"))
+        self.assertTrue(hasattr(page, "_search_btn"))
+        self.assertTrue(hasattr(page, "_reset_btn"))
+        self.assertTrue(hasattr(page, "_refresh_btn"))
+
     def test_search_by_bill_number_only(self):
-        """Searching by bill number works even when patient name is empty or not provided."""
+        """Searching by bill number returns the corresponding bill without requiring patient name or date."""
         page = PatientHistoryBillWisePage()
         page._bill_no_edit.setText("103")
         page._perform_search()
@@ -184,39 +196,30 @@ class PatientHistoryBillWiseTests(unittest.TestCase):
         self.assertEqual(page._bills_table.item(0, 4).text(), "1")  # 1 item
         self.assertEqual(page._bills_table.item(0, 7).text(), "55.00")  # net amount
 
-    def test_search_by_patient_name(self):
-        """Patient name search finds all bills for that patient in chronological order."""
+    def test_search_by_bill_number_ramesh(self):
+        """Searching by bill number 101 returns the correct bill details."""
         page = PatientHistoryBillWisePage()
-        page._patient_edit.setText("RAMESH")
+        page._bill_no_edit.setText("101")
         page._perform_search()
 
-        # Should find 2 bills for RAMESH KUMAR (102 and 101, ordered by date DESC)
-        self.assertEqual(page._bills_table.rowCount(), 2)
-        bno_first = page._bills_table.item(0, 0).text()
-        bno_second = page._bills_table.item(1, 0).text()
-        self.assertEqual(bno_first, "102")  # Newer (2026-05-15)
-        self.assertEqual(bno_second, "101")  # Older (2026-05-10)
+        self.assertEqual(page._bills_table.rowCount(), 1)
+        self.assertEqual(page._bills_table.item(0, 0).text(), "101")
+        self.assertEqual(page._bills_table.item(0, 2).text(), "RAMESH KUMAR")
+        self.assertEqual(page._bills_table.item(0, 7).text(), "70.00")
 
-    def test_search_by_multi_word_patient_name(self):
-        """Multi-word patient search matches in any order."""
+    def test_no_bill_found_message(self):
+        """When searching for a non-existent bill number, a clear 'No bill found' message is displayed."""
         page = PatientHistoryBillWisePage()
-        page._patient_edit.setText("KUMAR RAMESH")
+        page._bill_no_edit.setText("NON_EXISTENT_BILL_99999")
         page._perform_search()
 
-        self.assertEqual(page._bills_table.rowCount(), 2)
-
-    def test_date_range_filtering(self):
-        """Filtering with from_date and to_date restricts results correctly."""
-        page = PatientHistoryBillWisePage()
-        page._date_check.setChecked(True)
-        page._from_date.setDate(QDate(2026, 5, 12))
-        page._to_date.setDate(QDate(2026, 6, 15))
-        page._perform_search()
-
-        # Should match Bill 102 (2026-05-15) and Bill 103 (2026-06-01)
-        self.assertEqual(page._bills_table.rowCount(), 2)
-        bnos = {page._bills_table.item(i, 0).text() for i in range(2)}
-        self.assertEqual(bnos, {"102", "103"})
+        self.assertEqual(page._bills_table.rowCount(), 0)
+        self.assertEqual(page._items_table.rowCount(), 0)
+        self.assertEqual(page._stats_lbl.text(), "No bill found")
+        self.assertEqual(page._details_hdr_lbl.text(), "Bill Details — No bill found")
+        self.assertFalse(page._view_details_btn.isEnabled())
+        self.assertFalse(page._print_btn.isEnabled())
+        self.assertFalse(page._pdf_btn.isEnabled())
 
     def test_bill_details_pane_populates_accurately(self):
         """Selecting a bill populates its medicine details and summary amounts."""
@@ -242,37 +245,26 @@ class PatientHistoryBillWiseTests(unittest.TestCase):
     def test_bill_selection_switching(self):
         """Selecting another bill updates the detail table to only that bill's items."""
         page = PatientHistoryBillWisePage()
-        page._patient_edit.setText("RAMESH")
         page._perform_search()
 
-        # Select row 0 (Bill 102, 1 item)
-        page._bills_table.selectRow(0)
+        # All 4 bills are present, ordered by date DESC: 104 (July), 103 (June), 102 (May 15), 101 (May 10)
+        self.assertEqual(page._bills_table.rowCount(), 4)
+
+        # Select row 2 (Bill 102, 1 item)
+        page._bills_table.selectRow(2)
         self.assertEqual(page._items_table.rowCount(), 1)
         self.assertEqual(page._items_table.item(0, 0).text(), "PARACETAMOL 500MG")
         self.assertEqual(page._sum_items_lbl.text(), "Total Items: 1")
         self.assertEqual(page._sum_net_lbl.text(), "Net Amount: ₹40.00")
 
-        # Select row 1 (Bill 101, 2 items)
-        page._bills_table.selectRow(1)
+        # Select row 3 (Bill 101, 2 items)
+        page._bills_table.selectRow(3)
         self.assertEqual(page._items_table.rowCount(), 2)
         self.assertEqual(page._sum_items_lbl.text(), "Total Items: 2")
         self.assertEqual(page._sum_net_lbl.text(), "Net Amount: ₹70.00")
 
-    def test_empty_search_handled_safely(self):
-        """No crash or lingering state on search with no matches."""
-        page = PatientHistoryBillWisePage()
-        page._bill_no_edit.setText("NON_EXISTENT_BILL_99999")
-        page._perform_search()
-
-        self.assertEqual(page._bills_table.rowCount(), 0)
-        self.assertEqual(page._items_table.rowCount(), 0)
-        self.assertEqual(page._stats_lbl.text(), "No matching bills found.")
-        self.assertFalse(page._view_details_btn.isEnabled())
-        self.assertFalse(page._print_btn.isEnabled())
-        self.assertFalse(page._pdf_btn.isEnabled())
-
     def test_reset_button(self):
-        """Reset clears inputs and reloads all records."""
+        """Reset clears bill number input and reloads all records."""
         page = PatientHistoryBillWisePage()
         page._bill_no_edit.setText("101")
         page._perform_search()
@@ -280,24 +272,25 @@ class PatientHistoryBillWiseTests(unittest.TestCase):
 
         page._reset_btn.click()
         self.assertEqual(page._bill_no_edit.text(), "")
-        self.assertEqual(page._patient_edit.text(), "")
-        self.assertFalse(page._date_check.isChecked())
         # All 4 bills present
         self.assertEqual(page._bills_table.rowCount(), 4)
 
     def test_print_actions_invoke_correct_invoice(self):
-        """Print Bill and PDF actions invoke document_printing with the selected invoice id."""
+        """Print Bill and PDF actions invoke Counter Sale Crystal Report preview and generator."""
         page = PatientHistoryBillWisePage()
         page._bill_no_edit.setText("101")
         page._perform_search()
         page._bills_table.selectRow(0)
 
-        with mock.patch("database.document_printing.print_pharmacy_a6_bill") as mock_print:
+        with mock.patch("screens.patient_history_bill_wise.CounterSaleBillA6PreviewDialog") as mock_dlg_cls:
+            mock_dlg = mock.MagicMock()
+            mock_dlg_cls.return_value = mock_dlg
             page._print_btn.click()
-            mock_print.assert_called_once_with(self.inv1_id, page, "Counter Sale Bill")
+            mock_dlg_cls.assert_called_once_with(self.inv1_id, parent=page)
+            mock_dlg.exec.assert_called_once()
 
         with mock.patch("PySide6.QtWidgets.QFileDialog.getSaveFileName", return_value=("/tmp/test_bill.pdf", "PDF (*.pdf)")), \
-             mock.patch("database.document_printing.generate_counter_sale_bill") as mock_pdf, \
+             mock.patch("screens.patient_history_bill_wise.generate_counter_sale_pdf") as mock_pdf, \
              mock.patch("PySide6.QtWidgets.QMessageBox.information"):
             page._pdf_btn.click()
             mock_pdf.assert_called_once_with(self.inv1_id, "/tmp/test_bill.pdf")
