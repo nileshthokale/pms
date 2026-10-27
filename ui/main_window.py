@@ -80,10 +80,10 @@ class PharmacyMainWindow(QMainWindow):
 
         from PySide6.QtGui import QShortcut, QKeySequence
         QShortcut(QKeySequence("Ctrl+D"), self).activated.connect(
-            lambda: self._on_menu_action("Account", "Debit Note (Return to Supplier)")
+            lambda: self._on_menu_action("Purchase", "Debit Note (Return to Supplier)")
         )
         QShortcut(QKeySequence("Ctrl+C"), self).activated.connect(
-            lambda: self._on_menu_action("Account", "Credit Note (Return from Customer)")
+            lambda: self._on_menu_action("Purchase", "Credit Note (Return from Customer)")
         )
         theme.theme_manager.on_changed(self._on_theme_changed)
         self._apply_theme()
@@ -146,6 +146,14 @@ class PharmacyMainWindow(QMainWindow):
                     page = screens.PurchaseInvoicePage()
                 elif menu_name == "Purchase" and item_name in ("Stock Adjustment", "Adjusted Stock"):
                     page = screens.AdjustedStockListPage()
+                elif menu_name == "Purchase" and item_name in (
+                    "Debit Note (Return to Supplier)", "Debit Note"
+                ):
+                    page = screens.DebitNotePage()
+                elif menu_name == "Purchase" and item_name in (
+                    "Credit Note (Return from Customer)", "Credit Note"
+                ):
+                    page = screens.CreditNotePage()
                 elif menu_name == "Reports" and item_name == "Items (All) Stock":
                     page = screens.ItemsAllStockPage()
                     page.close_requested.connect(
@@ -272,10 +280,10 @@ class PharmacyMainWindow(QMainWindow):
                         lambda: self._on_menu_action("Reports", "Supplierwise Itemwise Purchase (Challan)")
                     )
                     page.debit_note_requested.connect(
-                        lambda: self._on_menu_action("Account", "Debit Note (Return to Supplier)")
+                        lambda: self._on_menu_action("Purchase", "Debit Note (Return to Supplier)")
                     )
                     page.credit_note_requested.connect(
-                        lambda: self._on_menu_action("Account", "Credit Note (Return from Customer)")
+                        lambda: self._on_menu_action("Purchase", "Credit Note (Return from Customer)")
                     )
                 elif menu_name == "Sales" and item_name == "Hold Bill":
                     page = screens.HoldBillPage()
@@ -291,14 +299,6 @@ class PharmacyMainWindow(QMainWindow):
                     page.close_requested.connect(
                         lambda: self._on_menu_action("Sales", "New Bill")
                     )
-                elif menu_name == "Account" and item_name in (
-                    "Debit Note (Return to Supplier)", "Debit Note"
-                ):
-                    page = screens.DebitNotePage()
-                elif menu_name == "Account" and item_name in (
-                    "Credit Note (Return from Customer)", "Credit Note"
-                ):
-                    page = screens.CreditNotePage()
                 elif menu_name == "Account" and item_name in (
                     "Supplier Payment Voucher", "Supplier Payment"
                 ):
@@ -373,13 +373,25 @@ class PharmacyMainWindow(QMainWindow):
             page_index += 1
         if "Reports:Doctor's Reports" not in self._page_map and "Reports:Doctorwise Item Sale" in self._page_map:
             self._page_map["Reports:Doctor's Reports"] = self._page_map["Reports:Doctorwise Item Sale"]
+        if "Purchase:Debit Note (Return to Supplier)" in self._page_map:
+            self._page_map["Account:Debit Note (Return to Supplier)"] = self._page_map["Purchase:Debit Note (Return to Supplier)"]
+            self._page_map["Account:Debit Note"] = self._page_map["Purchase:Debit Note (Return to Supplier)"]
+            self._page_map["Purchase:Debit Note"] = self._page_map["Purchase:Debit Note (Return to Supplier)"]
+        if "Purchase:Credit Note (Return from Customer)" in self._page_map:
+            self._page_map["Account:Credit Note (Return from Customer)"] = self._page_map["Purchase:Credit Note (Return from Customer)"]
+            self._page_map["Account:Credit Note"] = self._page_map["Purchase:Credit Note (Return from Customer)"]
+            self._page_map["Purchase:Credit Note"] = self._page_map["Purchase:Credit Note (Return from Customer)"]
 
     def _on_menu_action(self, menu: str, action: str):
         _LEGACY_REDIRECTS = {
-            ("Sales", "Return Bill"): ("Account", "Credit Note (Return from Customer)"),
-            ("Purchase", "Purchase Return"): ("Account", "Debit Note (Return to Supplier)"),
+            ("Sales", "Return Bill"): ("Purchase", "Credit Note (Return from Customer)"),
+            ("Purchase", "Purchase Return"): ("Purchase", "Debit Note (Return to Supplier)"),
             ("Purchase", "Supplier Payment"): ("Account", "Supplier Payment Voucher"),
             ("Reports", "Stock Report"): ("Reports", "Items (All) Stock"),
+            ("Account", "Debit Note (Return to Supplier)"): ("Purchase", "Debit Note (Return to Supplier)"),
+            ("Account", "Credit Note (Return from Customer)"): ("Purchase", "Credit Note (Return from Customer)"),
+            ("Account", "Debit Note"): ("Purchase", "Debit Note (Return to Supplier)"),
+            ("Account", "Credit Note"): ("Purchase", "Credit Note (Return from Customer)"),
         }
         if (menu, action) in _LEGACY_REDIRECTS:
             menu, action = _LEGACY_REDIRECTS[(menu, action)]

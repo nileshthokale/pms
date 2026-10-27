@@ -1,19 +1,16 @@
 """Patient History – Bill Number Wise Screen.
 
-Allows searching previous sales bills by Bill Number and/or Patient Name,
-with optional date range filtering, immediate itemized bill inspection,
-and direct A6 bill reprint / PDF export.
+Allows searching previous sales bills by Bill Number,
+with immediate itemized bill inspection and direct A6 bill reprint / PDF export.
 """
 
 from __future__ import annotations
 
 import os
 from datetime import datetime
-from PySide6.QtCore import QDate, Qt, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QCheckBox,
-    QDateEdit,
     QFileDialog,
     QFrame,
     QGroupBox,
@@ -23,6 +20,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QSizePolicy,
     QSplitter,
     QTableWidget,
     QTableWidgetItem,
@@ -30,25 +28,26 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from database import document_printing, financial_year
+from database import financial_year
+from database.counter_sale_a6_bill import (
+    CounterSaleBillA6PreviewDialog,
+    generate_counter_sale_pdf,
+    print_counter_sale_bill,
+)
 from database.sales_dao import SalesDAO
 from screens.sales_history import (
-    PatientSearchEdit,
     SalesBillDetailsDialog,
     _fresh_btn_style,
-    _fresh_date_style,
     _fresh_edit_style,
     _fresh_header_style,
     _fresh_table_style,
 )
 from ui.components import FONT_FAMILY
-from ui.fy_view import view_year_bounds
 from ui.input_rules import attach_uppercase
 from ui.theme import (
     TYPE_BUTTON,
     TYPE_FORM_LABEL,
     TYPE_HINT,
-    TYPE_INPUT,
     TYPE_PAGE_TITLE,
     TYPE_SECTION_HEADER,
     TYPE_TABLE_DATA,
@@ -103,7 +102,6 @@ class PatientHistoryBillWisePage(QWidget):
         self._selected_invoice: dict | None = None
 
         self._build_ui()
-        self._set_default_dates()
         self.refresh_theme()
         self._perform_search()
 
@@ -124,8 +122,8 @@ class PatientHistoryBillWisePage(QWidget):
         title_box.addStretch()
         root_layout.addLayout(title_box)
 
-        # ── 2. Search & Filters Bar ──────────────────────────────────
-        self._filter_box = QGroupBox("Search & Filters")
+        # ── 2. Search Bar ────────────────────────────────────────────
+        self._filter_box = QGroupBox("Search Bill")
         filter_layout = QVBoxLayout(self._filter_box)
         filter_layout.setContentsMargins(8, 10, 8, 8)
         filter_layout.setSpacing(6)
@@ -134,67 +132,18 @@ class PatientHistoryBillWisePage(QWidget):
         row.setSpacing(10)
 
         # Bill Number input
-        b_box = QHBoxLayout()
-        b_box.setSpacing(6)
         b_lbl = QLabel("Bill No:")
         b_lbl.setStyleSheet(f"font-size: {TYPE_FORM_LABEL}px; font-weight: bold;")
-        b_box.addWidget(b_lbl)
+        b_lbl.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
+        row.addWidget(b_lbl)
+
         self._bill_no_edit = QLineEdit()
         self._bill_no_edit.setPlaceholderText("Enter bill number...")
         self._bill_no_edit.setClearButtonEnabled(True)
-        self._bill_no_edit.setFixedWidth(140)
+        self._bill_no_edit.setFixedWidth(200)
         attach_uppercase(self._bill_no_edit)
         self._bill_no_edit.returnPressed.connect(self._on_search_clicked)
-        b_box.addWidget(self._bill_no_edit)
-        row.addLayout(b_box)
-
-        # Patient Name search with live autocomplete
-        p_box = QHBoxLayout()
-        p_box.setSpacing(6)
-        p_lbl = QLabel("Patient:")
-        p_lbl.setStyleSheet(f"font-size: {TYPE_FORM_LABEL}px; font-weight: bold;")
-        p_box.addWidget(p_lbl)
-        self._patient_edit = PatientSearchEdit("Search patient name...")
-        self._patient_edit.returnPressed.connect(self._on_search_clicked)
-        self._patient_edit.picked.connect(self._on_search_clicked)
-        p_box.addWidget(self._patient_edit)
-        row.addLayout(p_box, 1)
-
-        # Optional Date Filter Checkbox
-        self._date_check = QCheckBox("Filter by Date:")
-        self._date_check.setChecked(False)
-        self._date_check.toggled.connect(self._on_date_check_toggled)
-        row.addWidget(self._date_check)
-
-        # From Date
-        from_box = QHBoxLayout()
-        from_box.setSpacing(4)
-        self._from_lbl = QLabel("From:")
-        self._from_lbl.setStyleSheet(f"font-size: {TYPE_FORM_LABEL}px;")
-        from_box.addWidget(self._from_lbl)
-        self._from_date = QDateEdit()
-        self._from_date.setCalendarPopup(True)
-        self._from_date.setDisplayFormat("dd/MM/yyyy")
-        self._from_date.setDate(QDate.currentDate())
-        self._from_date.setFixedWidth(110)
-        self._from_date.setEnabled(False)
-        from_box.addWidget(self._from_date)
-        row.addLayout(from_box)
-
-        # To Date
-        to_box = QHBoxLayout()
-        to_box.setSpacing(4)
-        self._to_lbl = QLabel("To:")
-        self._to_lbl.setStyleSheet(f"font-size: {TYPE_FORM_LABEL}px;")
-        to_box.addWidget(self._to_lbl)
-        self._to_date = QDateEdit()
-        self._to_date.setCalendarPopup(True)
-        self._to_date.setDisplayFormat("dd/MM/yyyy")
-        self._to_date.setDate(QDate.currentDate())
-        self._to_date.setFixedWidth(110)
-        self._to_date.setEnabled(False)
-        to_box.addWidget(self._to_date)
-        row.addLayout(to_box)
+        row.addWidget(self._bill_no_edit)
 
         # Search, Reset & Refresh Buttons
         self._search_btn = QPushButton("Search")
@@ -208,6 +157,8 @@ class PatientHistoryBillWisePage(QWidget):
         self._refresh_btn = QPushButton("Refresh")
         self._refresh_btn.clicked.connect(self._on_refresh_clicked)
         row.addWidget(self._refresh_btn)
+
+        row.addStretch()
 
         filter_layout.addLayout(row)
         root_layout.addWidget(self._filter_box)
@@ -355,37 +306,10 @@ class PatientHistoryBillWisePage(QWidget):
 
         root_layout.addLayout(footer_layout)
 
-    def _set_default_dates(self):
-        """Set default dates from active financial year or current year."""
-        today = QDate.currentDate()
-        active = financial_year.get_active_financial_year()
-        if active and active.get("start_date"):
-            sd = QDate.fromString(active["start_date"], "yyyy-MM-dd")
-            if sd.isValid():
-                self._from_date.setDate(sd)
-            else:
-                self._from_date.setDate(QDate(today.year() if today.month() >= 4 else today.year() - 1, 4, 1))
-        else:
-            self._from_date.setDate(QDate(today.year() if today.month() >= 4 else today.year() - 1, 4, 1))
-        self._to_date.setDate(today)
-
     def set_history_financial_year(self, year: dict | None) -> None:
         """Scope search to chosen viewing financial year."""
         self._history_financial_year = dict(year) if year else None
-        if self._history_financial_year and self._history_financial_year.get("start_date"):
-            sd = QDate.fromString(self._history_financial_year["start_date"], "yyyy-MM-dd")
-            if sd.isValid():
-                self._from_date.setDate(sd)
-            ed_str = self._history_financial_year.get("end_date") or ""
-            ed = QDate.fromString(ed_str, "yyyy-MM-dd") if ed_str else QDate()
-            if ed.isValid():
-                self._to_date.setDate(ed)
-            self._date_check.setChecked(True)
-            self._perform_search()
-
-    def _on_date_check_toggled(self, checked: bool):
-        self._from_date.setEnabled(checked)
-        self._to_date.setEnabled(checked)
+        self._perform_search()
 
     def _on_search_clicked(self):
         self._perform_search()
@@ -395,9 +319,6 @@ class PatientHistoryBillWisePage(QWidget):
 
     def _on_reset_clicked(self):
         self._bill_no_edit.clear()
-        self._patient_edit.clear_filter()
-        self._date_check.setChecked(False)
-        self._set_default_dates()
         self._perform_search()
 
     def _on_close(self):
@@ -461,7 +382,10 @@ class PatientHistoryBillWisePage(QWidget):
         self._view_details_btn.setEnabled(False)
         self._print_btn.setEnabled(False)
         self._pdf_btn.setEnabled(False)
-        self._details_hdr_lbl.setText("Bill Details — Select a bill above to view medicines")
+        if self._bill_no_edit.text().strip():
+            self._details_hdr_lbl.setText("Bill Details — No bill found")
+        else:
+            self._details_hdr_lbl.setText("Bill Details — Select a bill above to view medicines")
         self._items_table.setRowCount(0)
         self._sum_items_lbl.setText("Total Items: 0")
         self._sum_total_lbl.setText("Bill Amount: ₹0.00")
@@ -470,19 +394,9 @@ class PatientHistoryBillWisePage(QWidget):
 
     def _perform_search(self):
         bno = self._bill_no_edit.text().strip()
-        pname = self._patient_edit.text().strip()
-
-        start_date = ""
-        end_date = ""
-        if self._date_check.isChecked():
-            start_date = self._from_date.date().toString("yyyy-MM-dd")
-            end_date = self._to_date.date().toString("yyyy-MM-dd")
 
         rows, total = SalesDAO.search_patient_bill_history(
             bill_no=bno,
-            patient_name=pname,
-            start_date=start_date,
-            end_date=end_date,
             limit=100,
             offset=0,
         )
@@ -491,11 +405,20 @@ class PatientHistoryBillWisePage(QWidget):
 
         # Update stats
         if total == 0:
-            self._stats_lbl.setText("No matching bills found.")
+            self._stats_lbl.setText("No bill found")
+            self._stats_lbl.setStyleSheet(
+                f"color: {palette().get('danger', '#b23a3a')}; font-size: {TYPE_HINT}px; font-weight: bold;"
+            )
         elif total == 1:
             self._stats_lbl.setText("1 bill found")
+            self._stats_lbl.setStyleSheet(
+                f"color: {palette()['text_dim']}; font-size: {TYPE_HINT}px;"
+            )
         else:
             self._stats_lbl.setText(f"{total} bills found (showing {len(rows)})")
+            self._stats_lbl.setStyleSheet(
+                f"color: {palette()['text_dim']}; font-size: {TYPE_HINT}px;"
+            )
 
     def _populate_bills_table(self, rows: list[dict]):
         self._bills_table.clearSelection()
@@ -620,38 +543,48 @@ class PatientHistoryBillWisePage(QWidget):
     def _on_print_bill(self):
         inv_id = self._selected_invoice_id()
         if not inv_id:
+            QMessageBox.information(self, "Print Bill", "Please select a bill to print.")
             return
         try:
-            document_printing.print_pharmacy_a6_bill(inv_id, self, "Counter Sale Bill")
-        except document_printing.DocumentPrintError as exc:
-            QMessageBox.warning(self, "Print Bill", str(exc))
+            dlg = CounterSaleBillA6PreviewDialog(inv_id, parent=self)
+            dlg.exec()
+        except Exception as exc:
+            QMessageBox.critical(self, "Print Bill", f"Failed to preview/print A6 bill:\n{exc}")
 
     def _on_save_pdf(self):
         inv_id = self._selected_invoice_id()
         if not inv_id:
+            QMessageBox.information(self, "Save PDF", "Please select a bill to print.")
             return
         inv = self._selected_invoice or SalesDAO.get_by_id(inv_id) or {}
         disp_bno = inv.get("display_bill_no") or SalesDAO.display_bill_no(
             inv.get("bill_no", ""), patient_name=inv.get("patient_name", "")
         )
         safe_bno = (disp_bno or f"bill_{inv_id}").replace("/", "_")
-        default_name = f"sale_bill_{safe_bno}.pdf"
-        path, _ = QFileDialog.getSaveFileName(self, "Save Bill PDF", default_name, "PDF (*.pdf)")
+        default_name = f"sales_bill_A6_{safe_bno}.pdf"
+        path, _ = QFileDialog.getSaveFileName(self, "Save A6 Sales Bill PDF", default_name, "PDF (*.pdf)")
         if not path:
             return
         try:
-            output = document_printing.generate_counter_sale_bill(inv_id, path)
-            QMessageBox.information(self, "PDF Saved", f"Bill saved to:\n{output}")
-        except document_printing.DocumentPrintError as exc:
-            QMessageBox.warning(self, "Save PDF", str(exc))
+            output = generate_counter_sale_pdf(inv_id, path)
+            QMessageBox.information(self, "PDF Saved", f"A6 Cash Memo PDF saved to:\n{output}")
+        except Exception as exc:
+            QMessageBox.critical(self, "Save PDF", f"Failed to save PDF:\n{exc}")
 
     def refresh_theme(self):
         p = palette()
         self.setStyleSheet(f"background-color: {p['bg']}; color: {p['text']}; font-family: {FONT_FAMILY};")
+        self._filter_box.setStyleSheet(
+            f"QGroupBox {{"
+            f"  background-color: {p['bg']}; color: {p['text']};"
+            f"  font-weight: bold; font-size: {TYPE_SECTION_HEADER}px;"
+            f"  border: 1px solid {p['border']}; border-radius: 4px;"
+            f"  margin-top: 10px; padding-top: 14px;"
+            f"}}"
+            f"QGroupBox::title {{ subcontrol-origin: margin; left: 10px; padding: 0 6px;"
+            f"  color: {p['text']}; background-color: {p['bg']}; }}"
+        )
         self._bill_no_edit.setStyleSheet(_fresh_edit_style(p))
-        self._patient_edit.refresh_theme()
-        self._from_date.setStyleSheet(_fresh_date_style(p))
-        self._to_date.setStyleSheet(_fresh_date_style(p))
 
         self._search_btn.setStyleSheet(_fresh_btn_style(p, primary=True))
         self._reset_btn.setStyleSheet(_fresh_btn_style(p))
@@ -661,6 +594,10 @@ class PatientHistoryBillWisePage(QWidget):
         self._bills_table.horizontalHeader().setStyleSheet(_fresh_header_style(p))
         self._items_table.setStyleSheet(_fresh_table_style(p))
         self._items_table.horizontalHeader().setStyleSheet(_fresh_header_style(p))
+
+        self._summary_frame.setStyleSheet(
+            f"QFrame {{ border: 1px solid {p['border']}; border-radius: 4px; padding: 4px; background-color: {p['surface_alt']}; }}"
+        )
 
         self._view_details_btn.setStyleSheet(_fresh_btn_style(p))
         self._print_btn.setStyleSheet(_fresh_btn_style(p, primary=True))
