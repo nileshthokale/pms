@@ -88,10 +88,10 @@ MENUS = {
         "New Purchase",
         "Purchase History",
         "Stock Adjustment",
-    ],
-    "Account": [
         "Debit Note (Return to Supplier)",
         "Credit Note (Return from Customer)",
+    ],
+    "Account": [
         "Supplier Payment Voucher",
         "Customer Receipt Voucher",
         "Cash Book",
