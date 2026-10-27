@@ -180,21 +180,21 @@ class TestPurchaseInvoicePPAndItemDeletion(unittest.TestCase):
 
         # Check PP column text (Column 15) for all 4 items
         for row_idx in range(4):
-            pp_cell = dlg._table.item(row_idx, 15)
+            pp_cell = dlg._table.item(row_idx, 14)
             self.assertIsNotNone(pp_cell)
             self.assertEqual(pp_cell.text(), "25", f"Row {row_idx} PP must be '25'")
 
         # Confirm it is NOT the line total
-        self.assertNotEqual(dlg._table.item(0, 15).text(), "532.79")
-        self.assertNotEqual(dlg._table.item(1, 15).text(), "922.53")
-        self.assertNotEqual(dlg._table.item(2, 15).text(), "763.46")
-        self.assertNotEqual(dlg._table.item(3, 15).text(), "4416.09")
+        self.assertNotEqual(dlg._table.item(0, 14).text(), "532.79")
+        self.assertNotEqual(dlg._table.item(1, 14).text(), "922.53")
+        self.assertNotEqual(dlg._table.item(2, 14).text(), "763.46")
+        self.assertNotEqual(dlg._table.item(3, 14).text(), "4416.09")
 
         # Verify rates and totals are not distorted
-        self.assertEqual(dlg._table.item(0, 13).text(), "177.60")  # Pur Rate
-        self.assertEqual(dlg._table.item(0, 14).text(), "177.60")  # Net Rate
-        self.assertEqual(dlg._table.item(2, 13).text(), "76.35")   # MAC RD Pur Rate
-        self.assertEqual(dlg._table.item(2, 14).text(), "69.41")   # MAC RD Net Rate (with 1 free pack)
+        self.assertEqual(dlg._table.item(0, 12).text(), "177.60")  # Pur Rate
+        self.assertEqual(dlg._table.item(0, 13).text(), "177.60")  # Net Rate
+        self.assertEqual(dlg._table.item(2, 12).text(), "76.35")   # MAC RD Pur Rate
+        self.assertEqual(dlg._table.item(2, 13).text(), "69.41")   # MAC RD Net Rate (with 1 free pack)
 
         # Invoice totals
         self.assertEqual(dlg.total_amount_label.text(), "6318.92")
@@ -236,8 +236,8 @@ class TestPurchaseInvoicePPAndItemDeletion(unittest.TestCase):
         self._pump()
 
         self.assertEqual(dlg._table.rowCount(), 2)
-        self.assertEqual(dlg._table.item(0, 15).text(), "25")
-        self.assertEqual(dlg._table.item(1, 15).text(), "25")
+        self.assertEqual(dlg._table.item(0, 14).text(), "25")
+        self.assertEqual(dlg._table.item(1, 14).text(), "25")
         dlg.close()
 
     def test_03_delete_item_clears_entry_bar_and_preserves_remaining_rows(self):
@@ -297,10 +297,10 @@ class TestPurchaseInvoicePPAndItemDeletion(unittest.TestCase):
         self.assertEqual(dlg._table.rowCount(), 2)
 
         # Remaining rows must be Item 1 and Item 3 with their exact identities
-        self.assertEqual(dlg._table.item(0, 1).text(), "UBINEXT-LC TABLET")
-        self.assertEqual(dlg._table.item(0, 5).text(), "BATCH-01")
-        self.assertEqual(dlg._table.item(1, 1).text(), "MAC RD CAPSULE")
-        self.assertEqual(dlg._table.item(1, 5).text(), "BATCH-03")
+        self.assertEqual(dlg._table.item(0, 0).text(), "UBINEXT-LC TABLET")
+        self.assertEqual(dlg._table.item(0, 4).text(), "BATCH-01")
+        self.assertEqual(dlg._table.item(1, 0).text(), "MAC RD CAPSULE")
+        self.assertEqual(dlg._table.item(1, 4).text(), "BATCH-03")
 
         # Entry bar must be completely cleared:
         self.assertIsNone(bar.item_combo.currentData())
