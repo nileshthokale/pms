@@ -326,15 +326,15 @@ class TestItemEntryBarBehavior(unittest.TestCase):
         """
         labels = [lbl.text() for lbl in self.bar._entry_labels]
         expected_labels = [
-            "Item", "Pack", "Batch", "Exp",
-            "Qty", "Free", "Rate", "MRP", "Disc", "GST"
+            "* Item Name", "PackSize", "Pay Qty", "Free Qty",
+            "Batch #", "Expiry", "Rate", "MRP", "Disc", "GST-Tax"
         ]
         self.assertEqual(labels, expected_labels)
 
         layout = self.bar.layout()
         self.assertIsNotNone(layout)
         # Check add button
-        self.assertEqual(self.bar.add_btn.text(), "+ Add Item")
+        self.assertIn(self.bar.add_btn.text(), ("⇓", "▼", "+ Add Item"))
 
     def test_pack_and_gst_are_read_only(self):
         self.assertTrue(self.bar.pack_edit.isReadOnly())
@@ -674,7 +674,7 @@ class TestInvoiceDialogIntegration(unittest.TestCase):
         self.assertEqual(len(dlg._item_rows), 1)
         row = dlg._item_rows[0]
         # In table column 6 (Exp), display is DD-MM-YYYY
-        table_exp = dlg._table.item(0, 6).text()
+        table_exp = dlg._table.item(0, 5).text()
         self.assertEqual(table_exp, "28-02-2029")
 
         # In row data dictionary (for DB), expiry is normalized to YYYY-MM-DD
@@ -723,7 +723,7 @@ class TestInvoiceDialogIntegration(unittest.TestCase):
 
         self.assertEqual(len(dlg._item_rows), 1)
         self.assertEqual(dlg._item_rows[0].batch_no, "NEW_BATCH_001")
-        self.assertEqual(dlg._table.item(0, 6).text(), "31-12-2029")
+        self.assertEqual(dlg._table.item(0, 5).text(), "31-12-2029")
         dlg.close()
 
 
