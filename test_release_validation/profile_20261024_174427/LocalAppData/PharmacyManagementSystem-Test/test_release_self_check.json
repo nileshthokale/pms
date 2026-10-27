@@ -1,0 +1,68 @@
+{
+  "generated_at": "2026-10-24T12:16:06.050997+00:00",
+  "frozen": true,
+  "executable": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\build\\test_release_staging\\20261024_174427\\dist\\PharmacyManagementSystem_Test\\PharmacyManagementSystem_Test.exe",
+  "test_data_dir": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\test_release_validation\\profile_20261024_174427\\LocalAppData\\PharmacyManagementSystem-Test",
+  "database_path": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\test_release_validation\\profile_20261024_174427\\LocalAppData\\PharmacyManagementSystem-Test\\pharmacy.db",
+  "seed_path": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\build\\test_release_staging\\20261024_174427\\dist\\PharmacyManagementSystem_Test\\_internal\\seed\\pharmacy_staging.db",
+  "production_db_path": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\build\\test_release_staging\\20261024_174427\\dist\\PharmacyManagementSystem_Test\\data\\pharmacy.db",
+  "normal_app_db_path": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\test_release_validation\\profile_20261024_174427\\LocalAppData\\PharmacyManagementSystem\\pharmacy.db",
+  "checks": {
+    "database_initialisation": "preserved",
+    "isolated_from_production": true,
+    "isolated_from_normal_app_data": true,
+    "runtime_db_resolution": true,
+    "marker_transaction": {
+      "before": 1,
+      "after": 2
+    },
+    "marker_write_changed_test_db": true,
+    "marker_persisted_after_reopen": true,
+    "seed_unchanged": true,
+    "packaged_ui_smoke": true
+  },
+  "ok": true,
+  "seed_sha256_before": "063e7fd20f73209122a899e32f341ec6ebc78430ba4d90fb39654d6baf36a57b",
+  "database_info": {
+    "integrity_check": [
+      "ok"
+    ],
+    "foreign_key_violations": 0,
+    "counts": {
+      "items": 940,
+      "suppliers": 86,
+      "customers": 29,
+      "doctors": 7,
+      "purchase_invoices": 5727,
+      "purchase_invoice_items": 11921,
+      "sales_invoices": 72207,
+      "sales_invoice_items": 234183,
+      "credit_notes": 1354,
+      "stock_batches": 7815,
+      "account_ledgers": 124,
+      "ledger_transactions": 157682,
+      "app_users": 2
+    },
+    "active_financial_years": [
+      "2026-2027"
+    ]
+  },
+  "database_sha256_before_marker": "b5de77fd56d7e6c59af600d7c69597107133f3b90087fd89026cc707b44709f7",
+  "database_sha256_after_marker": "702433cbf1e8735cef4c4a3488e4a460b4b5acff77c44422413f305c2ae263da",
+  "marker_rows_persisted": 2,
+  "seed_sha256_after": "063e7fd20f73209122a899e32f341ec6ebc78430ba4d90fb39654d6baf36a57b",
+  "packaged_environment": {
+    "db_path_inside_process": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\test_release_validation\\profile_20261024_174427\\LocalAppData\\PharmacyManagementSystem-Test\\pharmacy.db",
+    "login_dialog_built": true,
+    "login_dialog_geometry": [
+      134,
+      307,
+      533,
+      187
+    ],
+    "main_window_built": true,
+    "main_window_title": "Pharmacy Management System v1.0.0 (Test Build)",
+    "pages_built": 149,
+    "platform": "offscreen"
+  }
+}
