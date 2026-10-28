@@ -56,12 +56,21 @@ class SearchableFilterEdit(QLineEdit):
     def selected_id(self):
         return self._selected_id
 
+    def mousePressEvent(self, event) -> None:
+        super().mousePressEvent(event)
+        if self.text().strip():
+            self.clear_filter()
+
     def set_options(self, rows: list[dict], id_key: str, text_key: str) -> None:
         """Replace candidates while preserving no stale selection."""
+        self._all_options = []
         self._model.clear()
         for row in rows:
-            item = QStandardItem(str(row[text_key] or ""))
-            item.setData(row[id_key], Qt.UserRole)
+            text_val = str(row[text_key] or "")
+            id_val = row[id_key]
+            self._all_options.append((text_val, id_val))
+            item = QStandardItem(text_val)
+            item.setData(id_val, Qt.UserRole)
             self._model.appendRow(item)
         self.clear_filter()
 
@@ -71,6 +80,12 @@ class SearchableFilterEdit(QLineEdit):
         self.clear()
         self._setting_text = False
         self._completer.popup().hide()
+        if hasattr(self, "_all_options") and self._all_options:
+            self._model.clear()
+            for text_val, id_val in self._all_options:
+                item = QStandardItem(text_val)
+                item.setData(id_val, Qt.UserRole)
+                self._model.appendRow(item)
 
     def refresh_theme(self) -> None:
         p = palette()
@@ -93,28 +108,78 @@ class SearchableFilterEdit(QLineEdit):
             f" selection-background-color: {p['accent']}; selection-color: white;"
             f" font: {TYPE_INPUT}px 'Segoe UI'; font-weight: bold; outline: 0;"
             "} QAbstractItemView::item { min-height: 26px; padding: 2px 6px; }"
+            "QAbstractItemView::item:disabled { color: gray; font-style: italic; background-color: transparent; }"
         )
 
-    def _on_text_edited(self, _text: str) -> None:
+    def _on_text_edited(self, _text: str = "") -> None:
         # Read the field's live text rather than the signal argument: the
         # shared upper-casing hook is connected first, so by the time this
         # receiver runs the box already holds the final (upper-cased) text,
         # while the argument still carries the pre-conversion spelling.
-        text = self.text()
+        text = self.text() or _text
         # A typed display value must never retain a previous record ID.
         if not self._setting_text:
             self._selected_id = None
-        if text.strip():
-            self._completer.setCompletionPrefix(text)
-            self._completer.complete()
-        else:
+        query = text.strip()
+        if not query:
             self._completer.popup().hide()
+            return
+
+        q_fold = query.casefold()
+        q_tokens = [tok for tok in q_fold.replace("-", " ").replace("/", " ").split() if tok]
+
+        matching = []
+        for text_val, id_val in getattr(self, "_all_options", []):
+            display_name = text_val.casefold()
+            combined = f"{display_name} {display_name.replace('-', ' ').replace('/', ' ')}"
+            if q_fold in display_name:
+                matching.append((text_val, id_val))
+            elif q_tokens and all(tok in combined for tok in q_tokens):
+                matching.append((text_val, id_val))
+
+        tier1_prefix = []
+        tier2_word_start = []
+        tier3_contains = []
+
+        for item in matching:
+            display_name = item[0].casefold()
+            words = [w for w in display_name.replace("-", " ").replace("/", " ").split() if w]
+            if display_name.startswith(q_fold):
+                tier1_prefix.append(item)
+            elif any(w.startswith(q_fold) for w in words) or (q_tokens and any(w.startswith(q_tokens[0]) for w in words)):
+                tier2_word_start.append(item)
+            else:
+                tier3_contains.append(item)
+
+        tier1_prefix.sort(key=lambda x: x[0].casefold())
+        tier2_word_start.sort(key=lambda x: x[0].casefold())
+        tier3_contains.sort(key=lambda x: x[0].casefold())
+
+        matches = tier1_prefix + tier2_word_start + tier3_contains
+
+        self._model.clear()
+        if matches:
+            for text_val, id_val in matches:
+                item = QStandardItem(text_val)
+                item.setData(id_val, Qt.UserRole)
+                self._model.appendRow(item)
+        else:
+            short_q = (query[:35] + "...") if len(query) > 35 else query
+            item = QStandardItem(f"No matching records found for '{short_q}'")
+            item.setEnabled(False)
+            item.setData(None, Qt.UserRole)
+            self._model.appendRow(item)
+
+        self._completer.setCompletionPrefix("")
+        self._completer.complete()
 
     def _on_completion_activated(self, index) -> None:
         # PySide may emit either a QModelIndex or the completed text.
         if not hasattr(index, "data"):
             index = self._completer.popup().currentIndex()
         if not index.isValid():
+            return
+        if index.data(Qt.UserRole) is None:
             return
         self._selected_id = index.data(Qt.UserRole)
         self._setting_text = True
@@ -132,6 +197,9 @@ class SearchableFilterEdit(QLineEdit):
         needle = str(text or "").strip().casefold()
         if not needle:
             return None
+        for text_val, id_val in getattr(self, "_all_options", []):
+            if text_val.strip().casefold() == needle:
+                return id_val
         for row in range(self._model.rowCount()):
             index = self._model.index(row, 0)
             if str(index.data(Qt.DisplayRole) or "").strip().casefold() == needle:
@@ -147,8 +215,7 @@ class SearchableFilterEdit(QLineEdit):
             return
         if key in (Qt.Key_Down, Qt.Key_Up) and self.text().strip():
             if not popup.isVisible():
-                self._completer.setCompletionPrefix(self.text())
-                self._completer.complete()
+                self._on_text_edited(self.text())
             count = self._completer.completionCount()
             if count:
                 current = popup.currentIndex().row()
@@ -169,7 +236,7 @@ class SearchableFilterEdit(QLineEdit):
                 # long-standing "type a partial term, Enter takes it"
                 # convenience.
                 current = self._completer.completionModel().index(0, 0)
-            if current.isValid():
+            if current.isValid() and current.data(Qt.UserRole) is not None:
                 # A suggestion is explicitly highlighted (mouse hover or
                 # Down/Up) — or it is the only candidate: Enter takes it.
                 self._on_completion_activated(current)

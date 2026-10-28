@@ -60,6 +60,7 @@ from PySide6.QtWidgets import (
 
 from database import pharmacy_a6_receipt as a6
 from database import financial_year
+from ui.components import ReportFilterSearchCombo
 
 
 # ── Page Dimensions (A4 Portrait at 96 DPI) ───────────────────────────
@@ -1528,12 +1529,8 @@ class BasePurchaseReportWindow(QWidget):
         self.lbl_dropdown = QLabel(f"{self.dropdown_label}:")
         fp_layout.addWidget(self.lbl_dropdown)
 
-        self.dropdown = QComboBox()
-        self.dropdown.setEditable(True)
-        self.dropdown.setInsertPolicy(QComboBox.NoInsert)
-        if self.dropdown.completer():
-            self.dropdown.completer().setCaseSensitivity(Qt.CaseInsensitive)
-            self.dropdown.completer().setFilterMode(Qt.MatchContains)
+        self.dropdown = ReportFilterSearchCombo(self, min_width=240)
+        self.dropdown.setFixedHeight(28)
         fp_layout.addWidget(self.dropdown)
 
         # Small validation message label (red)
@@ -1599,6 +1596,10 @@ class BasePurchaseReportWindow(QWidget):
         self.close_requested.emit()
 
     def get_selected_id(self) -> Optional[int]:
+        if hasattr(self.dropdown, "currentData"):
+            data = self.dropdown.currentData()
+            if data is not None and data != "":
+                return data
         text = self.dropdown.currentText().strip()
         if not text or text.lower().startswith("-- select"):
             return None

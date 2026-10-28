@@ -117,7 +117,9 @@ class CompanywiseItemwisePurchasePage(BasePurchaseReportWindow):
         self.dropdown.clear()
         self.dropdown.addItem("-- Select Company --", None)
         for c in companies:
-            self.dropdown.addItem(c["company_name"], c["id"])
+            raw = f"{c['company_name']} {c.get('short_name', '')}".strip()
+            self.dropdown.addItem(c["company_name"], c["id"], raw_name=raw)
+        self.dropdown.setCurrentIndex(0)
 
     def generate_report_pages(
         self, from_date: str, to_date: str, selected_id: int
@@ -277,7 +279,9 @@ class CompanywiseSupplierwisePurchasePage(BasePurchaseReportWindow):
         self.dropdown.clear()
         self.dropdown.addItem("-- Select Company --", None)
         for c in companies:
-            self.dropdown.addItem(c["company_name"], c["id"])
+            raw = f"{c['company_name']} {c.get('short_name', '')}".strip()
+            self.dropdown.addItem(c["company_name"], c["id"], raw_name=raw)
+        self.dropdown.setCurrentIndex(0)
 
     def generate_report_pages(
         self, from_date: str, to_date: str, selected_id: int
@@ -376,7 +380,9 @@ class SupplierwiseItemwiseInvoicePurchasePage(BasePurchaseReportWindow):
         self.dropdown.clear()
         self.dropdown.addItem("-- Select Supplier --", None)
         for s in suppliers:
-            self.dropdown.addItem(s["supplier_name"], s["id"])
+            raw = f"{s['supplier_name']} {s.get('city', '')}".strip()
+            self.dropdown.addItem(s["supplier_name"], s["id"], raw_name=raw)
+        self.dropdown.setCurrentIndex(0)
 
     def generate_report_pages(
         self, from_date: str, to_date: str, selected_id: int
@@ -535,7 +541,9 @@ class SupplierwiseItemwiseChallanPurchasePage(BasePurchaseReportWindow):
         self.dropdown.clear()
         self.dropdown.addItem("-- Select Supplier --", None)
         for s in suppliers:
-            self.dropdown.addItem(s["supplier_name"], s["id"])
+            raw = f"{s['supplier_name']} {s.get('city', '')}".strip()
+            self.dropdown.addItem(s["supplier_name"], s["id"], raw_name=raw)
+        self.dropdown.setCurrentIndex(0)
 
     def generate_report_pages(
         self, from_date: str, to_date: str, selected_id: int
@@ -704,7 +712,9 @@ class ItemwisePurchasePage(BasePurchaseReportWindow):
                 extra.append(code)
             if extra:
                 label = f"{label} ({' - '.join(extra)})"
-            self.dropdown.addItem(label, it["id"])
+            raw = f"{it['item_name']} {code} {it.get('company_name', '')} {form}".strip()
+            self.dropdown.addItem(label, it["id"], raw_name=raw)
+        self.dropdown.setCurrentIndex(0)
 
     def generate_report_pages(
         self, from_date: str, to_date: str, selected_id: int
@@ -843,7 +853,9 @@ class ItemwiseBatchwisePurchasePage(BasePurchaseReportWindow):
                 extra.append(code)
             if extra:
                 label = f"{label} ({' - '.join(extra)})"
-            self.dropdown.addItem(label, it["id"])
+            raw = f"{it['item_name']} {code} {it.get('company_name', '')} {form}".strip()
+            self.dropdown.addItem(label, it["id"], raw_name=raw)
+        self.dropdown.setCurrentIndex(0)
 
     def generate_report_pages(
         self, from_date: str, to_date: str, selected_id: int
