@@ -52,7 +52,7 @@ class TestPurchaseSingleRowLayout(unittest.TestCase):
         self.assertLessEqual(bar.height(), 45)
 
         # Labels check
-        expected_labels = ["Item", "Pack", "Batch", "Exp", "Qty", "Free", "Rate", "MRP", "Disc", "GST"]
+        expected_labels = ["Item", "Pack", "Qty", "Free", "Batch", "Exp", "Rate", "MRP", "Disc", "GST"]
         actual_labels = [lbl.text() for lbl in bar._entry_labels]
         self.assertEqual(actual_labels, expected_labels)
 
@@ -103,10 +103,10 @@ class TestPurchaseSingleRowLayout(unittest.TestCase):
                 geoms = [
                     ("Item", bar.item_combo.parentWidget().geometry()),
                     ("Pack", bar.pack_edit.parentWidget().geometry()),
-                    ("Batch", bar.batch_edit.parentWidget().geometry()),
-                    ("Exp", bar.expiry_edit.parentWidget().geometry()),
                     ("Qty", bar.pay_qty_edit.parentWidget().geometry()),
                     ("Free", bar.free_qty_edit.parentWidget().geometry()),
+                    ("Batch", bar.batch_edit.parentWidget().geometry()),
+                    ("Exp", bar.expiry_edit.parentWidget().geometry()),
                     ("Rate", bar.rate_edit.parentWidget().geometry()),
                     ("MRP", bar.mrp_edit.parentWidget().geometry()),
                     ("Disc", bar.discount_edit.parentWidget().geometry()),
@@ -172,10 +172,10 @@ class TestPurchaseSingleRowLayout(unittest.TestCase):
         self._pump()
 
         expected_focus_order = [
-            bar.batch_edit,
-            bar.expiry_edit._line,
             bar.pay_qty_edit,
             bar.free_qty_edit,
+            bar.batch_edit,
+            bar.expiry_edit._line,
             bar.rate_edit,
             bar.mrp_edit,
             bar.discount_edit,

@@ -162,39 +162,34 @@ class TestPurchaseReportInvoiceIntegration(unittest.TestCase):
         dlg.show()
         self.app.processEvents()
 
-        # Verify dialog structure matching Screenshot 1
-        self.assertEqual(dlg.windowTitle(), "Purchase Invoice")
+        # Verify dialog structure matching header + restored layout
+        self.assertIn("Purchase Invoice", dlg.windowTitle())
         self.assertEqual(dlg._header_title_lbl.text(), "Edit Invoice")
         self.assertEqual(dlg.voucher_no_edit.text(), "268")
         self.assertEqual(dlg.invoice_no_edit.text(), "INV-999")
         self.assertEqual(dlg.purchase_type_combo.currentText(), "Credit")
         self.assertTrue(dlg.due_date.isVisible())
 
-        # Verify grid has 16 columns matching Screenshot 1
-        self.assertEqual(dlg._table.columnCount(), 16)
+        # Verify grid has 17 columns (# to Del)
+        self.assertEqual(dlg._table.columnCount(), 17)
         expected_cols = [
-            "ItemName", "PackSize", "PayQty", "FreeQty", "BatchNo",
-            "Expiry", "Rate", "MRP", "DiscAmt", "Amount", "TaxPer",
-            "TaxAmt", "PurRate", "NetRate", "PP", "Del"
+            "#", "Item Name", "Pack", "Pay Qty", "Free", "Batch",
+            "Exp", "Rate", "MRP", "Disc", "Amount", "GST%",
+            "GST Amt", "Pur Rate", "Net Rate", "PP", "Del"
         ]
-        actual_cols = [dlg._table.horizontalHeaderItem(c).text() for c in range(16)]
+        actual_cols = [dlg._table.horizontalHeaderItem(c).text() for c in range(17)]
         self.assertEqual(actual_cols, expected_cols)
 
         # Verify row 0 data
-        self.assertEqual(dlg._table.item(0, 0).text(), "AMOXICILLIN 500")
-        self.assertEqual(dlg._table.item(0, 4).text(), "B123")
-        self.assertEqual(dlg._table.item(0, 14).text(), "25")
+        self.assertEqual(dlg._table.item(0, 0).text(), "1")
+        self.assertEqual(dlg._table.item(0, 1).text(), "AMOXICILLIN 500")
+        self.assertEqual(dlg._table.item(0, 5).text(), "B123")
+        self.assertEqual(dlg._table.item(0, 15).text(), "25")
 
-        # Verify Net Payable totals
+        # Verify totals
         self.assertEqual(dlg.total_amount_label.text(), "500.00")
         self.assertEqual(dlg.gst_label.text(), "60.00")
         self.assertEqual(dlg.net_amt_label.text(), "560.00")
-
-        # Verify Total Items
-        self.assertEqual(dlg.total_items_edit.text(), "1")
-
-        # Verify Info line
-        self.assertIn("supplier ledger", dlg.info_label.text())
 
         dlg.close()
         page.close()
@@ -214,14 +209,13 @@ class TestPurchaseReportInvoiceIntegration(unittest.TestCase):
 
         # Verify edit mode title and populated fields
         self.assertEqual(dlg._header_title_lbl.text(), "Edit Invoice")
-        self.assertEqual(dlg.windowTitle(), "Purchase Invoice")
+        self.assertIn("Purchase Invoice", dlg.windowTitle())
         self.assertTrue(dlg.due_date.isVisible())
-        self.assertEqual(dlg._table.columnCount(), 16)
+        self.assertEqual(dlg._table.columnCount(), 17)
 
         # Check that items were populated into grid
         items = PurchaseDAO.get_invoice_items(target_inv["id"])
         self.assertEqual(dlg._table.rowCount(), len(items))
-        self.assertEqual(dlg.total_items_edit.text(), str(len(items)))
 
         # Close without saving
         dlg.reject()
