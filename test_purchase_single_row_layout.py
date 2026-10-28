@@ -52,13 +52,13 @@ class TestPurchaseSingleRowLayout(unittest.TestCase):
         self.assertLessEqual(bar.height(), 45)
 
         # Labels check
-        expected_labels = ["* Item Name", "PackSize", "Pay Qty", "Free Qty", "Batch #", "Expiry", "Rate", "MRP", "Disc", "GST-Tax"]
+        expected_labels = ["Item", "Pack", "Batch", "Exp", "Qty", "Free", "Rate", "MRP", "Disc", "GST"]
         actual_labels = [lbl.text() for lbl in bar._entry_labels]
         self.assertEqual(actual_labels, expected_labels)
 
         # Add button
-        self.assertIn(bar.add_btn.text(), ("⇓", "▼", "+ Add Item"))
-        self.assertGreaterEqual(bar.add_btn.height(), 20)
+        self.assertEqual(bar.add_btn.text(), "+ Add Item")
+        self.assertEqual(bar.add_btn.height(), 30)
 
         # Layout must have at least 11 items on the single row
         self.assertGreaterEqual(bar.layout().count(), 11)
@@ -103,15 +103,15 @@ class TestPurchaseSingleRowLayout(unittest.TestCase):
                 geoms = [
                     ("Item", bar.item_combo.parentWidget().geometry()),
                     ("Pack", bar.pack_edit.parentWidget().geometry()),
-                    ("Qty", bar.pay_qty_edit.parentWidget().geometry()),
-                    ("Free", bar.free_qty_edit.parentWidget().geometry()),
                     ("Batch", bar.batch_edit.parentWidget().geometry()),
                     ("Exp", bar.expiry_edit.parentWidget().geometry()),
+                    ("Qty", bar.pay_qty_edit.parentWidget().geometry()),
+                    ("Free", bar.free_qty_edit.parentWidget().geometry()),
                     ("Rate", bar.rate_edit.parentWidget().geometry()),
                     ("MRP", bar.mrp_edit.parentWidget().geometry()),
                     ("Disc", bar.discount_edit.parentWidget().geometry()),
                     ("GST", bar.gst_edit.parentWidget().geometry()),
-                    ("Add", bar.add_btn.parentWidget().geometry() if bar.add_btn.parentWidget() else bar.add_btn.geometry()),
+                    ("Add", bar.add_btn.geometry()),
                 ]
 
                 for i in range(len(geoms) - 1):
@@ -172,10 +172,10 @@ class TestPurchaseSingleRowLayout(unittest.TestCase):
         self._pump()
 
         expected_focus_order = [
-            bar.pay_qty_edit,
-            bar.free_qty_edit,
             bar.batch_edit,
             bar.expiry_edit._line,
+            bar.pay_qty_edit,
+            bar.free_qty_edit,
             bar.rate_edit,
             bar.mrp_edit,
             bar.discount_edit,
