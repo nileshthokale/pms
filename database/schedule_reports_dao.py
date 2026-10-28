@@ -29,8 +29,8 @@ class ScheduleReportsDAO:
     def _schedule_clause(schedule_type: str, item_alias: str = "i") -> tuple[str, list[Any]]:
         st = (schedule_type or "H1").upper().strip()
         if st == "NRX":
-            return f"{item_alias}.scheduled IN ('4', 'NRX')", []
-        return f"{item_alias}.scheduled IN ('2', 'H1')", []
+            return f"TRIM(UPPER({item_alias}.scheduled)) IN ('4', 'NRX')", []
+        return f"TRIM(UPPER({item_alias}.scheduled)) IN ('2', 'H1', '3', 'H')", []
 
     @classmethod
     def get_scheduled_items(cls, schedule_type: str = "H1") -> List[Dict[str, Any]]:
@@ -40,6 +40,21 @@ class ScheduleReportsDAO:
             SELECT id, item_name, pack_size, scheduled
             FROM items i
             WHERE {sched_sql}
+            ORDER BY UPPER(TRIM(item_name)) ASC
+        """
+        conn = get_connection()
+        try:
+            cur = conn.execute(sql)
+            return [dict(r) for r in cur.fetchall()]
+        finally:
+            conn.close()
+
+    @classmethod
+    def get_all_items(cls) -> List[Dict[str, Any]]:
+        """Return all item records from items table for search/filter."""
+        sql = """
+            SELECT id, item_name, pack_size, scheduled
+            FROM items
             ORDER BY UPPER(TRIM(item_name)) ASC
         """
         conn = get_connection()
@@ -64,10 +79,12 @@ class ScheduleReportsDAO:
         If False, sorted by sale date then bill number.
         """
         sched_sql, _ = cls._schedule_clause(schedule_type, "i")
-        item_filter = "AND sii.item_id = ?" if item_id else ""
-        params: list[Any] = [from_date, to_date]
         if item_id:
-            params.append(item_id)
+            sched_filter = "AND sii.item_id = ?"
+            params: list[Any] = [from_date, to_date, item_id]
+        else:
+            sched_filter = f"AND {sched_sql}"
+            params: list[Any] = [from_date, to_date]
 
         order_by = (
             "UPPER(TRIM(i.item_name)) ASC, i.id ASC, si.sale_date ASC, si.id ASC"
@@ -94,8 +111,7 @@ class ScheduleReportsDAO:
             LEFT JOIN units u ON u.id = i.unit_id
             LEFT JOIN customers c ON c.id = si.customer_id
             WHERE si.sale_date BETWEEN ? AND ?
-              AND {sched_sql}
-              {item_filter}
+              {sched_filter}
             ORDER BY {order_by}
         """
         conn = get_connection()
@@ -158,10 +174,12 @@ class ScheduleReportsDAO:
         If False, sorted by voucher date.
         """
         sched_sql, _ = cls._schedule_clause(schedule_type, "i")
-        item_filter = "AND pii.item_id = ?" if item_id else ""
-        params: list[Any] = [from_date, to_date]
         if item_id:
-            params.append(item_id)
+            sched_filter = "AND pii.item_id = ?"
+            params: list[Any] = [from_date, to_date, item_id]
+        else:
+            sched_filter = f"AND {sched_sql}"
+            params: list[Any] = [from_date, to_date]
 
         if grouped_by_item:
             order_by = "i.id ASC, pi.invoice_date ASC, pi.id ASC"
@@ -208,8 +226,7 @@ class ScheduleReportsDAO:
             LEFT JOIN units u ON u.id = i.unit_id
             LEFT JOIN suppliers s ON s.id = pi.supplier_id
             WHERE pi.voucher_date BETWEEN ? AND ?
-              AND {sched_sql}
-              {item_filter}
+              {sched_filter}
             ORDER BY {order_by}
         """
         conn = get_connection()
