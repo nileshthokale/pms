@@ -3101,7 +3101,7 @@ class _SalePanel(QWidget):
                 break
         self.patient_name_edit.clear()
         if self.doctor_combo.count():
-            self.doctor_combo.setCurrentIndex(0)
+            self._select_default_doctor()
         self.bill_disc_edit.setText("0.00")
         self.paid_edit.setText("0.00")
         self._entry_bar.load_items()
@@ -4027,11 +4027,24 @@ class _SalePanel(QWidget):
                 self.customer_combo.setCurrentIndex(i)
                 break
 
+    def _select_default_doctor(self):
+        """Default to DR.K.N.GHORPADE if available in the doctors list,
+        otherwise fall back to index 0 (-- None --).
+        """
+        for i in range(self.doctor_combo.count()):
+            text = self.doctor_combo.itemText(i).upper()
+            if "GHORPADE" in text:
+                self.doctor_combo.setCurrentIndex(i)
+                return
+        if self.doctor_combo.count() > 0:
+            self.doctor_combo.setCurrentIndex(0)
+
     def _load_doctors(self):
         doctors = DoctorDAO.get_all()
         self.doctor_combo.addItem("-- None --", None)
         for d in doctors:
             self.doctor_combo.addItem(d["doctor_name"], d["id"])
+        self._select_default_doctor()
 
     def _set_bill_no(self):
         # Unsaved preview: next number without FY prefix, flagged provisional.
@@ -5435,9 +5448,15 @@ class _SalePanel(QWidget):
                 if pat:
                     self._update_address_for_patient(pat)
 
-        doctor_index = self.doctor_combo.findData(state.get("doctor_id"))
-        if doctor_index >= 0:
-            self.doctor_combo.setCurrentIndex(doctor_index)
+        did = state.get("doctor_id")
+        if did is not None:
+            doctor_index = self.doctor_combo.findData(did)
+            if doctor_index >= 0:
+                self.doctor_combo.setCurrentIndex(doctor_index)
+            else:
+                self._select_default_doctor()
+        else:
+            self._select_default_doctor()
 
         self.bill_disc_edit.setText(state.get("bill_discount", "0.00"))
         self.paid_edit.setText(state.get("paid_amount", "0.00"))
@@ -5750,6 +5769,8 @@ class SalesBillReviewDialog(QDialog):
             self._panel.load_invoice(invoice)
         else:
             self._panel.load_draft_state(panel.draft_state())
+            if self._panel.doctor_combo.currentData() is None:
+                self._panel._select_default_doctor()
         # A review copy must honour reservations made by the other open
         # Counter Sale drafts just like the inline panel does.
         if reservation_provider is not None:
