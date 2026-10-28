@@ -25,8 +25,8 @@ import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-from PySide6.QtCore import QDate, Qt, Signal
-from PySide6.QtGui import QColor, QFont
+from PySide6.QtCore import QDate, QEvent, Qt, Signal
+from PySide6.QtGui import QColor, QFont, QStandardItem
 from PySide6.QtWidgets import (
     QComboBox,
     QCompleter,
@@ -60,6 +60,7 @@ from ui.crystal_report_viewer import (
     fmt_qty,
     print_or_export_report_pages,
 )
+from ui.components import SearchableComboBox
 from ui.theme import palette
 
 STORE_LINE_1 = "SHREE SAMARTH MEDICAL AND GEN STORE"
@@ -538,6 +539,191 @@ class ScheduleSalesDatewisePage(_BaseScheduleReportPage):
         self.viewer.set_pages(self._pages)
 
 
+
+# ══════════════════════════════════════════════════════════════════════
+# Searchable Item Selector for Schedule Reports
+# ══════════════════════════════════════════════════════════════════════
+
+class ScheduleItemSearchCombo(SearchableComboBox):
+    """Searchable item selector for Schedule Itemwise Reports.
+
+    - Automatically clears the text/selected item name when clicked.
+    - Letter-by-letter search engine: typing the 1st letter opens suggestions
+      starting with that letter; typing 2nd+ letter refines suggestions dynamically.
+    - Preserves selected item ID and supports '-- Select Item --' (None).
+    """
+
+    def __init__(self, parent: Optional[QWidget] = None):
+        super().__init__(parent=parent, placeholder="", max_visible=12, min_width=280)
+
+    def eventFilter(self, obj, event):
+        line = self.lineEdit()
+        if obj == line:
+            if event.type() == QEvent.MouseButtonPress:
+                # Automatically remove select text / item name when clicked
+                line.clear()
+                self._block_filter = True
+                self.setCurrentIndex(-1)
+                self._block_filter = False
+                popup = self._completer.popup()
+                if popup and popup.isVisible():
+                    popup.hide()
+            elif event.type() == QEvent.FocusOut:
+                # If left empty on focus out, restore -- Select Item -- (index 0)
+                if not line.text().strip():
+                    self.setCurrentIndex(0)
+        return super().eventFilter(obj, event)
+
+    def _on_text_edited(self, text: str):
+        if getattr(self, "_block_filter", False):
+            return
+        query = text.strip()
+        popup = self._completer.popup()
+        if not query:
+            if popup and popup.isVisible():
+                popup.hide()
+            self.setCurrentIndex(-1)
+            self.selection_changed.emit(None)
+            return
+
+        q_fold = query.casefold()
+        q_tokens = [tok for tok in q_fold.replace("-", " ").replace("/", " ").split() if tok]
+
+        # Valid items (excluding placeholder / None)
+        valid_items = [
+            it for it in self._items_data
+            if it[1] is not None and not str(it[0]).startswith("--")
+        ]
+
+        # Filter: match entire query or all tokens (handles multi-word, hyphens, slashes)
+        matching_items = []
+        for it in valid_items:
+            display_name = it[0].casefold()
+            raw_name = it[2].casefold() if len(it) >= 3 else display_name
+            combined = f"{display_name} {raw_name} {display_name.replace('-', ' ').replace('/', ' ')}"
+
+            if q_fold in display_name or q_fold in raw_name:
+                matching_items.append(it)
+            elif q_tokens and all(tok in combined for tok in q_tokens):
+                matching_items.append(it)
+
+        # Multi-tier ranking:
+        # Tier 1: Item name begins with query (exact prefix)
+        # Tier 2: Any word or token in the name begins with query
+        # Tier 3: Query appears anywhere inside the medicine name (contains)
+        # ALL tiers are included in the dropdown — no matching item is dropped.
+        tier1_prefix = []
+        tier2_word_start = []
+        tier3_contains = []
+
+        for it in matching_items:
+            display_name = it[0].casefold()
+            raw_name = it[2].casefold() if len(it) >= 3 else display_name
+            words = [w for w in display_name.replace("-", " ").replace("/", " ").split() if w]
+            raw_words = [w for w in raw_name.replace("-", " ").replace("/", " ").split() if w]
+            all_words = words + raw_words
+
+            if display_name.startswith(q_fold) or raw_name.startswith(q_fold):
+                tier1_prefix.append(it)
+            elif any(w.startswith(q_fold) for w in all_words) or (q_tokens and any(w.startswith(q_tokens[0]) for w in all_words)):
+                tier2_word_start.append(it)
+            else:
+                tier3_contains.append(it)
+
+        tier1_prefix.sort(key=lambda x: x[0].casefold())
+        tier2_word_start.sort(key=lambda x: x[0].casefold())
+        tier3_contains.sort(key=lambda x: x[0].casefold())
+
+        matches = tier1_prefix + tier2_word_start + tier3_contains
+
+        self._completer_model.clear()
+        if matches:
+            for m in matches:
+                item = QStandardItem(m[0])
+                item.setData(m[1], Qt.UserRole)
+                item.setData(m[0], Qt.DisplayRole)
+                if len(m) >= 4:
+                    item.setData(m[3], Qt.UserRole + 2)
+                self._completer_model.appendRow(item)
+        else:
+            short_q = (query[:35] + "...") if len(query) > 35 else query
+            item = QStandardItem(f"No matching items found for '{short_q}'")
+            item.setEnabled(False)
+            item.setData(None, Qt.UserRole)
+            self._completer_model.appendRow(item)
+
+        self._completer.setCompletionPrefix("")
+        self._completer.complete()
+        self._position_completion_popup()
+
+    def show_all_suggestions(self):
+        """Show full suggestion dropdown with '-- Select Item --' at top."""
+        popup = self._completer.popup()
+        if not self._items_data:
+            return
+        self._completer_model.clear()
+        item0 = QStandardItem("-- Select Item --")
+        item0.setData(None, Qt.UserRole)
+        item0.setData("-- Select Item --", Qt.DisplayRole)
+        item0.setData(0, Qt.UserRole + 2)
+        self._completer_model.appendRow(item0)
+        for m in self._items_data:
+            if m[1] is None and str(m[0]).startswith("--"):
+                continue
+            item = QStandardItem(m[0])
+            item.setData(m[1], Qt.UserRole)
+            item.setData(m[0], Qt.DisplayRole)
+            if len(m) >= 4:
+                item.setData(m[3], Qt.UserRole + 2)
+            self._completer_model.appendRow(item)
+        self._completer.setCompletionPrefix("")
+        self._completer.complete()
+        self._position_completion_popup()
+
+    def showPopup(self):
+        line = self.lineEdit()
+        text = line.text().strip() if line is not None else ""
+        if text and text != "-- Select Item --":
+            self._on_text_edited(text)
+        else:
+            self.show_all_suggestions()
+
+    def _resolve_current_text(self):
+        if getattr(self, "_block_filter", False):
+            return
+        line = self.lineEdit()
+        if not line:
+            return
+        text = line.text().strip()
+        if not text or text == "-- Select Item --":
+            self.setCurrentIndex(0)
+            return
+
+        # 1. Exact match
+        match_idx = self._find_matching_index(text)
+        if match_idx >= 0 and self.itemData(match_idx) is not None:
+            if self.currentIndex() != match_idx:
+                self.setCurrentIndex(match_idx)
+            line.setText(self.itemText(match_idx))
+            return
+
+        # 2. Unambiguous match
+        matches = [
+            it for it in self._items_data
+            if it[1] is not None and not str(it[0]).startswith("--")
+            and (text.casefold() in it[0].casefold() or text.casefold() in it[2].casefold())
+        ]
+        if len(matches) == 1:
+            cand_idx = matches[0][3] if len(matches[0]) >= 4 else self._find_matching_index(matches[0][0])
+            if cand_idx >= 0 and self.itemData(cand_idx) is not None:
+                if self.currentIndex() != cand_idx:
+                    self.setCurrentIndex(cand_idx)
+                line.setText(self.itemText(cand_idx))
+                return
+
+        # 3. No match -> restore index 0
+        self.setCurrentIndex(0)
+
 # ══════════════════════════════════════════════════════════════════════
 # Report B: Sales - Itemwise
 # ══════════════════════════════════════════════════════════════════════
@@ -559,24 +745,27 @@ class ScheduleSalesItemwisePage(_BaseScheduleReportPage):
         lbl_item.setStyleSheet("font-weight: bold;")
         self.fp_layout.addWidget(lbl_item)
 
-        self.item_combo = QComboBox()
-        self.item_combo.setEditable(True)
-        self.item_combo.setMaxVisibleItems(15)
-
-        items = ScheduleReportsDAO.get_scheduled_items(self.schedule_type)
+        self.item_combo = ScheduleItemSearchCombo(self)
         self.item_combo.addItem("-- Select Item --", None)
-        item_names = []
-        for itm in items:
+
+        scheduled_items = ScheduleReportsDAO.get_scheduled_items(self.schedule_type)
+        scheduled_ids = set()
+        for itm in scheduled_items:
             name = str(itm.get("item_name") or "").strip()
-            if name:
-                self.item_combo.addItem(name, itm.get("id"))
-                item_names.append(name)
+            item_id = itm.get("id")
+            if name and item_id:
+                self.item_combo.addItem(name, item_id)
+                scheduled_ids.add(item_id)
 
-        if self.item_combo.lineEdit():
-            completer = QCompleter(item_names, self)
-            completer.setCaseSensitivity(Qt.CaseInsensitive)
-            self.item_combo.lineEdit().setCompleter(completer)
+        all_items = ScheduleReportsDAO.get_all_items()
+        for itm in all_items:
+            item_id = itm.get("id")
+            if item_id and item_id not in scheduled_ids:
+                name = str(itm.get("item_name") or "").strip()
+                if name:
+                    self.item_combo.addItem(name, item_id)
 
+        self.item_combo.setCurrentIndex(0)
         self.fp_layout.addWidget(self.item_combo)
 
     def generate_report(self):
@@ -1006,24 +1195,27 @@ class SchedulePurchaseItemwisePage(_BaseScheduleReportPage):
         lbl_item.setStyleSheet("font-weight: bold;")
         self.fp_layout.addWidget(lbl_item)
 
-        self.item_combo = QComboBox()
-        self.item_combo.setEditable(True)
-        self.item_combo.setMaxVisibleItems(15)
-
-        items = ScheduleReportsDAO.get_scheduled_items(self.schedule_type)
+        self.item_combo = ScheduleItemSearchCombo(self)
         self.item_combo.addItem("-- Select Item --", None)
-        item_names = []
-        for itm in items:
+
+        scheduled_items = ScheduleReportsDAO.get_scheduled_items(self.schedule_type)
+        scheduled_ids = set()
+        for itm in scheduled_items:
             name = str(itm.get("item_name") or "").strip()
-            if name:
-                self.item_combo.addItem(name, itm.get("id"))
-                item_names.append(name)
+            item_id = itm.get("id")
+            if name and item_id:
+                self.item_combo.addItem(name, item_id)
+                scheduled_ids.add(item_id)
 
-        if self.item_combo.lineEdit():
-            completer = QCompleter(item_names, self)
-            completer.setCaseSensitivity(Qt.CaseInsensitive)
-            self.item_combo.lineEdit().setCompleter(completer)
+        all_items = ScheduleReportsDAO.get_all_items()
+        for itm in all_items:
+            item_id = itm.get("id")
+            if item_id and item_id not in scheduled_ids:
+                name = str(itm.get("item_name") or "").strip()
+                if name:
+                    self.item_combo.addItem(name, item_id)
 
+        self.item_combo.setCurrentIndex(0)
         self.fp_layout.addWidget(self.item_combo)
 
     def generate_report(self):

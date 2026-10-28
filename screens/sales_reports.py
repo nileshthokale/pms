@@ -23,8 +23,8 @@ import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-from PySide6.QtCore import QDate, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QKeySequence, QShortcut
+from PySide6.QtCore import QDate, QEvent, QRectF, Qt, Signal
+from PySide6.QtGui import QColor, QFont, QKeySequence, QShortcut, QStandardItem
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -48,6 +48,7 @@ from PySide6.QtWidgets import (
 )
 
 from core.doc_formatter import format_sales_bill_number
+from ui.components import SearchableComboBox
 from database.sales_reports_dao import SalesReportsDAO
 from ui import theme
 from ui.crystal_report_viewer import (
@@ -575,6 +576,186 @@ class DailyItemwiseSalesPage(_BaseSalesReportPage):
 
 
 # ══════════════════════════════════════════════════════════════════════
+
+# ══════════════════════════════════════════════════════════════════════
+# Searchable Filter Selector for Sales Reports
+# ══════════════════════════════════════════════════════════════════════
+
+class ReportFilterSearchCombo(SearchableComboBox):
+    """Searchable combo for Company / Item filter in Sales Reports.
+
+    - Automatically clears the text/selected item name when clicked.
+    - True 3-tier search engine: matches prefixes, words, tokens, and substrings.
+    - Never drops matching items.
+    - Restores placeholder / index 0 on blur if left blank.
+    """
+
+    def __init__(self, parent: Optional[QWidget] = None, min_width: int = 280):
+        super().__init__(parent=parent, placeholder="", max_visible=14, min_width=min_width)
+
+    def eventFilter(self, obj, event):
+        line = self.lineEdit()
+        if obj == line:
+            if event.type() == QEvent.MouseButtonPress:
+                line.clear()
+                self._block_filter = True
+                self.setCurrentIndex(-1)
+                self._block_filter = False
+                popup = self._completer.popup()
+                if popup and popup.isVisible():
+                    popup.hide()
+            elif event.type() == QEvent.FocusOut:
+                if not line.text().strip():
+                    self.setCurrentIndex(0)
+        return super().eventFilter(obj, event)
+
+    def _on_text_edited(self, text: str):
+        if getattr(self, "_block_filter", False):
+            return
+        query = text.strip()
+        popup = self._completer.popup()
+        if not query:
+            if popup and popup.isVisible():
+                popup.hide()
+            self.setCurrentIndex(-1)
+            self.selection_changed.emit(None)
+            return
+
+        q_fold = query.casefold()
+        q_tokens = [tok for tok in q_fold.replace("-", " ").replace("/", " ").split() if tok]
+
+        valid_items = [
+            it for it in self._items_data
+            if it[1] is not None and not str(it[0]).startswith("--")
+        ]
+
+        matching_items = []
+        for it in valid_items:
+            display_name = it[0].casefold()
+            raw_name = it[2].casefold() if len(it) >= 3 else display_name
+            combined = f"{display_name} {raw_name} {display_name.replace('-', ' ').replace('/', ' ')}"
+
+            if q_fold in display_name or q_fold in raw_name:
+                matching_items.append(it)
+            elif q_tokens and all(tok in combined for tok in q_tokens):
+                matching_items.append(it)
+
+        tier1_prefix = []
+        tier2_word_start = []
+        tier3_contains = []
+
+        for it in matching_items:
+            display_name = it[0].casefold()
+            raw_name = it[2].casefold() if len(it) >= 3 else display_name
+            words = [w for w in display_name.replace("-", " ").replace("/", " ").split() if w]
+            raw_words = [w for w in raw_name.replace("-", " ").replace("/", " ").split() if w]
+            all_words = words + raw_words
+
+            if display_name.startswith(q_fold) or raw_name.startswith(q_fold):
+                tier1_prefix.append(it)
+            elif any(w.startswith(q_fold) for w in all_words) or (q_tokens and any(w.startswith(q_tokens[0]) for w in all_words)):
+                tier2_word_start.append(it)
+            else:
+                tier3_contains.append(it)
+
+        tier1_prefix.sort(key=lambda x: x[0].casefold())
+        tier2_word_start.sort(key=lambda x: x[0].casefold())
+        tier3_contains.sort(key=lambda x: x[0].casefold())
+
+        matches = tier1_prefix + tier2_word_start + tier3_contains
+
+        self._completer_model.clear()
+        if matches:
+            for m in matches:
+                item = QStandardItem(m[0])
+                item.setData(m[1], Qt.UserRole)
+                item.setData(m[0], Qt.DisplayRole)
+                if len(m) >= 4:
+                    item.setData(m[3], Qt.UserRole + 2)
+                self._completer_model.appendRow(item)
+        else:
+            short_q = (query[:35] + "...") if len(query) > 35 else query
+            item = QStandardItem(f"No matching records found for '{short_q}'")
+            item.setEnabled(False)
+            item.setData(None, Qt.UserRole)
+            self._completer_model.appendRow(item)
+
+        self._completer.setCompletionPrefix("")
+        self._completer.complete()
+        self._position_completion_popup()
+
+    def show_all_suggestions(self):
+        popup = self._completer.popup()
+        if not self._items_data:
+            return
+        self._completer_model.clear()
+        default_label = self._items_data[0][0] if self._items_data else "-- Select --"
+        item0 = QStandardItem(default_label)
+        item0.setData(None, Qt.UserRole)
+        item0.setData(default_label, Qt.DisplayRole)
+        item0.setData(0, Qt.UserRole + 2)
+        self._completer_model.appendRow(item0)
+        for m in self._items_data:
+            if m[1] is None and str(m[0]).startswith("--"):
+                continue
+            item = QStandardItem(m[0])
+            item.setData(m[1], Qt.UserRole)
+            item.setData(m[0], Qt.DisplayRole)
+            if len(m) >= 4:
+                item.setData(m[3], Qt.UserRole + 2)
+            self._completer_model.appendRow(item)
+        self._completer.setCompletionPrefix("")
+        self._completer.complete()
+        self._position_completion_popup()
+
+    def showPopup(self):
+        line = self.lineEdit()
+        text = line.text().strip() if line is not None else ""
+        if text and not text.startswith("--"):
+            self._on_text_edited(text)
+        else:
+            self.show_all_suggestions()
+
+    def _resolve_current_text(self):
+        if getattr(self, "_block_filter", False):
+            return
+        line = self.lineEdit()
+        if not line:
+            return
+        text = line.text().strip()
+        if not text or text.startswith("--"):
+            self.setCurrentIndex(0)
+            return
+
+        match_idx = self._find_matching_index(text)
+        if match_idx >= 0 and self.itemData(match_idx) is not None:
+            if self.currentIndex() != match_idx:
+                self.setCurrentIndex(match_idx)
+            line.setText(self.itemText(match_idx))
+            return
+
+        matches = [
+            it for it in self._items_data
+            if it[1] is not None and not str(it[0]).startswith("--")
+            and (text.casefold() in it[0].casefold() or text.casefold() in it[2].casefold())
+        ]
+        if len(matches) == 1:
+            cand_idx = matches[0][3] if len(matches[0]) >= 4 else self._find_matching_index(matches[0][0])
+            if cand_idx >= 0 and self.itemData(cand_idx) is not None:
+                if self.currentIndex() != cand_idx:
+                    self.setCurrentIndex(cand_idx)
+                line.setText(self.itemText(cand_idx))
+                return
+
+        idx = self.currentIndex()
+        if idx >= 0 and self.itemData(idx) is not None:
+            if self.itemText(idx).strip().casefold() == text.casefold():
+                line.setText(self.itemText(idx))
+                return
+
+        self.setCurrentIndex(0)
+
+
 # 3. Companywise Sales Page
 # ══════════════════════════════════════════════════════════════════════
 
@@ -609,12 +790,7 @@ class CompanywiseSalesPage(_BaseSalesReportPage):
 
         lbl_comp = QLabel("Company:")
         self.fp_layout.addWidget(lbl_comp)
-        self.company_combo = QComboBox()
-        self.company_combo.setEditable(True)
-        self.company_combo.setInsertPolicy(QComboBox.NoInsert)
-        if self.company_combo.completer():
-            self.company_combo.completer().setCaseSensitivity(Qt.CaseInsensitive)
-            self.company_combo.completer().setFilterMode(Qt.MatchContains)
+        self.company_combo = ReportFilterSearchCombo(self)
         self.fp_layout.addWidget(self.company_combo)
 
     def _init_dates(self):
@@ -627,26 +803,19 @@ class CompanywiseSalesPage(_BaseSalesReportPage):
         self.company_combo.clear()
         self.company_combo.addItem("-- Select Company --", None)
         for c in companies:
-            self.company_combo.addItem(c["company_name"], c["id"])
+            display = str(c.get("company_name") or "").strip()
+            short = str(c.get("short_name") or "").strip()
+            raw = f"{display} {short}".strip() if short else display
+            if display:
+                self.company_combo.addItem(display, c.get("id"), raw)
+        self.company_combo.setCurrentIndex(0)
 
     def set_history_financial_year(self, year: Optional[Dict]):
         super().set_history_financial_year(year)
         self._init_dates()
 
     def get_selected_company_id(self) -> Optional[int]:
-        text = self.company_combo.currentText().strip()
-        if not text or text.lower().startswith("-- select"):
-            return None
-        idx = self.company_combo.currentIndex()
-        if 0 <= idx < self.company_combo.count():
-            if self.company_combo.itemText(idx).strip().lower() == text.lower():
-                data = self.company_combo.itemData(idx)
-                if data is not None:
-                    return data
-        for i in range(self.company_combo.count()):
-            if self.company_combo.itemText(i).strip().lower() == text.lower():
-                return self.company_combo.itemData(i)
-        return None
+        return self.company_combo.currentData()
 
     def generate_report(self):
         from_q = self.from_date_edit.date()
@@ -798,12 +967,7 @@ class ItemwiseSalesPage(_BaseSalesReportPage):
 
         lbl_item = QLabel("Item:")
         self.fp_layout.addWidget(lbl_item)
-        self.item_combo = QComboBox()
-        self.item_combo.setEditable(True)
-        self.item_combo.setInsertPolicy(QComboBox.NoInsert)
-        if self.item_combo.completer():
-            self.item_combo.completer().setCaseSensitivity(Qt.CaseInsensitive)
-            self.item_combo.completer().setFilterMode(Qt.MatchContains)
+        self.item_combo = ReportFilterSearchCombo(self)
         self.fp_layout.addWidget(self.item_combo)
 
     def _init_dates(self):
@@ -816,26 +980,19 @@ class ItemwiseSalesPage(_BaseSalesReportPage):
         self.item_combo.clear()
         self.item_combo.addItem("-- Select Item --", None)
         for it in items:
-            self.item_combo.addItem(it["item_name"], it["id"])
+            name = str(it.get("item_name") or "").strip()
+            unit = str(it.get("unit_name") or "").strip()
+            raw = f"{name} {unit}".strip() if unit else name
+            if name:
+                self.item_combo.addItem(name, it.get("id"), raw)
+        self.item_combo.setCurrentIndex(0)
 
     def set_history_financial_year(self, year: Optional[Dict]):
         super().set_history_financial_year(year)
         self._init_dates()
 
     def get_selected_item_id(self) -> Optional[int]:
-        text = self.item_combo.currentText().strip()
-        if not text or text.lower().startswith("-- select"):
-            return None
-        idx = self.item_combo.currentIndex()
-        if 0 <= idx < self.item_combo.count():
-            if self.item_combo.itemText(idx).strip().lower() == text.lower():
-                data = self.item_combo.itemData(idx)
-                if data is not None:
-                    return data
-        for i in range(self.item_combo.count()):
-            if self.item_combo.itemText(i).strip().lower() == text.lower():
-                return self.item_combo.itemData(i)
-        return None
+        return self.item_combo.currentData()
 
     def generate_report(self):
         from_q = self.from_date_edit.date()
