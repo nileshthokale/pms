@@ -4583,36 +4583,36 @@ class _SalePanel(QWidget):
             # summary row keeps only the calculated values.  The same
             # widgets are created there - nothing is duplicated.
             self._add_total_field(layout, "Total Amt", "total_amount_label",
-                                  width=96)
+                                  width=125)
             self._add_total_field(layout, "Customer Saving", "customer_saving_label",
-                                  width=110)
+                                  width=180)
             self._add_total_field(layout, "Yours", "yours_label",
-                                  width=90)
+                                  width=100)
             self._add_total_field(layout, "Round Off", "round_off_label",
-                                  width=92)
+                                  width=110)
             self._add_total_field(layout, "NET AMT", "net_amt_label",
-                                  width=112, emphasised=True)
+                                  width=145, emphasised=True)
             layout.addStretch()
             return
 
-        layout.setContentsMargins(8, 6, 8, 6)
-        layout.setSpacing(8)
+        layout.setContentsMargins(12, 6, 12, 6)
+        layout.setSpacing(16)
 
         self._add_total_field(layout, "Total Items", "total_items_label",
-                              width=76, emphasised=False)
+                              width=120, emphasised=False)
         self._add_total_field(layout, "Total Amt", "total_amount_label",
-                              width=100, visible=False)
+                              width=125, visible=False)
         self._add_total_field(layout, "Bill Disc", "bill_disc_edit",
-                              width=90, visible=False)
+                              width=100, visible=False)
         self._add_total_field(layout, "Customer Saving", "customer_saving_label",
-                              width=110)
+                              width=180)
         self._add_total_field(layout, "Yours", "yours_label",
-                              width=90)
+                              width=100)
         self._add_total_field(layout, "Round Off", "round_off_label",
-                              width=85)
+                              width=110)
         self._add_total_field(layout, "NET AMT", "net_amt_label",
-                              width=115, emphasised=True)
-        self._add_total_field(layout, "Paid", "paid_edit", width=95, visible=False)
+                              width=145, emphasised=True)
+        self._add_total_field(layout, "Paid", "paid_edit", width=100, visible=False)
 
         # Wire recalc
         self.bill_disc_edit.textChanged.connect(self._recalc_totals)
@@ -7276,9 +7276,9 @@ class CounterSalePage(QWidget):
         self._status_bills_total_label = QLabel("Bill(s) Total: 0.00")
 
         shortcuts_text = (
-            "Pur. Invoice: [Ctrl+I]   Challan: [Ctrl+H]   Adjust: [Ctrl+A]   "
-            "DebitNote : [Ctrl+D]   CreditNote : [Ctrl+C]   Supp. Payment: [Ctrl+P]   "
-            "Cust. Receipt: [Ctrl+R]   Counter Sales: [Ctrl+S]"
+            "Pur. Invoice: [Ctrl+I]   •   Challan: [Ctrl+H]   •   Adjust: [Ctrl+A]   •   "
+            "DebitNote: [Ctrl+D]   •   CreditNote: [Ctrl+C]   •   Supp. Payment: [Ctrl+P]   •   "
+            "Cust. Receipt: [Ctrl+R]   •   Counter Sales: [Ctrl+S]"
         )
         self._shortcuts_label = QLabel(shortcuts_text)
         self._shortcuts_label.setObjectName("CounterSaleShortcutsLabel")

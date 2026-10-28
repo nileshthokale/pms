@@ -322,12 +322,12 @@ class TestItemEntryBarBehavior(unittest.TestCase):
 
     def test_single_row_field_order(self):
         """Item entry fields follow clean single-row horizontal layout:
-        Item -> Pack -> Batch -> Exp -> Qty -> Free -> Rate -> MRP -> Disc -> GST -> + Add Item
+        Item -> Pack -> Qty -> Free -> Batch -> Exp -> Rate -> MRP -> Disc -> GST -> + Add Item
         """
         labels = [lbl.text() for lbl in self.bar._entry_labels]
         expected_labels = [
-            "Item", "Pack", "Batch", "Exp",
-            "Qty", "Free", "Rate", "MRP", "Disc", "GST"
+            "Item", "Pack", "Qty", "Free",
+            "Batch", "Exp", "Rate", "MRP", "Disc", "GST"
         ]
         self.assertEqual(labels, expected_labels)
 
