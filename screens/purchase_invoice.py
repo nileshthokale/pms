@@ -1269,7 +1269,12 @@ class _InvoiceDialog(QDialog):
         grp.setStyleSheet(_GROUP_BOX)
         form_layout = QHBoxLayout(grp)
         form_layout.setContentsMargins(10, 10, 10, 8)
-        form_layout.setSpacing(16)
+        form_layout.setSpacing(24)
+
+        # Standard label width definitions for clean alignment
+        LBL_LEFT_W = 55
+        LBL_MID_W = 75
+        LBL_RIGHT_W = 75
 
         # Left Column: Type, Date
         left_col = QWidget()
@@ -1278,19 +1283,21 @@ class _InvoiceDialog(QDialog):
         left_grid.setSpacing(6)
 
         lbl_type = self._lbl("Type :")
+        lbl_type.setFixedWidth(LBL_LEFT_W)
         self.purchase_type_combo = _make_combo(max_visible=5, max_height=160)
         self.purchase_type_combo.addItems(["Credit", "Cash", "Credit Card"])
         self.purchase_type_combo.setFixedWidth(112)
         self.purchase_type_combo.currentTextChanged.connect(self._on_purchase_type_changed)
         left_grid.addWidget(lbl_type, 0, 0, Qt.AlignRight | Qt.AlignVCenter)
-        left_grid.addWidget(self.purchase_type_combo, 0, 1)
+        left_grid.addWidget(self.purchase_type_combo, 0, 1, Qt.AlignLeft | Qt.AlignVCenter)
 
         lbl_date = self._lbl("Date :")
+        lbl_date.setFixedWidth(LBL_LEFT_W)
         self.invoice_date = _make_date()
-        self.invoice_date.setFixedWidth(118)
+        self.invoice_date.setFixedWidth(130)
         self.invoice_date.dateChanged.connect(self._on_invoice_date_changed)
         left_grid.addWidget(lbl_date, 1, 0, Qt.AlignRight | Qt.AlignVCenter)
-        left_grid.addWidget(self.invoice_date, 1, 1)
+        left_grid.addWidget(self.invoice_date, 1, 1, Qt.AlignLeft | Qt.AlignVCenter)
         form_layout.addWidget(left_col)
 
         # Middle Column: Supplier, Edit, Balance, Invoice #, Inv Net Amt
@@ -1300,6 +1307,7 @@ class _InvoiceDialog(QDialog):
         mid_grid.setSpacing(6)
 
         lbl_sup = self._lbl("Supplier :")
+        lbl_sup.setFixedWidth(LBL_MID_W)
         mid_grid.addWidget(lbl_sup, 0, 0, Qt.AlignRight | Qt.AlignVCenter)
 
         sup_row = QHBoxLayout()
@@ -1309,16 +1317,17 @@ class _InvoiceDialog(QDialog):
             placeholder="Type supplier name...",
             max_visible=9,
             max_height=270,
-            max_width=450,
-            min_width=240,
+            max_width=270,
+            min_width=210,
             allow_width_expansion=True,
         )
-        sup_row.addWidget(self.supplier_combo, 1)
+        self.supplier_combo.setFixedWidth(230)
+        sup_row.addWidget(self.supplier_combo)
 
         self.btn_supplier_edit = QPushButton("Edit")
-        self.btn_supplier_edit.setFixedSize(36, 26)
+        self.btn_supplier_edit.setFixedSize(46, 26)
         self.btn_supplier_edit.setStyleSheet(
-            "QPushButton { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ffffff, stop:1 #dbe7f5); border: 1px solid #7eaadb; border-radius: 2px; color: #0a3663; font-size: 11px; font-weight: bold; } QPushButton:hover { background: #cde2f8; }"
+            "QPushButton { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ffffff, stop:1 #dbe7f5); border: 1px solid #7eaadb; border-radius: 2px; color: #0a3663; font-size: 11px; font-weight: bold; padding: 1px 4px; } QPushButton:hover { background: #cde2f8; }"
         )
         self.btn_supplier_edit.setToolTip("Edit selected supplier master")
         self.btn_supplier_edit.setFocusPolicy(Qt.NoFocus)
@@ -1326,32 +1335,36 @@ class _InvoiceDialog(QDialog):
         sup_row.addWidget(self.btn_supplier_edit)
 
         self.sup_bal_prefix = QLabel("(Balance=")
-        self.sup_bal_prefix.setStyleSheet(f"color: {_TEXT}; font-size: 13px; font-weight: bold; background: transparent;")
+        self.sup_bal_prefix.setStyleSheet(f"color: {_TEXT}; font-size: 12px; font-weight: bold; background: transparent; padding: 0; margin: 0;")
         sup_row.addWidget(self.sup_bal_prefix)
 
         self.supplier_bal_label = QLabel("0.00")
-        self.supplier_bal_label.setStyleSheet(f"color: {_TEXT}; font-size: 13px; font-weight: bold; background: transparent;")
+        self.supplier_bal_label.setStyleSheet(f"color: {_TEXT}; font-size: 12px; font-weight: bold; background: transparent; padding: 0; margin: 0;")
         sup_row.addWidget(self.supplier_bal_label)
 
         self.sup_bal_suffix = QLabel(")")
-        self.sup_bal_suffix.setStyleSheet(f"color: {_TEXT}; font-size: 13px; font-weight: bold; background: transparent;")
+        self.sup_bal_suffix.setStyleSheet(f"color: {_TEXT}; font-size: 12px; font-weight: bold; background: transparent; padding: 0; margin: 0;")
         sup_row.addWidget(self.sup_bal_suffix)
 
+        sup_row.addStretch(1)
         mid_grid.addLayout(sup_row, 0, 1)
 
         # Row 1 of Middle: Invoice # and Inv Net Amt
+        lbl_inv_no = self._lbl("Invoice # :")
+        lbl_inv_no.setFixedWidth(LBL_MID_W)
+        mid_grid.addWidget(lbl_inv_no, 1, 0, Qt.AlignRight | Qt.AlignVCenter)
+
         inv_row = QHBoxLayout()
         inv_row.setContentsMargins(0, 0, 0, 0)
         inv_row.setSpacing(6)
 
-        lbl_inv_no = self._lbl("Invoice # :")
-        inv_row.addWidget(lbl_inv_no)
-        self.invoice_no_edit = _make_edit(width=110)
+        self.invoice_no_edit = _make_edit(width=100)
         inv_row.addWidget(self.invoice_no_edit)
 
         lbl_inv_amt = self._lbl("Inv Net Amt :")
+        lbl_inv_amt.setFixedWidth(85)
         inv_row.addWidget(lbl_inv_amt)
-        self.inv_net_amt_edit = _make_edit("0.00", width=105)
+        self.inv_net_amt_edit = _make_edit("0.00", width=95)
         self.inv_net_amt_edit.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         inv_row.addWidget(self.inv_net_amt_edit)
         inv_row.addStretch(1)
@@ -1366,26 +1379,37 @@ class _InvoiceDialog(QDialog):
         right_grid.setSpacing(6)
 
         lbl_disc = self._lbl("Discount :")
+        lbl_disc.setFixedWidth(LBL_RIGHT_W)
         right_grid.addWidget(lbl_disc, 0, 0, Qt.AlignRight | Qt.AlignVCenter)
 
         disc_row = QHBoxLayout()
         disc_row.setContentsMargins(0, 0, 0, 0)
-        disc_row.setSpacing(2)
+        disc_row.setSpacing(4)
         self.bill_disc_type_combo = _make_combo()
         self.bill_disc_type_combo.addItems(["Rs", "%"])
-        self.bill_disc_type_combo.setFixedSize(50, 26)
+        self.bill_disc_type_combo.setFixedSize(65, 26)
+        self.bill_disc_type_combo.setStyleSheet(
+            f"QComboBox {{"
+            f"  background-color: {_SURFACE}; color: {_TEXT};"
+            f"  border: 1px solid {_BORDER}; border-radius: 2px;"
+            f"  padding: 1px 2px 1px 6px; font-size: 13px; font-weight: bold; font-family: 'Segoe UI';"
+            f"}}"
+            f"QComboBox:hover {{ border: 1px solid {_ACCENT}; }}"
+            f"QComboBox::drop-down {{ border: none; width: 18px; }}"
+        )
         disc_row.addWidget(self.bill_disc_type_combo)
-        self.bill_discount_edit = _make_edit("0.00", width=85)
+        self.bill_discount_edit = _make_edit("0.00", width=80)
         self.bill_discount_edit.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.bill_discount_edit.textChanged.connect(self._sync_header_to_footer_disc)
         disc_row.addWidget(self.bill_discount_edit)
-        right_grid.addLayout(disc_row, 0, 1)
+        right_grid.addLayout(disc_row, 0, 1, Qt.AlignLeft | Qt.AlignVCenter)
 
         lbl_due = self._lbl("Due Date :")
+        lbl_due.setFixedWidth(LBL_RIGHT_W)
         right_grid.addWidget(lbl_due, 1, 0, Qt.AlignRight | Qt.AlignVCenter)
         self.due_date = _make_date(parent=self)
-        self.due_date.setFixedWidth(118)
-        right_grid.addWidget(self.due_date, 1, 1)
+        self.due_date.setFixedWidth(130)
+        right_grid.addWidget(self.due_date, 1, 1, Qt.AlignLeft | Qt.AlignVCenter)
         form_layout.addWidget(right_col)
 
         parent_layout.addWidget(grp)
