@@ -176,6 +176,18 @@ class ItemDAO:
             conn.close()
 
     @staticmethod
+    def get_version_key() -> tuple:
+        """Lightweight state tuple (count, max_id, total_id, sum_len) to detect item changes."""
+        conn = get_connection()
+        try:
+            row = conn.execute(
+                "SELECT COUNT(*), COALESCE(MAX(id), 0), COALESCE(TOTAL(id), 0), COALESCE(SUM(LENGTH(item_name)), 0) FROM items"
+            ).fetchone()
+            return tuple(row)
+        finally:
+            conn.close()
+
+    @staticmethod
     def search(name: str, category_id: int | None = None) -> list[dict]:
         conn = get_connection()
         try:
