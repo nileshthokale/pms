@@ -4846,6 +4846,7 @@ class _SalePanel(QWidget):
         save_btn = QPushButton("Save Sale")
         save_btn.setStyleSheet(_BTN_SAVE)
         save_btn.setFixedSize(110, _ACTION_BUTTON_HEIGHT)
+        save_btn.setToolTip("Save Sale (Alt+S)")
         save_btn.clicked.connect(self._on_save)
         layout.addWidget(save_btn)
 
@@ -6194,10 +6195,13 @@ class SalesBillReviewDialog(QDialog):
         self._final_save_btn.setFixedHeight(32)
         self._final_save_btn.setDefault(True)
         self._final_save_btn.setToolTip(
-            "Commit this bill: save the sale, deduct stock and post accounting"
+            "Commit this bill: save the sale, deduct stock and post accounting (Alt+S)"
         )
         self._final_save_btn.clicked.connect(self._on_final_save)
         bottom_row.addWidget(self._final_save_btn)
+
+        from PySide6.QtGui import QShortcut, QKeySequence
+        QShortcut(QKeySequence("Alt+S"), self).activated.connect(self._on_final_save)
 
         bottom_row.addSpacing(8)
 
@@ -6665,14 +6669,24 @@ class CounterSalePage(QWidget):
         self._refresh_history()
         self._refresh_status_bar()
         from PySide6.QtGui import QShortcut, QKeySequence
-        QShortcut(QKeySequence("Ctrl+A"), self).activated.connect(self._open_stock_adjustment)
-        QShortcut(QKeySequence("Ctrl+S"), self).activated.connect(self._on_new)
-        QShortcut(QKeySequence("Ctrl+P"), self).activated.connect(self._open_supplier_balance)
-        QShortcut(QKeySequence("Ctrl+R"), self).activated.connect(self._open_customer_balance)
-        QShortcut(QKeySequence("Ctrl+I"), self).activated.connect(self._open_pur_invoice)
+        QShortcut(QKeySequence("Alt+S"), self).activated.connect(self._on_alt_s_pressed)
+        QShortcut(QKeySequence("Ctrl+B"), self).activated.connect(self._on_ctrl_b_pressed)
         QShortcut(QKeySequence("Ctrl+H"), self).activated.connect(self._open_challan)
-        QShortcut(QKeySequence("Ctrl+D"), self).activated.connect(self._open_debit_note)
-        QShortcut(QKeySequence("Ctrl+C"), self).activated.connect(self._on_ctrl_c_pressed)
+
+    def _on_alt_s_pressed(self) -> None:
+        if hasattr(self, "_sale_panel"):
+            self._sale_panel._on_save()
+
+    def _on_ctrl_b_pressed(self) -> None:
+        if hasattr(self, "_sale_panel"):
+            if self._sale_panel._item_rows:
+                self._sale_panel._on_save()
+            else:
+                self.focus_entry()
+
+    def focus_entry(self) -> None:
+        if hasattr(self, "_sale_panel"):
+            self._sale_panel.focus_item_name()
 
     def _open_pur_invoice(self) -> None:
         if self.pur_invoice_requested.receivers(self.pur_invoice_requested) > 0:
