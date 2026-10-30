@@ -1,3 +1,8 @@
+from screens.daily_profit_calculation import (
+    DailyProfitCalculationReportPage,
+    DailyProfitCostReportWidget,
+    DailyProfitCostCalculationDialog,
+)
 from screens.counter_sale_actions import (
     DrugSubstituteDialog,
     DemandOrderDialog,
@@ -67,6 +72,8 @@ from screens.sales_reports import (
     ItemwiseSalesPage,
     DailyProfitCalculationPage,
     DailyProfitCalculationDialog,
+    ProfitCalculationPage,
+    ProfitCalculationDialog,
     DailyProfitItemwisePage,
     DailyProfitItemwiseDialog,
 )
@@ -110,7 +117,7 @@ __all__ = [
     "ItemwisePurchasePage", "ItemwiseBatchwisePurchasePage",
     "ItemsAllStockPage", "CompanywiseItemStockPage", "ExpiredItemListPage", "ItemListPage",
     "DailyBillwiseSalesPage", "DailyItemwiseSalesPage", "CompanywiseSalesPage",
-    "ItemwiseSalesPage", "DailyProfitCalculationPage", "DailyProfitCalculationDialog",
+    "ItemwiseSalesPage", "DailyProfitCalculationPage", "DailyProfitCalculationDialog", "ProfitCalculationPage", "ProfitCalculationDialog", "DailyProfitCalculationReportPage", "DailyProfitCostReportWidget", "DailyProfitCostCalculationDialog",
     "DailyProfitItemwisePage", "DailyProfitItemwiseDialog",
     "DoctorwiseItemSalePage", "DoctorwiseItemSaleDetailsPage",
     "DuplicateSalesBillListPage", "DuplicateSalesBillDialog", "DuplicateSalesBillA6PreviewDialog", "print_duplicate_a6_bill", "generate_duplicate_a6_pdf",

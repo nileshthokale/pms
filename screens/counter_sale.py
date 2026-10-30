@@ -76,6 +76,7 @@ from screens.counter_sale_actions import (
     CustomerBalanceDialog,
     SupplierBalanceDialog,
 )
+from screens.item_master import _ItemDialog
 
 from ui.theme import date_subcontrols, palette
 from ui.theme import indicator_style
@@ -1843,6 +1844,11 @@ class _ItemEntryBar(QWidget):
         self.item_combo.lineEdit().textEdited.connect(
             self._on_item_search_text_changed
         )
+        self._opening_new_item = False
+        self._last_loaded_version = None
+        self.item_combo.installEventFilter(self)
+        if self.item_combo.lineEdit() is not None:
+            self.item_combo.lineEdit().installEventFilter(self)
         # Stretch weights: Item leads because it is the primary search field, but it
         # only takes a share of the spare width â€” Batch and the read-outs widen
         # too, so a wide monitor fills the bar evenly instead of turning Item
@@ -2255,7 +2261,15 @@ class _ItemEntryBar(QWidget):
             if self._auto_fit:
                 self._refit_to_bar()
 
-    def load_items(self):
+    def load_items(self, keep_selection: bool = False):
+        curr_id = None
+        curr_text = ""
+        if keep_selection and hasattr(self, "item_combo"):
+            curr_id = self.item_combo.currentData()
+            line = self.item_combo.lineEdit()
+            if line is not None:
+                curr_text = line.text().strip()
+
         self.item_combo.blockSignals(True)
         self.item_combo.clear()
         self._item_completion_model.clear()
@@ -2280,11 +2294,164 @@ class _ItemEntryBar(QWidget):
             self._item_completion_model.appendRow(completion_item)
             self._item_search_values.append(item_name.casefold())
         self.item_combo.blockSignals(False)
-        self.item_combo.setCurrentIndex(0)
-        self.item_combo.lineEdit().setPlaceholderText("Search products")
-        self.item_combo.lineEdit().clear()
-        self._update_item_text_color("")
 
+        try:
+            self._last_loaded_version = ItemDAO.get_version_key()
+        except Exception:
+            self._last_loaded_version = None
+
+        if keep_selection and curr_id is not None:
+            idx = self.item_combo.findData(curr_id)
+            if idx >= 0:
+                self.item_combo.setCurrentIndex(idx)
+                if curr_text and self.item_combo.lineEdit() is not None:
+                    self.item_combo.lineEdit().setText(curr_text)
+            else:
+                self.item_combo.setCurrentIndex(0)
+                if curr_text and self.item_combo.lineEdit() is not None:
+                    self.item_combo.lineEdit().setText(curr_text)
+                elif self.item_combo.lineEdit() is not None:
+                    self.item_combo.lineEdit().clear()
+        elif keep_selection and curr_text:
+            self.item_combo.setCurrentIndex(0)
+            if self.item_combo.lineEdit() is not None:
+                self.item_combo.lineEdit().setText(curr_text)
+        else:
+            self.item_combo.setCurrentIndex(0)
+            if self.item_combo.lineEdit() is not None:
+                self.item_combo.lineEdit().clear()
+
+        if self.item_combo.lineEdit() is not None:
+            self.item_combo.lineEdit().setPlaceholderText("Search products")
+        if not keep_selection or not curr_id:
+            self._update_item_text_color("")
+
+    def reload_items_if_needed(self, keep_selection: bool = True) -> bool:
+        """Reload items if Item Master records have changed in the database."""
+        try:
+            current_version = ItemDAO.get_version_key()
+        except Exception:
+            return False
+        if current_version != getattr(self, "_last_loaded_version", None):
+            self.load_items(keep_selection=keep_selection)
+            return True
+        return False
+
+    def eventFilter(self, watched, event) -> bool:
+        combo = getattr(self, "item_combo", None)
+        if combo is not None:
+            line = combo.lineEdit()
+            if watched is combo or (line is not None and watched is line):
+                if event.type() == QEvent.FocusIn:
+                    self.reload_items_if_needed(keep_selection=True)
+                elif event.type() == QEvent.KeyPress:
+                    if event.key() == Qt.Key.Key_Tab and not (event.modifiers() & Qt.KeyboardModifier.ShiftModifier):
+                        return self._on_item_field_tab_pressed()
+        return super().eventFilter(watched, event)
+
+    def _on_item_field_tab_pressed(self) -> bool:
+        """Handle Tab key in item field for Counter Sale:
+        - If empty or spaces or placeholder: ignore (allow normal tab traversal).
+        - If matches an existing item: select it and advance to batch_combo.
+        - If new item: open the existing New Item dialog from Item Master.
+        """
+        if getattr(self, "_opening_new_item", False):
+            return True
+
+        line = self.item_combo.lineEdit()
+        raw_text = line.text() if line is not None else self.item_combo.currentText()
+        text = raw_text.strip()
+
+        # Ignore empty input, placeholder, or default selection
+        if not text or text in ("-- Select --", "No products found", "Search products"):
+            return False
+
+        popup = self.item_combo.completer().popup() if self.item_combo.completer() else None
+
+        def _commit_existing(item_id: int) -> bool:
+            if popup and popup.isVisible():
+                popup.hide()
+            idx = self.item_combo.findData(item_id)
+            if idx < 0:
+                self.load_items(keep_selection=True)
+                idx = self.item_combo.findData(item_id)
+            if idx >= 0:
+                if self.item_combo.currentIndex() != idx:
+                    self.item_combo.setCurrentIndex(idx)
+                else:
+                    self._on_item_changed(idx)
+            self._focus_batch()
+            return True
+
+        # 1. If completer popup has an active valid selection, activate it
+        if popup and popup.isVisible():
+            cur_idx = popup.currentIndex()
+            if cur_idx.isValid():
+                target_id = cur_idx.data(Qt.UserRole)
+                if target_id is not None:
+                    popup.hide()
+                    return _commit_existing(target_id)
+
+        # 2. Check if currentData() is already selected and its text matches
+        curr_id = self.item_combo.currentData()
+        if curr_id is not None:
+            curr_text = self.item_combo.currentText().strip()
+            if curr_text.casefold() == text.casefold():
+                return _commit_existing(curr_id)
+
+        # 3. Check if text matches an existing item in item_combo
+        for idx in range(self.item_combo.count()):
+            it_id = self.item_combo.itemData(idx)
+            if it_id is not None:
+                it_text = self.item_combo.itemText(idx).strip()
+                if it_text.casefold() == text.casefold():
+                    return _commit_existing(it_id)
+
+        # 4. Check if text matches an item in database
+        existing = ItemDAO.find_by_name(text)
+        if existing is not None:
+            return _commit_existing(existing["id"])
+
+        # 5. Check if text unambiguously matches exactly one item in _items_by_id
+        matches = [
+            it for it in self._items_by_id.values()
+            if text.casefold() in (it.get("item_name") or "").strip().casefold()
+        ]
+        if len(matches) == 1:
+            return _commit_existing(matches[0]["id"])
+
+        # 6. Item does NOT exist in Item Master: open New Item popup
+        if popup and popup.isVisible():
+            popup.hide()
+
+        self._open_new_item_popup(text)
+        return True
+
+    def _open_new_item_popup(self, item_name: str) -> None:
+        self._opening_new_item = True
+        try:
+            parent_window = self.window() if self.window() is not None else self
+            dlg = _ItemDialog(parent_window, initial_name=item_name)
+            self._last_new_item_dialog = dlg
+            dlg.exec()
+
+            if dlg.was_saved:
+                new_item_id = dlg.saved_item_id
+                self.load_items(keep_selection=False)
+                if new_item_id is not None:
+                    idx = self.item_combo.findData(new_item_id)
+                    if idx >= 0:
+                        self.item_combo.setCurrentIndex(idx)
+                        self._on_item_changed(idx)
+                self._focus_batch()
+            else:
+                line = self.item_combo.lineEdit()
+                if line is not None:
+                    line.setText(item_name)
+                    line.selectAll()
+                    line.setFocus()
+        finally:
+            self._opening_new_item = False
 
     def _update_item_text_color(self, scheduled: object) -> None:
         is_red = is_schedule_h1_or_nrx(scheduled)
@@ -2341,6 +2508,11 @@ class _ItemEntryBar(QWidget):
                 self._item_completion_model.rowCount() - 1
             )
             self._has_no_match_row = False
+        if query and not any(value.startswith(query.casefold()) for value in self._item_search_values):
+            reloaded = self.reload_items_if_needed(keep_selection=True)
+            if not reloaded and ItemDAO.find_by_name(query) is not None:
+                self.load_items(keep_selection=True)
+
         if query and not any(value.startswith(query.casefold()) for value in self._item_search_values):
             status = QStandardItem("No products found")
             status.setData(None, Qt.UserRole)
@@ -4674,6 +4846,7 @@ class _SalePanel(QWidget):
         save_btn = QPushButton("Save Sale")
         save_btn.setStyleSheet(_BTN_SAVE)
         save_btn.setFixedSize(110, _ACTION_BUTTON_HEIGHT)
+        save_btn.setToolTip("Save Sale (Alt+S)")
         save_btn.clicked.connect(self._on_save)
         layout.addWidget(save_btn)
 
@@ -5829,6 +6002,7 @@ class SalesBillReviewDialog(QDialog):
             if hasattr(self, "_panel") and hasattr(self._panel, "_entry_bar"):
                 self._panel._entry_bar.close_popups()
                 self._panel._entry_bar.reset_batch()
+                self._panel._entry_bar.reload_items_if_needed(keep_selection=True)
             if hasattr(self, "_final_save_btn"):
                 self._final_save_btn.setFocus()
         except Exception:
@@ -6021,10 +6195,13 @@ class SalesBillReviewDialog(QDialog):
         self._final_save_btn.setFixedHeight(32)
         self._final_save_btn.setDefault(True)
         self._final_save_btn.setToolTip(
-            "Commit this bill: save the sale, deduct stock and post accounting"
+            "Commit this bill: save the sale, deduct stock and post accounting (Alt+S)"
         )
         self._final_save_btn.clicked.connect(self._on_final_save)
         bottom_row.addWidget(self._final_save_btn)
+
+        from PySide6.QtGui import QShortcut, QKeySequence
+        QShortcut(QKeySequence("Alt+S"), self).activated.connect(self._on_final_save)
 
         bottom_row.addSpacing(8)
 
@@ -6492,46 +6669,60 @@ class CounterSalePage(QWidget):
         self._refresh_history()
         self._refresh_status_bar()
         from PySide6.QtGui import QShortcut, QKeySequence
-        QShortcut(QKeySequence("Ctrl+A"), self).activated.connect(self._open_stock_adjustment)
-        QShortcut(QKeySequence("Ctrl+S"), self).activated.connect(self._on_new)
-        QShortcut(QKeySequence("Ctrl+P"), self).activated.connect(self._open_supplier_balance)
-        QShortcut(QKeySequence("Ctrl+R"), self).activated.connect(self._open_customer_balance)
-        QShortcut(QKeySequence("Ctrl+I"), self).activated.connect(self._open_pur_invoice)
+        QShortcut(QKeySequence("Alt+S"), self).activated.connect(self._on_alt_s_pressed)
+        QShortcut(QKeySequence("Ctrl+B"), self).activated.connect(self._on_ctrl_b_pressed)
         QShortcut(QKeySequence("Ctrl+H"), self).activated.connect(self._open_challan)
-        QShortcut(QKeySequence("Ctrl+D"), self).activated.connect(self._open_debit_note)
-        QShortcut(QKeySequence("Ctrl+C"), self).activated.connect(self._on_ctrl_c_pressed)
+
+    def _on_alt_s_pressed(self) -> None:
+        if hasattr(self, "_sale_panel"):
+            self._sale_panel._on_save()
+
+    def _on_ctrl_b_pressed(self) -> None:
+        if hasattr(self, "_sale_panel"):
+            if self._sale_panel._item_rows:
+                self._sale_panel._on_save()
+            else:
+                self.focus_entry()
+
+    def focus_entry(self) -> None:
+        if hasattr(self, "_sale_panel"):
+            self._sale_panel.focus_item_name()
 
     def _open_pur_invoice(self) -> None:
-        if self.pur_invoice_requested.receivers(self.pur_invoice_requested) > 0:
-            self.pur_invoice_requested.emit()
-        else:
-            win = self.window()
-            if win is not None and hasattr(win, "_on_menu_action"):
-                win._on_menu_action("Purchase", "New Purchase")
+        self.pur_invoice_requested.emit()
+        win = self.window()
+        if win is not None and hasattr(win, "_on_menu_action"):
+            if getattr(win, "_stack", None) and getattr(win._stack, "currentWidget", None):
+                if win._stack.currentWidget() != self:
+                    return
+            win._on_menu_action("Purchase", "New Purchase")
 
     def _open_challan(self) -> None:
-        if self.challan_requested.receivers(self.challan_requested) > 0:
-            self.challan_requested.emit()
-        else:
-            win = self.window()
-            if win is not None and hasattr(win, "_on_menu_action"):
-                win._on_menu_action("Reports", "Supplierwise Itemwise Purchase (Challan)")
+        self.challan_requested.emit()
+        win = self.window()
+        if win is not None and hasattr(win, "_on_menu_action"):
+            if getattr(win, "_stack", None) and getattr(win._stack, "currentWidget", None):
+                if win._stack.currentWidget() != self:
+                    return
+            win._on_menu_action("Reports", "Supplierwise Itemwise Purchase (Challan)")
 
     def _open_debit_note(self) -> None:
-        if self.debit_note_requested.receivers(self.debit_note_requested) > 0:
-            self.debit_note_requested.emit()
-        else:
-            win = self.window()
-            if win is not None and hasattr(win, "_on_menu_action"):
-                win._on_menu_action("Account", "Debit Note (Return to Supplier)")
+        self.debit_note_requested.emit()
+        win = self.window()
+        if win is not None and hasattr(win, "_on_menu_action"):
+            if getattr(win, "_stack", None) and getattr(win._stack, "currentWidget", None):
+                if win._stack.currentWidget() != self:
+                    return
+            win._on_menu_action("Purchase", "Debit Note (Return to Supplier)")
 
     def _open_credit_note(self) -> None:
-        if self.credit_note_requested.receivers(self.credit_note_requested) > 0:
-            self.credit_note_requested.emit()
-        else:
-            win = self.window()
-            if win is not None and hasattr(win, "_on_menu_action"):
-                win._on_menu_action("Account", "Credit Note (Return from Customer)")
+        self.credit_note_requested.emit()
+        win = self.window()
+        if win is not None and hasattr(win, "_on_menu_action"):
+            if getattr(win, "_stack", None) and getattr(win._stack, "currentWidget", None):
+                if win._stack.currentWidget() != self:
+                    return
+            win._on_menu_action("Purchase", "Credit Note (Return from Customer)")
 
     def _on_ctrl_c_pressed(self) -> None:
         from PySide6.QtWidgets import QApplication, QLineEdit, QTextEdit, QPlainTextEdit, QTableWidget
@@ -6738,6 +6929,16 @@ class CounterSalePage(QWidget):
             "Open Patient Bill History"
         )
 
+        self._hist_new_purchase_btn = QPushButton("New Purchase")
+        self._hist_new_purchase_btn.setStyleSheet(_BTN_SECONDARY)
+        self._hist_new_purchase_btn.setFixedHeight(_METADATA_CONTROL_HEIGHT)
+        self._hist_new_purchase_btn.setMinimumWidth(
+            max(110, self._hist_new_purchase_btn.sizeHint().width() + 16)
+        )
+        self._hist_new_purchase_btn.setToolTip(
+            "Open New Purchase (Ctrl+I)"
+        )
+
         layout.addWidget(self._flbl("Daily Sales:"))
         layout.addWidget(self._flbl("Date"))
         layout.addWidget(self._hist_date)
@@ -6747,6 +6948,8 @@ class CounterSalePage(QWidget):
         layout.addWidget(self._hist_refresh_btn)
         layout.addSpacing(4)
         layout.addWidget(self._hist_sales_history_btn)
+        layout.addSpacing(4)
+        layout.addWidget(self._hist_new_purchase_btn)
         layout.addStretch()
         layout.addWidget(self._flbl("View"))
         layout.addWidget(self._hist_item_mode)
@@ -6758,9 +6961,12 @@ class CounterSalePage(QWidget):
         self._hist_today_btn.clicked.connect(self._on_show_today_history)
         self._hist_item_mode.toggled.connect(self._on_history_mode_toggled)
         self._hist_bill_mode.toggled.connect(self._on_history_mode_toggled)
-        self._hist_refresh_btn.clicked.connect(self._refresh_history)
+        self._hist_refresh_btn.clicked.connect(self._on_hist_refresh_clicked)
         self._hist_sales_history_btn.clicked.connect(
             self._on_open_sales_history
+        )
+        self._hist_new_purchase_btn.clicked.connect(
+            self._open_pur_invoice
         )
         return bar
 
@@ -7635,6 +7841,13 @@ class CounterSalePage(QWidget):
     def showEvent(self, event):
         super().showEvent(event)
         self._apply_history_height()
+        if hasattr(self, "_sale_panel") and hasattr(self._sale_panel, "_entry_bar"):
+            self._sale_panel._entry_bar.reload_items_if_needed(keep_selection=True)
+
+    def _on_hist_refresh_clicked(self):
+        self._refresh_history()
+        if hasattr(self, "_sale_panel") and hasattr(self._sale_panel, "_entry_bar"):
+            self._sale_panel._entry_bar.load_items(keep_selection=True)
 
     def _flbl(self, text: str) -> QLabel:
         lbl = QLabel(text)
@@ -7685,7 +7898,7 @@ class CounterSalePage(QWidget):
                 self._new_btn.setStyleSheet(_fresh_btn_style(p["accent"], p))
             for attr in (
                 "_hist_all_btn", "_hist_today_btn", "_hist_refresh_btn",
-                "_hist_sales_history_btn",
+                "_hist_sales_history_btn", "_hist_new_purchase_btn",
                 "_btn_supplier_balance", "_btn_customer_balance",
                 "_btn_demand_order", "_btn_drug_substitute",
             ):

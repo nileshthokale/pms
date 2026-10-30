@@ -99,6 +99,8 @@ class AdjustedStockListPage(QWidget):
         )
         self.btn_new.clicked.connect(self._on_new)
         banner_layout.addWidget(self.btn_new)
+        from PySide6.QtGui import QShortcut, QKeySequence
+        QShortcut(QKeySequence("Ctrl+A"), self).activated.connect(self._on_new)
 
         self.btn_edit = QPushButton("Edit")
         self.btn_edit.setToolTip("Edit selected stock adjustment")

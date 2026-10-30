@@ -52,6 +52,7 @@ class TestSalesReportsSubmenu(unittest.TestCase):
             "Daily Itemwise Sales",
             "Companywise Sales",
             "Itemwise Sales",
+            "Profit Calculation",
             "Daily Profit Calculation",
             "Daily Profit Itemwise",
         ]
@@ -70,6 +71,7 @@ class TestSalesReportsSubmenu(unittest.TestCase):
     def test_keyboard_shortcuts(self):
         self.assertEqual(MENU_SHORTCUTS.get("Daily Itemwise Sales"), "Ctrl+T")
         self.assertEqual(MENU_SHORTCUTS.get("Daily Profit Calculation"), "Ctrl+O")
+        self.assertNotIn("Profit Calculation", MENU_SHORTCUTS)
 
     def test_navigation_bar_builds_submenu(self):
         nav = NavigationBar()

@@ -1,4 +1,4 @@
-from PySide6.QtCore import Qt, QEvent
+from PySide6.QtCore import Qt, QEvent, QObject
 from PySide6.QtWidgets import (
     QApplication,
     QLabel,
@@ -45,6 +45,92 @@ class PlaceholderPage(QWidget):
         layout.addWidget(body, 1)
 
 
+class MainWindowShortcutFilter(QObject):
+    """Application-wide hotkey filter for PMS navigation shortcuts."""
+
+    def __init__(self, main_win: "PharmacyMainWindow"):
+        super().__init__(main_win)
+        self.main_win = main_win
+
+    def eventFilter(self, watched, event):
+        if event.type() == QEvent.KeyPress:
+            mods = event.modifiers()
+            key = event.key()
+
+            # Alt+S: in Counter Sale -> open Save Bill popup; in popup -> save bill directly.
+            if (mods & Qt.AltModifier) and key == Qt.Key_S:
+                active_dlg = QApplication.activeModalWidget() or QApplication.activeWindow()
+                if active_dlg is not None and hasattr(active_dlg, "_on_final_save"):
+                    active_dlg._on_final_save()
+                    return True
+                curr = self.main_win._stack.currentWidget()
+                if isinstance(curr, screens.CounterSalePage):
+                    if hasattr(curr, "_sale_panel"):
+                        curr._sale_panel._on_save()
+                    return True
+
+            if mods == Qt.ControlModifier:
+                # Ctrl+S: Counter Sale page
+                if key == Qt.Key_S:
+                    self.main_win._open_counter_sale()
+                    return True
+
+                # Ctrl+B: Sales Bill
+                elif key == Qt.Key_B:
+                    self.main_win._open_sales_bill()
+                    return True
+
+                # Ctrl+I: New Purchase page
+                elif key == Qt.Key_I:
+                    self.main_win._on_menu_action("Purchase", "New Purchase")
+                    return True
+
+                # Ctrl+A: Stock Adjustment
+                elif key == Qt.Key_A:
+                    from PySide6.QtWidgets import QLineEdit, QTextEdit, QPlainTextEdit
+                    fw = QApplication.focusWidget()
+                    if isinstance(fw, (QLineEdit, QTextEdit, QPlainTextEdit)) and fw.text() and not fw.hasSelectedText():
+                        return False  # Let editor Select All
+                    self.main_win._open_stock_adjustment()
+                    return True
+
+                # Ctrl+C: Credit Note (Return from Customer)
+                elif key == Qt.Key_C:
+                    from PySide6.QtWidgets import QLineEdit, QTextEdit, QPlainTextEdit
+                    fw = QApplication.focusWidget()
+                    if isinstance(fw, (QLineEdit, QTextEdit, QPlainTextEdit)) and fw.hasSelectedText():
+                        return False  # Let editor Copy
+                    self.main_win._on_menu_action("Purchase", "Credit Note (Return from Customer)")
+                    return True
+
+                # Ctrl+D: Debit Note (Return to Supplier)
+                elif key == Qt.Key_D:
+                    self.main_win._on_menu_action("Purchase", "Debit Note (Return to Supplier)")
+                    return True
+
+                # Ctrl+P: Supplier Payment Voucher
+                elif key == Qt.Key_P:
+                    self.main_win._on_menu_action("Account", "Supplier Payment Voucher")
+                    return True
+
+                # Ctrl+R: Customer Receipt / Payment Voucher
+                elif key == Qt.Key_R:
+                    self.main_win._on_menu_action("Account", "Customer Receipt Voucher")
+                    return True
+
+                # Ctrl+G: GST Report
+                elif key == Qt.Key_G:
+                    self.main_win._on_menu_action("Reports", "GST Report")
+                    return True
+
+                # Ctrl+T: Daily Itemwise Sales
+                elif key == Qt.Key_T:
+                    self.main_win._on_menu_action("Reports", "Daily Itemwise Sales")
+                    return True
+
+        return super().eventFilter(watched, event)
+
+
 class PharmacyMainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -78,15 +164,41 @@ class PharmacyMainWindow(QMainWindow):
         self._page_map: dict[str, int] = {}
         self._build_pages()
 
-        from PySide6.QtGui import QShortcut, QKeySequence
-        QShortcut(QKeySequence("Ctrl+D"), self).activated.connect(
-            lambda: self._on_menu_action("Purchase", "Debit Note (Return to Supplier)")
-        )
-        QShortcut(QKeySequence("Ctrl+C"), self).activated.connect(
-            lambda: self._on_menu_action("Purchase", "Credit Note (Return from Customer)")
-        )
+        for act in self._nav.shortcut_actions:
+            self.addAction(act)
+        self._shortcut_filter = MainWindowShortcutFilter(self)
+        QApplication.instance().installEventFilter(self._shortcut_filter)
         theme.theme_manager.on_changed(self._on_theme_changed)
         self._apply_theme()
+
+    def _open_counter_sale(self):
+        self._on_menu_action("Sales", "New Bill")
+        curr = self._stack.currentWidget()
+        if hasattr(curr, "focus_entry"):
+            curr.focus_entry()
+        elif hasattr(curr, "_sale_panel"):
+            curr._sale_panel.focus_item_name()
+
+    def _open_sales_bill(self):
+        curr = self._stack.currentWidget()
+        if isinstance(curr, screens.CounterSalePage):
+            if hasattr(curr, "_sale_panel") and curr._sale_panel._item_rows:
+                curr._sale_panel._on_save()
+            elif hasattr(curr, "focus_entry"):
+                curr.focus_entry()
+        else:
+            self._on_menu_action("Sales", "New Bill")
+            curr = self._stack.currentWidget()
+            if hasattr(curr, "focus_entry"):
+                curr.focus_entry()
+
+    def _open_stock_adjustment(self):
+        curr = self._stack.currentWidget()
+        if isinstance(curr, screens.AdjustedStockListPage):
+            if hasattr(curr, "_on_new"):
+                curr._on_new()
+        else:
+            self._on_menu_action("Purchase", "Stock Adjustment")
 
     @classmethod
     def _flatten_menu_items(cls, items, parent_path: str = ""):
@@ -194,8 +306,13 @@ class PharmacyMainWindow(QMainWindow):
                     page.close_requested.connect(
                         lambda: self._on_menu_action("Sales", "New Bill")
                     )
-                elif menu_name == "Reports" and item_name == "Daily Profit Calculation":
+                elif menu_name == "Reports" and item_name == "Profit Calculation":
                     page = screens.DailyProfitCalculationPage()
+                    page.close_requested.connect(
+                        lambda: self._on_menu_action("Sales", "New Bill")
+                    )
+                elif menu_name == "Reports" and item_name == "Daily Profit Calculation":
+                    page = screens.DailyProfitCalculationReportPage()
                     page.close_requested.connect(
                         lambda: self._on_menu_action("Sales", "New Bill")
                     )
@@ -381,6 +498,12 @@ class PharmacyMainWindow(QMainWindow):
             self._page_map["Account:Credit Note (Return from Customer)"] = self._page_map["Purchase:Credit Note (Return from Customer)"]
             self._page_map["Account:Credit Note"] = self._page_map["Purchase:Credit Note (Return from Customer)"]
             self._page_map["Purchase:Credit Note"] = self._page_map["Purchase:Credit Note (Return from Customer)"]
+        if "Sales:New Bill" in self._page_map:
+            self._page_map["Sales:Counter Sale"] = self._page_map["Sales:New Bill"]
+            self._page_map["Sales:Sales Bill"] = self._page_map["Sales:New Bill"]
+        if "Account:Customer Receipt Voucher" in self._page_map:
+            self._page_map["Account:Customer Payment Voucher"] = self._page_map["Account:Customer Receipt Voucher"]
+            self._page_map["Account:Customer Payment"] = self._page_map["Account:Customer Receipt Voucher"]
 
     def _on_menu_action(self, menu: str, action: str):
         _LEGACY_REDIRECTS = {
@@ -392,6 +515,12 @@ class PharmacyMainWindow(QMainWindow):
             ("Account", "Credit Note (Return from Customer)"): ("Purchase", "Credit Note (Return from Customer)"),
             ("Account", "Debit Note"): ("Purchase", "Debit Note (Return to Supplier)"),
             ("Account", "Credit Note"): ("Purchase", "Credit Note (Return from Customer)"),
+            ("Sales", "Counter Sale"): ("Sales", "New Bill"),
+            ("Sales", "Sales Bill"): ("Sales", "New Bill"),
+            ("Account", "Supplier Payment"): ("Account", "Supplier Payment Voucher"),
+            ("Account", "Customer Payment"): ("Account", "Customer Receipt Voucher"),
+            ("Account", "Customer Payment Voucher"): ("Account", "Customer Receipt Voucher"),
+            ("Account", "Customer Receipt"): ("Account", "Customer Receipt Voucher"),
         }
         if (menu, action) in _LEGACY_REDIRECTS:
             menu, action = _LEGACY_REDIRECTS[(menu, action)]
@@ -418,6 +547,8 @@ class PharmacyMainWindow(QMainWindow):
             win_title = getattr(widget, "window_title_text", None) or action
             self.setWindowTitle(_get_window_title(win_title))
             self._nav.status_label.setText(f"{menu} / {action}")
+            if hasattr(widget, "focus_entry"):
+                widget.focus_entry()
 
     # ── financial-year viewing ──────────────────────────────────
     def _on_financial_year_view(self, year: dict):
