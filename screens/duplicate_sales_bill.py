@@ -272,6 +272,7 @@ def _build_a6_pages_for_duplicate_bill(
         "document_title": doc_title,
         "customer_name": head.get("customer_name") or "WALKIN",
         "patient_name": head.get("patient_name") or "",
+        "address": head.get("address") or "",
         "doctor_name": head.get("doctor_name") or "",
         "bill_no": str(head.get("voucher_no") or head.get("bill_no") or "1"),
         "sale_date": display_date,

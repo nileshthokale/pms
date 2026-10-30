@@ -567,7 +567,30 @@ def draw_a6_cash_memo_page(painter: QPainter, page: dict[str, Any], scale: float
     # Left & Right Block (8.5 pt on A6 / 10.5 pt on A5)
     cust_name = str(head.get("patient_name") or head.get("customer_name") or "WALKIN").strip()
     addr = str(head.get("address") or "").strip()
-    name_str = f"Name : {cust_name}" + (f", {addr}" if addr else "")
+    if not addr and cust_name and cust_name.upper() not in ("WALKIN", "WALKIN CUSTOMER"):
+        try:
+            from database.connection import get_connection
+            _conn = get_connection()
+            _pa_cur = _conn.execute(
+                """
+                SELECT address FROM patient_addresses
+                WHERE UPPER(TRIM(patient_name)) = UPPER(TRIM(?))
+                  AND address IS NOT NULL AND TRIM(address) <> ''
+                ORDER BY updated_at DESC, id DESC LIMIT 1
+                """,
+                (cust_name,),
+            )
+            _pa_row = _pa_cur.fetchone()
+            if _pa_row and _pa_row[0]:
+                addr = str(_pa_row[0]).strip()
+            _conn.close()
+        except Exception:
+            pass
+
+    if addr and addr.upper() in cust_name.upper():
+        name_str = f"Name : {cust_name}"
+    else:
+        name_str = f"Name : {cust_name}" + (f", {addr}" if addr else "")
 
     doc_name = str(head.get("doctor_name") or "").strip()
     doc_str = f"Doctor : {doc_name}"
@@ -582,8 +605,8 @@ def draw_a6_cash_memo_page(painter: QPainter, page: dict[str, Any], scale: float
     sale_date_raw = head.get("vh_date") or head.get("sale_date")
     dt_str = f"Date : {format_display_date(sale_date_raw)}"
 
-    left_w = rw(content_width * 0.60)
-    right_w = rw(content_width * 0.40)
+    left_w = rw(content_width * 0.65)
+    right_w = rw(content_width * 0.35)
     right_x = x0 + left_w
 
     meta_y1 = h_y_start + (12.0 if paper_size == "A5" else 9.3)
@@ -591,7 +614,7 @@ def draw_a6_cash_memo_page(painter: QPainter, page: dict[str, Any], scale: float
     meta_h = 5.0 if paper_size == "A5" else 4.0
 
     # Meta Row 1
-    _draw_cut_to_fit_bold(painter, x0, ry(meta_y1), left_w, rh(meta_h), name_str, fonts["meta"], "left", scale=scale)
+    _draw_shrink_to_fit_bold(painter, x0, ry(meta_y1), left_w, rh(meta_h), name_str, max_pt=fonts["meta"], min_pt=7.0, align="left", scale=scale)
     _draw_cut_to_fit_bold(painter, right_x, ry(meta_y1), right_w, rh(meta_h), memo_str, fonts["meta"], "right", scale=scale)
 
     # Meta Row 2
@@ -734,6 +757,11 @@ def draw_a6_cash_memo_page(painter: QPainter, page: dict[str, Any], scale: float
         "right",
         scale=scale,
     )
+
+    # Line under the final amount (Net Amt)
+    net_line_y = net_amt_y + (6.2 if paper_size == "A5" else 5.2)
+    painter.setPen(pen_rule)
+    painter.drawLine(QPointF(right_x, ry(net_line_y)), QPointF(x1, ry(net_line_y)))
 
     # ══════════════════════════════════════════════════════════════════
     # 3. FOOTER (Fixed at Bottom, balanced margins)
