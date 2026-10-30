@@ -43,6 +43,7 @@ from database.purchase_dao import PurchaseDAO
 from database import auth
 from database import financial_year
 from database.document_printing import DocumentPrintError, generate_purchase_invoice
+from screens.item_master import _ItemDialog
 
 from ui.components import ConstrainedComboBox, SearchableComboBox
 from ui.theme import date_subcontrols, palette
@@ -968,7 +969,131 @@ class _ItemEntryBar(QWidget):
         QWidget.setTabOrder(self.mrp_edit, self.discount_edit)
         QWidget.setTabOrder(self.discount_edit, self.add_btn)
 
+        self._opening_new_item = False
+        if self.item_combo.lineEdit() is not None:
+            self.item_combo.lineEdit().installEventFilter(self)
+        self.item_combo.installEventFilter(self)
+
         self._load_items()
+
+    def eventFilter(self, watched, event) -> bool:
+        combo = getattr(self, "item_combo", None)
+        if combo is not None:
+            line = combo.lineEdit()
+            if (watched is combo or (line is not None and watched is line)) and event.type() == QEvent.KeyPress:
+                if event.key() == Qt.Key.Key_Tab and not (event.modifiers() & Qt.KeyboardModifier.ShiftModifier):
+                    return self._on_item_field_tab_pressed()
+        return super().eventFilter(watched, event)
+
+    def _on_item_field_tab_pressed(self) -> bool:
+        """Handle Tab key in item field:
+        - If empty or spaces: ignore (allow normal tab traversal).
+        - If matches an existing item: select it and advance to pay_qty.
+        - If new item: open the existing New Item dialog from Item Master.
+        """
+        if getattr(self, "_opening_new_item", False):
+            return True
+
+        line = self.item_combo.lineEdit()
+        raw_text = line.text() if line is not None else self.item_combo.currentText()
+        text = raw_text.strip()
+        placeholder = getattr(self.item_combo, "_placeholder", "")
+
+        # Ignore empty input and prevent unnecessary popup openings when input contains only spaces
+        if not text or text == placeholder:
+            return False
+
+        popup = self.item_combo.completer().popup() if self.item_combo.completer() else None
+
+        def _commit_existing(item_id: int) -> bool:
+            if popup and popup.isVisible():
+                popup.hide()
+            if self.item_combo.findData(item_id) < 0:
+                self._load_items()
+            self.item_combo.set_selected_id(item_id)
+            inv_dialog = self.window()
+            if hasattr(inv_dialog, "_on_item_changed"):
+                inv_dialog._on_item_changed(self.item_combo.currentIndex())
+            self.pay_qty_edit.setFocus()
+            self.pay_qty_edit.selectAll()
+            return True
+
+        # 1. If completer popup has an active valid selection, activate it
+        if popup and popup.isVisible():
+            cur_idx = popup.currentIndex()
+            if cur_idx.isValid() and cur_idx.data(Qt.UserRole) is not None:
+                self.item_combo._on_completer_index_activated(cur_idx)
+                popup.hide()
+                inv_dialog = self.window()
+                if hasattr(inv_dialog, "_on_item_changed"):
+                    inv_dialog._on_item_changed(self.item_combo.currentIndex())
+                self.pay_qty_edit.setFocus()
+                self.pay_qty_edit.selectAll()
+                return True
+
+        # 2. Check if currentData() is already selected and its text matches
+        curr_id = self.item_combo.currentData()
+        if curr_id is not None:
+            curr_text = self.item_combo.currentText().strip()
+            if curr_text.casefold() == text.casefold():
+                return _commit_existing(curr_id)
+
+        # 3. Check if text matches an existing item in item_combo
+        match_idx = self.item_combo._find_matching_index(text)
+        if match_idx >= 0 and self.item_combo.itemData(match_idx) is not None:
+            return _commit_existing(self.item_combo.itemData(match_idx))
+
+        # 4. Check if text matches an item in database
+        existing = ItemDAO.find_by_name(text)
+        if existing is not None:
+            return _commit_existing(existing["id"])
+
+        # 5. Check if text unambiguously matches exactly one item in items_data
+        matches = [
+            it for it in getattr(self.item_combo, "_items_data", [])
+            if (it[1] is not None or not it[0].startswith("--"))
+            and (text.casefold() in it[0].casefold() or text.casefold() in it[2].casefold())
+        ]
+        if len(matches) == 1:
+            cand_idx = matches[0][3] if len(matches[0]) >= 4 else self.item_combo._find_matching_index(matches[0][0])
+            if cand_idx >= 0 and self.item_combo.itemData(cand_idx) is not None:
+                return _commit_existing(self.item_combo.itemData(cand_idx))
+
+        # 6. Item does NOT exist in Item Master: open New Item popup
+        if popup and popup.isVisible():
+            popup.hide()
+
+        self._open_new_item_popup(text)
+        return True
+
+    def _open_new_item_popup(self, item_name: str) -> None:
+        self._opening_new_item = True
+        self.item_combo._block_filter = True
+        try:
+            parent_window = self.window() if self.window() is not None else self
+            dlg = _ItemDialog(parent_window, initial_name=item_name)
+            self._last_new_item_dialog = dlg
+            dlg.exec()
+
+            if dlg.was_saved:
+                new_item_id = dlg.saved_item_id
+                self._load_items()
+                if new_item_id is not None:
+                    self.item_combo.set_selected_id(new_item_id)
+                    inv_dialog = self.window()
+                    if hasattr(inv_dialog, "_on_item_changed"):
+                        inv_dialog._on_item_changed(self.item_combo.currentIndex())
+                self.pay_qty_edit.setFocus()
+                self.pay_qty_edit.selectAll()
+            else:
+                line = self.item_combo.lineEdit()
+                if line is not None:
+                    line.setText(item_name)
+                    line.selectAll()
+                    line.setFocus()
+        finally:
+            self.item_combo._block_filter = False
+            self._opening_new_item = False
 
     def set_batch_fields_readonly(self, ro: bool):
         self.expiry_edit.setReadOnly(ro)

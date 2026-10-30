@@ -18,13 +18,18 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QKeySequence
 
 MENU_SHORTCUTS = {
+    "New Bill": "Ctrl+S",
+    "New Purchase": "Ctrl+I",
+    "Stock Adjustment": "Ctrl+A",
     "Debit Note (Return to Supplier)": "Ctrl+D",
     "Credit Note (Return from Customer)": "Ctrl+C",
+    "Supplier Payment Voucher": "Ctrl+P",
+    "Customer Receipt Voucher": "Ctrl+R",
+    "GST Report": "Ctrl+G",
     "Daily Itemwise Sales": "Ctrl+T",
     "Daily Profit Calculation": "Ctrl+O",
     "Sales Report": "Ctrl+F1",
     "Duplicate Sales Bill": "Ctrl+Shift+F1",
-    "Stock Adjustment": "Ctrl+A",
 }
 from PySide6.QtWidgets import (
     QComboBox,
@@ -260,6 +265,15 @@ class NavigationBar(QWidget):
 
         theme.theme_manager.on_changed(self._apply_theme)
         self._apply_theme()
+
+    @property
+    def shortcut_actions(self) -> list:
+        actions = []
+        for menu in self._menus:
+            for act in menu.actions():
+                if not act.isSeparator() and not act.shortcut().isEmpty():
+                    actions.append(act)
+        return actions
 
     # ── data ─────────────────────────────────────────────────────────
     def set_viewing_financial_year(self, year: dict | None):

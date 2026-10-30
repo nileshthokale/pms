@@ -466,10 +466,17 @@ class _IngredientRow(QWidget):
 class _ItemDialog(QDialog):
     """Modal dialog for adding or editing an item."""
 
-    def __init__(self, parent: QWidget | None = None, *, item: dict | None = None):
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        *,
+        item: dict | None = None,
+        initial_name: str = "",
+    ):
         super().__init__(parent)
         self._item = item
         self._saved = False
+        self._saved_item_id: int | None = None
         self._ingredient_rows: list[_IngredientRow] = []
         # One read of the drug master for the whole dialog: the rows only
         # ever narrow this list, they never re-query it.
@@ -517,6 +524,8 @@ class _ItemDialog(QDialog):
 
         self._item_name_edit = QLineEdit()
         self._item_name_edit.setPlaceholderText("Enter item name")
+        if not item and initial_name:
+            self._item_name_edit.setText(initial_name)
         form.addRow("Item Name *:", self._item_name_edit)
 
         self._unit_combo = QComboBox()
@@ -676,6 +685,8 @@ class _ItemDialog(QDialog):
         # -- Load existing data for edit --
         if item:
             self._populate(item)
+        elif initial_name:
+            self._unit_combo.setFocus()
 
         # Whether the user touched the tax dropdown since the dialog opened.
         # An untouched edit must preserve an EMPTY tax value (and provenance)
@@ -923,19 +934,30 @@ class _ItemDialog(QDialog):
             if data and data["drug_id"] is not None:
                 ingredients.append(data)
 
-        if self._item:
-            ItemDAO.update(self._item["id"], **kwargs)
-            ItemDAO.save_ingredients(self._item["id"], ingredients)
-        else:
-            item_id = ItemDAO.insert(**kwargs)
-            ItemDAO.save_ingredients(item_id, ingredients)
+        try:
+            if self._item:
+                ItemDAO.update(self._item["id"], **kwargs)
+                ItemDAO.save_ingredients(self._item["id"], ingredients)
+                self._saved_item_id = self._item["id"]
+            else:
+                item_id = ItemDAO.insert(**kwargs)
+                ItemDAO.save_ingredients(item_id, ingredients)
+                self._saved_item_id = item_id
 
-        self._saved = True
-        self.accept()
+            self._saved = True
+            self.accept()
+        except Exception as exc:
+            self._saved = False
+            self._saved_item_id = None
+            QMessageBox.critical(self, "Error Saving Item", f"Failed to save item: {exc}")
 
     @property
     def was_saved(self) -> bool:
         return self._saved
+
+    @property
+    def saved_item_id(self) -> int | None:
+        return self._saved_item_id
 
 
 class ItemMasterPage(QWidget):
@@ -1142,3 +1164,6 @@ class ItemMasterPage(QWidget):
         else:
             items = ItemDAO.search(search_text)
             self._refresh(items)
+
+
+ItemDialog = _ItemDialog
