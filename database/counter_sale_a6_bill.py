@@ -88,8 +88,8 @@ def get_counter_sale_data(invoice_id: int) -> tuple[dict[str, Any], list[dict[st
 
         # Build address: check customer address, then look up in patient_addresses
         addr = (head.get("customer_address") or "").strip()
-        if not addr and head.get("patient_name"):
-            pat_name = head["patient_name"].strip()
+        if not addr:
+            pat_name = (head.get("patient_name") or "").strip()
             if pat_name and pat_name.upper() not in ("WALKIN", "WALKIN CUSTOMER"):
                 pa_cur = conn.execute(
                     """
@@ -99,6 +99,19 @@ def get_counter_sale_data(invoice_id: int) -> tuple[dict[str, Any], list[dict[st
                     ORDER BY (customer_id = ?) DESC, updated_at DESC, id DESC LIMIT 1
                     """,
                     (pat_name, head.get("customer_id")),
+                )
+                pa_row = pa_cur.fetchone()
+                if pa_row and pa_row[0]:
+                    addr = str(pa_row[0]).strip()
+            if not addr:
+                pa_cur = conn.execute(
+                    """
+                    SELECT address FROM patient_addresses
+                    WHERE UPPER(TRIM(patient_name)) IN ('WALKIN', 'WALKIN CUSTOMER')
+                      AND address IS NOT NULL AND TRIM(address) <> ''
+                    ORDER BY (customer_id = ?) DESC, updated_at DESC, id DESC LIMIT 1
+                    """,
+                    (head.get("customer_id"),),
                 )
                 pa_row = pa_cur.fetchone()
                 if pa_row and pa_row[0]:
