@@ -27,6 +27,7 @@ MENU_SHORTCUTS = {
     "Customer Receipt Voucher": "Ctrl+R",
     "GST Report": "Ctrl+G",
     "Daily Itemwise Sales": "Ctrl+T",
+    "Daily Profit Calculation": "Ctrl+O",
     "Sales Report": "Ctrl+F1",
     "Duplicate Sales Bill": "Ctrl+Shift+F1",
 }

@@ -17,6 +17,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 from database.connection import get_connection
 from database.purchase_dao import pack_factor
+from database.tax_structures import rate_percent
 
 
 class SalesReportsDAO:
@@ -511,7 +512,9 @@ class SalesReportsDAO:
                     sii.amount AS sales_amount,
                     COALESCE(sb.purchase_rate, 0.0) AS sb_purchase_rate,
                     COALESCE(sb.net_rate, 0.0) AS sb_net_rate,
-                    COALESCE(i.rate, 0.0) AS item_rate
+                    COALESCE(i.rate, 0.0) AS item_rate,
+                    i.tax_structure,
+                    i.legacy_tax_id
                 FROM sales_invoice_items sii
                 JOIN sales_invoices si ON si.id = sii.sales_invoice_id
                 JOIN items i ON i.id = sii.item_id
@@ -570,6 +573,8 @@ class SalesReportsDAO:
                         "sb_purchase_rate": r["sb_purchase_rate"],
                         "sb_net_rate": r["sb_net_rate"],
                         "item_rate": r["item_rate"],
+                        "tax_structure": r.get("tax_structure", ""),
+                        "legacy_tax_id": r.get("legacy_tax_id"),
                         "sale_qty": 0.0,
                         "sales_amount": 0.0,
                     }
@@ -602,6 +607,7 @@ class SalesReportsDAO:
                         pii.free_qty,
                         pii.rate,
                         pii.discount,
+                        pii.gst_percent,
                         pii.purchase_rate,
                         pii.net_rate,
                         COALESCE(NULLIF(pii.pack_size, ''), ?) AS pack_size
@@ -616,9 +622,14 @@ class SalesReportsDAO:
 
                 factor = pack_factor(g.get("pack_size") or "1")
 
+                # Resolve GST percentage for this item from Item Master
+                item_gst_val = rate_percent(g.get("tax_structure"), g.get("legacy_tax_id"))
+                applied_gst_pct = 0.0
+
                 if p_records:
                     total_gross = 0.0
                     total_discount_amt = 0.0
+                    total_gst_amt = 0.0
                     total_received_units = 0.0
                     total_pay_units = 0.0
                     total_free_units = 0.0
@@ -634,15 +645,28 @@ class SalesReportsDAO:
 
                         gross = pay_q * pr_rate
                         disc_val = gross * (disc_pct / 100.0)
+                        taxable = gross - disc_val
+
+                        # Prioritize GST % from Item Master as requested
+                        if item_gst_val is not None:
+                            gst_pct = float(item_gst_val)
+                        elif pr.get("gst_percent") is not None:
+                            gst_pct = float(pr.get("gst_percent") or 0.0)
+                        else:
+                            gst_pct = 0.0
+                        applied_gst_pct = gst_pct
+
+                        gst_val = taxable * (gst_pct / 100.0)
 
                         total_gross += gross
                         total_discount_amt += disc_val
+                        total_gst_amt += gst_val
                         total_received_units += (pay_q + free_q) * p_factor
                         total_pay_units += pay_q * p_factor
                         total_free_units += free_q * p_factor
 
                     if total_received_units > 0:
-                        net_purchase = total_gross - total_discount_amt
+                        net_purchase = total_gross - total_discount_amt + total_gst_amt
                         actual_cost_per_tablet = round(net_purchase / total_received_units, 2)
                         purch_rate = round(total_gross / total_pay_units, 2) if total_pay_units > 0 else round(pr_rate / p_factor, 2)
                         purch_discount = round((total_discount_amt / total_gross) * 100.0, 2) if total_gross > 0 else 0.0
@@ -650,14 +674,25 @@ class SalesReportsDAO:
                     else:
                         pr_rate = float(p_records[0].get("rate") or p_records[0].get("purchase_rate") or 0.0)
                         purch_rate = round(pr_rate / factor, 2) if factor > 0 else round(pr_rate, 2)
-                        actual_cost_per_tablet = purch_rate
+                        actual_cost_per_tablet = round(purch_rate * (1.0 + applied_gst_pct / 100.0), 2)
                         purch_discount = 0.0
                         free_quantity = 0.0
                 else:
                     # Fallback to stock_batch / item rate
-                    sb_rate = float(g.get("sb_net_rate") or g.get("sb_purchase_rate") or g.get("item_rate") or 0.0)
-                    purch_rate = round(sb_rate / factor, 2) if factor > 0 else round(sb_rate, 2)
-                    actual_cost_per_tablet = purch_rate
+                    gst_pct = float(item_gst_val) if item_gst_val is not None else 0.0
+                    applied_gst_pct = gst_pct
+                    if g.get("sb_net_rate"):
+                        # sb_net_rate already includes GST and free qty
+                        actual_cost_per_tablet = round(float(g["sb_net_rate"]) / factor, 2)
+                        purch_rate = actual_cost_per_tablet
+                    elif g.get("sb_purchase_rate"):
+                        # sb_purchase_rate already includes GST per paid pack
+                        actual_cost_per_tablet = round(float(g["sb_purchase_rate"]) / factor, 2)
+                        purch_rate = actual_cost_per_tablet
+                    else:
+                        base_rate = float(g.get("item_rate") or 0.0)
+                        actual_cost_per_tablet = round((base_rate * (1.0 + gst_pct / 100.0)) / factor, 2) if factor > 0 else round(base_rate * (1.0 + gst_pct / 100.0), 2)
+                        purch_rate = round(base_rate / factor, 2) if factor > 0 else round(base_rate, 2)
                     purch_discount = 0.0
                     free_quantity = 0.0
 
@@ -675,6 +710,7 @@ class SalesReportsDAO:
                     "purchase_rate": purch_rate,
                     "free_qty": free_quantity,
                     "purchase_discount": purch_discount,
+                    "gst_percent": applied_gst_pct,
                     "actual_cost_per_tablet": actual_cost_per_tablet,
                     "total_net_sales": net_sales,
                     "total_purchase_cost": total_purch_cost,

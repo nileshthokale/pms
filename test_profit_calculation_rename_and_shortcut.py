@@ -92,17 +92,16 @@ class TestProfitCalculationRenameAndShortcut(unittest.TestCase):
         )
 
     def test_02_menu_shortcuts_removal(self):
-        """Verify Ctrl+O is removed from MENU_SHORTCUTS and no shortcut is mapped to Profit Calculation."""
-        self.assertNotIn("Daily Profit Calculation", MENU_SHORTCUTS)
+        """Verify no shortcut is mapped to Profit Calculation and Ctrl+O maps to Daily Profit Calculation."""
+        self.assertEqual(MENU_SHORTCUTS.get("Daily Profit Calculation"), "Ctrl+O")
         self.assertNotIn("Profit Calculation", MENU_SHORTCUTS)
-        self.assertNotIn("Ctrl+O", MENU_SHORTCUTS.values())
         # Verify other shortcuts remain intact
         self.assertEqual(MENU_SHORTCUTS.get("Daily Itemwise Sales"), "Ctrl+T")
         self.assertEqual(MENU_SHORTCUTS.get("GST Report"), "Ctrl+G")
         self.assertEqual(MENU_SHORTCUTS.get("New Bill"), "Ctrl+S")
 
     def test_03_navigation_bar_reports_submenu_actions(self):
-        """Verify NavigationBar menu creates 'Profit Calculation' action with no shortcut."""
+        """Verify NavigationBar menu creates 'Profit Calculation' action with no shortcut, and 'Daily Profit Calculation' with Ctrl+O."""
         reports_btn = next(
             btn for btn in self.win._nav.findChildren(QPushButton)
             if btn.objectName() == "NavButton" and btn.text() == "Reports"
@@ -121,9 +120,13 @@ class TestProfitCalculationRenameAndShortcut(unittest.TestCase):
         self.assertIn("Profit Calculation", action_names)
         self.assertIn("Daily Profit Calculation", action_names)
 
-        # Check shortcut for Profit Calculation action
+        # Check shortcut for Profit Calculation action (no shortcut)
         profit_action = next(a for a in sales_menu.actions() if a.text() == "Profit Calculation")
         self.assertTrue(profit_action.shortcut().isEmpty())
+
+        # Check shortcut for Daily Profit Calculation action (Ctrl+O)
+        daily_action = next(a for a in sales_menu.actions() if a.text() == "Daily Profit Calculation")
+        self.assertEqual(daily_action.shortcut().toString(), "Ctrl+O")
 
     def test_04_navigate_to_profit_calculation(self):
         """Opening 'Profit Calculation' loads the page, sets title and status bar."""
@@ -136,7 +139,7 @@ class TestProfitCalculationRenameAndShortcut(unittest.TestCase):
         self.assertIn("Profit Calculation", self.win.windowTitle())
 
     def test_05_ctrl_o_shortcut_no_longer_opens_profit_calculation(self):
-        """Pressing Ctrl+O while on another page does NOT open Profit Calculation."""
+        """Pressing Ctrl+O while on another page opens Daily Profit Calculation, NOT Profit Calculation."""
         # Switch to Cash Book first
         self.win._on_menu_action("Account", "Cash Book")
         self.app.processEvents()
@@ -147,9 +150,10 @@ class TestProfitCalculationRenameAndShortcut(unittest.TestCase):
         self.app.sendEvent(self.win, ev)
         self.app.processEvents()
 
-        # Should still be on Cash Book, NOT on Profit Calculation
-        self.assertIsInstance(self.win._stack.currentWidget(), screens.CashBookPage)
+        # Should NOT open old Profit Calculation (DailyProfitCalculationPage)
         self.assertNotIsInstance(self.win._stack.currentWidget(), DailyProfitCalculationPage)
+        # Should open the new Daily Profit Calculation report page
+        self.assertIsInstance(self.win._stack.currentWidget(), screens.DailyProfitCalculationReportPage)
 
     def test_06_other_shortcuts_still_work(self):
         """Verify that other keyboard shortcuts (e.g. Ctrl+T, Ctrl+S) still work."""

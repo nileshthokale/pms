@@ -70,9 +70,8 @@ class TestSalesReportsSubmenu(unittest.TestCase):
 
     def test_keyboard_shortcuts(self):
         self.assertEqual(MENU_SHORTCUTS.get("Daily Itemwise Sales"), "Ctrl+T")
-        self.assertNotIn("Daily Profit Calculation", MENU_SHORTCUTS)
+        self.assertEqual(MENU_SHORTCUTS.get("Daily Profit Calculation"), "Ctrl+O")
         self.assertNotIn("Profit Calculation", MENU_SHORTCUTS)
-        self.assertNotIn("Ctrl+O", MENU_SHORTCUTS.values())
 
     def test_navigation_bar_builds_submenu(self):
         nav = NavigationBar()
