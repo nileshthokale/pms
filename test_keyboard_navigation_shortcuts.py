@@ -224,6 +224,39 @@ class TestKeyboardNavigationShortcuts(unittest.TestCase):
         self.assertFalse(dlg.isVisible(), "Review dialog remained open after second Alt+S")
         self.assertTrue(dlg._panel.was_saved, "Sale was not saved after second Alt+S")
 
+    def test_new_purchase_button_on_counter_sale_navigates_to_new_purchase(self):
+        """Verify the 'New Purchase' button near 'Patient Bill History' opens New Purchase."""
+        self.win._open_counter_sale()
+        self.app.processEvents()
+        cs_page: screens.CounterSalePage = self.win._stack.currentWidget()
+        self.assertIsInstance(cs_page, screens.CounterSalePage)
+
+        btn = getattr(cs_page, "_hist_new_purchase_btn", None)
+        self.assertIsNotNone(btn, "CounterSalePage must have _hist_new_purchase_btn")
+        self.assertEqual(btn.text(), "New Purchase")
+        self.assertIn("Ctrl+I", btn.toolTip())
+
+        # Check button order in toolbar layout
+        layout = cs_page._history_filter_bar.layout()
+        btn_texts = []
+        for i in range(layout.count()):
+            w = layout.itemAt(i).widget()
+            if isinstance(w, screens.counter_sale.QPushButton):
+                btn_texts.append(w.text())
+        self.assertIn("Patient Bill History", btn_texts)
+        self.assertIn("New Purchase", btn_texts)
+        pbh_idx = btn_texts.index("Patient Bill History")
+        np_idx = btn_texts.index("New Purchase")
+        self.assertEqual(np_idx, pbh_idx + 1, "New Purchase must be right next to Patient Bill History")
+
+        # Click New Purchase button
+        btn.click()
+        self.app.processEvents()
+
+        current = self.win._stack.currentWidget()
+        self.assertIsInstance(current, screens.PurchaseInvoicePage)
+        self.assertEqual(self.win._nav.status_label.text(), "Purchase / New Purchase")
+
 
 if __name__ == "__main__":
     unittest.main()
