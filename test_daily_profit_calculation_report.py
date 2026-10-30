@@ -45,6 +45,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from PySide6.QtCore import Qt, QDate
+from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import QApplication, QMessageBox, QPushButton
 
 import database.connection as db_conn
@@ -453,6 +454,204 @@ class TestDailyProfitCalculationReport(unittest.TestCase):
         self.assertEqual(rpt_page.header.header_line_1, "DAILY PROFIT CALCULATION")
         self.assertIn("Total Net Sales: ₹240.00", rpt_page.header.header_line_3)
         self.assertIn("Total Profit: ₹70.00", rpt_page.header.header_line_3)
+
+    def test_07_gst_included_according_to_item_master(self):
+        """Verifies actual purchase cost and profit calculation include GST according to Item Master."""
+        # 1. Item with GST 5% in Item Master
+        item_gst5 = ItemDAO.insert(
+            item_name="AZITHROMYCIN 500",
+            unit_id=self.uid,
+            company_id=self.cid1,
+            pack_size="1",
+            tax_structure="5",
+        )
+        PurchaseDAO.insert_invoice(
+            voucher_no="PUR-GST5",
+            voucher_date="2026-10-12",
+            voucher_time="10:00:00",
+            purchase_type="Credit",
+            supplier_id=self.supp_id,
+            invoice_no="INV-GST5",
+            invoice_date="2026-10-12",
+            invoice_net_amount=945.0,
+            bill_discount=0.0,
+            due_date="2026-11-12",
+            total_amount=945.0,
+            gst_amount=45.0,
+            debit_note_amount=0.0,
+            other_amount=0.0,
+            paid_amount=0.0,
+            round_off=0.0,
+            net_amount=945.0,
+            remarks="",
+            items=[{
+                "item_id": item_gst5,
+                "batch_no": "AZI-B1",
+                "expiry": "2028-12-31",
+                "pack_size": "1",
+                "pay_qty": 100.0,
+                "free_qty": 20.0,
+                "rate": 10.0,
+                "mrp": 15.0,
+                "discount": 10.0,
+                "gst_percent": 5.0,
+                "gst_amount": 45.0,
+                "amount": 900.0,
+                "purchase_rate": 10.0,
+                "net_rate": 7.88,
+                "pp": 25.0,
+            }],
+        )
+        conn = db_conn.get_connection()
+        sb_azi = conn.execute("SELECT id FROM stock_batches WHERE item_id = ? AND batch_no = ?", (item_gst5, "AZI-B1")).fetchone()[0]
+        conn.close()
+
+        SalesDAO.insert_invoice(
+            bill_no="SALE-GST5",
+            sale_date="2026-10-12",
+            sale_time="11:00:00",
+            sale_type="Cash",
+            customer_id=self.cust_id,
+            patient_name="GST Test Patient",
+            doctor_id=None,
+            discount=0.0,
+            paid_amount=120.0,
+            total_amount=120.0,
+            round_off=0.0,
+            net_amount=120.0,
+            remarks="",
+            items=[{
+                "item_id": item_gst5,
+                "stock_batch_id": sb_azi,
+                "pack_size": "1",
+                "location": "",
+                "batch_no": "AZI-B1",
+                "expiry": "2028-12-31",
+                "mrp": 15.0,
+                "sale_qty": 10.0,
+                "discount_amount": 0.0,
+                "amount": 120.0,
+            }],
+        )
+
+        # 2. Item with GST 12% in Item Master
+        item_gst12 = ItemDAO.insert(
+            item_name="CEFIXIME 200",
+            unit_id=self.uid,
+            company_id=self.cid2,
+            pack_size="1",
+            tax_structure="12",
+        )
+        PurchaseDAO.insert_invoice(
+            voucher_no="PUR-GST12",
+            voucher_date="2026-10-12",
+            voucher_time="10:15:00",
+            purchase_type="Credit",
+            supplier_id=self.supp_id,
+            invoice_no="INV-GST12",
+            invoice_date="2026-10-12",
+            invoice_net_amount=1008.0,
+            bill_discount=0.0,
+            due_date="2026-11-12",
+            total_amount=1008.0,
+            gst_amount=108.0,
+            debit_note_amount=0.0,
+            other_amount=0.0,
+            paid_amount=0.0,
+            round_off=0.0,
+            net_amount=1008.0,
+            remarks="",
+            items=[{
+                "item_id": item_gst12,
+                "batch_no": "CEF-B1",
+                "expiry": "2028-12-31",
+                "pack_size": "1",
+                "pay_qty": 100.0,
+                "free_qty": 20.0,
+                "rate": 10.0,
+                "mrp": 15.0,
+                "discount": 10.0,
+                "gst_percent": 12.0,
+                "gst_amount": 108.0,
+                "amount": 900.0,
+                "purchase_rate": 10.0,
+                "net_rate": 8.40,
+                "pp": 25.0,
+            }],
+        )
+        conn = db_conn.get_connection()
+        sb_cef = conn.execute("SELECT id FROM stock_batches WHERE item_id = ? AND batch_no = ?", (item_gst12, "CEF-B1")).fetchone()[0]
+        conn.close()
+
+        SalesDAO.insert_invoice(
+            bill_no="SALE-GST12",
+            sale_date="2026-10-12",
+            sale_time="11:30:00",
+            sale_type="Cash",
+            customer_id=self.cust_id,
+            patient_name="GST Test Patient 2",
+            doctor_id=None,
+            discount=0.0,
+            paid_amount=120.0,
+            total_amount=120.0,
+            round_off=0.0,
+            net_amount=120.0,
+            remarks="",
+            items=[{
+                "item_id": item_gst12,
+                "stock_batch_id": sb_cef,
+                "pack_size": "1",
+                "location": "",
+                "batch_no": "CEF-B1",
+                "expiry": "2028-12-31",
+                "mrp": 15.0,
+                "sale_qty": 10.0,
+                "discount_amount": 0.0,
+                "amount": 120.0,
+            }],
+        )
+
+        res = SalesReportsDAO.get_daily_profit_cost_calculation("2026-10-12", "2026-10-12")
+        rows_by_name = {r["item_name"]: r for r in res["rows"]}
+
+        # Check GST 5% item:
+        # Gross = 1000, Disc = 100, Taxable = 900
+        # GST @ 5% = 45 -> Net Purchase = 945
+        # Total Received = 120 -> Cost per tab = 945 / 120 = 7.88
+        # Sold 10 @ 12 = 120. Total Cost = 78.80, Profit = 41.20
+        r5 = rows_by_name["AZITHROMYCIN 500"]
+        self.assertEqual(r5["gst_percent"], 5.0)
+        self.assertEqual(r5["actual_cost_per_tablet"], 7.88)
+        self.assertEqual(r5["total_purchase_cost"], 78.80)
+        self.assertEqual(r5["total_profit"], 41.20)
+
+        # Check GST 12% item:
+        # Gross = 1000, Disc = 100, Taxable = 900
+        # GST @ 12% = 108 -> Net Purchase = 1008
+        # Total Received = 120 -> Cost per tab = 1008 / 120 = 8.40
+        # Sold 10 @ 12 = 120. Total Cost = 84.00, Profit = 36.00
+        r12 = rows_by_name["CEFIXIME 200"]
+        self.assertEqual(r12["gst_percent"], 12.0)
+        self.assertEqual(r12["actual_cost_per_tablet"], 8.40)
+        self.assertEqual(r12["total_purchase_cost"], 84.00)
+        self.assertEqual(r12["total_profit"], 36.00)
+
+    def test_08_ctrl_o_shortcut_opens_daily_profit_calculation(self):
+        """Verifies Ctrl+O shortcut is mapped to Daily Profit Calculation and opens its page."""
+        self.assertEqual(MENU_SHORTCUTS.get("Daily Profit Calculation"), "Ctrl+O")
+
+        # Start from Cash Book
+        self.win._on_menu_action("Account", "Cash Book")
+        self.app.processEvents()
+        self.assertIsInstance(self.win._stack.currentWidget(), screens.CashBookPage)
+
+        # Trigger Ctrl+O shortcut
+        ev = QKeyEvent(QKeyEvent.KeyPress, Qt.Key_O, Qt.ControlModifier)
+        self.app.sendEvent(self.win, ev)
+        self.app.processEvents()
+
+        curr = self.win._stack.currentWidget()
+        self.assertIsInstance(curr, DailyProfitCalculationReportPage)
 
 
 if __name__ == "__main__":

@@ -239,6 +239,9 @@ class DailyProfitCostReportWidget(QWidget):
             # 2. Medicine Name
             med_item = QTableWidgetItem(str(r["item_name"]))
             med_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            gst_p = float(r.get("gst_percent") or 0.0)
+            if gst_p > 0:
+                med_item.setToolTip(f"Item Master GST: {gst_p:.1f}%")
             self.table.setItem(i, 1, med_item)
 
             # 3. Company Name
@@ -279,6 +282,8 @@ class DailyProfitCostReportWidget(QWidget):
             # 10. Actual Net Purchase Cost Per Tablet
             cost_item = QTableWidgetItem(f"{float(r['actual_cost_per_tablet']):,.2f}")
             cost_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            if gst_p > 0:
+                cost_item.setToolTip(f"Includes Item Master GST @ {gst_p:.1f}%")
             self.table.setItem(i, 9, cost_item)
 
             # 11. Total Net Sales
