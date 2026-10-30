@@ -335,5 +335,94 @@ class TestCounterSaleA6BillSuite(unittest.TestCase):
                 pass
 
 
+    def test_08_patient_address_and_line_under_final_amount(self):
+        """Verify:
+        1. Patient address from patient_addresses table is included in bill header.
+        2. A horizontal line is drawn directly under the final amount (Net Amt).
+        """
+        conn = get_connection()
+        try:
+            cur = conn.cursor()
+            # Ensure walk-in customer exists
+            cur.execute("INSERT OR IGNORE INTO customers (id, customer_name, address) VALUES (159, 'WALKIN', '')")
+            # Seed patient_addresses for MR AKSHAY HULULE
+            cur.execute(
+                """
+                INSERT OR REPLACE INTO patient_addresses (patient_name, address, customer_id, updated_at)
+                VALUES ('MR AKSHAY HULULE', 'VAMBORI', 159, '2026-10-28 10:00:00')
+                """
+            )
+            # Create sales invoice for walk-in customer with MR AKSHAY HULULE
+            cur.execute(
+                """
+                INSERT INTO sales_invoices (
+                    bill_no, sale_date, sale_time, sale_type, customer_id,
+                    patient_name, doctor_id, total_amount, discount, round_off, net_amount, remarks
+                ) VALUES ('2078', '2026-10-28', '11:00 AM', 'Cash', 159, 'MR AKSHAY HULULE', ?, 375.0, 0.0, 0.0, 375.0, '')
+                """,
+                (self.doc_id,),
+            )
+            inv_id = cur.lastrowid
+            cur.execute(
+                """
+                INSERT INTO items (item_name, unit_id, company_id, pack_size, mrp)
+                VALUES ('BRUTAFLAM CG2', ?, ?, 'TABLET', 75.0)
+                """,
+                (self.u_tab_id, self.c_cipla_id),
+            )
+            item_id = cur.lastrowid
+            cur.execute(
+                """
+                INSERT INTO stock_batches (item_id, batch_no, expiry, pack_size, mrp, stock_qty)
+                VALUES (?, 'B5JQZ005', '2027-12-31', 'TABLET', 75.0, 100.0)
+                """,
+                (item_id,),
+            )
+            batch_id = cur.lastrowid
+            cur.execute(
+                """
+                INSERT INTO sales_invoice_items (
+                    sales_invoice_id, item_id, stock_batch_id, pack_size, location,
+                    batch_no, expiry, mrp, sale_qty, discount_amount, amount
+                ) VALUES (?, ?, ?, 'TABLET', 'MAK', 'B5JQZ005', '31/12/2027', 75.0, 5.0, 0.0, 375.0)
+                """,
+                (inv_id, item_id, batch_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        # 1. Verify get_counter_sale_data resolves patient address
+        head, items = get_counter_sale_data(inv_id)
+        self.assertEqual(head.get("patient_name"), "MR AKSHAY HULULE")
+        self.assertEqual(head.get("address"), "VAMBORI")
+
+        # 2. Verify pagination and rendered header text
+        pages = paginate_counter_sale_bill(inv_id)
+        self.assertEqual(len(pages), 1)
+        self.assertEqual(pages[0]["head"].get("address"), "VAMBORI")
+
+        p = mock.MagicMock()
+        memo_a6.draw_a6_cash_memo_page(p, pages[0])
+
+        # Check Name & Address in header
+        drawn_texts = [str(c[1][2]) for c in p.mock_calls if len(c) > 1 and len(c[1]) > 2 and isinstance(c[1][2], str)]
+        name_matches = [t for t in drawn_texts if "MR AKSHAY HULULE" in t]
+        self.assertTrue(len(name_matches) > 0, "Patient name not found in drawn texts")
+        self.assertIn("Name : MR AKSHAY HULULE, VAMBORI", name_matches[0])
+
+        # 3. Verify horizontal line drawn under final amount (Net Amt)
+        drawn_lines = [c for c in p.mock_calls if 'drawLine' in str(c)]
+        self.assertEqual(len(drawn_lines), 4)
+
+        # The 4th line is under Net Amt at y ~ 80.2 mm
+        line4 = drawn_lines[3]
+        pt1 = line4[1][0]
+        pt2 = line4[1][1]
+        self.assertAlmostEqual(pt1.y(), 80.2, delta=0.5)
+        self.assertAlmostEqual(pt2.y(), 80.2, delta=0.5)
+        self.assertGreater(pt2.x(), pt1.x())
+
+
 if __name__ == "__main__":
     unittest.main()
