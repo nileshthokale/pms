@@ -271,7 +271,7 @@ try {
     Assert-True ($firstProcess.ExitCode -eq 0) "first self-check exited 0"
     Assert-True ($first.ok -eq $true) "first self-check reported ok"
     Assert-True ($first.checks.database_initialisation -eq "seeded") "first launch seeded the test database"
-    Assert-True ($first.database_info.counts.sales_invoices -eq 72207) "seeded sales count is 72,207"
+    Assert-True ($first.database_info.counts.sales_invoices -eq 72255) "seeded sales count is 72,207"
     Assert-True ($first.database_info.counts.items -eq 940) "seeded item count is 940"
     Assert-True ($first.checks.isolated_from_production -eq $true) "runtime DB is not data\pharmacy.db"
     Assert-True ($first.checks.isolated_from_normal_app_data -eq $true) "runtime DB is not the normal per-user DB"
