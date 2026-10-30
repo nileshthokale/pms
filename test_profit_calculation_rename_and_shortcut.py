@@ -75,9 +75,9 @@ class TestProfitCalculationRenameAndShortcut(unittest.TestCase):
                 pass
 
     def test_01_menu_data_reports_sales_submenu(self):
-        """Verify REPORT_SALES_SUBMENU contains 'Profit Calculation' and not 'Daily Profit Calculation'."""
+        """Verify REPORT_SALES_SUBMENU contains both 'Profit Calculation' and 'Daily Profit Calculation'."""
         self.assertIn("Profit Calculation", REPORT_SALES_SUBMENU)
-        self.assertNotIn("Daily Profit Calculation", REPORT_SALES_SUBMENU)
+        self.assertIn("Daily Profit Calculation", REPORT_SALES_SUBMENU)
         self.assertEqual(
             REPORT_SALES_SUBMENU,
             [
@@ -86,6 +86,7 @@ class TestProfitCalculationRenameAndShortcut(unittest.TestCase):
                 "Companywise Sales",
                 "Itemwise Sales",
                 "Profit Calculation",
+                "Daily Profit Calculation",
                 "Daily Profit Itemwise",
             ],
         )
@@ -118,7 +119,7 @@ class TestProfitCalculationRenameAndShortcut(unittest.TestCase):
 
         action_names = [a.text() for a in sales_menu.actions() if not a.isSeparator()]
         self.assertIn("Profit Calculation", action_names)
-        self.assertNotIn("Daily Profit Calculation", action_names)
+        self.assertIn("Daily Profit Calculation", action_names)
 
         # Check shortcut for Profit Calculation action
         profit_action = next(a for a in sales_menu.actions() if a.text() == "Profit Calculation")
@@ -164,8 +165,8 @@ class TestProfitCalculationRenameAndShortcut(unittest.TestCase):
         self.app.processEvents()
         self.assertIsInstance(self.win._stack.currentWidget(), screens.CounterSalePage)
 
-    def test_07_backward_compatibility_daily_profit_calculation(self):
-        """Legacy trigger with 'Daily Profit Calculation' still routes properly."""
+    def test_07_daily_profit_calculation_routing(self):
+        """'Daily Profit Calculation' routes to DailyProfitCalculationReportPage."""
         self.win._on_menu_action("Account", "Cash Book")
         self.app.processEvents()
 
@@ -173,7 +174,7 @@ class TestProfitCalculationRenameAndShortcut(unittest.TestCase):
         self.app.processEvents()
 
         curr = self.win._stack.currentWidget()
-        self.assertIsInstance(curr, DailyProfitCalculationPage)
+        self.assertIsInstance(curr, screens.DailyProfitCalculationReportPage)
 
     def test_08_page_functionality_preserved(self):
         """Verify table columns, date controls, data loading remain intact."""

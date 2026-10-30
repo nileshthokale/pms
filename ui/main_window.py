@@ -306,8 +306,13 @@ class PharmacyMainWindow(QMainWindow):
                     page.close_requested.connect(
                         lambda: self._on_menu_action("Sales", "New Bill")
                     )
-                elif menu_name == "Reports" and item_name in ("Profit Calculation", "Daily Profit Calculation"):
+                elif menu_name == "Reports" and item_name == "Profit Calculation":
                     page = screens.DailyProfitCalculationPage()
+                    page.close_requested.connect(
+                        lambda: self._on_menu_action("Sales", "New Bill")
+                    )
+                elif menu_name == "Reports" and item_name == "Daily Profit Calculation":
+                    page = screens.DailyProfitCalculationReportPage()
                     page.close_requested.connect(
                         lambda: self._on_menu_action("Sales", "New Bill")
                     )
@@ -499,10 +504,6 @@ class PharmacyMainWindow(QMainWindow):
         if "Account:Customer Receipt Voucher" in self._page_map:
             self._page_map["Account:Customer Payment Voucher"] = self._page_map["Account:Customer Receipt Voucher"]
             self._page_map["Account:Customer Payment"] = self._page_map["Account:Customer Receipt Voucher"]
-        if "Reports:Profit Calculation" in self._page_map and "Reports:Daily Profit Calculation" not in self._page_map:
-            self._page_map["Reports:Daily Profit Calculation"] = self._page_map["Reports:Profit Calculation"]
-        if "Reports:Daily Profit Calculation" in self._page_map and "Reports:Profit Calculation" not in self._page_map:
-            self._page_map["Reports:Profit Calculation"] = self._page_map["Reports:Daily Profit Calculation"]
 
     def _on_menu_action(self, menu: str, action: str):
         _LEGACY_REDIRECTS = {
@@ -516,7 +517,6 @@ class PharmacyMainWindow(QMainWindow):
             ("Account", "Credit Note"): ("Purchase", "Credit Note (Return from Customer)"),
             ("Sales", "Counter Sale"): ("Sales", "New Bill"),
             ("Sales", "Sales Bill"): ("Sales", "New Bill"),
-            ("Reports", "Daily Profit Calculation"): ("Reports", "Profit Calculation"),
             ("Account", "Supplier Payment"): ("Account", "Supplier Payment Voucher"),
             ("Account", "Customer Payment"): ("Account", "Customer Receipt Voucher"),
             ("Account", "Customer Payment Voucher"): ("Account", "Customer Receipt Voucher"),

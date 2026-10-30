@@ -19,6 +19,7 @@ REPORT_SALES_SUBMENU = [
     "Companywise Sales",
     "Itemwise Sales",
     "Profit Calculation",
+    "Daily Profit Calculation",
     "Daily Profit Itemwise",
 ]
 

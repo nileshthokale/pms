@@ -53,6 +53,7 @@ class TestSalesReportsSubmenu(unittest.TestCase):
             "Companywise Sales",
             "Itemwise Sales",
             "Profit Calculation",
+            "Daily Profit Calculation",
             "Daily Profit Itemwise",
         ]
         self.assertEqual(REPORT_SALES_SUBMENU, expected_options)
