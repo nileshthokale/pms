@@ -283,6 +283,77 @@ def set_user_active(actor: dict[str, Any], user_id: int, active: bool) -> None:
            f"{row['username']}:{'activated' if active else 'deactivated'}")
 
 
+def change_password(
+    actor: dict[str, Any] | None,
+    user_id: int,
+    current_password: str,
+    new_password: str,
+) -> None:
+    """Change a user's password with strict verification and permission checks.
+
+    - If actor changes their own password: actor's current password must be verified.
+    - If actor changes another user's password: actor must have PERM_PASSWORD_RESET_OTHERS,
+      and the administrator's own current password must be verified.
+    - Password strength is enforced: minimum 8 characters, non-whitespace,
+      and different from current password when changing own password.
+    """
+    if not actor or not actor.get("is_active"):
+        raise AuthenticationError("Active user session required.")
+
+    if not isinstance(new_password, str) or len(new_password) < 8:
+        raise AuthenticationError("Password must contain at least 8 characters.")
+
+    if not new_password.strip():
+        raise AuthenticationError("Password cannot consist solely of whitespace.")
+
+    ensure_auth_schema()
+    conn = get_connection()
+    try:
+        target_row = conn.execute(
+            "SELECT id, username, password_hash, role, is_active FROM app_users WHERE id = ?",
+            (user_id,),
+        ).fetchone()
+        if not target_row:
+            raise AuthenticationError("User not found.")
+
+        actor_row = conn.execute(
+            "SELECT id, username, password_hash, role, is_active FROM app_users WHERE id = ?",
+            (actor.get("id"),),
+        ).fetchone()
+        if not actor_row or not actor_row["is_active"]:
+            raise AuthenticationError("Active administrator/user account required.")
+
+        is_self = actor_row["id"] == target_row["id"]
+
+        if is_self:
+            if not verify_password(current_password, actor_row["password_hash"]):
+                _audit(actor_row["username"], "password_change_failed", False, "incorrect current password")
+                raise AuthenticationError("Current password is incorrect.")
+            if new_password == current_password:
+                raise AuthenticationError("New password must be different from current password.")
+            action = "password_changed"
+            details = "own_password"
+        else:
+            if not has_permission(actor, PERM_PASSWORD_RESET_OTHERS):
+                _audit(actor_row["username"], "password_reset_denied", False, f"target_user:{target_row['username']}")
+                raise PermissionDenied(f"Permission required: {PERM_PASSWORD_RESET_OTHERS}")
+            if not verify_password(current_password, actor_row["password_hash"]):
+                _audit(actor_row["username"], "password_reset_failed", False, f"target_user:{target_row['username']} - incorrect admin password")
+                raise AuthenticationError("Current administrator password is incorrect.")
+            action = "password_reset"
+            details = f"target_user:{target_row['username']} id:{user_id}"
+
+        new_hash = hash_password(new_password)
+        conn.execute(
+            "UPDATE app_users SET password_hash = ?, updated_at = ? WHERE id = ?",
+            (new_hash, _now(), user_id),
+        )
+        conn.commit()
+        _audit(actor_row["username"], action, True, details)
+    finally:
+        conn.close()
+
+
 def reset_password(actor: dict[str, Any], user_id: int, password: str) -> None:
     _require_actor(actor, PERM_PASSWORD_RESET_OTHERS)
     ensure_auth_schema()
@@ -338,5 +409,5 @@ __all__ = [
     "PERM_CATEGORY_MANAGEMENT",
     "AuthenticationError", "PermissionDenied", "ensure_auth_schema", "hash_password", "verify_password",
     "create_first_admin", "authenticate", "has_permission", "create_user", "change_role", "set_user_active",
-    "reset_password", "list_users", "get_user", "user_count", "active_admin_count", "get_audit_log", "AuthSession", "session",
+    "reset_password", "change_password", "list_users", "get_user", "user_count", "active_admin_count", "get_audit_log", "AuthSession", "session",
 ]
