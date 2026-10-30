@@ -6689,36 +6689,40 @@ class CounterSalePage(QWidget):
             self._sale_panel.focus_item_name()
 
     def _open_pur_invoice(self) -> None:
-        if self.pur_invoice_requested.receivers(self.pur_invoice_requested) > 0:
-            self.pur_invoice_requested.emit()
-        else:
-            win = self.window()
-            if win is not None and hasattr(win, "_on_menu_action"):
-                win._on_menu_action("Purchase", "New Purchase")
+        self.pur_invoice_requested.emit()
+        win = self.window()
+        if win is not None and hasattr(win, "_on_menu_action"):
+            if getattr(win, "_stack", None) and getattr(win._stack, "currentWidget", None):
+                if win._stack.currentWidget() != self:
+                    return
+            win._on_menu_action("Purchase", "New Purchase")
 
     def _open_challan(self) -> None:
-        if self.challan_requested.receivers(self.challan_requested) > 0:
-            self.challan_requested.emit()
-        else:
-            win = self.window()
-            if win is not None and hasattr(win, "_on_menu_action"):
-                win._on_menu_action("Reports", "Supplierwise Itemwise Purchase (Challan)")
+        self.challan_requested.emit()
+        win = self.window()
+        if win is not None and hasattr(win, "_on_menu_action"):
+            if getattr(win, "_stack", None) and getattr(win._stack, "currentWidget", None):
+                if win._stack.currentWidget() != self:
+                    return
+            win._on_menu_action("Reports", "Supplierwise Itemwise Purchase (Challan)")
 
     def _open_debit_note(self) -> None:
-        if self.debit_note_requested.receivers(self.debit_note_requested) > 0:
-            self.debit_note_requested.emit()
-        else:
-            win = self.window()
-            if win is not None and hasattr(win, "_on_menu_action"):
-                win._on_menu_action("Account", "Debit Note (Return to Supplier)")
+        self.debit_note_requested.emit()
+        win = self.window()
+        if win is not None and hasattr(win, "_on_menu_action"):
+            if getattr(win, "_stack", None) and getattr(win._stack, "currentWidget", None):
+                if win._stack.currentWidget() != self:
+                    return
+            win._on_menu_action("Purchase", "Debit Note (Return to Supplier)")
 
     def _open_credit_note(self) -> None:
-        if self.credit_note_requested.receivers(self.credit_note_requested) > 0:
-            self.credit_note_requested.emit()
-        else:
-            win = self.window()
-            if win is not None and hasattr(win, "_on_menu_action"):
-                win._on_menu_action("Account", "Credit Note (Return from Customer)")
+        self.credit_note_requested.emit()
+        win = self.window()
+        if win is not None and hasattr(win, "_on_menu_action"):
+            if getattr(win, "_stack", None) and getattr(win._stack, "currentWidget", None):
+                if win._stack.currentWidget() != self:
+                    return
+            win._on_menu_action("Purchase", "Credit Note (Return from Customer)")
 
     def _on_ctrl_c_pressed(self) -> None:
         from PySide6.QtWidgets import QApplication, QLineEdit, QTextEdit, QPlainTextEdit, QTableWidget
@@ -6925,6 +6929,16 @@ class CounterSalePage(QWidget):
             "Open Patient Bill History"
         )
 
+        self._hist_new_purchase_btn = QPushButton("New Purchase")
+        self._hist_new_purchase_btn.setStyleSheet(_BTN_SECONDARY)
+        self._hist_new_purchase_btn.setFixedHeight(_METADATA_CONTROL_HEIGHT)
+        self._hist_new_purchase_btn.setMinimumWidth(
+            max(110, self._hist_new_purchase_btn.sizeHint().width() + 16)
+        )
+        self._hist_new_purchase_btn.setToolTip(
+            "Open New Purchase (Ctrl+I)"
+        )
+
         layout.addWidget(self._flbl("Daily Sales:"))
         layout.addWidget(self._flbl("Date"))
         layout.addWidget(self._hist_date)
@@ -6934,6 +6948,8 @@ class CounterSalePage(QWidget):
         layout.addWidget(self._hist_refresh_btn)
         layout.addSpacing(4)
         layout.addWidget(self._hist_sales_history_btn)
+        layout.addSpacing(4)
+        layout.addWidget(self._hist_new_purchase_btn)
         layout.addStretch()
         layout.addWidget(self._flbl("View"))
         layout.addWidget(self._hist_item_mode)
@@ -6948,6 +6964,9 @@ class CounterSalePage(QWidget):
         self._hist_refresh_btn.clicked.connect(self._on_hist_refresh_clicked)
         self._hist_sales_history_btn.clicked.connect(
             self._on_open_sales_history
+        )
+        self._hist_new_purchase_btn.clicked.connect(
+            self._open_pur_invoice
         )
         return bar
 
@@ -7879,7 +7898,7 @@ class CounterSalePage(QWidget):
                 self._new_btn.setStyleSheet(_fresh_btn_style(p["accent"], p))
             for attr in (
                 "_hist_all_btn", "_hist_today_btn", "_hist_refresh_btn",
-                "_hist_sales_history_btn",
+                "_hist_sales_history_btn", "_hist_new_purchase_btn",
                 "_btn_supplier_balance", "_btn_customer_balance",
                 "_btn_demand_order", "_btn_drug_substitute",
             ):
