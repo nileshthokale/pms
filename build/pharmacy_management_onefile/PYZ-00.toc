@@ -1,0 +1,1821 @@
+('C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+ 'System\\build\\pharmacy_management_onefile\\PYZ-00.pyz',
+ [('PySide6',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\PySide6\\__init__.py',
+   'PYMODULE'),
+  ('PySide6.support',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\PySide6\\support\\__init__.py',
+   'PYMODULE'),
+  ('PySide6.support.deprecated',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\PySide6\\support\\deprecated.py',
+   'PYMODULE'),
+  ('__future__',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\__future__.py',
+   'PYMODULE'),
+  ('_aix_support',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\_aix_support.py',
+   'PYMODULE'),
+  ('_colorize',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\_colorize.py',
+   'PYMODULE'),
+  ('_compat_pickle',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\_compat_pickle.py',
+   'PYMODULE'),
+  ('_compression',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\_compression.py',
+   'PYMODULE'),
+  ('_opcode_metadata',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\_opcode_metadata.py',
+   'PYMODULE'),
+  ('_py_abc',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\_py_abc.py',
+   'PYMODULE'),
+  ('_pydatetime',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\_pydatetime.py',
+   'PYMODULE'),
+  ('_pydecimal',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\_pydecimal.py',
+   'PYMODULE'),
+  ('_pyi_rth_utils',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\PyInstaller\\fake-modules\\_pyi_rth_utils\\__init__.py',
+   'PYMODULE'),
+  ('_pyi_rth_utils.qt',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\PyInstaller\\fake-modules\\_pyi_rth_utils\\qt.py',
+   'PYMODULE'),
+  ('_strptime',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\_strptime.py',
+   'PYMODULE'),
+  ('_threading_local',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\_threading_local.py',
+   'PYMODULE'),
+  ('argparse',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\argparse.py',
+   'PYMODULE'),
+  ('ast',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\ast.py',
+   'PYMODULE'),
+  ('base64',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\base64.py',
+   'PYMODULE'),
+  ('bisect',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\bisect.py',
+   'PYMODULE'),
+  ('bz2',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\bz2.py',
+   'PYMODULE'),
+  ('calendar',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\calendar.py',
+   'PYMODULE'),
+  ('code',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\code.py',
+   'PYMODULE'),
+  ('codeop',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\codeop.py',
+   'PYMODULE'),
+  ('contextlib',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\contextlib.py',
+   'PYMODULE'),
+  ('contextvars',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\contextvars.py',
+   'PYMODULE'),
+  ('copy',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\copy.py',
+   'PYMODULE'),
+  ('core',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\core\\__init__.py',
+   'PYMODULE'),
+  ('core.doc_formatter',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\core\\doc_formatter.py',
+   'PYMODULE'),
+  ('csv',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\csv.py',
+   'PYMODULE'),
+  ('ctypes',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\ctypes\\__init__.py',
+   'PYMODULE'),
+  ('ctypes._endian',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\ctypes\\_endian.py',
+   'PYMODULE'),
+  ('ctypes.wintypes',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\ctypes\\wintypes.py',
+   'PYMODULE'),
+  ('database',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\__init__.py',
+   'PYMODULE'),
+  ('database.account_group_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\account_group_dao.py',
+   'PYMODULE'),
+  ('database.account_roles',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\account_roles.py',
+   'PYMODULE'),
+  ('database.accounting_posting',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\accounting_posting.py',
+   'PYMODULE'),
+  ('database.auth',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\auth.py',
+   'PYMODULE'),
+  ('database.backup_restore',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\backup_restore.py',
+   'PYMODULE'),
+  ('database.balance_sheet_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\balance_sheet_dao.py',
+   'PYMODULE'),
+  ('database.bank_book_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\bank_book_dao.py',
+   'PYMODULE'),
+  ('database.cash_book_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\cash_book_dao.py',
+   'PYMODULE'),
+  ('database.category_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\category_dao.py',
+   'PYMODULE'),
+  ('database.company_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\company_dao.py',
+   'PYMODULE'),
+  ('database.connection',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\connection.py',
+   'PYMODULE'),
+  ('database.counter_sale_a6_bill',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\counter_sale_a6_bill.py',
+   'PYMODULE'),
+  ('database.credit_note_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\credit_note_dao.py',
+   'PYMODULE'),
+  ('database.customer_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\customer_dao.py',
+   'PYMODULE'),
+  ('database.customer_receipt_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\customer_receipt_dao.py',
+   'PYMODULE'),
+  ('database.day_end_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\day_end_dao.py',
+   'PYMODULE'),
+  ('database.debit_note_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\debit_note_dao.py',
+   'PYMODULE'),
+  ('database.doctor_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\doctor_dao.py',
+   'PYMODULE'),
+  ('database.doctor_reports_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\doctor_reports_dao.py',
+   'PYMODULE'),
+  ('database.document_printing',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\document_printing.py',
+   'PYMODULE'),
+  ('database.draft_stock',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\draft_stock.py',
+   'PYMODULE'),
+  ('database.drug_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\drug_dao.py',
+   'PYMODULE'),
+  ('database.duplicate_a6_cash_memo',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\duplicate_a6_cash_memo.py',
+   'PYMODULE'),
+  ('database.duplicate_sales_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\duplicate_sales_dao.py',
+   'PYMODULE'),
+  ('database.expiry_report_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\expiry_report_dao.py',
+   'PYMODULE'),
+  ('database.financial_year',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\financial_year.py',
+   'PYMODULE'),
+  ('database.gst_report_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\gst_report_dao.py',
+   'PYMODULE'),
+  ('database.hold_bill_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\hold_bill_dao.py',
+   'PYMODULE'),
+  ('database.import_service',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\import_service.py',
+   'PYMODULE'),
+  ('database.item_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\item_dao.py',
+   'PYMODULE'),
+  ('database.journal_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\journal_dao.py',
+   'PYMODULE'),
+  ('database.ledger_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\ledger_dao.py',
+   'PYMODULE'),
+  ('database.ledger_report_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\ledger_report_dao.py',
+   'PYMODULE'),
+  ('database.party_wise_report_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\party_wise_report_dao.py',
+   'PYMODULE'),
+  ('database.pharmacy_a6_receipt',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\pharmacy_a6_receipt.py',
+   'PYMODULE'),
+  ('database.profit_loss_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\profit_loss_dao.py',
+   'PYMODULE'),
+  ('database.purchase_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\purchase_dao.py',
+   'PYMODULE'),
+  ('database.purchase_report_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\purchase_report_dao.py',
+   'PYMODULE'),
+  ('database.purchase_reports_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\purchase_reports_dao.py',
+   'PYMODULE'),
+  ('database.sales_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\sales_dao.py',
+   'PYMODULE'),
+  ('database.sales_report_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\sales_report_dao.py',
+   'PYMODULE'),
+  ('database.sales_reports_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\sales_reports_dao.py',
+   'PYMODULE'),
+  ('database.schedule_reports_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\schedule_reports_dao.py',
+   'PYMODULE'),
+  ('database.stock_adjustment_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\stock_adjustment_dao.py',
+   'PYMODULE'),
+  ('database.stock_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\stock_dao.py',
+   'PYMODULE'),
+  ('database.stock_reports_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\stock_reports_dao.py',
+   'PYMODULE'),
+  ('database.supplier_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\supplier_dao.py',
+   'PYMODULE'),
+  ('database.supplier_payment_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\supplier_payment_dao.py',
+   'PYMODULE'),
+  ('database.tax_structures',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\tax_structures.py',
+   'PYMODULE'),
+  ('database.trial_balance_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\trial_balance_dao.py',
+   'PYMODULE'),
+  ('database.unit_dao',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\database\\unit_dao.py',
+   'PYMODULE'),
+  ('dataclasses',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\dataclasses.py',
+   'PYMODULE'),
+  ('datetime',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\datetime.py',
+   'PYMODULE'),
+  ('decimal',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\decimal.py',
+   'PYMODULE'),
+  ('dis',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\dis.py',
+   'PYMODULE'),
+  ('email',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\email\\__init__.py',
+   'PYMODULE'),
+  ('email._encoded_words',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\email\\_encoded_words.py',
+   'PYMODULE'),
+  ('email._header_value_parser',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\email\\_header_value_parser.py',
+   'PYMODULE'),
+  ('email._parseaddr',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\email\\_parseaddr.py',
+   'PYMODULE'),
+  ('email._policybase',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\email\\_policybase.py',
+   'PYMODULE'),
+  ('email.base64mime',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\email\\base64mime.py',
+   'PYMODULE'),
+  ('email.charset',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\email\\charset.py',
+   'PYMODULE'),
+  ('email.contentmanager',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\email\\contentmanager.py',
+   'PYMODULE'),
+  ('email.encoders',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\email\\encoders.py',
+   'PYMODULE'),
+  ('email.errors',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\email\\errors.py',
+   'PYMODULE'),
+  ('email.feedparser',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\email\\feedparser.py',
+   'PYMODULE'),
+  ('email.generator',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\email\\generator.py',
+   'PYMODULE'),
+  ('email.header',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\email\\header.py',
+   'PYMODULE'),
+  ('email.headerregistry',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\email\\headerregistry.py',
+   'PYMODULE'),
+  ('email.iterators',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\email\\iterators.py',
+   'PYMODULE'),
+  ('email.message',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\email\\message.py',
+   'PYMODULE'),
+  ('email.parser',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\email\\parser.py',
+   'PYMODULE'),
+  ('email.policy',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\email\\policy.py',
+   'PYMODULE'),
+  ('email.quoprimime',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\email\\quoprimime.py',
+   'PYMODULE'),
+  ('email.utils',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\email\\utils.py',
+   'PYMODULE'),
+  ('et_xmlfile',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\et_xmlfile\\__init__.py',
+   'PYMODULE'),
+  ('et_xmlfile.incremental_tree',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\et_xmlfile\\incremental_tree.py',
+   'PYMODULE'),
+  ('et_xmlfile.xmlfile',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\et_xmlfile\\xmlfile.py',
+   'PYMODULE'),
+  ('fnmatch',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\fnmatch.py',
+   'PYMODULE'),
+  ('fractions',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\fractions.py',
+   'PYMODULE'),
+  ('ftplib',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\ftplib.py',
+   'PYMODULE'),
+  ('getopt',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\getopt.py',
+   'PYMODULE'),
+  ('getpass',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\getpass.py',
+   'PYMODULE'),
+  ('gettext',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\gettext.py',
+   'PYMODULE'),
+  ('glob',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\glob.py',
+   'PYMODULE'),
+  ('gzip',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\gzip.py',
+   'PYMODULE'),
+  ('hashlib',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\hashlib.py',
+   'PYMODULE'),
+  ('hmac',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\hmac.py',
+   'PYMODULE'),
+  ('http',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\http\\__init__.py',
+   'PYMODULE'),
+  ('http.client',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\http\\client.py',
+   'PYMODULE'),
+  ('http.cookiejar',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\http\\cookiejar.py',
+   'PYMODULE'),
+  ('importlib',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\importlib\\__init__.py',
+   'PYMODULE'),
+  ('importlib._abc',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\importlib\\_abc.py',
+   'PYMODULE'),
+  ('importlib._bootstrap',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\importlib\\_bootstrap.py',
+   'PYMODULE'),
+  ('importlib._bootstrap_external',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\importlib\\_bootstrap_external.py',
+   'PYMODULE'),
+  ('importlib.abc',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\importlib\\abc.py',
+   'PYMODULE'),
+  ('importlib.machinery',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\importlib\\machinery.py',
+   'PYMODULE'),
+  ('importlib.metadata',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\importlib\\metadata\\__init__.py',
+   'PYMODULE'),
+  ('importlib.metadata._adapters',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\importlib\\metadata\\_adapters.py',
+   'PYMODULE'),
+  ('importlib.metadata._collections',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\importlib\\metadata\\_collections.py',
+   'PYMODULE'),
+  ('importlib.metadata._functools',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\importlib\\metadata\\_functools.py',
+   'PYMODULE'),
+  ('importlib.metadata._itertools',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\importlib\\metadata\\_itertools.py',
+   'PYMODULE'),
+  ('importlib.metadata._meta',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\importlib\\metadata\\_meta.py',
+   'PYMODULE'),
+  ('importlib.metadata._text',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\importlib\\metadata\\_text.py',
+   'PYMODULE'),
+  ('importlib.readers',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\importlib\\readers.py',
+   'PYMODULE'),
+  ('importlib.resources',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\importlib\\resources\\__init__.py',
+   'PYMODULE'),
+  ('importlib.resources._adapters',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\importlib\\resources\\_adapters.py',
+   'PYMODULE'),
+  ('importlib.resources._common',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\importlib\\resources\\_common.py',
+   'PYMODULE'),
+  ('importlib.resources._functional',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\importlib\\resources\\_functional.py',
+   'PYMODULE'),
+  ('importlib.resources._itertools',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\importlib\\resources\\_itertools.py',
+   'PYMODULE'),
+  ('importlib.resources.abc',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\importlib\\resources\\abc.py',
+   'PYMODULE'),
+  ('importlib.resources.readers',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\importlib\\resources\\readers.py',
+   'PYMODULE'),
+  ('importlib.util',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\importlib\\util.py',
+   'PYMODULE'),
+  ('inspect',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\inspect.py',
+   'PYMODULE'),
+  ('ipaddress',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\ipaddress.py',
+   'PYMODULE'),
+  ('json',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\json\\__init__.py',
+   'PYMODULE'),
+  ('json.decoder',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\json\\decoder.py',
+   'PYMODULE'),
+  ('json.encoder',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\json\\encoder.py',
+   'PYMODULE'),
+  ('json.scanner',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\json\\scanner.py',
+   'PYMODULE'),
+  ('logging',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\logging\\__init__.py',
+   'PYMODULE'),
+  ('lzma',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\lzma.py',
+   'PYMODULE'),
+  ('main',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\main.py',
+   'PYMODULE'),
+  ('mimetypes',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\mimetypes.py',
+   'PYMODULE'),
+  ('netrc',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\netrc.py',
+   'PYMODULE'),
+  ('nturl2path',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\nturl2path.py',
+   'PYMODULE'),
+  ('numbers',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\numbers.py',
+   'PYMODULE'),
+  ('opcode',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\opcode.py',
+   'PYMODULE'),
+  ('openpyxl',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\__init__.py',
+   'PYMODULE'),
+  ('openpyxl._constants',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\_constants.py',
+   'PYMODULE'),
+  ('openpyxl.cell',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\cell\\__init__.py',
+   'PYMODULE'),
+  ('openpyxl.cell._writer',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\cell\\_writer.py',
+   'PYMODULE'),
+  ('openpyxl.cell.cell',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\cell\\cell.py',
+   'PYMODULE'),
+  ('openpyxl.cell.read_only',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\cell\\read_only.py',
+   'PYMODULE'),
+  ('openpyxl.cell.rich_text',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\cell\\rich_text.py',
+   'PYMODULE'),
+  ('openpyxl.cell.text',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\cell\\text.py',
+   'PYMODULE'),
+  ('openpyxl.chart',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chart\\__init__.py',
+   'PYMODULE'),
+  ('openpyxl.chart._3d',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chart\\_3d.py',
+   'PYMODULE'),
+  ('openpyxl.chart._chart',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chart\\_chart.py',
+   'PYMODULE'),
+  ('openpyxl.chart.area_chart',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chart\\area_chart.py',
+   'PYMODULE'),
+  ('openpyxl.chart.axis',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chart\\axis.py',
+   'PYMODULE'),
+  ('openpyxl.chart.bar_chart',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chart\\bar_chart.py',
+   'PYMODULE'),
+  ('openpyxl.chart.bubble_chart',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chart\\bubble_chart.py',
+   'PYMODULE'),
+  ('openpyxl.chart.chartspace',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chart\\chartspace.py',
+   'PYMODULE'),
+  ('openpyxl.chart.data_source',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chart\\data_source.py',
+   'PYMODULE'),
+  ('openpyxl.chart.descriptors',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chart\\descriptors.py',
+   'PYMODULE'),
+  ('openpyxl.chart.error_bar',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chart\\error_bar.py',
+   'PYMODULE'),
+  ('openpyxl.chart.label',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chart\\label.py',
+   'PYMODULE'),
+  ('openpyxl.chart.layout',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chart\\layout.py',
+   'PYMODULE'),
+  ('openpyxl.chart.legend',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chart\\legend.py',
+   'PYMODULE'),
+  ('openpyxl.chart.line_chart',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chart\\line_chart.py',
+   'PYMODULE'),
+  ('openpyxl.chart.marker',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chart\\marker.py',
+   'PYMODULE'),
+  ('openpyxl.chart.picture',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chart\\picture.py',
+   'PYMODULE'),
+  ('openpyxl.chart.pie_chart',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chart\\pie_chart.py',
+   'PYMODULE'),
+  ('openpyxl.chart.pivot',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chart\\pivot.py',
+   'PYMODULE'),
+  ('openpyxl.chart.plotarea',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chart\\plotarea.py',
+   'PYMODULE'),
+  ('openpyxl.chart.print_settings',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chart\\print_settings.py',
+   'PYMODULE'),
+  ('openpyxl.chart.radar_chart',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chart\\radar_chart.py',
+   'PYMODULE'),
+  ('openpyxl.chart.reader',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chart\\reader.py',
+   'PYMODULE'),
+  ('openpyxl.chart.reference',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chart\\reference.py',
+   'PYMODULE'),
+  ('openpyxl.chart.scatter_chart',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chart\\scatter_chart.py',
+   'PYMODULE'),
+  ('openpyxl.chart.series',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chart\\series.py',
+   'PYMODULE'),
+  ('openpyxl.chart.series_factory',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chart\\series_factory.py',
+   'PYMODULE'),
+  ('openpyxl.chart.shapes',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chart\\shapes.py',
+   'PYMODULE'),
+  ('openpyxl.chart.stock_chart',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chart\\stock_chart.py',
+   'PYMODULE'),
+  ('openpyxl.chart.surface_chart',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chart\\surface_chart.py',
+   'PYMODULE'),
+  ('openpyxl.chart.text',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chart\\text.py',
+   'PYMODULE'),
+  ('openpyxl.chart.title',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chart\\title.py',
+   'PYMODULE'),
+  ('openpyxl.chart.trendline',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chart\\trendline.py',
+   'PYMODULE'),
+  ('openpyxl.chart.updown_bars',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chart\\updown_bars.py',
+   'PYMODULE'),
+  ('openpyxl.chartsheet',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chartsheet\\__init__.py',
+   'PYMODULE'),
+  ('openpyxl.chartsheet.chartsheet',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chartsheet\\chartsheet.py',
+   'PYMODULE'),
+  ('openpyxl.chartsheet.custom',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chartsheet\\custom.py',
+   'PYMODULE'),
+  ('openpyxl.chartsheet.properties',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chartsheet\\properties.py',
+   'PYMODULE'),
+  ('openpyxl.chartsheet.protection',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chartsheet\\protection.py',
+   'PYMODULE'),
+  ('openpyxl.chartsheet.publish',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chartsheet\\publish.py',
+   'PYMODULE'),
+  ('openpyxl.chartsheet.relation',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chartsheet\\relation.py',
+   'PYMODULE'),
+  ('openpyxl.chartsheet.views',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\chartsheet\\views.py',
+   'PYMODULE'),
+  ('openpyxl.comments',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\comments\\__init__.py',
+   'PYMODULE'),
+  ('openpyxl.comments.author',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\comments\\author.py',
+   'PYMODULE'),
+  ('openpyxl.comments.comment_sheet',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\comments\\comment_sheet.py',
+   'PYMODULE'),
+  ('openpyxl.comments.comments',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\comments\\comments.py',
+   'PYMODULE'),
+  ('openpyxl.comments.shape_writer',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\comments\\shape_writer.py',
+   'PYMODULE'),
+  ('openpyxl.compat',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\compat\\__init__.py',
+   'PYMODULE'),
+  ('openpyxl.compat.numbers',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\compat\\numbers.py',
+   'PYMODULE'),
+  ('openpyxl.compat.strings',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\compat\\strings.py',
+   'PYMODULE'),
+  ('openpyxl.descriptors',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\descriptors\\__init__.py',
+   'PYMODULE'),
+  ('openpyxl.descriptors.base',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\descriptors\\base.py',
+   'PYMODULE'),
+  ('openpyxl.descriptors.container',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\descriptors\\container.py',
+   'PYMODULE'),
+  ('openpyxl.descriptors.excel',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\descriptors\\excel.py',
+   'PYMODULE'),
+  ('openpyxl.descriptors.namespace',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\descriptors\\namespace.py',
+   'PYMODULE'),
+  ('openpyxl.descriptors.nested',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\descriptors\\nested.py',
+   'PYMODULE'),
+  ('openpyxl.descriptors.sequence',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\descriptors\\sequence.py',
+   'PYMODULE'),
+  ('openpyxl.descriptors.serialisable',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\descriptors\\serialisable.py',
+   'PYMODULE'),
+  ('openpyxl.drawing',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\drawing\\__init__.py',
+   'PYMODULE'),
+  ('openpyxl.drawing.colors',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\drawing\\colors.py',
+   'PYMODULE'),
+  ('openpyxl.drawing.connector',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\drawing\\connector.py',
+   'PYMODULE'),
+  ('openpyxl.drawing.drawing',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\drawing\\drawing.py',
+   'PYMODULE'),
+  ('openpyxl.drawing.effect',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\drawing\\effect.py',
+   'PYMODULE'),
+  ('openpyxl.drawing.fill',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\drawing\\fill.py',
+   'PYMODULE'),
+  ('openpyxl.drawing.geometry',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\drawing\\geometry.py',
+   'PYMODULE'),
+  ('openpyxl.drawing.graphic',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\drawing\\graphic.py',
+   'PYMODULE'),
+  ('openpyxl.drawing.image',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\drawing\\image.py',
+   'PYMODULE'),
+  ('openpyxl.drawing.line',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\drawing\\line.py',
+   'PYMODULE'),
+  ('openpyxl.drawing.picture',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\drawing\\picture.py',
+   'PYMODULE'),
+  ('openpyxl.drawing.properties',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\drawing\\properties.py',
+   'PYMODULE'),
+  ('openpyxl.drawing.relation',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\drawing\\relation.py',
+   'PYMODULE'),
+  ('openpyxl.drawing.spreadsheet_drawing',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\drawing\\spreadsheet_drawing.py',
+   'PYMODULE'),
+  ('openpyxl.drawing.text',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\drawing\\text.py',
+   'PYMODULE'),
+  ('openpyxl.drawing.xdr',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\drawing\\xdr.py',
+   'PYMODULE'),
+  ('openpyxl.formatting',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\formatting\\__init__.py',
+   'PYMODULE'),
+  ('openpyxl.formatting.formatting',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\formatting\\formatting.py',
+   'PYMODULE'),
+  ('openpyxl.formatting.rule',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\formatting\\rule.py',
+   'PYMODULE'),
+  ('openpyxl.formula',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\formula\\__init__.py',
+   'PYMODULE'),
+  ('openpyxl.formula.tokenizer',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\formula\\tokenizer.py',
+   'PYMODULE'),
+  ('openpyxl.formula.translate',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\formula\\translate.py',
+   'PYMODULE'),
+  ('openpyxl.packaging',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\packaging\\__init__.py',
+   'PYMODULE'),
+  ('openpyxl.packaging.core',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\packaging\\core.py',
+   'PYMODULE'),
+  ('openpyxl.packaging.custom',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\packaging\\custom.py',
+   'PYMODULE'),
+  ('openpyxl.packaging.extended',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\packaging\\extended.py',
+   'PYMODULE'),
+  ('openpyxl.packaging.manifest',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\packaging\\manifest.py',
+   'PYMODULE'),
+  ('openpyxl.packaging.relationship',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\packaging\\relationship.py',
+   'PYMODULE'),
+  ('openpyxl.packaging.workbook',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\packaging\\workbook.py',
+   'PYMODULE'),
+  ('openpyxl.pivot',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\pivot\\__init__.py',
+   'PYMODULE'),
+  ('openpyxl.pivot.cache',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\pivot\\cache.py',
+   'PYMODULE'),
+  ('openpyxl.pivot.fields',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\pivot\\fields.py',
+   'PYMODULE'),
+  ('openpyxl.pivot.record',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\pivot\\record.py',
+   'PYMODULE'),
+  ('openpyxl.pivot.table',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\pivot\\table.py',
+   'PYMODULE'),
+  ('openpyxl.reader',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\reader\\__init__.py',
+   'PYMODULE'),
+  ('openpyxl.reader.drawings',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\reader\\drawings.py',
+   'PYMODULE'),
+  ('openpyxl.reader.excel',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\reader\\excel.py',
+   'PYMODULE'),
+  ('openpyxl.reader.strings',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\reader\\strings.py',
+   'PYMODULE'),
+  ('openpyxl.reader.workbook',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\reader\\workbook.py',
+   'PYMODULE'),
+  ('openpyxl.styles',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\styles\\__init__.py',
+   'PYMODULE'),
+  ('openpyxl.styles.alignment',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\styles\\alignment.py',
+   'PYMODULE'),
+  ('openpyxl.styles.borders',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\styles\\borders.py',
+   'PYMODULE'),
+  ('openpyxl.styles.builtins',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\styles\\builtins.py',
+   'PYMODULE'),
+  ('openpyxl.styles.cell_style',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\styles\\cell_style.py',
+   'PYMODULE'),
+  ('openpyxl.styles.colors',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\styles\\colors.py',
+   'PYMODULE'),
+  ('openpyxl.styles.differential',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\styles\\differential.py',
+   'PYMODULE'),
+  ('openpyxl.styles.fills',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\styles\\fills.py',
+   'PYMODULE'),
+  ('openpyxl.styles.fonts',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\styles\\fonts.py',
+   'PYMODULE'),
+  ('openpyxl.styles.named_styles',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\styles\\named_styles.py',
+   'PYMODULE'),
+  ('openpyxl.styles.numbers',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\styles\\numbers.py',
+   'PYMODULE'),
+  ('openpyxl.styles.protection',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\styles\\protection.py',
+   'PYMODULE'),
+  ('openpyxl.styles.proxy',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\styles\\proxy.py',
+   'PYMODULE'),
+  ('openpyxl.styles.styleable',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\styles\\styleable.py',
+   'PYMODULE'),
+  ('openpyxl.styles.stylesheet',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\styles\\stylesheet.py',
+   'PYMODULE'),
+  ('openpyxl.styles.table',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\styles\\table.py',
+   'PYMODULE'),
+  ('openpyxl.utils',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\utils\\__init__.py',
+   'PYMODULE'),
+  ('openpyxl.utils.bound_dictionary',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\utils\\bound_dictionary.py',
+   'PYMODULE'),
+  ('openpyxl.utils.cell',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\utils\\cell.py',
+   'PYMODULE'),
+  ('openpyxl.utils.datetime',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\utils\\datetime.py',
+   'PYMODULE'),
+  ('openpyxl.utils.escape',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\utils\\escape.py',
+   'PYMODULE'),
+  ('openpyxl.utils.exceptions',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\utils\\exceptions.py',
+   'PYMODULE'),
+  ('openpyxl.utils.formulas',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\utils\\formulas.py',
+   'PYMODULE'),
+  ('openpyxl.utils.indexed_list',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\utils\\indexed_list.py',
+   'PYMODULE'),
+  ('openpyxl.utils.protection',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\utils\\protection.py',
+   'PYMODULE'),
+  ('openpyxl.utils.units',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\utils\\units.py',
+   'PYMODULE'),
+  ('openpyxl.workbook',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\workbook\\__init__.py',
+   'PYMODULE'),
+  ('openpyxl.workbook._writer',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\workbook\\_writer.py',
+   'PYMODULE'),
+  ('openpyxl.workbook.child',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\workbook\\child.py',
+   'PYMODULE'),
+  ('openpyxl.workbook.defined_name',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\workbook\\defined_name.py',
+   'PYMODULE'),
+  ('openpyxl.workbook.external_link',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\workbook\\external_link\\__init__.py',
+   'PYMODULE'),
+  ('openpyxl.workbook.external_link.external',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\workbook\\external_link\\external.py',
+   'PYMODULE'),
+  ('openpyxl.workbook.external_reference',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\workbook\\external_reference.py',
+   'PYMODULE'),
+  ('openpyxl.workbook.function_group',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\workbook\\function_group.py',
+   'PYMODULE'),
+  ('openpyxl.workbook.properties',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\workbook\\properties.py',
+   'PYMODULE'),
+  ('openpyxl.workbook.protection',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\workbook\\protection.py',
+   'PYMODULE'),
+  ('openpyxl.workbook.smart_tags',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\workbook\\smart_tags.py',
+   'PYMODULE'),
+  ('openpyxl.workbook.views',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\workbook\\views.py',
+   'PYMODULE'),
+  ('openpyxl.workbook.web',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\workbook\\web.py',
+   'PYMODULE'),
+  ('openpyxl.workbook.workbook',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\workbook\\workbook.py',
+   'PYMODULE'),
+  ('openpyxl.worksheet',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\worksheet\\__init__.py',
+   'PYMODULE'),
+  ('openpyxl.worksheet._read_only',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\worksheet\\_read_only.py',
+   'PYMODULE'),
+  ('openpyxl.worksheet._reader',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py',
+   'PYMODULE'),
+  ('openpyxl.worksheet._write_only',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\worksheet\\_write_only.py',
+   'PYMODULE'),
+  ('openpyxl.worksheet._writer',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\worksheet\\_writer.py',
+   'PYMODULE'),
+  ('openpyxl.worksheet.cell_range',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\worksheet\\cell_range.py',
+   'PYMODULE'),
+  ('openpyxl.worksheet.copier',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\worksheet\\copier.py',
+   'PYMODULE'),
+  ('openpyxl.worksheet.datavalidation',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\worksheet\\datavalidation.py',
+   'PYMODULE'),
+  ('openpyxl.worksheet.dimensions',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\worksheet\\dimensions.py',
+   'PYMODULE'),
+  ('openpyxl.worksheet.drawing',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\worksheet\\drawing.py',
+   'PYMODULE'),
+  ('openpyxl.worksheet.filters',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\worksheet\\filters.py',
+   'PYMODULE'),
+  ('openpyxl.worksheet.formula',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\worksheet\\formula.py',
+   'PYMODULE'),
+  ('openpyxl.worksheet.header_footer',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\worksheet\\header_footer.py',
+   'PYMODULE'),
+  ('openpyxl.worksheet.hyperlink',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\worksheet\\hyperlink.py',
+   'PYMODULE'),
+  ('openpyxl.worksheet.merge',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\worksheet\\merge.py',
+   'PYMODULE'),
+  ('openpyxl.worksheet.page',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\worksheet\\page.py',
+   'PYMODULE'),
+  ('openpyxl.worksheet.pagebreak',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\worksheet\\pagebreak.py',
+   'PYMODULE'),
+  ('openpyxl.worksheet.print_settings',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\worksheet\\print_settings.py',
+   'PYMODULE'),
+  ('openpyxl.worksheet.properties',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\worksheet\\properties.py',
+   'PYMODULE'),
+  ('openpyxl.worksheet.protection',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\worksheet\\protection.py',
+   'PYMODULE'),
+  ('openpyxl.worksheet.related',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\worksheet\\related.py',
+   'PYMODULE'),
+  ('openpyxl.worksheet.scenario',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\worksheet\\scenario.py',
+   'PYMODULE'),
+  ('openpyxl.worksheet.table',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\worksheet\\table.py',
+   'PYMODULE'),
+  ('openpyxl.worksheet.views',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\worksheet\\views.py',
+   'PYMODULE'),
+  ('openpyxl.worksheet.worksheet',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\worksheet\\worksheet.py',
+   'PYMODULE'),
+  ('openpyxl.writer',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\writer\\__init__.py',
+   'PYMODULE'),
+  ('openpyxl.writer.excel',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\writer\\excel.py',
+   'PYMODULE'),
+  ('openpyxl.writer.theme',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\writer\\theme.py',
+   'PYMODULE'),
+  ('openpyxl.xml',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\xml\\__init__.py',
+   'PYMODULE'),
+  ('openpyxl.xml.constants',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\xml\\constants.py',
+   'PYMODULE'),
+  ('openpyxl.xml.functions',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\openpyxl\\xml\\functions.py',
+   'PYMODULE'),
+  ('pathlib',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\pathlib\\__init__.py',
+   'PYMODULE'),
+  ('pathlib._abc',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\pathlib\\_abc.py',
+   'PYMODULE'),
+  ('pathlib._local',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\pathlib\\_local.py',
+   'PYMODULE'),
+  ('pickle',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\pickle.py',
+   'PYMODULE'),
+  ('pprint',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\pprint.py',
+   'PYMODULE'),
+  ('py_compile',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\py_compile.py',
+   'PYMODULE'),
+  ('quopri',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\quopri.py',
+   'PYMODULE'),
+  ('random',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\random.py',
+   'PYMODULE'),
+  ('screens',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\__init__.py',
+   'PYMODULE'),
+  ('screens.account_group_master',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\account_group_master.py',
+   'PYMODULE'),
+  ('screens.account_ledger',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\account_ledger.py',
+   'PYMODULE'),
+  ('screens.account_roles',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\account_roles.py',
+   'PYMODULE'),
+  ('screens.adjusted_stock_list',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\adjusted_stock_list.py',
+   'PYMODULE'),
+  ('screens.backup_restore',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\backup_restore.py',
+   'PYMODULE'),
+  ('screens.balance_sheet',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\balance_sheet.py',
+   'PYMODULE'),
+  ('screens.bank_book',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\bank_book.py',
+   'PYMODULE'),
+  ('screens.cash_book',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\cash_book.py',
+   'PYMODULE'),
+  ('screens.category_master',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\category_master.py',
+   'PYMODULE'),
+  ('screens.company_master',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\company_master.py',
+   'PYMODULE'),
+  ('screens.counter_sale',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\counter_sale.py',
+   'PYMODULE'),
+  ('screens.counter_sale_actions',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\counter_sale_actions.py',
+   'PYMODULE'),
+  ('screens.credit_note',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\credit_note.py',
+   'PYMODULE'),
+  ('screens.customer_ledger',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\customer_ledger.py',
+   'PYMODULE'),
+  ('screens.customer_master',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\customer_master.py',
+   'PYMODULE'),
+  ('screens.customer_receipt',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\customer_receipt.py',
+   'PYMODULE'),
+  ('screens.day_end',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\day_end.py',
+   'PYMODULE'),
+  ('screens.debit_note',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\debit_note.py',
+   'PYMODULE'),
+  ('screens.doctor_master',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\doctor_master.py',
+   'PYMODULE'),
+  ('screens.doctor_reports',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\doctor_reports.py',
+   'PYMODULE'),
+  ('screens.drug_master',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\drug_master.py',
+   'PYMODULE'),
+  ('screens.duplicate_sales_bill',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\duplicate_sales_bill.py',
+   'PYMODULE'),
+  ('screens.expiry_report',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\expiry_report.py',
+   'PYMODULE'),
+  ('screens.financial_year',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\financial_year.py',
+   'PYMODULE'),
+  ('screens.gst_report',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\gst_report.py',
+   'PYMODULE'),
+  ('screens.hold_bill',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\hold_bill.py',
+   'PYMODULE'),
+  ('screens.import_data',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\import_data.py',
+   'PYMODULE'),
+  ('screens.item_master',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\item_master.py',
+   'PYMODULE'),
+  ('screens.itemwise_ledger',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\itemwise_ledger.py',
+   'PYMODULE'),
+  ('screens.journal_entry',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\journal_entry.py',
+   'PYMODULE'),
+  ('screens.ledger_report_pages',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\ledger_report_pages.py',
+   'PYMODULE'),
+  ('screens.ledger_widgets',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\ledger_widgets.py',
+   'PYMODULE'),
+  ('screens.login',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\login.py',
+   'PYMODULE'),
+  ('screens.party_wise_report',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\party_wise_report.py',
+   'PYMODULE'),
+  ('screens.patient_history_bill_wise',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\patient_history_bill_wise.py',
+   'PYMODULE'),
+  ('screens.profit_loss',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\profit_loss.py',
+   'PYMODULE'),
+  ('screens.purchase_invoice',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\purchase_invoice.py',
+   'PYMODULE'),
+  ('screens.purchase_report',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\purchase_report.py',
+   'PYMODULE'),
+  ('screens.purchase_reports',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\purchase_reports.py',
+   'PYMODULE'),
+  ('screens.sales_history',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\sales_history.py',
+   'PYMODULE'),
+  ('screens.sales_report',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\sales_report.py',
+   'PYMODULE'),
+  ('screens.sales_reports',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\sales_reports.py',
+   'PYMODULE'),
+  ('screens.schedule_reports',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\schedule_reports.py',
+   'PYMODULE'),
+  ('screens.stock_adjustment_dialog',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\stock_adjustment_dialog.py',
+   'PYMODULE'),
+  ('screens.stock_master',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\stock_master.py',
+   'PYMODULE'),
+  ('screens.stock_reports',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\stock_reports.py',
+   'PYMODULE'),
+  ('screens.supplier_ledger',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\supplier_ledger.py',
+   'PYMODULE'),
+  ('screens.supplier_master',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\supplier_master.py',
+   'PYMODULE'),
+  ('screens.supplier_payment',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\supplier_payment.py',
+   'PYMODULE'),
+  ('screens.trial_balance',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\trial_balance.py',
+   'PYMODULE'),
+  ('screens.unit_master',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\unit_master.py',
+   'PYMODULE'),
+  ('screens.user_management',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\user_management.py',
+   'PYMODULE'),
+  ('secrets',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\secrets.py',
+   'PYMODULE'),
+  ('selectors',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\selectors.py',
+   'PYMODULE'),
+  ('shiboken6',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\.venv\\Lib\\site-packages\\shiboken6\\__init__.py',
+   'PYMODULE'),
+  ('shutil',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\shutil.py',
+   'PYMODULE'),
+  ('signal',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\signal.py',
+   'PYMODULE'),
+  ('socket',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\socket.py',
+   'PYMODULE'),
+  ('sqlite3',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\sqlite3\\__init__.py',
+   'PYMODULE'),
+  ('sqlite3.__main__',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\sqlite3\\__main__.py',
+   'PYMODULE'),
+  ('sqlite3.dbapi2',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\sqlite3\\dbapi2.py',
+   'PYMODULE'),
+  ('sqlite3.dump',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\sqlite3\\dump.py',
+   'PYMODULE'),
+  ('ssl',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\ssl.py',
+   'PYMODULE'),
+  ('statistics',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\statistics.py',
+   'PYMODULE'),
+  ('string',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\string.py',
+   'PYMODULE'),
+  ('stringprep',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\stringprep.py',
+   'PYMODULE'),
+  ('subprocess',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\subprocess.py',
+   'PYMODULE'),
+  ('sysconfig',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\sysconfig\\__init__.py',
+   'PYMODULE'),
+  ('tarfile',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\tarfile.py',
+   'PYMODULE'),
+  ('tempfile',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\tempfile.py',
+   'PYMODULE'),
+  ('textwrap',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\textwrap.py',
+   'PYMODULE'),
+  ('threading',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\threading.py',
+   'PYMODULE'),
+  ('token',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\token.py',
+   'PYMODULE'),
+  ('tokenize',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\tokenize.py',
+   'PYMODULE'),
+  ('tracemalloc',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\tracemalloc.py',
+   'PYMODULE'),
+  ('typing',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\typing.py',
+   'PYMODULE'),
+  ('ui',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\ui\\__init__.py',
+   'PYMODULE'),
+  ('ui.components',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\ui\\components.py',
+   'PYMODULE'),
+  ('ui.crystal_report_viewer',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\ui\\crystal_report_viewer.py',
+   'PYMODULE'),
+  ('ui.fy_view',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\ui\\fy_view.py',
+   'PYMODULE'),
+  ('ui.input_rules',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\ui\\input_rules.py',
+   'PYMODULE'),
+  ('ui.main_window',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\ui\\main_window.py',
+   'PYMODULE'),
+  ('ui.menu_data',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\ui\\menu_data.py',
+   'PYMODULE'),
+  ('ui.navigation_bar',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\ui\\navigation_bar.py',
+   'PYMODULE'),
+  ('ui.searchable_filter',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\ui\\searchable_filter.py',
+   'PYMODULE'),
+  ('ui.theme',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\ui\\theme.py',
+   'PYMODULE'),
+  ('urllib',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\urllib\\__init__.py',
+   'PYMODULE'),
+  ('urllib.error',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\urllib\\error.py',
+   'PYMODULE'),
+  ('urllib.parse',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\urllib\\parse.py',
+   'PYMODULE'),
+  ('urllib.request',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\urllib\\request.py',
+   'PYMODULE'),
+  ('urllib.response',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\urllib\\response.py',
+   'PYMODULE'),
+  ('version',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\version.py',
+   'PYMODULE'),
+  ('xml',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\xml\\__init__.py',
+   'PYMODULE'),
+  ('xml.etree',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\xml\\etree\\__init__.py',
+   'PYMODULE'),
+  ('xml.etree.ElementInclude',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\xml\\etree\\ElementInclude.py',
+   'PYMODULE'),
+  ('xml.etree.ElementPath',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\xml\\etree\\ElementPath.py',
+   'PYMODULE'),
+  ('xml.etree.ElementTree',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\xml\\etree\\ElementTree.py',
+   'PYMODULE'),
+  ('xml.etree.cElementTree',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\xml\\etree\\cElementTree.py',
+   'PYMODULE'),
+  ('xml.parsers',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\xml\\parsers\\__init__.py',
+   'PYMODULE'),
+  ('xml.parsers.expat',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\xml\\parsers\\expat.py',
+   'PYMODULE'),
+  ('xml.sax',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\xml\\sax\\__init__.py',
+   'PYMODULE'),
+  ('xml.sax._exceptions',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\xml\\sax\\_exceptions.py',
+   'PYMODULE'),
+  ('xml.sax.expatreader',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\xml\\sax\\expatreader.py',
+   'PYMODULE'),
+  ('xml.sax.handler',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\xml\\sax\\handler.py',
+   'PYMODULE'),
+  ('xml.sax.saxutils',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\xml\\sax\\saxutils.py',
+   'PYMODULE'),
+  ('xml.sax.xmlreader',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\xml\\sax\\xmlreader.py',
+   'PYMODULE'),
+  ('zipfile',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\zipfile\\__init__.py',
+   'PYMODULE'),
+  ('zipfile._path',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\zipfile\\_path\\__init__.py',
+   'PYMODULE'),
+  ('zipfile._path.glob',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib\\zipfile\\_path\\glob.py',
+   'PYMODULE')])
