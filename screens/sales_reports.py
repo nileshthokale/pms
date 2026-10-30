@@ -1264,7 +1264,7 @@ class DailyProfitCalculationPage(QWidget):
         )
         tb_layout = QHBoxLayout(title_bar)
         tb_layout.setContentsMargins(10, 0, 4, 0)
-        lbl_title = QLabel("Daily Profit Calculation")
+        lbl_title = QLabel("Profit Calculation")
         tb_layout.addWidget(lbl_title)
         tb_layout.addStretch()
 
@@ -1295,7 +1295,7 @@ class DailyProfitCalculationDialog(QDialog):
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
-        self.setWindowTitle("Daily Profit Calculation")
+        self.setWindowTitle("Profit Calculation")
         self.resize(1300, 680)
         self.setMinimumSize(1000, 500)
         self.setModal(False)
@@ -1307,6 +1307,10 @@ class DailyProfitCalculationDialog(QDialog):
         self.widget = DailyProfitCalculationWidget(self)
         root.addWidget(self.widget)
         self.widget.load_data()
+
+
+ProfitCalculationPage = DailyProfitCalculationPage
+ProfitCalculationDialog = DailyProfitCalculationDialog
 
 
 # ══════════════════════════════════════════════════════════════════════
