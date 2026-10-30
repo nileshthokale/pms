@@ -278,6 +278,62 @@ class TestDuplicateA6CashMemoSuite(unittest.TestCase):
         except OSError:
             pass
 
+    def test_08_line_under_final_amount_and_address_header(self):
+        """Verify the line under Net Amt spans full page width (x0 to x1) and header formats Name & Address."""
+        head = {
+            "voucher_no": 1,
+            "patient_name": "MR AKSHAY HULULE",
+            "address": "VAMBORI",
+            "doctor_name": "DR SOMNATH GHORPADE",
+            "net_amount": 117.0,
+        }
+        items = [{"item_name": "PARACETAMOL", "sales_qty": 1.0, "amount": 117.0}]
+        pages = memo_a6.paginate_items(head, items, show_duplicate=False)
+        self.assertEqual(len(pages), 1)
+
+        p = mock.MagicMock()
+        memo_a6.draw_a6_cash_memo_page(p, pages[0])
+
+        # Header check
+        drawn_texts = [str(c[1][2]) for c in p.mock_calls if len(c) > 1 and len(c[1]) > 2 and isinstance(c[1][2], str)]
+        name_matches = [t for t in drawn_texts if "MR AKSHAY HULULE" in t]
+        self.assertTrue(len(name_matches) > 0)
+        self.assertIn("Name : MR AKSHAY HULULE, VAMBORI", name_matches[0])
+
+        # Line check: 4 horizontal rules, line 4 under Net Amt spans from x0 (4.0) to x1 (144.0)
+        drawn_lines = [c for c in p.mock_calls if 'drawLine' in str(c)]
+        self.assertEqual(len(drawn_lines), 4)
+        line4 = drawn_lines[3]
+        pt1 = line4[1][0]
+        pt2 = line4[1][1]
+        self.assertAlmostEqual(pt1.x(), 4.0, delta=0.5)
+        self.assertAlmostEqual(pt2.x(), 144.0, delta=0.5)
+        self.assertAlmostEqual(pt1.y(), 77.2, delta=0.5)
+        self.assertAlmostEqual(pt2.y(), 77.2, delta=0.5)
+
+
+    def test_09_memo_number_strips_fy_prefix(self):
+        """Verify financial year prefix ('2026-2027-', '2026 2027 ') is stripped from memo number."""
+        test_cases = [
+            ("2026-2027-2063", "Cash Memo : 2063"),
+            ("2026 2027 2063", "Cash Memo : 2063"),
+            ("2026-2027-1", "Cash Memo : 1"),
+            ("2026-2027-Cash-187-S72213", "Cash Memo : 187"),
+            ("2043", "Cash Memo : 2043"),
+        ]
+        for bill_no, expected_memo in test_cases:
+            head = {
+                "bill_no": bill_no,
+                "bill_type": "Cash",
+                "patient_name": "TEST PATIENT",
+                "net_amount": 100.0,
+            }
+            pages = memo_a6.paginate_items(head, [{"item_name": "MED", "sales_qty": 1.0, "amount": 100.0}])
+            p = mock.MagicMock()
+            memo_a6.draw_a6_cash_memo_page(p, pages[0])
+            drawn_texts = [str(c[1][2]) for c in p.mock_calls if len(c) > 1 and len(c[1]) > 2 and isinstance(c[1][2], str)]
+            self.assertIn(expected_memo, drawn_texts, f"Expected '{expected_memo}' for bill_no '{bill_no}', got {drawn_texts}")
+
 
 if __name__ == "__main__":
     unittest.main()

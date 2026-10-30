@@ -44,6 +44,8 @@ import re
 import sys
 from typing import Any
 
+from core.doc_formatter import format_document_number
+
 from PySide6.QtCore import QMarginsF, QPointF, QRectF, QSizeF, Qt
 from PySide6.QtGui import (
     QColor,
@@ -93,8 +95,8 @@ PAPER_PROFILES: dict[str, dict[str, Any]] = {
         "item_rows": 10,
         "row_height_mm": 4.0,
         "item_end_y_mm": 71.0,
-        "net_amt_y_mm": 75.0,
-        "footer_start_y_mm": 75.0,
+        "net_amt_y_mm": 72.0,
+        "footer_start_y_mm": 78.2,
         "columns": [
             ("qty", "QTY", 8.0, "left"),
             ("unit", "UNIT", 15.0, "left"),
@@ -134,8 +136,8 @@ PAPER_PROFILES: dict[str, dict[str, Any]] = {
         "item_rows": 10,
         "row_height_mm": 5.0,
         "item_end_y_mm": 94.0,
-        "net_amt_y_mm": 96.5,
-        "footer_start_y_mm": 105.0,
+        "net_amt_y_mm": 95.5,
+        "footer_start_y_mm": 103.5,
         "columns": [
             ("qty", "QTY", 14.0, "left"),
             ("unit", "UNIT", 20.0, "left"),
@@ -283,6 +285,29 @@ def format_qty_display(val: Any) -> str:
         return str(int(f)) if f.is_integer() else f"{f:.2f}"
     except Exception:
         return "0"
+
+
+def format_memo_number(val: Any) -> str:
+    """Format memo / bill number for cash memo header by removing financial year prefix.
+
+    Examples:
+    - '2026-2027-2063' -> '2063'
+    - '2026 2027 2063' -> '2063'
+    - '2026-2027-1' -> '1'
+    - '2026-2027-Cash-187-S72213' -> '187'
+    - 'CR-901' -> 'CR-901'
+    """
+    raw_v_no = str(val or "1").strip()
+    clean_v_no = re.sub(
+        r"^\d{4}[- /_](\d{4}|\d{2})[- /_]?(?:(?:Cash|Credit)[- /_])?",
+        "",
+        raw_v_no,
+        flags=re.IGNORECASE,
+    ).strip()
+    if "#" in clean_v_no:
+        clean_v_no = clean_v_no.split("#", 1)[0].strip()
+    clean_v_no = re.sub(r"-[sS]\d+$", "", clean_v_no).strip()
+    return clean_v_no if clean_v_no else raw_v_no
 
 
 def format_amt_display(val: Any) -> str:
@@ -565,8 +590,21 @@ def draw_a6_cash_memo_page(painter: QPainter, page: dict[str, Any], scale: float
     )
 
     # Left & Right Block (8.5 pt on A6 / 10.5 pt on A5)
-    cust_name = str(head.get("patient_name") or head.get("customer_name") or "WALKIN").strip()
-    addr = str(head.get("address") or "").strip()
+    raw_pat = str(head.get("patient_name") or "").strip()
+    raw_cust = str(head.get("customer_name") or "").strip()
+
+    if raw_pat and raw_pat.upper() not in ("WALKIN", "WALKIN CUSTOMER"):
+        cust_name = raw_pat
+    elif raw_cust and raw_cust.upper() not in ("WALKIN", "WALKIN CUSTOMER"):
+        cust_name = raw_cust
+    elif raw_pat:
+        cust_name = raw_pat
+    elif raw_cust:
+        cust_name = raw_cust
+    else:
+        cust_name = "WALKIN"
+
+    addr = str(head.get("address") or head.get("customer_address") or "").strip()
     if not addr and cust_name and cust_name.upper() not in ("WALKIN", "WALKIN CUSTOMER"):
         try:
             from database.connection import get_connection
@@ -587,15 +625,34 @@ def draw_a6_cash_memo_page(painter: QPainter, page: dict[str, Any], scale: float
         except Exception:
             pass
 
-    if addr and addr.upper() in cust_name.upper():
-        name_str = f"Name : {cust_name}"
+    if not addr:
+        try:
+            from database.connection import get_connection
+            _conn = get_connection()
+            _pa_cur = _conn.execute(
+                """
+                SELECT address FROM patient_addresses
+                WHERE UPPER(TRIM(patient_name)) IN ('WALKIN', 'WALKIN CUSTOMER')
+                  AND address IS NOT NULL AND TRIM(address) <> ''
+                ORDER BY updated_at DESC, id DESC LIMIT 1
+                """
+            )
+            _pa_row = _pa_cur.fetchone()
+            if _pa_row and _pa_row[0]:
+                addr = str(_pa_row[0]).strip()
+            _conn.close()
+        except Exception:
+            pass
+
+    if addr and addr.upper() not in cust_name.upper():
+        name_str = f"Name : {cust_name}, {addr}"
     else:
-        name_str = f"Name : {cust_name}" + (f", {addr}" if addr else "")
+        name_str = f"Name : {cust_name}"
 
     doc_name = str(head.get("doctor_name") or "").strip()
     doc_str = f"Doctor : {doc_name}"
 
-    v_no = str(head.get("voucher_no") or head.get("bill_no") or "1")
+    v_no = format_memo_number(head.get("voucher_no") or head.get("bill_no") or "1")
     bill_type = str(head.get("bill_type") or head.get("sale_type") or "Cash").strip()
     memo_label = "Credit Memo" if bill_type.lower() == "credit" else "Cash Memo"
     memo_str = f"{memo_label} : {v_no}"
@@ -758,10 +815,10 @@ def draw_a6_cash_memo_page(painter: QPainter, page: dict[str, Any], scale: float
         scale=scale,
     )
 
-    # Line under the final amount (Net Amt)
+    # Line under the final amount (Net Amt) - full width across the page
     net_line_y = net_amt_y + (6.2 if paper_size == "A5" else 5.2)
     painter.setPen(pen_rule)
-    painter.drawLine(QPointF(right_x, ry(net_line_y)), QPointF(x1, ry(net_line_y)))
+    painter.drawLine(QPointF(x0, ry(net_line_y)), QPointF(x1, ry(net_line_y)))
 
     # ══════════════════════════════════════════════════════════════════
     # 3. FOOTER (Fixed at Bottom, balanced margins)
@@ -929,7 +986,8 @@ def print_a6_cash_memo(
     prof = get_paper_profile(paper_size)
 
     printer = QPrinter(QPrinter.HighResolution)
-    voucher_no = pages[0]["head"].get("voucher_no") or pages[0]["head"].get("bill_no") or "1" if pages else "1"
+    raw_v_no = pages[0]["head"].get("voucher_no") or pages[0]["head"].get("bill_no") or "1" if pages else "1"
+    voucher_no = format_memo_number(raw_v_no)
     printer.setDocName(f"{title} #{voucher_no}")
 
     # Set paper size explicitly to A5 (or A6)

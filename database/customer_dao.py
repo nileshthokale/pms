@@ -443,14 +443,14 @@ class CustomerDAO:
             is_named_customer = customer_id is not None and customer_id not in walkin_ids
 
             # 1. Dedicated patient_addresses persistence
-            if clean_pat and clean_pat.upper() not in ("WALKIN", "WALKIN CUSTOMER"):
-                cur.execute(
-                    """
-                    INSERT OR REPLACE INTO patient_addresses (patient_name, address, customer_id, updated_at)
-                    VALUES (?, ?, ?, datetime('now', 'localtime'))
-                    """,
-                    (clean_pat, clean_addr, customer_id),
-                )
+            pat_key = clean_pat if clean_pat else "WALKIN"
+            cur.execute(
+                """
+                INSERT OR REPLACE INTO patient_addresses (patient_name, address, customer_id, updated_at)
+                VALUES (?, ?, ?, datetime('now', 'localtime'))
+                """,
+                (pat_key, clean_addr, customer_id),
+            )
 
             # 2. If customer_id is a named customer, update their registered address
             if is_named_customer:

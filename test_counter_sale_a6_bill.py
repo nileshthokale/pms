@@ -48,6 +48,7 @@ class TestCounterSaleA6BillSuite(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        cls._orig_pharmacy_db = os.environ.get("PHARMACY_DB")
         if os.path.exists(cls._DB_PATH):
             try:
                 os.remove(cls._DB_PATH)
@@ -95,6 +96,11 @@ class TestCounterSaleA6BillSuite(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
+        if hasattr(cls, "_orig_pharmacy_db"):
+            if cls._orig_pharmacy_db is not None:
+                os.environ["PHARMACY_DB"] = cls._orig_pharmacy_db
+            else:
+                os.environ.pop("PHARMACY_DB", None)
         if os.path.exists(cls._DB_PATH):
             try:
                 os.remove(cls._DB_PATH)
@@ -411,17 +417,29 @@ class TestCounterSaleA6BillSuite(unittest.TestCase):
         self.assertTrue(len(name_matches) > 0, "Patient name not found in drawn texts")
         self.assertIn("Name : MR AKSHAY HULULE, VAMBORI", name_matches[0])
 
-        # 3. Verify horizontal line drawn under final amount (Net Amt)
+        # 3. Verify horizontal line drawn under final amount (Net Amt) spans full page width (x0 to x1)
         drawn_lines = [c for c in p.mock_calls if 'drawLine' in str(c)]
         self.assertEqual(len(drawn_lines), 4)
 
-        # The 4th line is under Net Amt at y ~ 80.2 mm
+        # The 4th line is under Net Amt at y ~ 77.2 mm, spanning from left content margin (4.0) to right (144.0)
         line4 = drawn_lines[3]
         pt1 = line4[1][0]
         pt2 = line4[1][1]
-        self.assertAlmostEqual(pt1.y(), 80.2, delta=0.5)
-        self.assertAlmostEqual(pt2.y(), 80.2, delta=0.5)
-        self.assertGreater(pt2.x(), pt1.x())
+        self.assertAlmostEqual(pt1.y(), 77.2, delta=0.5)
+        self.assertAlmostEqual(pt2.y(), 77.2, delta=0.5)
+        self.assertAlmostEqual(pt1.x(), 4.0, delta=0.5)
+        self.assertAlmostEqual(pt2.x(), 144.0, delta=0.5)
+
+
+    def test_10_memo_number_strips_fy_prefix(self):
+        """Verify real counter sale invoice with '2026-2027-2063' renders as 'Cash Memo : 2063'."""
+        inv_id = self._create_real_invoice(bill_no="2026-2027-2063", item_count=1, net_amount=200.0)
+        pages = paginate_counter_sale_bill(inv_id)
+        p = mock.MagicMock()
+        memo_a6.draw_a6_cash_memo_page(p, pages[0])
+        drawn_texts = [str(c[1][2]) for c in p.mock_calls if len(c) > 1 and len(c[1]) > 2 and isinstance(c[1][2], str)]
+        self.assertIn("Cash Memo : 2063", drawn_texts)
+        self.assertNotIn("Cash Memo : 2026-2027-2063", drawn_texts)
 
 
 if __name__ == "__main__":
