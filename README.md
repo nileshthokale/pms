@@ -21,6 +21,13 @@ A Windows desktop application for pharmacy billing, inventory, purchasing, accou
 
 GST reporting uses values recorded in the application. Sales invoice records do not currently store item-level GST amounts, so sales bills do not invent or print those amounts.
 
+## Recent performance update
+
+- The dashboard registers all navigation routes up front, then constructs each page when it is first opened and reuses it for later visits.
+- Opening Sales Report no longer generates a full report automatically. Report results are generated after a user action.
+- Item Master table refresh batches row population and restores the current sorting and column sizing afterward.
+- The measured implementation changes, clone-only regression checks, and before/after timings are recorded in [`docs/performance_audit.md`](docs/performance_audit.md).
+
 ## Technology and architecture
 
 - **Language:** Python (the documented Windows release build uses Python 3.13.x)

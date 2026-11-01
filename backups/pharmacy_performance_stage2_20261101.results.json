@@ -1,0 +1,974 @@
+{
+  "source_db": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\data\\pharmacy.db",
+  "source_sha256_before": "a9eeffa5c71f09922af0913b914c245411c708ad3f6fbe7dcba6447fa34edebf",
+  "source_sha256_after": "a9eeffa5c71f09922af0913b914c245411c708ad3f6fbe7dcba6447fa34edebf",
+  "source_unchanged": true,
+  "benchmark_clone": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\backups\\pharmacy_stage2_working_20261101_191221.db",
+  "benchmark_clone_sha256_before_perf": "7e652962bd1ecd4b36560ebf3d20d98a274aea04c269c49b13490a2ca28cf99b",
+  "benchmark_clone_sha256_after_perf": "7c5a4663cb9a39b9fc2d6bc075f233d06e7c369101fe25cecac3ce61612487d4",
+  "phase_definitions": {
+    "cold_process": "fresh process; filesystem cache not flushed",
+    "warm_cache_process": "fresh process after cold group; OS cache uncontrolled"
+  },
+  "runs_per_phase": 5,
+  "results": {
+    "cold_process": [
+      {
+        "phase": "cold_process",
+        "run": 1,
+        "errors": [],
+        "page_constructors_ms": {
+          "CounterSalePage": [
+            1240.2688000001945
+          ],
+          "ItemMasterPage": [
+            370.944999999665
+          ],
+          "SalesReportPage": [
+            363.350999999966
+          ]
+        },
+        "resolved_db": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\backups\\pharmacy_stage2_working_20261101_191221.db",
+        "database_init_ms": 12.03559999976278,
+        "financial_year_ensure_ms": 13.980800000354066,
+        "auth_schema_ensure_ms": 4.160700000284123,
+        "startup_to_login_visible_ms": 761.7139999993014,
+        "authentication_submit_ms": 151.8645000005563,
+        "login_accepted": true,
+        "dashboard_constructor_ms": 2301.112799999828,
+        "login_to_dashboard_first_frame_ms": 2424.418499999774,
+        "dashboard_visible": true,
+        "dashboard_route_count": 73,
+        "initial_page_count": 1,
+        "window_init_database_calls": 0,
+        "item_master_first_navigation_ms": 736.1886999997296,
+        "item_master_initial_rows": 943,
+        "item_master_full_refresh_ms": 330.91419999982463,
+        "item_master_search_first_ms": 113.91980000007607,
+        "item_master_search_repeat_ms": 91.89599999990605,
+        "counter_sale_cached_on_dashboard": true,
+        "counter_sale_navigation_ms": 38.30850000031205,
+        "counter_sale_repeat_navigation_ms": 0.45450000015989644,
+        "sales_report_page_navigation_ms": 445.36390000030224,
+        "sales_report_constructor_generated_report": false,
+        "sales_report_empty_at_open": true,
+        "sales_report_generation_first_ms": 3203.112300000612,
+        "sales_report_pages_first": 271,
+        "sales_report_rows_first": 8936,
+        "sales_report_generation_repeat_ms": 3088.360300000204,
+        "sales_report_pages_repeat": 271,
+        "sales_report_generation_calls_after_request": 2,
+        "event_loop_tick_count": 13,
+        "event_loop_stall_p95_ms": 3145.9494000002815,
+        "event_loop_stall_max_ms": 3145.9494000002815,
+        "process_elapsed_ms": 11422.704199999316,
+        "working_set_peak_mib": 232.6015625,
+        "python_heap_peak_mib": 58.916730880737305,
+        "return_code": 0
+      },
+      {
+        "phase": "cold_process",
+        "run": 2,
+        "errors": [],
+        "page_constructors_ms": {
+          "CounterSalePage": [
+            1253.993100000116
+          ],
+          "ItemMasterPage": [
+            348.18840000025375
+          ],
+          "SalesReportPage": [
+            401.4305000000604
+          ]
+        },
+        "resolved_db": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\backups\\pharmacy_stage2_working_20261101_191221.db",
+        "database_init_ms": 12.174200000117708,
+        "financial_year_ensure_ms": 14.35499999934109,
+        "auth_schema_ensure_ms": 4.6547000001737615,
+        "startup_to_login_visible_ms": 870.5933999999615,
+        "authentication_submit_ms": 172.3890000002939,
+        "login_accepted": true,
+        "dashboard_constructor_ms": 2339.7383999999875,
+        "login_to_dashboard_first_frame_ms": 2472.337299999708,
+        "dashboard_visible": true,
+        "dashboard_route_count": 73,
+        "initial_page_count": 1,
+        "window_init_database_calls": 0,
+        "item_master_first_navigation_ms": 705.4557999999815,
+        "item_master_initial_rows": 943,
+        "item_master_full_refresh_ms": 307.40919999971084,
+        "item_master_search_first_ms": 99.55319999971834,
+        "item_master_search_repeat_ms": 113.39509999925212,
+        "counter_sale_cached_on_dashboard": true,
+        "counter_sale_navigation_ms": 48.71689999981754,
+        "counter_sale_repeat_navigation_ms": 0.4853000000366592,
+        "sales_report_page_navigation_ms": 486.5964000000531,
+        "sales_report_constructor_generated_report": false,
+        "sales_report_empty_at_open": true,
+        "sales_report_generation_first_ms": 2884.2492000003404,
+        "sales_report_pages_first": 271,
+        "sales_report_rows_first": 8936,
+        "sales_report_generation_repeat_ms": 3250.260700000581,
+        "sales_report_pages_repeat": 271,
+        "sales_report_generation_calls_after_request": 2,
+        "event_loop_tick_count": 13,
+        "event_loop_stall_p95_ms": 3241.384600000165,
+        "event_loop_stall_max_ms": 3241.384600000165,
+        "process_elapsed_ms": 11457.48949999961,
+        "working_set_peak_mib": 231.56640625,
+        "python_heap_peak_mib": 58.919769287109375,
+        "return_code": 0
+      },
+      {
+        "phase": "cold_process",
+        "run": 3,
+        "errors": [],
+        "page_constructors_ms": {
+          "CounterSalePage": [
+            1233.9068000001134
+          ],
+          "ItemMasterPage": [
+            370.43480000011186
+          ],
+          "SalesReportPage": [
+            351.9157000000632
+          ]
+        },
+        "resolved_db": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\backups\\pharmacy_stage2_working_20261101_191221.db",
+        "database_init_ms": 13.544599999477214,
+        "financial_year_ensure_ms": 15.872699999817996,
+        "auth_schema_ensure_ms": 3.9116000007197727,
+        "startup_to_login_visible_ms": 807.565600000089,
+        "authentication_submit_ms": 144.42200000030425,
+        "login_accepted": true,
+        "dashboard_constructor_ms": 2318.9064999996845,
+        "login_to_dashboard_first_frame_ms": 2448.3124999997017,
+        "dashboard_visible": true,
+        "dashboard_route_count": 73,
+        "initial_page_count": 1,
+        "window_init_database_calls": 0,
+        "item_master_first_navigation_ms": 754.6186999998099,
+        "item_master_initial_rows": 943,
+        "item_master_full_refresh_ms": 307.6515000002473,
+        "item_master_search_first_ms": 95.0010000005932,
+        "item_master_search_repeat_ms": 112.27710000002844,
+        "counter_sale_cached_on_dashboard": true,
+        "counter_sale_navigation_ms": 44.01680000046326,
+        "counter_sale_repeat_navigation_ms": 0.45200000022305176,
+        "sales_report_page_navigation_ms": 433.0035000002681,
+        "sales_report_constructor_generated_report": false,
+        "sales_report_empty_at_open": true,
+        "sales_report_generation_first_ms": 2884.194400000524,
+        "sales_report_pages_first": 271,
+        "sales_report_rows_first": 8936,
+        "sales_report_generation_repeat_ms": 3241.893700000219,
+        "sales_report_pages_repeat": 271,
+        "sales_report_generation_calls_after_request": 2,
+        "event_loop_tick_count": 10,
+        "event_loop_stall_p95_ms": 3239.4401000003563,
+        "event_loop_stall_max_ms": 3239.4401000003563,
+        "process_elapsed_ms": 11298.942200000056,
+        "working_set_peak_mib": 227.6484375,
+        "python_heap_peak_mib": 58.91055870056152,
+        "return_code": 0
+      },
+      {
+        "phase": "cold_process",
+        "run": 4,
+        "errors": [],
+        "page_constructors_ms": {
+          "CounterSalePage": [
+            1308.453599999666
+          ],
+          "ItemMasterPage": [
+            364.1778000001068
+          ],
+          "SalesReportPage": [
+            382.9998000001069
+          ]
+        },
+        "resolved_db": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\backups\\pharmacy_stage2_working_20261101_191221.db",
+        "database_init_ms": 25.01719999963825,
+        "financial_year_ensure_ms": 16.727600000194798,
+        "auth_schema_ensure_ms": 5.168900000171561,
+        "startup_to_login_visible_ms": 783.8153000002421,
+        "authentication_submit_ms": 141.30699999986973,
+        "login_accepted": true,
+        "dashboard_constructor_ms": 2386.4936999998463,
+        "login_to_dashboard_first_frame_ms": 2536.2332000004244,
+        "dashboard_visible": true,
+        "dashboard_route_count": 73,
+        "initial_page_count": 1,
+        "window_init_database_calls": 0,
+        "item_master_first_navigation_ms": 725.9454000004553,
+        "item_master_initial_rows": 943,
+        "item_master_full_refresh_ms": 310.9596000003876,
+        "item_master_search_first_ms": 99.03089999988879,
+        "item_master_search_repeat_ms": 149.74510000047303,
+        "counter_sale_cached_on_dashboard": true,
+        "counter_sale_navigation_ms": 51.491299999725015,
+        "counter_sale_repeat_navigation_ms": 0.5891000000701752,
+        "sales_report_page_navigation_ms": 471.52730000016163,
+        "sales_report_constructor_generated_report": false,
+        "sales_report_empty_at_open": true,
+        "sales_report_generation_first_ms": 3272.263500000008,
+        "sales_report_pages_first": 271,
+        "sales_report_rows_first": 8936,
+        "sales_report_generation_repeat_ms": 3891.6250000002037,
+        "sales_report_pages_repeat": 271,
+        "sales_report_generation_calls_after_request": 2,
+        "event_loop_tick_count": 13,
+        "event_loop_stall_p95_ms": 3885.1618000000963,
+        "event_loop_stall_max_ms": 3885.1618000000963,
+        "process_elapsed_ms": 12484.38890000034,
+        "working_set_peak_mib": 233.1796875,
+        "python_heap_peak_mib": 58.91428756713867,
+        "return_code": 0
+      },
+      {
+        "phase": "cold_process",
+        "run": 5,
+        "errors": [],
+        "page_constructors_ms": {
+          "CounterSalePage": [
+            1276.565699999992
+          ],
+          "ItemMasterPage": [
+            332.3247000007541
+          ],
+          "SalesReportPage": [
+            385.9079000003476
+          ]
+        },
+        "resolved_db": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\backups\\pharmacy_stage2_working_20261101_191221.db",
+        "database_init_ms": 16.22259999930975,
+        "financial_year_ensure_ms": 16.097400000035123,
+        "auth_schema_ensure_ms": 5.456999999296386,
+        "startup_to_login_visible_ms": 812.2530999999071,
+        "authentication_submit_ms": 146.71560000078898,
+        "login_accepted": true,
+        "dashboard_constructor_ms": 2334.819400000015,
+        "login_to_dashboard_first_frame_ms": 2461.532599999373,
+        "dashboard_visible": true,
+        "dashboard_route_count": 73,
+        "initial_page_count": 1,
+        "window_init_database_calls": 0,
+        "item_master_first_navigation_ms": 691.4274999999179,
+        "item_master_initial_rows": 943,
+        "item_master_full_refresh_ms": 322.3058999992645,
+        "item_master_search_first_ms": 112.17390000001615,
+        "item_master_search_repeat_ms": 108.71990000032383,
+        "counter_sale_cached_on_dashboard": true,
+        "counter_sale_navigation_ms": 38.4262999996281,
+        "counter_sale_repeat_navigation_ms": 0.4826000003959052,
+        "sales_report_page_navigation_ms": 466.8357000000469,
+        "sales_report_constructor_generated_report": false,
+        "sales_report_empty_at_open": true,
+        "sales_report_generation_first_ms": 2964.293600000019,
+        "sales_report_pages_first": 271,
+        "sales_report_rows_first": 8936,
+        "sales_report_generation_repeat_ms": 3063.591699999961,
+        "sales_report_pages_repeat": 271,
+        "sales_report_generation_calls_after_request": 2,
+        "event_loop_tick_count": 12,
+        "event_loop_stall_p95_ms": 3074.360800000468,
+        "event_loop_stall_max_ms": 3074.360800000468,
+        "process_elapsed_ms": 11230.35870000058,
+        "working_set_peak_mib": 231.4140625,
+        "python_heap_peak_mib": 58.912291526794434,
+        "return_code": 0
+      }
+    ],
+    "warm_cache_process": [
+      {
+        "phase": "warm_cache_process",
+        "run": 1,
+        "errors": [],
+        "page_constructors_ms": {
+          "CounterSalePage": [
+            1245.7377000000633
+          ],
+          "ItemMasterPage": [
+            355.3563999994367
+          ],
+          "SalesReportPage": [
+            429.2211000001771
+          ]
+        },
+        "resolved_db": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\backups\\pharmacy_stage2_working_20261101_191221.db",
+        "database_init_ms": 11.415400000259979,
+        "financial_year_ensure_ms": 13.993899999150017,
+        "auth_schema_ensure_ms": 4.095000000233995,
+        "startup_to_login_visible_ms": 776.1365999995178,
+        "authentication_submit_ms": 145.55979999931878,
+        "login_accepted": true,
+        "dashboard_constructor_ms": 2349.689799999396,
+        "login_to_dashboard_first_frame_ms": 2478.9639999999054,
+        "dashboard_visible": true,
+        "dashboard_route_count": 73,
+        "initial_page_count": 1,
+        "window_init_database_calls": 0,
+        "item_master_first_navigation_ms": 719.7702000003119,
+        "item_master_initial_rows": 943,
+        "item_master_full_refresh_ms": 324.5127999998658,
+        "item_master_search_first_ms": 105.91700000077253,
+        "item_master_search_repeat_ms": 125.89369999932387,
+        "counter_sale_cached_on_dashboard": true,
+        "counter_sale_navigation_ms": 48.932499999864376,
+        "counter_sale_repeat_navigation_ms": 0.6809999995311955,
+        "sales_report_page_navigation_ms": 515.7066000001578,
+        "sales_report_constructor_generated_report": false,
+        "sales_report_empty_at_open": true,
+        "sales_report_generation_first_ms": 3089.846099999704,
+        "sales_report_pages_first": 271,
+        "sales_report_rows_first": 8936,
+        "sales_report_generation_repeat_ms": 3106.8798999995124,
+        "sales_report_pages_repeat": 271,
+        "sales_report_generation_calls_after_request": 2,
+        "event_loop_tick_count": 11,
+        "event_loop_stall_p95_ms": 3104.3167000000176,
+        "event_loop_stall_max_ms": 3104.3167000000176,
+        "process_elapsed_ms": 11477.162199999839,
+        "working_set_peak_mib": 227.46875,
+        "python_heap_peak_mib": 58.9150505065918,
+        "return_code": 0
+      },
+      {
+        "phase": "warm_cache_process",
+        "run": 2,
+        "errors": [],
+        "page_constructors_ms": {
+          "CounterSalePage": [
+            1329.829399999653
+          ],
+          "ItemMasterPage": [
+            339.87470000010944
+          ],
+          "SalesReportPage": [
+            346.25640000012936
+          ]
+        },
+        "resolved_db": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\backups\\pharmacy_stage2_working_20261101_191221.db",
+        "database_init_ms": 11.226100000385486,
+        "financial_year_ensure_ms": 14.36459999968065,
+        "auth_schema_ensure_ms": 3.840200000013283,
+        "startup_to_login_visible_ms": 752.0239999994374,
+        "authentication_submit_ms": 142.6142999998774,
+        "login_accepted": true,
+        "dashboard_constructor_ms": 2407.726299999922,
+        "login_to_dashboard_first_frame_ms": 2533.3465000003343,
+        "dashboard_visible": true,
+        "dashboard_route_count": 73,
+        "initial_page_count": 1,
+        "window_init_database_calls": 0,
+        "item_master_first_navigation_ms": 691.1589000001186,
+        "item_master_initial_rows": 943,
+        "item_master_full_refresh_ms": 294.23880000013014,
+        "item_master_search_first_ms": 99.33269999964978,
+        "item_master_search_repeat_ms": 101.3596000002508,
+        "counter_sale_cached_on_dashboard": true,
+        "counter_sale_navigation_ms": 41.6058000000703,
+        "counter_sale_repeat_navigation_ms": 0.5055999999967753,
+        "sales_report_page_navigation_ms": 419.4382999994559,
+        "sales_report_constructor_generated_report": false,
+        "sales_report_empty_at_open": true,
+        "sales_report_generation_first_ms": 2927.7265999999145,
+        "sales_report_pages_first": 271,
+        "sales_report_rows_first": 8936,
+        "sales_report_generation_repeat_ms": 3063.269800000853,
+        "sales_report_pages_repeat": 271,
+        "sales_report_generation_calls_after_request": 2,
+        "event_loop_tick_count": 13,
+        "event_loop_stall_p95_ms": 3062.516199999882,
+        "event_loop_stall_max_ms": 3062.516199999882,
+        "process_elapsed_ms": 11112.976599999456,
+        "working_set_peak_mib": 231.546875,
+        "python_heap_peak_mib": 58.91521644592285,
+        "return_code": 0
+      },
+      {
+        "phase": "warm_cache_process",
+        "run": 3,
+        "errors": [],
+        "page_constructors_ms": {
+          "CounterSalePage": [
+            1208.249600000272
+          ],
+          "ItemMasterPage": [
+            338.5163000002649
+          ],
+          "SalesReportPage": [
+            347.77829999984533
+          ]
+        },
+        "resolved_db": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\backups\\pharmacy_stage2_working_20261101_191221.db",
+        "database_init_ms": 11.504199999762932,
+        "financial_year_ensure_ms": 16.66029999978491,
+        "auth_schema_ensure_ms": 4.550599999674887,
+        "startup_to_login_visible_ms": 863.5977999992974,
+        "authentication_submit_ms": 155.21390000048996,
+        "login_accepted": true,
+        "dashboard_constructor_ms": 2258.7754999995013,
+        "login_to_dashboard_first_frame_ms": 2378.2745999997132,
+        "dashboard_visible": true,
+        "dashboard_route_count": 73,
+        "initial_page_count": 1,
+        "window_init_database_calls": 0,
+        "item_master_first_navigation_ms": 685.0173000002542,
+        "item_master_initial_rows": 943,
+        "item_master_full_refresh_ms": 299.29230000016105,
+        "item_master_search_first_ms": 100.15349999957834,
+        "item_master_search_repeat_ms": 89.00200000061886,
+        "counter_sale_cached_on_dashboard": true,
+        "counter_sale_navigation_ms": 39.86509999958798,
+        "counter_sale_repeat_navigation_ms": 0.49560000024939654,
+        "sales_report_page_navigation_ms": 429.6070000000327,
+        "sales_report_constructor_generated_report": false,
+        "sales_report_empty_at_open": true,
+        "sales_report_generation_first_ms": 2854.053799999747,
+        "sales_report_pages_first": 271,
+        "sales_report_rows_first": 8936,
+        "sales_report_generation_repeat_ms": 2997.038999999859,
+        "sales_report_pages_repeat": 271,
+        "sales_report_generation_calls_after_request": 2,
+        "event_loop_tick_count": 13,
+        "event_loop_stall_p95_ms": 2993.4762000004775,
+        "event_loop_stall_max_ms": 2993.4762000004775,
+        "process_elapsed_ms": 10931.714599999395,
+        "working_set_peak_mib": 234.015625,
+        "python_heap_peak_mib": 58.91557312011719,
+        "return_code": 0
+      },
+      {
+        "phase": "warm_cache_process",
+        "run": 4,
+        "errors": [],
+        "page_constructors_ms": {
+          "CounterSalePage": [
+            1325.1209000000017
+          ],
+          "ItemMasterPage": [
+            344.61759999976493
+          ],
+          "SalesReportPage": [
+            346.1856000003536
+          ]
+        },
+        "resolved_db": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\backups\\pharmacy_stage2_working_20261101_191221.db",
+        "database_init_ms": 10.195699999712815,
+        "financial_year_ensure_ms": 13.488199999301287,
+        "auth_schema_ensure_ms": 4.297000000406115,
+        "startup_to_login_visible_ms": 859.8246000001382,
+        "authentication_submit_ms": 161.47079999973357,
+        "login_accepted": true,
+        "dashboard_constructor_ms": 2367.693500000314,
+        "login_to_dashboard_first_frame_ms": 2494.8199999998906,
+        "dashboard_visible": true,
+        "dashboard_route_count": 73,
+        "initial_page_count": 1,
+        "window_init_database_calls": 0,
+        "item_master_first_navigation_ms": 706.6042999995261,
+        "item_master_initial_rows": 943,
+        "item_master_full_refresh_ms": 308.66020000030403,
+        "item_master_search_first_ms": 101.5242000003127,
+        "item_master_search_repeat_ms": 92.6463000005242,
+        "counter_sale_cached_on_dashboard": true,
+        "counter_sale_navigation_ms": 40.5469000006633,
+        "counter_sale_repeat_navigation_ms": 0.45399999999062857,
+        "sales_report_page_navigation_ms": 426.91220000051544,
+        "sales_report_constructor_generated_report": false,
+        "sales_report_empty_at_open": true,
+        "sales_report_generation_first_ms": 2918.5129999996207,
+        "sales_report_pages_first": 271,
+        "sales_report_rows_first": 8936,
+        "sales_report_generation_repeat_ms": 2986.507300000085,
+        "sales_report_pages_repeat": 271,
+        "sales_report_generation_calls_after_request": 2,
+        "event_loop_tick_count": 12,
+        "event_loop_stall_p95_ms": 2978.196600000265,
+        "event_loop_stall_max_ms": 2978.196600000265,
+        "process_elapsed_ms": 11136.627099999714,
+        "working_set_peak_mib": 231.2734375,
+        "python_heap_peak_mib": 58.91776752471924,
+        "return_code": 0
+      },
+      {
+        "phase": "warm_cache_process",
+        "run": 5,
+        "errors": [],
+        "page_constructors_ms": {
+          "CounterSalePage": [
+            1312.454699999762
+          ],
+          "ItemMasterPage": [
+            358.2758000002286
+          ],
+          "SalesReportPage": [
+            348.22989999975107
+          ]
+        },
+        "resolved_db": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\backups\\pharmacy_stage2_working_20261101_191221.db",
+        "database_init_ms": 12.857499999881838,
+        "financial_year_ensure_ms": 16.073900000264985,
+        "auth_schema_ensure_ms": 4.130500000428583,
+        "startup_to_login_visible_ms": 811.1711000001378,
+        "authentication_submit_ms": 148.94530000037776,
+        "login_accepted": true,
+        "dashboard_constructor_ms": 2365.3201000006447,
+        "login_to_dashboard_first_frame_ms": 2485.162300000411,
+        "dashboard_visible": true,
+        "dashboard_route_count": 73,
+        "initial_page_count": 1,
+        "window_init_database_calls": 0,
+        "item_master_first_navigation_ms": 713.2006000001638,
+        "item_master_initial_rows": 943,
+        "item_master_full_refresh_ms": 303.95739999949,
+        "item_master_search_first_ms": 108.40540000026522,
+        "item_master_search_repeat_ms": 84.96330000070884,
+        "counter_sale_cached_on_dashboard": true,
+        "counter_sale_navigation_ms": 40.99789999963832,
+        "counter_sale_repeat_navigation_ms": 0.47369999992952216,
+        "sales_report_page_navigation_ms": 432.1004000003086,
+        "sales_report_constructor_generated_report": false,
+        "sales_report_empty_at_open": true,
+        "sales_report_generation_first_ms": 3034.2178000000786,
+        "sales_report_pages_first": 271,
+        "sales_report_rows_first": 8936,
+        "sales_report_generation_repeat_ms": 2941.2777000006827,
+        "sales_report_pages_repeat": 271,
+        "sales_report_generation_calls_after_request": 2,
+        "event_loop_tick_count": 11,
+        "event_loop_stall_p95_ms": 2982.535599999428,
+        "event_loop_stall_max_ms": 2982.535599999428,
+        "process_elapsed_ms": 11133.190499999728,
+        "working_set_peak_mib": 231.8203125,
+        "python_heap_peak_mib": 58.91624641418457,
+        "return_code": 0
+      }
+    ]
+  },
+  "summaries": {
+    "cold_process": {
+      "startup_to_login_visible_ms": {
+        "median": 807.565600000089,
+        "p95": 870.5933999999615,
+        "samples": [
+          761.7139999993014,
+          870.5933999999615,
+          807.565600000089,
+          783.8153000002421,
+          812.2530999999071
+        ]
+      },
+      "authentication_submit_ms": {
+        "median": 146.71560000078898,
+        "p95": 172.3890000002939,
+        "samples": [
+          151.8645000005563,
+          172.3890000002939,
+          144.42200000030425,
+          141.30699999986973,
+          146.71560000078898
+        ]
+      },
+      "auth_schema_ensure_ms": {
+        "median": 4.6547000001737615,
+        "p95": 5.456999999296386,
+        "samples": [
+          4.160700000284123,
+          4.6547000001737615,
+          3.9116000007197727,
+          5.168900000171561,
+          5.456999999296386
+        ]
+      },
+      "database_init_ms": {
+        "median": 13.544599999477214,
+        "p95": 25.01719999963825,
+        "samples": [
+          12.03559999976278,
+          12.174200000117708,
+          13.544599999477214,
+          25.01719999963825,
+          16.22259999930975
+        ]
+      },
+      "financial_year_ensure_ms": {
+        "median": 15.872699999817996,
+        "p95": 16.727600000194798,
+        "samples": [
+          13.980800000354066,
+          14.35499999934109,
+          15.872699999817996,
+          16.727600000194798,
+          16.097400000035123
+        ]
+      },
+      "login_to_dashboard_first_frame_ms": {
+        "median": 2461.532599999373,
+        "p95": 2536.2332000004244,
+        "samples": [
+          2424.418499999774,
+          2472.337299999708,
+          2448.3124999997017,
+          2536.2332000004244,
+          2461.532599999373
+        ]
+      },
+      "dashboard_constructor_ms": {
+        "median": 2334.819400000015,
+        "p95": 2386.4936999998463,
+        "samples": [
+          2301.112799999828,
+          2339.7383999999875,
+          2318.9064999996845,
+          2386.4936999998463,
+          2334.819400000015
+        ]
+      },
+      "item_master_first_navigation_ms": {
+        "median": 725.9454000004553,
+        "p95": 754.6186999998099,
+        "samples": [
+          736.1886999997296,
+          705.4557999999815,
+          754.6186999998099,
+          725.9454000004553,
+          691.4274999999179
+        ]
+      },
+      "item_master_full_refresh_ms": {
+        "median": 310.9596000003876,
+        "p95": 330.91419999982463,
+        "samples": [
+          330.91419999982463,
+          307.40919999971084,
+          307.6515000002473,
+          310.9596000003876,
+          322.3058999992645
+        ]
+      },
+      "item_master_search_first_ms": {
+        "median": 99.55319999971834,
+        "p95": 113.91980000007607,
+        "samples": [
+          113.91980000007607,
+          99.55319999971834,
+          95.0010000005932,
+          99.03089999988879,
+          112.17390000001615
+        ]
+      },
+      "item_master_search_repeat_ms": {
+        "median": 112.27710000002844,
+        "p95": 149.74510000047303,
+        "samples": [
+          91.89599999990605,
+          113.39509999925212,
+          112.27710000002844,
+          149.74510000047303,
+          108.71990000032383
+        ]
+      },
+      "counter_sale_navigation_ms": {
+        "median": 44.01680000046326,
+        "p95": 51.491299999725015,
+        "samples": [
+          38.30850000031205,
+          48.71689999981754,
+          44.01680000046326,
+          51.491299999725015,
+          38.4262999996281
+        ]
+      },
+      "sales_report_page_navigation_ms": {
+        "median": 466.8357000000469,
+        "p95": 486.5964000000531,
+        "samples": [
+          445.36390000030224,
+          486.5964000000531,
+          433.0035000002681,
+          471.52730000016163,
+          466.8357000000469
+        ]
+      },
+      "sales_report_generation_first_ms": {
+        "median": 2964.293600000019,
+        "p95": 3272.263500000008,
+        "samples": [
+          3203.112300000612,
+          2884.2492000003404,
+          2884.194400000524,
+          3272.263500000008,
+          2964.293600000019
+        ]
+      },
+      "sales_report_generation_repeat_ms": {
+        "median": 3241.893700000219,
+        "p95": 3891.6250000002037,
+        "samples": [
+          3088.360300000204,
+          3250.260700000581,
+          3241.893700000219,
+          3891.6250000002037,
+          3063.591699999961
+        ]
+      },
+      "working_set_peak_mib": {
+        "median": 231.56640625,
+        "p95": 233.1796875,
+        "samples": [
+          232.6015625,
+          231.56640625,
+          227.6484375,
+          233.1796875,
+          231.4140625
+        ]
+      },
+      "python_heap_peak_mib": {
+        "median": 58.91428756713867,
+        "p95": 58.919769287109375,
+        "samples": [
+          58.916730880737305,
+          58.919769287109375,
+          58.91055870056152,
+          58.91428756713867,
+          58.912291526794434
+        ]
+      },
+      "event_loop_stall_max_ms": {
+        "median": 3239.4401000003563,
+        "p95": 3885.1618000000963,
+        "samples": [
+          3145.9494000002815,
+          3241.384600000165,
+          3239.4401000003563,
+          3885.1618000000963,
+          3074.360800000468
+        ]
+      },
+      "event_loop_stall_p95_ms": {
+        "median": 3239.4401000003563,
+        "p95": 3885.1618000000963,
+        "samples": [
+          3145.9494000002815,
+          3241.384600000165,
+          3239.4401000003563,
+          3885.1618000000963,
+          3074.360800000468
+        ]
+      }
+    },
+    "warm_cache_process": {
+      "startup_to_login_visible_ms": {
+        "median": 811.1711000001378,
+        "p95": 863.5977999992974,
+        "samples": [
+          776.1365999995178,
+          752.0239999994374,
+          863.5977999992974,
+          859.8246000001382,
+          811.1711000001378
+        ]
+      },
+      "authentication_submit_ms": {
+        "median": 148.94530000037776,
+        "p95": 161.47079999973357,
+        "samples": [
+          145.55979999931878,
+          142.6142999998774,
+          155.21390000048996,
+          161.47079999973357,
+          148.94530000037776
+        ]
+      },
+      "auth_schema_ensure_ms": {
+        "median": 4.130500000428583,
+        "p95": 4.550599999674887,
+        "samples": [
+          4.095000000233995,
+          3.840200000013283,
+          4.550599999674887,
+          4.297000000406115,
+          4.130500000428583
+        ]
+      },
+      "database_init_ms": {
+        "median": 11.415400000259979,
+        "p95": 12.857499999881838,
+        "samples": [
+          11.415400000259979,
+          11.226100000385486,
+          11.504199999762932,
+          10.195699999712815,
+          12.857499999881838
+        ]
+      },
+      "financial_year_ensure_ms": {
+        "median": 14.36459999968065,
+        "p95": 16.66029999978491,
+        "samples": [
+          13.993899999150017,
+          14.36459999968065,
+          16.66029999978491,
+          13.488199999301287,
+          16.073900000264985
+        ]
+      },
+      "login_to_dashboard_first_frame_ms": {
+        "median": 2485.162300000411,
+        "p95": 2533.3465000003343,
+        "samples": [
+          2478.9639999999054,
+          2533.3465000003343,
+          2378.2745999997132,
+          2494.8199999998906,
+          2485.162300000411
+        ]
+      },
+      "dashboard_constructor_ms": {
+        "median": 2365.3201000006447,
+        "p95": 2407.726299999922,
+        "samples": [
+          2349.689799999396,
+          2407.726299999922,
+          2258.7754999995013,
+          2367.693500000314,
+          2365.3201000006447
+        ]
+      },
+      "item_master_first_navigation_ms": {
+        "median": 706.6042999995261,
+        "p95": 719.7702000003119,
+        "samples": [
+          719.7702000003119,
+          691.1589000001186,
+          685.0173000002542,
+          706.6042999995261,
+          713.2006000001638
+        ]
+      },
+      "item_master_full_refresh_ms": {
+        "median": 303.95739999949,
+        "p95": 324.5127999998658,
+        "samples": [
+          324.5127999998658,
+          294.23880000013014,
+          299.29230000016105,
+          308.66020000030403,
+          303.95739999949
+        ]
+      },
+      "item_master_search_first_ms": {
+        "median": 101.5242000003127,
+        "p95": 108.40540000026522,
+        "samples": [
+          105.91700000077253,
+          99.33269999964978,
+          100.15349999957834,
+          101.5242000003127,
+          108.40540000026522
+        ]
+      },
+      "item_master_search_repeat_ms": {
+        "median": 92.6463000005242,
+        "p95": 125.89369999932387,
+        "samples": [
+          125.89369999932387,
+          101.3596000002508,
+          89.00200000061886,
+          92.6463000005242,
+          84.96330000070884
+        ]
+      },
+      "counter_sale_navigation_ms": {
+        "median": 40.99789999963832,
+        "p95": 48.932499999864376,
+        "samples": [
+          48.932499999864376,
+          41.6058000000703,
+          39.86509999958798,
+          40.5469000006633,
+          40.99789999963832
+        ]
+      },
+      "sales_report_page_navigation_ms": {
+        "median": 429.6070000000327,
+        "p95": 515.7066000001578,
+        "samples": [
+          515.7066000001578,
+          419.4382999994559,
+          429.6070000000327,
+          426.91220000051544,
+          432.1004000003086
+        ]
+      },
+      "sales_report_generation_first_ms": {
+        "median": 2927.7265999999145,
+        "p95": 3089.846099999704,
+        "samples": [
+          3089.846099999704,
+          2927.7265999999145,
+          2854.053799999747,
+          2918.5129999996207,
+          3034.2178000000786
+        ]
+      },
+      "sales_report_generation_repeat_ms": {
+        "median": 2997.038999999859,
+        "p95": 3106.8798999995124,
+        "samples": [
+          3106.8798999995124,
+          3063.269800000853,
+          2997.038999999859,
+          2986.507300000085,
+          2941.2777000006827
+        ]
+      },
+      "working_set_peak_mib": {
+        "median": 231.546875,
+        "p95": 234.015625,
+        "samples": [
+          227.46875,
+          231.546875,
+          234.015625,
+          231.2734375,
+          231.8203125
+        ]
+      },
+      "python_heap_peak_mib": {
+        "median": 58.91557312011719,
+        "p95": 58.91776752471924,
+        "samples": [
+          58.9150505065918,
+          58.91521644592285,
+          58.91557312011719,
+          58.91776752471924,
+          58.91624641418457
+        ]
+      },
+      "event_loop_stall_max_ms": {
+        "median": 2993.4762000004775,
+        "p95": 3104.3167000000176,
+        "samples": [
+          3104.3167000000176,
+          3062.516199999882,
+          2993.4762000004775,
+          2978.196600000265,
+          2982.535599999428
+        ]
+      },
+      "event_loop_stall_p95_ms": {
+        "median": 2993.4762000004775,
+        "p95": 3104.3167000000176,
+        "samples": [
+          3104.3167000000176,
+          3062.516199999882,
+          2993.4762000004775,
+          2978.196600000265,
+          2982.535599999428
+        ]
+      }
+    }
+  }
+}

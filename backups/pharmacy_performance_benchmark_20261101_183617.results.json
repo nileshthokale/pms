@@ -1,0 +1,1198 @@
+{
+  "source_db": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\data\\pharmacy.db",
+  "source_sha256_before": "a9eeffa5c71f09922af0913b914c245411c708ad3f6fbe7dcba6447fa34edebf",
+  "source_sha256_after": "a9eeffa5c71f09922af0913b914c245411c708ad3f6fbe7dcba6447fa34edebf",
+  "source_unchanged": true,
+  "benchmark_clone": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\backups\\pharmacy_performance_benchmark_20261101_183617.db",
+  "platform": "Windows; PySide6 offscreen Qt platform",
+  "python_version": "3.13.14",
+  "pyside6_version": "6.11.2",
+  "qt_version": "6.11.2",
+  "runs_per_phase": 5,
+  "phase_definitions": {
+    "cold_process": "new process with no in-process Qt/SQLite state; OS cache not flushed",
+    "warm_cache_process": "new process after cold group has primed filesystem cache; OS cache not controlled"
+  },
+  "results": {
+    "cold_process": [
+      {
+        "page_constructors_ms": {
+          "CounterSalePage": [
+            1602.6841999996577,
+            2196.4514999999665
+          ],
+          "SalesHistoryPage": [
+            338.9028999999937
+          ],
+          "ItemMasterPage": [
+            280.5950000001758,
+            352.36070000019026
+          ],
+          "CustomerMasterPage": [
+            115.03559999982826
+          ],
+          "SalesReportPage": [
+            1296.066299999893
+          ]
+        },
+        "errors": [],
+        "resolved_db": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\backups\\pharmacy_performance_benchmark_20261101_183617.db",
+        "phase": "cold_process",
+        "startup_to_login_visible_ms": 3362.4367000002167,
+        "authentication_submit_ms": 186.10390000003463,
+        "login_dialog_visible": false,
+        "login_accepted": true,
+        "dashboard_constructor_ms": 52014.09459999968,
+        "login_to_dashboard_first_frame_ms": 53370.9273999998,
+        "dashboard_visible": true,
+        "dashboard_page_count": 73,
+        "item_master_constructor_cold_ms": 280.5950000001758,
+        "item_master_full_refresh_first_ms": 669.059500000003,
+        "item_master_search_first_ms": 131.7842000003111,
+        "item_master_search_repeat_ms": 132.57670000029975,
+        "sales_page_constructor_cold_ms": 1602.6841999996577,
+        "sales_page_navigation_first_ms": 11.365500000010798,
+        "sales_page_navigation_repeat_ms": 0.2586999999039108,
+        "item_master_constructor_warm_ms": 462.7327000002879,
+        "sales_page_constructor_warm_ms": 2237.8210000001673,
+        "first_customer_add_commit_refresh_ms": 28.902100000323117,
+        "first_customer_add_visible": true,
+        "first_customer_edit_commit_refresh_ms": 22.29189999980008,
+        "first_customer_edit_visible": true,
+        "first_customer_delete_result": true,
+        "first_customer_delete_commit_refresh_ms": 134.15260000010676,
+        "first_customer_delete_absent": true,
+        "repeat_customer_add_commit_refresh_ms": 21.95400000027803,
+        "repeat_customer_add_visible": true,
+        "repeat_customer_edit_commit_refresh_ms": 27.336900000136666,
+        "repeat_customer_edit_visible": true,
+        "repeat_customer_delete_result": true,
+        "repeat_customer_delete_commit_refresh_ms": 77.84209999999803,
+        "repeat_customer_delete_absent": true,
+        "first_sale_add_commit_refresh_ms": 298.5415000002831,
+        "first_sale_add_persisted_visible": true,
+        "first_sale_edit_commit_refresh_ms": 433.51399999983187,
+        "first_sale_edit_persisted_visible": true,
+        "first_sale_delete_commit_refresh_ms": 342.2089999999116,
+        "first_sale_delete_persisted_absent": true,
+        "repeat_sale_add_commit_refresh_ms": 243.4720000001107,
+        "repeat_sale_add_persisted_visible": true,
+        "repeat_sale_edit_commit_refresh_ms": 328.8793000001533,
+        "repeat_sale_edit_persisted_visible": true,
+        "repeat_sale_delete_commit_refresh_ms": 329.32309999978315,
+        "repeat_sale_delete_persisted_absent": true,
+        "sales_report_generation_first_ms": 4537.163499999679,
+        "sales_report_pages_first": 271,
+        "sales_report_generation_repeat_ms": 3833.2021000001077,
+        "sales_report_pages_repeat": 271,
+        "working_set_peak_mb": 465.06640625,
+        "working_set_final_mb": 360.91796875,
+        "python_heap_peak_mb": 113.07922172546387,
+        "event_loop_tick_count": 20,
+        "event_loop_stall_p95_ms": 3824.143699999913,
+        "event_loop_stall_max_ms": 4538.476200000096,
+        "total_process_elapsed_ms": 71851.41179999983,
+        "run": 1,
+        "return_code": 0
+      },
+      {
+        "page_constructors_ms": {
+          "CounterSalePage": [
+            1452.4648000001434,
+            1837.3805999999604
+          ],
+          "SalesHistoryPage": [
+            307.74239999982456
+          ],
+          "ItemMasterPage": [
+            312.38749999965876,
+            327.967599999738
+          ],
+          "CustomerMasterPage": [
+            71.82319999992615
+          ],
+          "SalesReportPage": [
+            1399.3328000001384
+          ]
+        },
+        "errors": [],
+        "resolved_db": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\backups\\pharmacy_performance_benchmark_20261101_183617.db",
+        "phase": "cold_process",
+        "startup_to_login_visible_ms": 3484.0664000003017,
+        "authentication_submit_ms": 244.2931000000499,
+        "login_dialog_visible": false,
+        "login_accepted": true,
+        "dashboard_constructor_ms": 53744.28850000004,
+        "login_to_dashboard_first_frame_ms": 55513.54159999982,
+        "dashboard_visible": true,
+        "dashboard_page_count": 73,
+        "item_master_constructor_cold_ms": 312.38749999965876,
+        "item_master_full_refresh_first_ms": 720.9190000003218,
+        "item_master_search_first_ms": 180.86750000020402,
+        "item_master_search_repeat_ms": 116.54950000001918,
+        "sales_page_constructor_cold_ms": 1452.4648000001434,
+        "sales_page_navigation_first_ms": 11.324500000228,
+        "sales_page_navigation_repeat_ms": 0.28139999994891696,
+        "item_master_constructor_warm_ms": 442.8560000001198,
+        "sales_page_constructor_warm_ms": 1879.1751000003387,
+        "first_customer_add_commit_refresh_ms": 23.785200000020268,
+        "first_customer_add_visible": true,
+        "first_customer_edit_commit_refresh_ms": 17.30570000017906,
+        "first_customer_edit_visible": true,
+        "first_customer_delete_result": true,
+        "first_customer_delete_commit_refresh_ms": 130.70609999977023,
+        "first_customer_delete_absent": true,
+        "repeat_customer_add_commit_refresh_ms": 20.95469999994748,
+        "repeat_customer_add_visible": true,
+        "repeat_customer_edit_commit_refresh_ms": 19.455699999980425,
+        "repeat_customer_edit_visible": true,
+        "repeat_customer_delete_result": true,
+        "repeat_customer_delete_commit_refresh_ms": 83.00740000004225,
+        "repeat_customer_delete_absent": true,
+        "first_sale_add_commit_refresh_ms": 260.42469999993045,
+        "first_sale_add_persisted_visible": true,
+        "first_sale_edit_commit_refresh_ms": 335.83790000011504,
+        "first_sale_edit_persisted_visible": true,
+        "first_sale_delete_commit_refresh_ms": 354.033999999956,
+        "first_sale_delete_persisted_absent": true,
+        "repeat_sale_add_commit_refresh_ms": 270.4576000000998,
+        "repeat_sale_add_persisted_visible": true,
+        "repeat_sale_edit_commit_refresh_ms": 317.36069999988104,
+        "repeat_sale_edit_persisted_visible": true,
+        "repeat_sale_delete_commit_refresh_ms": 306.5120000001116,
+        "repeat_sale_delete_persisted_absent": true,
+        "sales_report_generation_first_ms": 4314.559899999949,
+        "sales_report_pages_first": 271,
+        "sales_report_generation_repeat_ms": 6412.510899999688,
+        "sales_report_pages_repeat": 271,
+        "working_set_peak_mb": 421.48046875,
+        "working_set_final_mb": 285.15234375,
+        "python_heap_peak_mb": 113.08532524108887,
+        "event_loop_tick_count": 19,
+        "event_loop_stall_p95_ms": 6404.169999999558,
+        "event_loop_stall_max_ms": 6404.169999999558,
+        "total_process_elapsed_ms": 75960.09879999975,
+        "run": 2,
+        "return_code": 0
+      },
+      {
+        "page_constructors_ms": {
+          "CounterSalePage": [
+            2197.710200000074,
+            2352.7608999997938
+          ],
+          "SalesHistoryPage": [
+            637.977299999875
+          ],
+          "ItemMasterPage": [
+            355.1306999997905,
+            285.34669999999096
+          ],
+          "CustomerMasterPage": [
+            48.57219999985318
+          ],
+          "SalesReportPage": [
+            1762.8942000001189
+          ]
+        },
+        "errors": [],
+        "resolved_db": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\backups\\pharmacy_performance_benchmark_20261101_183617.db",
+        "phase": "cold_process",
+        "startup_to_login_visible_ms": 5860.642300000109,
+        "authentication_submit_ms": 294.38649999974587,
+        "login_dialog_visible": false,
+        "login_accepted": true,
+        "dashboard_constructor_ms": 54586.56549999978,
+        "login_to_dashboard_first_frame_ms": 56087.71280000019,
+        "dashboard_visible": true,
+        "dashboard_page_count": 73,
+        "item_master_constructor_cold_ms": 355.1306999997905,
+        "item_master_full_refresh_first_ms": 645.1879999999619,
+        "item_master_search_first_ms": 163.43430000006265,
+        "item_master_search_repeat_ms": 102.34409999975469,
+        "sales_page_constructor_cold_ms": 2197.710200000074,
+        "sales_page_navigation_first_ms": 11.673900000005233,
+        "sales_page_navigation_repeat_ms": 0.2199000000473461,
+        "item_master_constructor_warm_ms": 386.41099999995276,
+        "sales_page_constructor_warm_ms": 2413.575899999614,
+        "first_customer_add_commit_refresh_ms": 42.53900000003341,
+        "first_customer_add_visible": true,
+        "first_customer_edit_commit_refresh_ms": 28.11210000027131,
+        "first_customer_edit_visible": true,
+        "first_customer_delete_result": true,
+        "first_customer_delete_commit_refresh_ms": 796.2757999998757,
+        "first_customer_delete_absent": true,
+        "repeat_customer_add_commit_refresh_ms": 291.4875999999822,
+        "repeat_customer_add_visible": true,
+        "repeat_customer_edit_commit_refresh_ms": 287.4557999998615,
+        "repeat_customer_edit_visible": true,
+        "repeat_customer_delete_result": true,
+        "repeat_customer_delete_commit_refresh_ms": 269.0819999997984,
+        "repeat_customer_delete_absent": true,
+        "first_sale_add_commit_refresh_ms": 320.2523999998448,
+        "first_sale_add_persisted_visible": true,
+        "first_sale_edit_commit_refresh_ms": 310.773700000027,
+        "first_sale_edit_persisted_visible": true,
+        "first_sale_delete_commit_refresh_ms": 348.9806000002318,
+        "first_sale_delete_persisted_absent": true,
+        "repeat_sale_add_commit_refresh_ms": 220.20180000026812,
+        "repeat_sale_add_persisted_visible": true,
+        "repeat_sale_edit_commit_refresh_ms": 306.2565000000177,
+        "repeat_sale_edit_persisted_visible": true,
+        "repeat_sale_delete_commit_refresh_ms": 317.947600000025,
+        "repeat_sale_delete_persisted_absent": true,
+        "sales_report_generation_first_ms": 3587.511000000177,
+        "sales_report_pages_first": 271,
+        "sales_report_generation_repeat_ms": 3734.2376000001423,
+        "sales_report_pages_repeat": 271,
+        "working_set_peak_mb": 426.92578125,
+        "working_set_final_mb": 349.328125,
+        "python_heap_peak_mb": 113.09125995635986,
+        "event_loop_tick_count": 19,
+        "event_loop_stall_p95_ms": 3724.4090000001415,
+        "event_loop_stall_max_ms": 3724.4090000001415,
+        "total_process_elapsed_ms": 77119.66130000018,
+        "run": 3,
+        "return_code": 0
+      },
+      {
+        "page_constructors_ms": {
+          "CounterSalePage": [
+            3558.0887000000985,
+            2545.330300000387
+          ],
+          "SalesHistoryPage": [
+            536.4576000001762
+          ],
+          "ItemMasterPage": [
+            362.2315000002345,
+            300.67289999988134
+          ],
+          "CustomerMasterPage": [
+            100.30860000006214
+          ],
+          "SalesReportPage": [
+            1616.2172999997892
+          ]
+        },
+        "errors": [],
+        "resolved_db": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\backups\\pharmacy_performance_benchmark_20261101_183617.db",
+        "phase": "cold_process",
+        "startup_to_login_visible_ms": 5183.557100000144,
+        "authentication_submit_ms": 264.8882999997113,
+        "login_dialog_visible": false,
+        "login_accepted": true,
+        "dashboard_constructor_ms": 64690.02660000024,
+        "login_to_dashboard_first_frame_ms": 66171.73799999955,
+        "dashboard_visible": true,
+        "dashboard_page_count": 73,
+        "item_master_constructor_cold_ms": 362.2315000002345,
+        "item_master_full_refresh_first_ms": 501.8294000001333,
+        "item_master_search_first_ms": 134.59139999940817,
+        "item_master_search_repeat_ms": 122.41779999931168,
+        "sales_page_constructor_cold_ms": 3558.0887000000985,
+        "sales_page_navigation_first_ms": 12.942700000166951,
+        "sales_page_navigation_repeat_ms": 0.5629000006592833,
+        "item_master_constructor_warm_ms": 391.5255000001707,
+        "sales_page_constructor_warm_ms": 2599.609199999577,
+        "first_customer_add_commit_refresh_ms": 45.232100000248465,
+        "first_customer_add_visible": true,
+        "first_customer_edit_commit_refresh_ms": 22.2420999998576,
+        "first_customer_edit_visible": true,
+        "first_customer_delete_result": true,
+        "first_customer_delete_commit_refresh_ms": 136.07460000002902,
+        "first_customer_delete_absent": true,
+        "repeat_customer_add_commit_refresh_ms": 19.285999999738124,
+        "repeat_customer_add_visible": true,
+        "repeat_customer_edit_commit_refresh_ms": 39.91820000010193,
+        "repeat_customer_edit_visible": true,
+        "repeat_customer_delete_result": true,
+        "repeat_customer_delete_commit_refresh_ms": 80.53600000039296,
+        "repeat_customer_delete_absent": true,
+        "first_sale_add_commit_refresh_ms": 240.53180000009888,
+        "first_sale_add_persisted_visible": true,
+        "first_sale_edit_commit_refresh_ms": 334.18540000002395,
+        "first_sale_edit_persisted_visible": true,
+        "first_sale_delete_commit_refresh_ms": 386.3411000002088,
+        "first_sale_delete_persisted_absent": true,
+        "repeat_sale_add_commit_refresh_ms": 332.50690000022587,
+        "repeat_sale_add_persisted_visible": true,
+        "repeat_sale_edit_commit_refresh_ms": 333.96780000020954,
+        "repeat_sale_edit_persisted_visible": true,
+        "repeat_sale_delete_commit_refresh_ms": 326.46999999997206,
+        "repeat_sale_delete_persisted_absent": true,
+        "sales_report_generation_first_ms": 4067.9027999995014,
+        "sales_report_pages_first": 271,
+        "sales_report_generation_repeat_ms": 8295.260400000188,
+        "sales_report_pages_repeat": 271,
+        "working_set_peak_mb": 445.52734375,
+        "working_set_final_mb": 441.73046875,
+        "python_heap_peak_mb": 113.10467147827148,
+        "event_loop_tick_count": 19,
+        "event_loop_stall_p95_ms": 8287.30709999967,
+        "event_loop_stall_max_ms": 8287.30709999967,
+        "total_process_elapsed_ms": 89677.75779999966,
+        "run": 4,
+        "return_code": 0
+      },
+      {
+        "page_constructors_ms": {
+          "CounterSalePage": [
+            1900.8628000001409,
+            1385.9628999998677
+          ],
+          "SalesHistoryPage": [
+            530.1760000002105
+          ],
+          "ItemMasterPage": [
+            298.3899000000747,
+            216.68979999958538
+          ],
+          "CustomerMasterPage": [
+            74.35140000052343
+          ],
+          "SalesReportPage": [
+            1367.7761999997529
+          ]
+        },
+        "errors": [],
+        "resolved_db": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\backups\\pharmacy_performance_benchmark_20261101_183617.db",
+        "phase": "cold_process",
+        "startup_to_login_visible_ms": 6325.792900000124,
+        "authentication_submit_ms": 257.3951999993369,
+        "login_dialog_visible": false,
+        "login_accepted": true,
+        "dashboard_constructor_ms": 57476.05660000045,
+        "login_to_dashboard_first_frame_ms": 58892.71869999993,
+        "dashboard_visible": true,
+        "dashboard_page_count": 73,
+        "item_master_constructor_cold_ms": 298.3899000000747,
+        "item_master_full_refresh_first_ms": 431.3627000001361,
+        "item_master_search_first_ms": 113.5604000000967,
+        "item_master_search_repeat_ms": 86.83060000021214,
+        "sales_page_constructor_cold_ms": 1900.8628000001409,
+        "sales_page_navigation_first_ms": 8.04009999956179,
+        "sales_page_navigation_repeat_ms": 0.18840000029740622,
+        "item_master_constructor_warm_ms": 288.7516000000687,
+        "sales_page_constructor_warm_ms": 1419.7374000004856,
+        "first_customer_add_commit_refresh_ms": 27.68469999955414,
+        "first_customer_add_visible": true,
+        "first_customer_edit_commit_refresh_ms": 21.29640000021027,
+        "first_customer_edit_visible": true,
+        "first_customer_delete_result": true,
+        "first_customer_delete_commit_refresh_ms": 136.48269999976037,
+        "first_customer_delete_absent": true,
+        "repeat_customer_add_commit_refresh_ms": 18.279099999745085,
+        "repeat_customer_add_visible": true,
+        "repeat_customer_edit_commit_refresh_ms": 21.276299999954063,
+        "repeat_customer_edit_visible": true,
+        "repeat_customer_delete_result": true,
+        "repeat_customer_delete_commit_refresh_ms": 78.34189999994123,
+        "repeat_customer_delete_absent": true,
+        "first_sale_add_commit_refresh_ms": 237.704200000735,
+        "first_sale_add_persisted_visible": true,
+        "first_sale_edit_commit_refresh_ms": 281.7346000001635,
+        "first_sale_edit_persisted_visible": true,
+        "first_sale_delete_commit_refresh_ms": 269.1451999999117,
+        "first_sale_delete_persisted_absent": true,
+        "repeat_sale_add_commit_refresh_ms": 216.10599999985425,
+        "repeat_sale_add_persisted_visible": true,
+        "repeat_sale_edit_commit_refresh_ms": 256.6053999998985,
+        "repeat_sale_edit_persisted_visible": true,
+        "repeat_sale_delete_commit_refresh_ms": 271.39439999973547,
+        "repeat_sale_delete_persisted_absent": true,
+        "sales_report_generation_first_ms": 3742.1634000002086,
+        "sales_report_pages_first": 271,
+        "sales_report_generation_repeat_ms": 3060.9543000000485,
+        "sales_report_pages_repeat": 271,
+        "working_set_peak_mb": 492.421875,
+        "working_set_final_mb": 465.375,
+        "python_heap_peak_mb": 113.10472774505615,
+        "event_loop_tick_count": 20,
+        "event_loop_stall_p95_ms": 3051.172599999736,
+        "event_loop_stall_max_ms": 3739.596100000417,
+        "total_process_elapsed_ms": 76661.45240000059,
+        "run": 5,
+        "return_code": 0
+      }
+    ],
+    "warm_cache_process": [
+      {
+        "page_constructors_ms": {
+          "CounterSalePage": [
+            1619.1121000001658,
+            2675.7634000005055
+          ],
+          "SalesHistoryPage": [
+            257.892499999798
+          ],
+          "ItemMasterPage": [
+            300.98889999953826,
+            470.2030000007653
+          ],
+          "CustomerMasterPage": [
+            53.01950000011857
+          ],
+          "SalesReportPage": [
+            2149.669299999914
+          ]
+        },
+        "errors": [],
+        "resolved_db": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\backups\\pharmacy_performance_benchmark_20261101_183617.db",
+        "phase": "warm_cache_process",
+        "startup_to_login_visible_ms": 3088.0944999998974,
+        "authentication_submit_ms": 155.87929999946937,
+        "login_dialog_visible": false,
+        "login_accepted": true,
+        "dashboard_constructor_ms": 60543.25779999999,
+        "login_to_dashboard_first_frame_ms": 62643.05309999963,
+        "dashboard_visible": true,
+        "dashboard_page_count": 73,
+        "item_master_constructor_cold_ms": 300.98889999953826,
+        "item_master_full_refresh_first_ms": 492.9505000000063,
+        "item_master_search_first_ms": 184.01269999958458,
+        "item_master_search_repeat_ms": 136.20629999968514,
+        "sales_page_constructor_cold_ms": 1619.1121000001658,
+        "sales_page_navigation_first_ms": 19.68269999997574,
+        "sales_page_navigation_repeat_ms": 0.48580000020592706,
+        "item_master_constructor_warm_ms": 623.5892000004242,
+        "sales_page_constructor_warm_ms": 2723.9619000001767,
+        "first_customer_add_commit_refresh_ms": 38.37260000000242,
+        "first_customer_add_visible": true,
+        "first_customer_edit_commit_refresh_ms": 23.8402999993923,
+        "first_customer_edit_visible": true,
+        "first_customer_delete_result": true,
+        "first_customer_delete_commit_refresh_ms": 176.3758000006419,
+        "first_customer_delete_absent": true,
+        "repeat_customer_add_commit_refresh_ms": 28.453799999624607,
+        "repeat_customer_add_visible": true,
+        "repeat_customer_edit_commit_refresh_ms": 32.25810000003548,
+        "repeat_customer_edit_visible": true,
+        "repeat_customer_delete_result": true,
+        "repeat_customer_delete_commit_refresh_ms": 114.24150000038935,
+        "repeat_customer_delete_absent": true,
+        "first_sale_add_commit_refresh_ms": 310.8766999994259,
+        "first_sale_add_persisted_visible": true,
+        "first_sale_edit_commit_refresh_ms": 394.6960000002946,
+        "first_sale_edit_persisted_visible": true,
+        "first_sale_delete_commit_refresh_ms": 377.23879999975907,
+        "first_sale_delete_persisted_absent": true,
+        "repeat_sale_add_commit_refresh_ms": 279.69759999996313,
+        "repeat_sale_add_persisted_visible": true,
+        "repeat_sale_edit_commit_refresh_ms": 325.1319000000876,
+        "repeat_sale_edit_persisted_visible": true,
+        "repeat_sale_delete_commit_refresh_ms": 603.1125999998039,
+        "repeat_sale_delete_persisted_absent": true,
+        "sales_report_generation_first_ms": 5219.987299999957,
+        "sales_report_pages_first": 271,
+        "sales_report_generation_repeat_ms": 5632.008099999439,
+        "sales_report_pages_repeat": 271,
+        "working_set_peak_mb": 409.7734375,
+        "working_set_final_mb": 409.484375,
+        "python_heap_peak_mb": 113.10604572296143,
+        "event_loop_tick_count": 21,
+        "event_loop_stall_p95_ms": 5218.192200000194,
+        "event_loop_stall_max_ms": 5622.736100000329,
+        "total_process_elapsed_ms": 83332.71860000059,
+        "run": 1,
+        "return_code": 0
+      },
+      {
+        "page_constructors_ms": {
+          "CounterSalePage": [
+            2347.421899999972,
+            3243.4855000001335
+          ],
+          "SalesHistoryPage": [
+            782.8947999996672
+          ],
+          "ItemMasterPage": [
+            404.71460000026127,
+            352.2456999999122
+          ],
+          "CustomerMasterPage": [
+            104.18979999940348
+          ],
+          "SalesReportPage": [
+            4199.938099999599
+          ]
+        },
+        "errors": [],
+        "resolved_db": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\backups\\pharmacy_performance_benchmark_20261101_183617.db",
+        "phase": "warm_cache_process",
+        "startup_to_login_visible_ms": 5011.862299999848,
+        "authentication_submit_ms": 229.51560000001336,
+        "login_dialog_visible": false,
+        "login_accepted": true,
+        "dashboard_constructor_ms": 69797.70100000041,
+        "login_to_dashboard_first_frame_ms": 73771.88459999979,
+        "dashboard_visible": true,
+        "dashboard_page_count": 73,
+        "item_master_constructor_cold_ms": 404.71460000026127,
+        "item_master_full_refresh_first_ms": 492.52900000010413,
+        "item_master_search_first_ms": 211.33830000053422,
+        "item_master_search_repeat_ms": 140.17920000060258,
+        "sales_page_constructor_cold_ms": 2347.421899999972,
+        "sales_page_navigation_first_ms": 16.179600000214123,
+        "sales_page_navigation_repeat_ms": 0.3483000000414904,
+        "item_master_constructor_warm_ms": 463.8533000006646,
+        "sales_page_constructor_warm_ms": 3294.4139000001087,
+        "first_customer_add_commit_refresh_ms": 34.87380000024132,
+        "first_customer_add_visible": true,
+        "first_customer_edit_commit_refresh_ms": 27.86599999944883,
+        "first_customer_edit_visible": true,
+        "first_customer_delete_result": true,
+        "first_customer_delete_commit_refresh_ms": 170.79299999932118,
+        "first_customer_delete_absent": true,
+        "repeat_customer_add_commit_refresh_ms": 45.49179999958142,
+        "repeat_customer_add_visible": true,
+        "repeat_customer_edit_commit_refresh_ms": 33.948700000109966,
+        "repeat_customer_edit_visible": true,
+        "repeat_customer_delete_result": true,
+        "repeat_customer_delete_commit_refresh_ms": 118.61470000076224,
+        "repeat_customer_delete_absent": true,
+        "first_sale_add_commit_refresh_ms": 327.7643999999782,
+        "first_sale_add_persisted_visible": true,
+        "first_sale_edit_commit_refresh_ms": 388.26849999986734,
+        "first_sale_edit_persisted_visible": true,
+        "first_sale_delete_commit_refresh_ms": 419.1144999995231,
+        "first_sale_delete_persisted_absent": true,
+        "repeat_sale_add_commit_refresh_ms": 303.08659999991505,
+        "repeat_sale_add_persisted_visible": true,
+        "repeat_sale_edit_commit_refresh_ms": 413.58089999994263,
+        "repeat_sale_edit_persisted_visible": true,
+        "repeat_sale_delete_commit_refresh_ms": 397.43209999960527,
+        "repeat_sale_delete_persisted_absent": true,
+        "sales_report_generation_first_ms": 5397.89699999983,
+        "sales_report_pages_first": 271,
+        "sales_report_generation_repeat_ms": 5886.393900000257,
+        "sales_report_pages_repeat": 271,
+        "working_set_peak_mb": 348.16796875,
+        "working_set_final_mb": 319.9453125,
+        "python_heap_peak_mb": 113.12377643585205,
+        "event_loop_tick_count": 20,
+        "event_loop_stall_p95_ms": 5395.520300000717,
+        "event_loop_stall_max_ms": 5878.045799999418,
+        "total_process_elapsed_ms": 97394.11839999957,
+        "run": 2,
+        "return_code": 0
+      },
+      {
+        "page_constructors_ms": {
+          "CounterSalePage": [
+            2241.258299999572,
+            1299.79000000003
+          ],
+          "SalesHistoryPage": [
+            325.92660000045726
+          ],
+          "ItemMasterPage": [
+            386.9375999993281,
+            266.31689999976516
+          ],
+          "CustomerMasterPage": [
+            48.00340000019787
+          ],
+          "SalesReportPage": [
+            3788.155399999596
+          ]
+        },
+        "errors": [],
+        "resolved_db": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\backups\\pharmacy_performance_benchmark_20261101_183617.db",
+        "phase": "warm_cache_process",
+        "startup_to_login_visible_ms": 3118.4470000007423,
+        "authentication_submit_ms": 188.20099999993545,
+        "login_dialog_visible": false,
+        "login_accepted": true,
+        "dashboard_constructor_ms": 57662.53510000024,
+        "login_to_dashboard_first_frame_ms": 58873.08750000011,
+        "dashboard_visible": true,
+        "dashboard_page_count": 73,
+        "item_master_constructor_cold_ms": 386.9375999993281,
+        "item_master_full_refresh_first_ms": 263.1704000004902,
+        "item_master_search_first_ms": 97.8638000005958,
+        "item_master_search_repeat_ms": 91.10160000000178,
+        "sales_page_constructor_cold_ms": 2241.258299999572,
+        "sales_page_navigation_first_ms": 11.067499999626307,
+        "sales_page_navigation_repeat_ms": 0.4791000001205248,
+        "item_master_constructor_warm_ms": 371.3751000004777,
+        "sales_page_constructor_warm_ms": 1329.3856000000233,
+        "first_customer_add_commit_refresh_ms": 25.37990000018908,
+        "first_customer_add_visible": true,
+        "first_customer_edit_commit_refresh_ms": 26.374899999609625,
+        "first_customer_edit_visible": true,
+        "first_customer_delete_result": true,
+        "first_customer_delete_commit_refresh_ms": 117.42659999981697,
+        "first_customer_delete_absent": true,
+        "repeat_customer_add_commit_refresh_ms": 19.77069999975356,
+        "repeat_customer_add_visible": true,
+        "repeat_customer_edit_commit_refresh_ms": 34.49640000053478,
+        "repeat_customer_edit_visible": true,
+        "repeat_customer_delete_result": true,
+        "repeat_customer_delete_commit_refresh_ms": 65.70019999981014,
+        "repeat_customer_delete_absent": true,
+        "first_sale_add_commit_refresh_ms": 233.7547999995877,
+        "first_sale_add_persisted_visible": true,
+        "first_sale_edit_commit_refresh_ms": 271.24370000001363,
+        "first_sale_edit_persisted_visible": true,
+        "first_sale_delete_commit_refresh_ms": 251.2533999997686,
+        "first_sale_delete_persisted_absent": true,
+        "repeat_sale_add_commit_refresh_ms": 189.4916999999623,
+        "repeat_sale_add_persisted_visible": true,
+        "repeat_sale_edit_commit_refresh_ms": 237.6395000001139,
+        "repeat_sale_edit_persisted_visible": true,
+        "repeat_sale_delete_commit_refresh_ms": 247.90850000044884,
+        "repeat_sale_delete_persisted_absent": true,
+        "sales_report_generation_first_ms": 3323.256300000139,
+        "sales_report_pages_first": 271,
+        "sales_report_generation_repeat_ms": 5322.912900000119,
+        "sales_report_pages_repeat": 271,
+        "working_set_peak_mb": 428.71875,
+        "working_set_final_mb": 363.49609375,
+        "python_heap_peak_mb": 113.1141939163208,
+        "event_loop_tick_count": 21,
+        "event_loop_stall_p95_ms": 3319.1682999997647,
+        "event_loop_stall_max_ms": 5313.679099999936,
+        "total_process_elapsed_ms": 74470.91259999979,
+        "run": 3,
+        "return_code": 0
+      },
+      {
+        "page_constructors_ms": {
+          "CounterSalePage": [
+            1301.2007000006633,
+            1846.9056999992972
+          ],
+          "SalesHistoryPage": [
+            448.6374000007345
+          ],
+          "ItemMasterPage": [
+            255.2455999993981,
+            316.9119000003775
+          ],
+          "CustomerMasterPage": [
+            85.1701999999932
+          ],
+          "SalesReportPage": [
+            2180.5441000005885
+          ]
+        },
+        "errors": [],
+        "resolved_db": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\backups\\pharmacy_performance_benchmark_20261101_183617.db",
+        "phase": "warm_cache_process",
+        "startup_to_login_visible_ms": 3201.444000000265,
+        "authentication_submit_ms": 146.48829999987356,
+        "login_dialog_visible": false,
+        "login_accepted": true,
+        "dashboard_constructor_ms": 59044.935500000065,
+        "login_to_dashboard_first_frame_ms": 60493.36510000012,
+        "dashboard_visible": true,
+        "dashboard_page_count": 73,
+        "item_master_constructor_cold_ms": 255.2455999993981,
+        "item_master_full_refresh_first_ms": 544.0658999996231,
+        "item_master_search_first_ms": 106.47400000016205,
+        "item_master_search_repeat_ms": 134.2279000000417,
+        "sales_page_constructor_cold_ms": 1301.2007000006633,
+        "sales_page_navigation_first_ms": 11.019499999747495,
+        "sales_page_navigation_repeat_ms": 0.19440000050963135,
+        "item_master_constructor_warm_ms": 405.29919999971753,
+        "sales_page_constructor_warm_ms": 1891.4159999994808,
+        "first_customer_add_commit_refresh_ms": 24.066999999377003,
+        "first_customer_add_visible": true,
+        "first_customer_edit_commit_refresh_ms": 29.81739999995625,
+        "first_customer_edit_visible": true,
+        "first_customer_delete_result": true,
+        "first_customer_delete_commit_refresh_ms": 138.81419999961508,
+        "first_customer_delete_absent": true,
+        "repeat_customer_add_commit_refresh_ms": 23.30660000006901,
+        "repeat_customer_add_visible": true,
+        "repeat_customer_edit_commit_refresh_ms": 23.149300000113726,
+        "repeat_customer_edit_visible": true,
+        "repeat_customer_delete_result": true,
+        "repeat_customer_delete_commit_refresh_ms": 79.51030000003811,
+        "repeat_customer_delete_absent": true,
+        "first_sale_add_commit_refresh_ms": 258.95589999981894,
+        "first_sale_add_persisted_visible": true,
+        "first_sale_edit_commit_refresh_ms": 365.2640000000247,
+        "first_sale_edit_persisted_visible": true,
+        "first_sale_delete_commit_refresh_ms": 338.5880999994697,
+        "first_sale_delete_persisted_absent": true,
+        "repeat_sale_add_commit_refresh_ms": 229.23900000023423,
+        "repeat_sale_add_persisted_visible": true,
+        "repeat_sale_edit_commit_refresh_ms": 353.5653999997521,
+        "repeat_sale_edit_persisted_visible": true,
+        "repeat_sale_delete_commit_refresh_ms": 379.70120000045426,
+        "repeat_sale_delete_persisted_absent": true,
+        "sales_report_generation_first_ms": 3769.498000000567,
+        "sales_report_pages_first": 271,
+        "sales_report_generation_repeat_ms": 3031.5998999994918,
+        "sales_report_pages_repeat": 271,
+        "working_set_peak_mb": 461.9453125,
+        "working_set_final_mb": 450.6484375,
+        "python_heap_peak_mb": 113.1189661026001,
+        "event_loop_tick_count": 19,
+        "event_loop_stall_p95_ms": 3766.5779000001203,
+        "event_loop_stall_max_ms": 3766.5779000001203,
+        "total_process_elapsed_ms": 75704.29609999974,
+        "run": 4,
+        "return_code": 0
+      },
+      {
+        "page_constructors_ms": {
+          "CounterSalePage": [
+            2113.865799999985,
+            2559.197900000072
+          ],
+          "SalesHistoryPage": [
+            264.7206000001461
+          ],
+          "ItemMasterPage": [
+            323.5479999993913,
+            549.1044999998849
+          ],
+          "CustomerMasterPage": [
+            61.16310000015801
+          ],
+          "SalesReportPage": [
+            1354.9597999999605
+          ]
+        },
+        "errors": [],
+        "resolved_db": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\backups\\pharmacy_performance_benchmark_20261101_183617.db",
+        "phase": "warm_cache_process",
+        "startup_to_login_visible_ms": 3120.336999999381,
+        "authentication_submit_ms": 224.54819999984466,
+        "login_dialog_visible": false,
+        "login_accepted": true,
+        "dashboard_constructor_ms": 58421.09960000016,
+        "login_to_dashboard_first_frame_ms": 60384.77059999968,
+        "dashboard_visible": true,
+        "dashboard_page_count": 73,
+        "item_master_constructor_cold_ms": 323.5479999993913,
+        "item_master_full_refresh_first_ms": 1257.7848999999333,
+        "item_master_search_first_ms": 197.11650000044756,
+        "item_master_search_repeat_ms": 173.88719999962632,
+        "sales_page_constructor_cold_ms": 2113.865799999985,
+        "sales_page_navigation_first_ms": 26.59399999993184,
+        "sales_page_navigation_repeat_ms": 0.42689999918366084,
+        "item_master_constructor_warm_ms": 728.1831000000238,
+        "sales_page_constructor_warm_ms": 2615.8061000005546,
+        "first_customer_add_commit_refresh_ms": 42.576899999403395,
+        "first_customer_add_visible": true,
+        "first_customer_edit_commit_refresh_ms": 35.60949999973673,
+        "first_customer_edit_visible": true,
+        "first_customer_delete_result": true,
+        "first_customer_delete_commit_refresh_ms": 174.92140000013023,
+        "first_customer_delete_absent": true,
+        "repeat_customer_add_commit_refresh_ms": 29.34910000021773,
+        "repeat_customer_add_visible": true,
+        "repeat_customer_edit_commit_refresh_ms": 28.54589999969903,
+        "repeat_customer_edit_visible": true,
+        "repeat_customer_delete_result": true,
+        "repeat_customer_delete_commit_refresh_ms": 94.84059999977035,
+        "repeat_customer_delete_absent": true,
+        "first_sale_add_commit_refresh_ms": 257.68840000000637,
+        "first_sale_add_persisted_visible": true,
+        "first_sale_edit_commit_refresh_ms": 340.838299999632,
+        "first_sale_edit_persisted_visible": true,
+        "first_sale_delete_commit_refresh_ms": 366.8671000004906,
+        "first_sale_delete_persisted_absent": true,
+        "repeat_sale_add_commit_refresh_ms": 263.56419999956415,
+        "repeat_sale_add_persisted_visible": true,
+        "repeat_sale_edit_commit_refresh_ms": 342.5416000000041,
+        "repeat_sale_edit_persisted_visible": true,
+        "repeat_sale_delete_commit_refresh_ms": 351.9503999996232,
+        "repeat_sale_delete_persisted_absent": true,
+        "sales_report_generation_first_ms": 4234.703500000251,
+        "sales_report_pages_first": 271,
+        "sales_report_generation_repeat_ms": 4121.283700000276,
+        "sales_report_pages_repeat": 271,
+        "working_set_peak_mb": 460.41796875,
+        "working_set_final_mb": 429.890625,
+        "python_heap_peak_mb": 113.12240791320801,
+        "event_loop_tick_count": 21,
+        "event_loop_stall_p95_ms": 4111.454899999662,
+        "event_loop_stall_max_ms": 4233.987300000299,
+        "total_process_elapsed_ms": 79308.71910000042,
+        "run": 5,
+        "return_code": 0
+      }
+    ]
+  },
+  "summaries": {
+    "startup_to_login_ms": {
+      "cold_n": 5,
+      "cold_median": 5183.557100000144,
+      "cold_p95_nearest_rank": 6325.792900000124,
+      "warm_n": 5,
+      "warm_median": 3120.336999999381,
+      "warm_p95_nearest_rank": 5011.862299999848,
+      "cold_samples": [
+        3362.4367000002167,
+        3484.0664000003017,
+        5860.642300000109,
+        5183.557100000144,
+        6325.792900000124
+      ],
+      "warm_samples": [
+        3088.0944999998974,
+        5011.862299999848,
+        3118.4470000007423,
+        3201.444000000265,
+        3120.336999999381
+      ]
+    },
+    "login_to_dashboard_ms": {
+      "cold_n": 5,
+      "cold_median": 56087.71280000019,
+      "cold_p95_nearest_rank": 66171.73799999955,
+      "warm_n": 5,
+      "warm_median": 60493.36510000012,
+      "warm_p95_nearest_rank": 73771.88459999979,
+      "cold_samples": [
+        53370.9273999998,
+        55513.54159999982,
+        56087.71280000019,
+        66171.73799999955,
+        58892.71869999993
+      ],
+      "warm_samples": [
+        62643.05309999963,
+        73771.88459999979,
+        58873.08750000011,
+        60493.36510000012,
+        60384.77059999968
+      ]
+    },
+    "dashboard_constructor_ms": {
+      "cold_n": 5,
+      "cold_median": 54586.56549999978,
+      "cold_p95_nearest_rank": 64690.02660000024,
+      "warm_n": 5,
+      "warm_median": 59044.935500000065,
+      "warm_p95_nearest_rank": 69797.70100000041,
+      "cold_samples": [
+        52014.09459999968,
+        53744.28850000004,
+        54586.56549999978,
+        64690.02660000024,
+        57476.05660000045
+      ],
+      "warm_samples": [
+        60543.25779999999,
+        69797.70100000041,
+        57662.53510000024,
+        59044.935500000065,
+        58421.09960000016
+      ]
+    },
+    "item_master_page_load_ms": {
+      "cold_n": 5,
+      "cold_median": 312.38749999965876,
+      "cold_p95_nearest_rank": 362.2315000002345,
+      "warm_n": 5,
+      "warm_median": 463.8533000006646,
+      "warm_p95_nearest_rank": 728.1831000000238,
+      "cold_samples": [
+        280.5950000001758,
+        312.38749999965876,
+        355.1306999997905,
+        362.2315000002345,
+        298.3899000000747
+      ],
+      "warm_samples": [
+        623.5892000004242,
+        463.8533000006646,
+        371.3751000004777,
+        405.29919999971753,
+        728.1831000000238
+      ]
+    },
+    "item_master_search_ms": {
+      "cold_n": 5,
+      "cold_median": 134.59139999940817,
+      "cold_p95_nearest_rank": 180.86750000020402,
+      "warm_n": 5,
+      "warm_median": 136.20629999968514,
+      "warm_p95_nearest_rank": 173.88719999962632,
+      "cold_samples": [
+        131.7842000003111,
+        180.86750000020402,
+        163.43430000006265,
+        134.59139999940817,
+        113.5604000000967
+      ],
+      "warm_samples": [
+        136.20629999968514,
+        140.17920000060258,
+        91.10160000000178,
+        134.2279000000417,
+        173.88719999962632
+      ]
+    },
+    "sales_page_load_ms": {
+      "cold_n": 5,
+      "cold_median": 1900.8628000001409,
+      "cold_p95_nearest_rank": 3558.0887000000985,
+      "warm_n": 5,
+      "warm_median": 2615.8061000005546,
+      "warm_p95_nearest_rank": 3294.4139000001087,
+      "cold_samples": [
+        1602.6841999996577,
+        1452.4648000001434,
+        2197.710200000074,
+        3558.0887000000985,
+        1900.8628000001409
+      ],
+      "warm_samples": [
+        2723.9619000001767,
+        3294.4139000001087,
+        1329.3856000000233,
+        1891.4159999994808,
+        2615.8061000005546
+      ]
+    },
+    "sales_entry_commit_refresh_ms": {
+      "cold_n": 5,
+      "cold_median": 260.42469999993045,
+      "cold_p95_nearest_rank": 320.2523999998448,
+      "warm_n": 5,
+      "warm_median": 263.56419999956415,
+      "warm_p95_nearest_rank": 303.08659999991505,
+      "cold_samples": [
+        298.5415000002831,
+        260.42469999993045,
+        320.2523999998448,
+        240.53180000009888,
+        237.704200000735
+      ],
+      "warm_samples": [
+        279.69759999996313,
+        303.08659999991505,
+        189.4916999999623,
+        229.23900000023423,
+        263.56419999956415
+      ]
+    },
+    "customer_add_commit_refresh_ms": {
+      "cold_n": 5,
+      "cold_median": 28.902100000323117,
+      "cold_p95_nearest_rank": 45.232100000248465,
+      "warm_n": 5,
+      "warm_median": 28.453799999624607,
+      "warm_p95_nearest_rank": 45.49179999958142,
+      "cold_samples": [
+        28.902100000323117,
+        23.785200000020268,
+        42.53900000003341,
+        45.232100000248465,
+        27.68469999955414
+      ],
+      "warm_samples": [
+        28.453799999624607,
+        45.49179999958142,
+        19.77069999975356,
+        23.30660000006901,
+        29.34910000021773
+      ]
+    },
+    "customer_edit_commit_refresh_ms": {
+      "cold_n": 5,
+      "cold_median": 22.2420999998576,
+      "cold_p95_nearest_rank": 28.11210000027131,
+      "warm_n": 5,
+      "warm_median": 32.25810000003548,
+      "warm_p95_nearest_rank": 34.49640000053478,
+      "cold_samples": [
+        22.29189999980008,
+        17.30570000017906,
+        28.11210000027131,
+        22.2420999998576,
+        21.29640000021027
+      ],
+      "warm_samples": [
+        32.25810000003548,
+        33.948700000109966,
+        34.49640000053478,
+        23.149300000113726,
+        28.54589999969903
+      ]
+    },
+    "customer_delete_commit_refresh_ms": {
+      "cold_n": 5,
+      "cold_median": 136.07460000002902,
+      "cold_p95_nearest_rank": 796.2757999998757,
+      "warm_n": 5,
+      "warm_median": 94.84059999977035,
+      "warm_p95_nearest_rank": 118.61470000076224,
+      "cold_samples": [
+        134.15260000010676,
+        130.70609999977023,
+        796.2757999998757,
+        136.07460000002902,
+        136.48269999976037
+      ],
+      "warm_samples": [
+        114.24150000038935,
+        118.61470000076224,
+        65.70019999981014,
+        79.51030000003811,
+        94.84059999977035
+      ]
+    },
+    "sale_edit_commit_refresh_ms": {
+      "cold_n": 5,
+      "cold_median": 334.18540000002395,
+      "cold_p95_nearest_rank": 433.51399999983187,
+      "warm_n": 5,
+      "warm_median": 342.5416000000041,
+      "warm_p95_nearest_rank": 413.58089999994263,
+      "cold_samples": [
+        433.51399999983187,
+        335.83790000011504,
+        310.773700000027,
+        334.18540000002395,
+        281.7346000001635
+      ],
+      "warm_samples": [
+        325.1319000000876,
+        413.58089999994263,
+        237.6395000001139,
+        353.5653999997521,
+        342.5416000000041
+      ]
+    },
+    "sale_delete_commit_refresh_ms": {
+      "cold_n": 5,
+      "cold_median": 348.9806000002318,
+      "cold_p95_nearest_rank": 386.3411000002088,
+      "warm_n": 5,
+      "warm_median": 379.70120000045426,
+      "warm_p95_nearest_rank": 603.1125999998039,
+      "cold_samples": [
+        342.2089999999116,
+        354.033999999956,
+        348.9806000002318,
+        386.3411000002088,
+        269.1451999999117
+      ],
+      "warm_samples": [
+        603.1125999998039,
+        397.43209999960527,
+        247.90850000044884,
+        379.70120000045426,
+        351.9503999996232
+      ]
+    },
+    "sales_report_generation_ms": {
+      "cold_n": 5,
+      "cold_median": 4067.9027999995014,
+      "cold_p95_nearest_rank": 4537.163499999679,
+      "warm_n": 5,
+      "warm_median": 5322.912900000119,
+      "warm_p95_nearest_rank": 5886.393900000257,
+      "cold_samples": [
+        4537.163499999679,
+        4314.559899999949,
+        3587.511000000177,
+        4067.9027999995014,
+        3742.1634000002086
+      ],
+      "warm_samples": [
+        5632.008099999439,
+        5886.393900000257,
+        5322.912900000119,
+        3031.5998999994918,
+        4121.283700000276
+      ]
+    },
+    "working_set_peak_mb": {
+      "cold_n": 5,
+      "cold_median": 445.52734375,
+      "cold_p95_nearest_rank": 492.421875,
+      "warm_n": 5,
+      "warm_median": 428.71875,
+      "warm_p95_nearest_rank": 461.9453125,
+      "cold_samples": [
+        465.06640625,
+        421.48046875,
+        426.92578125,
+        445.52734375,
+        492.421875
+      ],
+      "warm_samples": [
+        409.7734375,
+        348.16796875,
+        428.71875,
+        461.9453125,
+        460.41796875
+      ]
+    },
+    "python_heap_peak_mb": {
+      "cold_n": 5,
+      "cold_median": 113.09125995635986,
+      "cold_p95_nearest_rank": 113.10472774505615,
+      "warm_n": 5,
+      "warm_median": 113.1189661026001,
+      "warm_p95_nearest_rank": 113.12377643585205,
+      "cold_samples": [
+        113.07922172546387,
+        113.08532524108887,
+        113.09125995635986,
+        113.10467147827148,
+        113.10472774505615
+      ],
+      "warm_samples": [
+        113.10604572296143,
+        113.12377643585205,
+        113.1141939163208,
+        113.1189661026001,
+        113.12240791320801
+      ]
+    },
+    "event_loop_stall_max_ms": {
+      "cold_n": 5,
+      "cold_median": 4538.476200000096,
+      "cold_p95_nearest_rank": 8287.30709999967,
+      "warm_n": 5,
+      "warm_median": 5313.679099999936,
+      "warm_p95_nearest_rank": 5878.045799999418,
+      "cold_samples": [
+        4538.476200000096,
+        6404.169999999558,
+        3724.4090000001415,
+        8287.30709999967,
+        3739.596100000417
+      ],
+      "warm_samples": [
+        5622.736100000329,
+        5878.045799999418,
+        5313.679099999936,
+        3766.5779000001203,
+        4233.987300000299
+      ]
+    },
+    "event_loop_stall_p95_ms": {
+      "cold_n": 5,
+      "cold_median": 3824.143699999913,
+      "cold_p95_nearest_rank": 8287.30709999967,
+      "warm_n": 5,
+      "warm_median": 4111.454899999662,
+      "warm_p95_nearest_rank": 5395.520300000717,
+      "cold_samples": [
+        3824.143699999913,
+        6404.169999999558,
+        3724.4090000001415,
+        8287.30709999967,
+        3051.172599999736
+      ],
+      "warm_samples": [
+        5218.192200000194,
+        5395.520300000717,
+        3319.1682999997647,
+        3766.5779000001203,
+        4111.454899999662
+      ]
+    }
+  }
+}

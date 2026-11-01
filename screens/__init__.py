@@ -1,128 +1,188 @@
-from screens.daily_profit_calculation import (
-    DailyProfitCalculationReportPage,
-    DailyProfitCostReportWidget,
-    DailyProfitCostCalculationDialog,
-)
-from screens.counter_sale_actions import (
-    DrugSubstituteDialog,
-    DemandOrderDialog,
-    CustomerBalanceDialog,
-    SupplierBalanceDialog,
-    StockAdjustmentDialog,
-)
-from screens.company_master import CompanyMasterPage
-from screens.unit_master import UnitMasterPage
-from screens.drug_master import DrugMasterPage
-from screens.supplier_master import SupplierMasterPage
-from screens.customer_master import CustomerMasterPage
-from screens.doctor_master import DoctorMasterPage
-from screens.item_master import ItemMasterPage
-from screens.purchase_invoice import PurchaseInvoicePage
-from screens.adjusted_stock_list import AdjustedStockListPage
-from screens.stock_master import StockMasterPage
-from screens.counter_sale import CounterSalePage
-from screens.credit_note import CreditNotePage
-from screens.debit_note import DebitNotePage
-from screens.supplier_payment import SupplierPaymentPage
-from screens.customer_receipt import CustomerReceiptPage
-from screens.account_ledger import AccountLedgerPage
-from screens.account_roles import AccountRolesPage
-from screens.journal_entry import JournalEntryPage
-from screens.trial_balance import TrialBalancePage
-from screens.profit_loss import ProfitLossPage
-from screens.balance_sheet import BalanceSheetPage
-from screens.sales_report import SalesReportPage
-from screens.purchase_report import PurchaseReportPage
-from screens.expiry_report import ExpiryReportPage
-from screens.party_wise_report import PartyWiseReportPage
-from screens.gst_report import GSTReportPage
-from screens.backup_restore import BackupRestorePage
-from screens.login import LoginDialog
-from screens.user_management import UserManagementPage
-from screens.financial_year import FinancialYearPage
-from screens.import_data import ImportDataPage
-from screens.account_group_master import AccountGroupMasterPage
-from screens.cash_book import CashBookPage
-from screens.bank_book import BankBookPage
-from screens.day_end import DayEndPage
-from screens.hold_bill import HoldBillPage
-from screens.category_master import CategoryMasterPage
-from screens.sales_history import SalesHistoryPage
-from screens.supplier_ledger import SupplierLedgerPage
-from screens.customer_ledger import CustomerLedgerPage
-from screens.itemwise_ledger import ItemwiseLedgerPage
-from screens.purchase_reports import (
-    CompanywiseItemwisePurchasePage,
-    CompanywiseSupplierwisePurchasePage,
-    SupplierwiseItemwiseInvoicePurchasePage,
-    SupplierwiseItemwiseChallanPurchasePage,
-    ItemwisePurchasePage,
-    ItemwiseBatchwisePurchasePage,
-)
-from screens.stock_reports import (
-    ItemsAllStockPage,
-    CompanywiseItemStockPage,
-    ExpiredItemListPage,
-    ItemListPage,
-)
-from screens.sales_reports import (
-    DailyBillwiseSalesPage,
-    DailyItemwiseSalesPage,
-    CompanywiseSalesPage,
-    ItemwiseSalesPage,
-    DailyProfitCalculationPage,
-    DailyProfitCalculationDialog,
-    ProfitCalculationPage,
-    ProfitCalculationDialog,
-    DailyProfitItemwisePage,
-    DailyProfitItemwiseDialog,
-)
-from screens.doctor_reports import (
-    DoctorwiseItemSalePage,
-    DoctorwiseItemSaleDetailsPage,
-)
+"""Public screen exports loaded on first access to keep application startup light."""
+from importlib import import_module
 
-from screens.duplicate_sales_bill import (
-    DuplicateSalesBillListPage,
-    DuplicateSalesBillDialog,
-    DuplicateSalesBillA6PreviewDialog,
-    print_duplicate_a6_bill,
-    generate_duplicate_a6_pdf,
-)
+# importlib.reload(screens) is used by the theme manager. Remove any cached
+# exports so subsequent attribute access resolves the freshly reloaded modules.
+for _export_name in globals().get("_LAZY_EXPORTS", {}):
+    globals().pop(_export_name, None)
 
-from screens.patient_history_bill_wise import PatientHistoryBillWisePage
-from screens.schedule_reports import (
-    ScheduleSalesDatewisePage,
-    ScheduleSalesItemwisePage,
-    ScheduleSalesAllItemsPage,
-    SchedulePurchaseDatewisePage,
-    SchedulePurchaseItemwisePage,
-    SchedulePurchaseAllItemsPage,
-)
+_LAZY_EXPORTS = {'DailyProfitCalculationReportPage': 'daily_profit_calculation',
+ 'DailyProfitCostReportWidget': 'daily_profit_calculation',
+ 'DailyProfitCostCalculationDialog': 'daily_profit_calculation',
+ 'DrugSubstituteDialog': 'counter_sale_actions',
+ 'DemandOrderDialog': 'counter_sale_actions',
+ 'CustomerBalanceDialog': 'counter_sale_actions',
+ 'SupplierBalanceDialog': 'counter_sale_actions',
+ 'StockAdjustmentDialog': 'counter_sale_actions',
+ 'CompanyMasterPage': 'company_master',
+ 'UnitMasterPage': 'unit_master',
+ 'DrugMasterPage': 'drug_master',
+ 'SupplierMasterPage': 'supplier_master',
+ 'CustomerMasterPage': 'customer_master',
+ 'DoctorMasterPage': 'doctor_master',
+ 'ItemMasterPage': 'item_master',
+ 'PurchaseInvoicePage': 'purchase_invoice',
+ 'AdjustedStockListPage': 'adjusted_stock_list',
+ 'StockMasterPage': 'stock_master',
+ 'CounterSalePage': 'counter_sale',
+ 'CreditNotePage': 'credit_note',
+ 'DebitNotePage': 'debit_note',
+ 'SupplierPaymentPage': 'supplier_payment',
+ 'CustomerReceiptPage': 'customer_receipt',
+ 'AccountLedgerPage': 'account_ledger',
+ 'AccountRolesPage': 'account_roles',
+ 'JournalEntryPage': 'journal_entry',
+ 'TrialBalancePage': 'trial_balance',
+ 'ProfitLossPage': 'profit_loss',
+ 'BalanceSheetPage': 'balance_sheet',
+ 'SalesReportPage': 'sales_report',
+ 'PurchaseReportPage': 'purchase_report',
+ 'ExpiryReportPage': 'expiry_report',
+ 'PartyWiseReportPage': 'party_wise_report',
+ 'GSTReportPage': 'gst_report',
+ 'BackupRestorePage': 'backup_restore',
+ 'LoginDialog': 'login',
+ 'UserManagementPage': 'user_management',
+ 'FinancialYearPage': 'financial_year',
+ 'ImportDataPage': 'import_data',
+ 'AccountGroupMasterPage': 'account_group_master',
+ 'CashBookPage': 'cash_book',
+ 'BankBookPage': 'bank_book',
+ 'DayEndPage': 'day_end',
+ 'HoldBillPage': 'hold_bill',
+ 'CategoryMasterPage': 'category_master',
+ 'SalesHistoryPage': 'sales_history',
+ 'SupplierLedgerPage': 'supplier_ledger',
+ 'CustomerLedgerPage': 'customer_ledger',
+ 'ItemwiseLedgerPage': 'itemwise_ledger',
+ 'CompanywiseItemwisePurchasePage': 'purchase_reports',
+ 'CompanywiseSupplierwisePurchasePage': 'purchase_reports',
+ 'SupplierwiseItemwiseInvoicePurchasePage': 'purchase_reports',
+ 'SupplierwiseItemwiseChallanPurchasePage': 'purchase_reports',
+ 'ItemwisePurchasePage': 'purchase_reports',
+ 'ItemwiseBatchwisePurchasePage': 'purchase_reports',
+ 'ItemsAllStockPage': 'stock_reports',
+ 'CompanywiseItemStockPage': 'stock_reports',
+ 'ExpiredItemListPage': 'stock_reports',
+ 'ItemListPage': 'stock_reports',
+ 'DailyBillwiseSalesPage': 'sales_reports',
+ 'DailyItemwiseSalesPage': 'sales_reports',
+ 'CompanywiseSalesPage': 'sales_reports',
+ 'ItemwiseSalesPage': 'sales_reports',
+ 'DailyProfitCalculationPage': 'sales_reports',
+ 'DailyProfitCalculationDialog': 'sales_reports',
+ 'ProfitCalculationPage': 'sales_reports',
+ 'ProfitCalculationDialog': 'sales_reports',
+ 'DailyProfitItemwisePage': 'sales_reports',
+ 'DailyProfitItemwiseDialog': 'sales_reports',
+ 'DoctorwiseItemSalePage': 'doctor_reports',
+ 'DoctorwiseItemSaleDetailsPage': 'doctor_reports',
+ 'DuplicateSalesBillListPage': 'duplicate_sales_bill',
+ 'DuplicateSalesBillDialog': 'duplicate_sales_bill',
+ 'DuplicateSalesBillA6PreviewDialog': 'duplicate_sales_bill',
+ 'print_duplicate_a6_bill': 'duplicate_sales_bill',
+ 'generate_duplicate_a6_pdf': 'duplicate_sales_bill',
+ 'PatientHistoryBillWisePage': 'patient_history_bill_wise',
+ 'ScheduleSalesDatewisePage': 'schedule_reports',
+ 'ScheduleSalesItemwisePage': 'schedule_reports',
+ 'ScheduleSalesAllItemsPage': 'schedule_reports',
+ 'SchedulePurchaseDatewisePage': 'schedule_reports',
+ 'SchedulePurchaseItemwisePage': 'schedule_reports',
+ 'SchedulePurchaseAllItemsPage': 'schedule_reports'}
 
-__all__ = [
+__all__ = ['CompanyMasterPage',
+ 'UnitMasterPage',
+ 'DrugMasterPage',
+ 'SupplierMasterPage',
+ 'CustomerMasterPage',
+ 'DoctorMasterPage',
+ 'ItemMasterPage',
+ 'PurchaseInvoicePage',
+ 'AdjustedStockListPage',
+ 'StockMasterPage',
+ 'CounterSalePage',
+ 'DrugSubstituteDialog',
+ 'DemandOrderDialog',
+ 'CustomerBalanceDialog',
+ 'SupplierBalanceDialog',
+ 'CreditNotePage',
+ 'DebitNotePage',
+ 'SupplierPaymentPage',
+ 'CustomerReceiptPage',
+ 'AccountLedgerPage',
+ 'AccountRolesPage',
+ 'JournalEntryPage',
+ 'TrialBalancePage',
+ 'ProfitLossPage',
+ 'BalanceSheetPage',
+ 'SalesReportPage',
+ 'PurchaseReportPage',
+ 'ExpiryReportPage',
+ 'PartyWiseReportPage',
+ 'GSTReportPage',
+ 'BackupRestorePage',
+ 'ImportDataPage',
+ 'LoginDialog',
+ 'UserManagementPage',
+ 'FinancialYearPage',
+ 'AccountGroupMasterPage',
+ 'CashBookPage',
+ 'BankBookPage',
+ 'DayEndPage',
+ 'HoldBillPage',
+ 'CategoryMasterPage',
+ 'SalesHistoryPage',
+ 'SupplierLedgerPage',
+ 'CustomerLedgerPage',
+ 'ItemwiseLedgerPage',
+ 'CompanywiseItemwisePurchasePage',
+ 'CompanywiseSupplierwisePurchasePage',
+ 'SupplierwiseItemwiseInvoicePurchasePage',
+ 'SupplierwiseItemwiseChallanPurchasePage',
+ 'ItemwisePurchasePage',
+ 'ItemwiseBatchwisePurchasePage',
+ 'ItemsAllStockPage',
+ 'CompanywiseItemStockPage',
+ 'ExpiredItemListPage',
+ 'ItemListPage',
+ 'DailyBillwiseSalesPage',
+ 'DailyItemwiseSalesPage',
+ 'CompanywiseSalesPage',
+ 'ItemwiseSalesPage',
+ 'DailyProfitCalculationPage',
+ 'DailyProfitCalculationDialog',
+ 'ProfitCalculationPage',
+ 'ProfitCalculationDialog',
+ 'DailyProfitCalculationReportPage',
+ 'DailyProfitCostReportWidget',
+ 'DailyProfitCostCalculationDialog',
+ 'DailyProfitItemwisePage',
+ 'DailyProfitItemwiseDialog',
+ 'DoctorwiseItemSalePage',
+ 'DoctorwiseItemSaleDetailsPage',
+ 'DuplicateSalesBillListPage',
+ 'DuplicateSalesBillDialog',
+ 'DuplicateSalesBillA6PreviewDialog',
+ 'print_duplicate_a6_bill',
+ 'generate_duplicate_a6_pdf',
+ 'ScheduleSalesDatewisePage',
+ 'ScheduleSalesItemwisePage',
+ 'ScheduleSalesAllItemsPage',
+ 'SchedulePurchaseDatewisePage',
+ 'SchedulePurchaseItemwisePage',
+ 'SchedulePurchaseAllItemsPage',
+ 'PatientHistoryBillWisePage']
 
-    "CompanyMasterPage", "UnitMasterPage", "DrugMasterPage", "SupplierMasterPage",
-    "CustomerMasterPage", "DoctorMasterPage", "ItemMasterPage", "PurchaseInvoicePage", "AdjustedStockListPage",
-    "StockMasterPage", "CounterSalePage", "DrugSubstituteDialog", "DemandOrderDialog", "CustomerBalanceDialog", "SupplierBalanceDialog", "CreditNotePage", "DebitNotePage",
-    "SupplierPaymentPage", "CustomerReceiptPage", "AccountLedgerPage", "AccountRolesPage",
-    "JournalEntryPage", "TrialBalancePage", "ProfitLossPage", "BalanceSheetPage",
-    "SalesReportPage", "PurchaseReportPage", "ExpiryReportPage", "PartyWiseReportPage",
-    "GSTReportPage", "BackupRestorePage", "ImportDataPage", "LoginDialog",
-    "UserManagementPage", "FinancialYearPage", "AccountGroupMasterPage", "CashBookPage",
-    "BankBookPage", "DayEndPage", "HoldBillPage", "CategoryMasterPage",
-    "SalesHistoryPage", "SupplierLedgerPage", "CustomerLedgerPage", "ItemwiseLedgerPage",
-    "CompanywiseItemwisePurchasePage", "CompanywiseSupplierwisePurchasePage",
-    "SupplierwiseItemwiseInvoicePurchasePage", "SupplierwiseItemwiseChallanPurchasePage",
-    "ItemwisePurchasePage", "ItemwiseBatchwisePurchasePage",
-    "ItemsAllStockPage", "CompanywiseItemStockPage", "ExpiredItemListPage", "ItemListPage",
-    "DailyBillwiseSalesPage", "DailyItemwiseSalesPage", "CompanywiseSalesPage",
-    "ItemwiseSalesPage", "DailyProfitCalculationPage", "DailyProfitCalculationDialog", "ProfitCalculationPage", "ProfitCalculationDialog", "DailyProfitCalculationReportPage", "DailyProfitCostReportWidget", "DailyProfitCostCalculationDialog",
-    "DailyProfitItemwisePage", "DailyProfitItemwiseDialog",
-    "DoctorwiseItemSalePage", "DoctorwiseItemSaleDetailsPage",
-    "DuplicateSalesBillListPage", "DuplicateSalesBillDialog", "DuplicateSalesBillA6PreviewDialog", "print_duplicate_a6_bill", "generate_duplicate_a6_pdf",
-    "ScheduleSalesDatewisePage", "ScheduleSalesItemwisePage", "ScheduleSalesAllItemsPage",
-    "SchedulePurchaseDatewisePage", "SchedulePurchaseItemwisePage", "SchedulePurchaseAllItemsPage",
-    "PatientHistoryBillWisePage",
-]
 
+def __getattr__(name: str):
+    module_name = _LAZY_EXPORTS.get(name)
+    if module_name is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module = import_module(f".{module_name}", __name__)
+    value = getattr(module, name)
+    globals()[name] = value
+    return value
+
+
+def __dir__():
+    return sorted(set(globals()) | set(__all__))
