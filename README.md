@@ -1,268 +1,86 @@
 # Pharmacy Management System
 
-A comprehensive desktop application for managing pharmacy operations, built with Python and PySide6 (Qt6).
+A Windows desktop application for pharmacy billing, inventory, purchasing, accounting, and reporting. The app is built with Python, PySide6/Qt, and SQLite. The current application version identifier is **1.0.0**; the release notes describe it as the first Windows executable testing release.
 
 ## Features
 
-### Core Modules
-- **Inventory Management**: Drug master, stock tracking, expiry reports, category/unit management
-- **Sales & Billing**: Counter sales, sales invoices, hold bills, sales reports
-- **Purchase Management**: Purchase invoices, supplier management, purchase reports
-- **Accounting**: 
-  - Ledger management, account groups, account roles
-  - Journal entries, debit/credit notes
-  - Cash book, bank book, day-end processing
-  - Trial balance, profit & loss, balance sheet
-  - Party-wise reports, GST reports
-- **Financial Year Management**: Multi-year support with opening/closing balances
-- **User Management**: Authentication, user roles and permissions
-- **Backup & Restore**: Database backup and restore functionality
-- **Document Printing**: A6 pharmacy receipts, invoices, reports
+### Pharmacy operations
 
-### Technical Stack
-- **Language**: Python 3.x
-- **GUI Framework**: PySide6 (Qt6)
-- **Database**: SQLite (with WAL mode)
-- **Architecture**: Modular design with separation of concerns (database layer, UI screens, business logic)
+- **Medicine and master data:** Items, companies, units, categories, drug/ingredient records, suppliers, customers, doctors, and account groups.
+- **Sales:** Counter sales, patient and doctor details, batch-aware stock selection, held bills, bill history, bill-number-wise patient history, duplicate bill tools, and customer returns through credit notes.
+- **Purchasing:** Purchase invoices and history, supplier returns through debit notes, supplier payments, and stock adjustments.
+- **Inventory:** Batch stock, stock views and reports, quantity adjustments, and expiry reporting.
+- **Accounting:** Customer receipts, supplier payments, journal entries, account ledgers and roles, cash book, bank book, day-end reporting, trial balance, profit and loss, and balance sheet.
+- **Financial years:** Create and switch named financial-year date ranges. New transactions are checked against the active year; reports can use date filters. Year-end closing and automatic balance carry-forward are not provided.
+- **Reports:** Sales and purchase summaries, stock and expiry reports, party-wise and doctor-wise reports, ledger reports, GST reports, profit calculations, and H1/NRX sales and purchase schedules.
+- **Data import:** Preview, map, validate, and import Company, Unit, Drug, Supplier, Customer, Doctor, and Item master records from CSV or XLSX files. `.xls` files are not supported.
+- **Printing and PDF:** Transaction documents include sales bills, purchase invoices, credit/debit notes, customer receipts, and supplier payments. Pharmacy sales bills use an A6 portrait layout (105 × 148 mm).
+- **Backup and restore:** Create and validate SQLite backups; restore validates the selected backup and creates a safety backup of the current database first.
+- **Authentication:** First-run ADMIN setup, sign-in, user activation, login audit events, and two application roles: `ADMIN` and `PHARMACIST/STAFF`. Administrative actions such as user and financial-year management, imports, backup/restore, and transaction edits/deletes are restricted by permissions.
+- **Appearance:** Shared PySide6 interface with light and night themes.
 
-## Project Structure
+GST reporting uses values recorded in the application. Sales invoice records do not currently store item-level GST amounts, so sales bills do not invent or print those amounts.
 
-```
-Pharmacy Management System/
-├── main.py                    # Application entry point
-├── run_tests.py               # Test runner
-├── database/                  # Data access layer
-│   ├── connection.py          # Database connection & initialization
-│   ├── auth.py                # Authentication & user management
-│   ├── *_dao.py               # Data Access Objects for each entity
-│   └── *_report_dao.py        # Reporting queries
-├── screens/                   # UI screens/modules
-│   ├── login.py               # Login dialog
-│   ├── *_master.py            # Master data entry screens
-│   ├── *_report.py            # Report viewing screens
-│   └── *.py                   # Transaction screens (sales, purchase, etc.)
-├── ui/                        # Core UI components
-│   ├── main_window.py         # Main application window
-│   ├── navigation_bar.py      # Navigation sidebar
-│   ├── menu_data.py           # Menu structure
-│   ├── theme.py               # Application theming
-│   └── components.py          # Reusable UI components
-└── test_*.py                  # Unit & integration tests
-```
+## Technology and architecture
 
-## Requirements
+- **Language:** Python (the documented Windows release build uses Python 3.13.x)
+- **Desktop UI:** PySide6 / Qt
+- **Database:** SQLite, with write-ahead logging and foreign-key enforcement
+- **Spreadsheet support:** openpyxl for XLSX import/template workflows
+- **Structure:** `screens/` contains the application pages; `database/` contains SQLite access, business services, and reporting queries; `ui/` contains navigation, shared components, and theming.
 
-- Python 3.8+
-- PySide6
+## Run from source
 
-Install dependencies:
-```bash
-pip install PySide6
-```
+Use Windows PowerShell from the repository root. Python 3.13.x is the version used for the documented Windows release build.
 
-## Running the Application
-
-```bash
+```powershell
+py -3.13 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
 python main.py
 ```
 
-## Running Tests
+On first launch, the application creates its database schema and prompts you to create the initial ADMIN account. There are no default usernames or passwords. Use a password of at least eight characters.
 
-```bash
+The pinned runtime dependencies are listed in [`requirements.txt`](requirements.txt): PySide6 and openpyxl.
+
+## Data, backups, and configuration
+
+- A source checkout stores its database at `data/pharmacy.db` and its theme preference at `data/theme.json`.
+- A packaged Windows executable stores its database and theme preference under `%LOCALAPPDATA%\PharmacyManagementSystem\`, keeping business data outside the application install folder.
+- SQLite WAL sidecar files may appear while the database is in use. Do not delete the database or its WAL files while the application is running.
+- Use **Master → Backup & Restore** to create or restore backups. Treat backup files as sensitive business data.
+- Development and test setups can select a database with the `PHARMACY_DB` or `PHARMACY_DB_PATH` environment variable. The application does not load `.env` files.
+
+## Automated checks
+
+Run the repository test suite with:
+
+```powershell
 python run_tests.py
 ```
 
-Or run specific test files:
-```bash
-python test_sales_report.py
-python test_purchase_posting.py
-# etc.
-```
+The runner discovers the top-level `test_*.py` modules and runs the suite against a temporary SQLite snapshot, rather than writing test changes to the source database. Individual tests are also available as top-level `test_*.py` files.
 
-## Database
+## Windows executable build
 
-The application uses SQLite databases. On first run, the database schema is automatically created. Backup files (`.db`, `.db-wal`, `.db-shm`) are created automatically.
+The repository includes a PyInstaller spec at [`build/windows/pharmacy_management.spec`](build/windows/pharmacy_management.spec) and a release guide at [`docs/windows_build_1.0.0.md`](docs/windows_build_1.0.0.md). The guide documents prerequisites, the build command, output folder, first-run account setup, and the persistent per-user data location. Package the complete output folder, including its `_internal` directory; the executable is not a standalone file.
 
-## Key Features Detail
+## Repository map
 
-### Inventory
-- Drug master with batch tracking, expiry dates, MRP, sale/purchase rates
-- Stock management with real-time updates
-- Expiry alerts and reports
-- Category, unit, and tax structure management
+| Path | Contents |
+| --- | --- |
+| `main.py` | Application startup, database initialization, login, and main window |
+| `screens/` | Sales, purchasing, masters, accounting, inventory, reports, and administration pages |
+| `database/` | SQLite schema, DAOs, accounting posting, authentication, import, backup, printing, and reports |
+| `ui/` | Main window, navigation, shared widgets, theme, and input behavior |
+| `docs/` | Feature specifications, migration notes, audits, and Windows release documentation |
+| `test_*.py` | Top-level unit and integration test modules |
+| `tools/`, `scripts/` | Data migration, reconciliation, audit, and maintenance utilities |
+| `build/windows/` | Windows PyInstaller build specification |
 
-### Sales
-- Counter sales with keyboard-friendly entry
-- Sales bill review and modification
-- Hold bills for pending transactions
-- Customer management and receipts
-
-### Purchase
-- Purchase invoice entry with GST support
-- Supplier management and payments
-- Debit/credit notes for returns
-
-### Accounting
-- Double-entry bookkeeping
-- Financial year management
-- Comprehensive financial reports (Trial Balance, P&L, Balance Sheet)
-- GST compliance reports (GSTR-1, GSTR-3B)
-- Cash/Bank book with reconciliation
-
-### User Management
-- Role-based access control
-- User activation/deactivation
-- Audit trail for critical operations
+Useful feature guides include [`docs/financial_year.md`](docs/financial_year.md), [`docs/import_data.md`](docs/import_data.md), [`docs/backup_restore.md`](docs/backup_restore.md), [`docs/a6_pharmacy_printing.md`](docs/a6_pharmacy_printing.md), and [`docs/accounting_posting_specification.md`](docs/accounting_posting_specification.md).
 
 ## License
 
-Proprietary - Internal Use Only
-
-## Configuration
-
-### Environment Variables
-Create a `.env` file in the project root for configuration:
-```env
-DB_PATH=pharmacy.db
-BACKUP_DIR=backups
-LOG_LEVEL=INFO
-APP_THEME=light
-```
-
-### Database Configuration
-- Default database: `pharmacy.db` (SQLite with WAL mode enabled)
-- Backup directory: `backups/` (auto-created)
-- WAL files: `pharmacy.db-wal`, `pharmacy.db-shm`
-
-### Theme Customization
-Edit `ui/theme.py` to customize colors, fonts, and styling. Supports light/dark modes.
-
-## Keyboard Shortcuts
-
-| Shortcut | Action |
-|----------|--------|
-| `Ctrl+N` | New transaction (context-aware) |
-| `Ctrl+S` | Save current form |
-| `Ctrl+P` | Print current document |
-| `Ctrl+F` | Search/focus search field |
-| `Escape` | Close dialog/cancel |
-| `Enter` | Submit form/next field |
-| `Tab` | Next field |
-| `Shift+Tab` | Previous field |
-| `F1` | Help/About |
-| `Ctrl+Q` | Quit application |
-
-## Building & Distribution
-
-### Create Executable (PyInstaller)
-```bash
-pip install pyinstaller
-pyinstaller --onefile --windowed --name "PharmacyMS" --icon=assets/icon.ico main.py
-```
-
-### Create Installer (Inno Setup)
-Use the provided `installer.iss` script for Windows installer creation.
-
-## Architecture Overview
-
-```
-┌─────────────────────────────────────┐
-│           Main Window               │
-│  (Navigation + Screen Container)    │
-└──────────────┬──────────────────────┘
-               │
-    ┌──────────┼──────────┐
-    ▼          ▼          ▼
-┌───────┐ ┌─────────┐ ┌──────────┐
-│ Screens │ │ UI Core │ │ Database │
-│ (Business│ │ (Theme, │ │ Layer    │
-│  Logic)  │ │  Nav)   │ │ (DAOs)   │
-└───────┘ └─────────┘ └──────────┘
-    │                    │
-    └──────────┬─────────┘
-               ▼
-        ┌────────────┐
-        │  SQLite DB │
-        │  (WAL mode)│
-        └────────────┘
-```
-
-### Design Patterns Used
-- **DAO Pattern**: Data Access Objects for each entity (`*_dao.py`)
-- **MVC-lite**: Screens handle UI + business logic, DAOs handle data
-- **Dependency Injection**: Database connection passed to DAOs
-- **Observer Pattern**: Navigation bar updates on screen changes
-- **Factory Pattern**: Screen instantiation via menu data
-
-## Troubleshooting
-
-### Common Issues
-
-**Database Locked Error**
-```bash
-# Remove WAL/SHM files if stuck
-del pharmacy.db-wal pharmacy.db-shm
-```
-
-**Import Errors**
-```bash
-# Reinstall dependencies
-pip install --upgrade PySide6
-```
-
-**Theme Not Applying**
-- Check `ui/theme.py` for syntax errors
-- Restart application after theme changes
-
-**Print Issues**
-- Ensure default printer is set in Windows
-- Check paper size (A6 for receipts)
-
-### Logs
-Application logs to console by default. Set `LOG_LEVEL=DEBUG` in `.env` for verbose output.
-
-## Contributing
-
-1. Fork the repository
-2. Create feature branch: `git checkout -b feature/new-feature`
-3. Follow existing code style (PEP 8, type hints)
-4. Add tests for new functionality
-5. Run test suite: `python run_tests.py`
-6. Submit pull request
-
-### Code Style Guidelines
-- Use type hints for all functions
-- Follow PEP 8 naming conventions
-- Document public methods with docstrings
-- Keep screens focused on single responsibility
-- DAOs should only contain database queries
-
-## Changelog
-
-### v2.0.0 (Current)
-- Migrated from PyQt5 to PySide6 (Qt6)
-- Added Financial Year Management
-- Implemented GST Reports (GSTR-1, GSTR-3B)
-- Enhanced Accounting Module (Trial Balance, P&L, Balance Sheet)
-- Added Backup/Restore functionality
-- Improved UI theming system
-
-### v1.x
-- Initial release with core pharmacy modules
-- Inventory, Sales, Purchase, Basic Accounting
-- SQLite database with basic schema
-
-## Support
-
-For issues or feature requests, contact the development team or create an issue in the internal tracker.
-
-## Screenshots
-
-*Add screenshots here showing:*
-- Login Screen
-- Main Dashboard
-- Inventory Management
-- Sales Counter
-- Purchase Entry
-- Accounting Reports
-- GST Reports
+No license file is included in this repository, so redistribution terms are not specified here.

@@ -1447,6 +1447,10 @@
    'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
    'System\\screens\\customer_receipt.py',
    'PYMODULE'),
+  ('screens.daily_profit_calculation',
+   'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
+   'System\\screens\\daily_profit_calculation.py',
+   'PYMODULE'),
   ('screens.day_end',
    'C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management '
    'System\\screens\\day_end.py',
