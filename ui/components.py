@@ -1086,8 +1086,11 @@ class SearchableComboBox(ConstrainedComboBox):
 
         count = self._completer_model.rowCount()
         row_height = max(26, popup.sizeHintForRow(0) if count > 0 else 26)
-        visible_rows = min(max(count, 1), 8)
-        height = row_height * visible_rows + 6
+        max_vis = getattr(self, "_max_visible", getattr(self, "_max_visible_items", 8)) or 8
+        visible_rows = min(max(count, 1), max_vis)
+        computed_height = row_height * visible_rows + 6
+        max_h = getattr(self, "_max_popup_height", None)
+        height = min(computed_height, max_h) if max_h else computed_height
 
         screen = QApplication.screenAt(bottom_left) or QApplication.primaryScreen()
         if screen:
@@ -1121,10 +1124,21 @@ class SearchableComboBox(ConstrainedComboBox):
     def showPopup(self):
         line = self.lineEdit()
         text = line.text().strip() if line is not None else ""
-        if text and text != getattr(self, "_placeholder", ""):
+        if text and text != getattr(self, "_placeholder", "") and self.currentData() is None:
             self._on_text_edited(text)
         else:
             self.show_all_suggestions()
+            if self.currentIndex() >= 0 and self.currentData() is not None:
+                popup = self._completer.popup()
+                if popup and popup.isVisible():
+                    cur_id = self.currentData()
+                    for r in range(self._completer_model.rowCount()):
+                        item = self._completer_model.item(r)
+                        if item and item.data(Qt.UserRole) == cur_id:
+                            idx = self._completer_model.index(r, 0)
+                            popup.setCurrentIndex(idx)
+                            popup.scrollTo(idx, QAbstractItemView.PositionAtCenter)
+                            break
 
     def findData(self, data: Any, role: int = Qt.UserRole) -> int:
         idx = super().findData(data, role)
@@ -1274,7 +1288,7 @@ class SearchableComboBox(ConstrainedComboBox):
                 elif key in (Qt.Key_Down, Qt.Key_Up):
                     if not popup or not popup.isVisible():
                         text = line.text().strip()
-                        if text and text != getattr(self, "_placeholder", ""):
+                        if text and text != getattr(self, "_placeholder", "") and self.currentData() is None:
                             self._on_text_edited(text)
                         else:
                             self.show_all_suggestions()

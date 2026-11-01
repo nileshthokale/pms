@@ -45,6 +45,7 @@ from database.tax_structures import (
     resolve_tax_display,
 )
 
+from ui.components import SearchableComboBox
 from ui.input_rules import attach_uppercase
 from ui.theme import palette
 _p = palette()
@@ -463,6 +464,71 @@ class _IngredientRow(QWidget):
         }
 
 
+_COMPANY_POPUP_MAX_ROWS = 11
+_COMPANY_POPUP_MAX_HEIGHT = 320
+_COMPANY_POPUP_MIN_WIDTH = 320
+
+
+class _CompanyComboBox(SearchableComboBox):
+    """Searchable company selector with case-insensitive filtering.
+
+    Limits popup height to ~300-350 px (target: 320 px), shows a vertical scrollbar,
+    stays within screen area directly below the input field, preserves company database IDs,
+    and prevents accidental creation of duplicate companies.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(
+            parent,
+            placeholder="Search or select company...",
+            max_visible=_COMPANY_POPUP_MAX_ROWS,
+            max_height=_COMPANY_POPUP_MAX_HEIGHT,
+            min_width=_COMPANY_POPUP_MIN_WIDTH,
+        )
+        self.setFixedHeight(38)
+        attach_uppercase(self)
+        combo_style = (
+            f"QComboBox {{"
+            f"  background-color: {_SURFACE}; color: {_TEXT};"
+            f"  border: 1px solid {_BORDER}; border-radius: 2px;"
+            f"  padding: 8px; font-size: 15px; font-family: 'Segoe UI';"
+            f"}}"
+            f"QComboBox:hover {{ border: 1px solid {_ACCENT}; }}"
+            f"QComboBox::drop-down {{"
+            f"  border: none; width: 24px;"
+            f"}}"
+            f"QComboBox::down-arrow {{ image: none; border: none; }}"
+            f"QComboBox QAbstractItemView {{"
+            f"  background-color: {_SURFACE}; color: {_TEXT};"
+            f"  border: 1px solid {_BORDER}; selection-background-color: {_ACCENT};"
+            f"  font-size: 15px; font-family: 'Segoe UI';"
+            f"}}"
+        )
+        self.setStyleSheet(combo_style)
+        line = self.lineEdit()
+        if line is not None:
+            line.setStyleSheet(
+                f"QLineEdit {{"
+                f"  background: transparent; color: {_TEXT};"
+                f"  border: none; padding: 0px;"
+                f"  font-size: 15px; font-family: 'Segoe UI';"
+                f"}}"
+            )
+        popup = self._completer.popup()
+        if popup is not None:
+            popup.setStyleSheet(
+                f"QAbstractItemView {{"
+                f"  background-color: {_SURFACE}; color: {_TEXT};"
+                f"  border: 1px solid {_BORDER};"
+                f"  selection-background-color: {_ACCENT}; selection-color: #ffffff;"
+                f"  font-size: 15px; font-family: 'Segoe UI'; outline: 0;"
+                f"}}"
+                f"QAbstractItemView::item {{ min-height: 26px; padding: 2px 8px; }}"
+                f"QAbstractItemView::item:disabled {{ color: {_TEXT_DIM}; font-style: italic; background-color: transparent; }}"
+                f"QAbstractItemView::item:selected {{ background-color: {_ACCENT}; color: #ffffff; }}"
+            )
+
+
 class _ItemDialog(QDialog):
     """Modal dialog for adding or editing an item."""
 
@@ -528,8 +594,7 @@ class _ItemDialog(QDialog):
             self._item_name_edit.setText(initial_name)
         form.addRow("Item Name *:", self._item_name_edit)
 
-        self._unit_combo = QComboBox()
-        self._unit_combo.setStyleSheet(
+        combo_style = (
             f"QComboBox {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; border-radius: 2px;"
@@ -546,27 +611,13 @@ class _ItemDialog(QDialog):
             f"  font-size: 15px; font-family: 'Segoe UI';"
             f"}}"
         )
+
+        self._unit_combo = QComboBox()
+        self._unit_combo.setStyleSheet(combo_style)
         self._load_units()
         form.addRow("Unit:", self._unit_combo)
 
-        self._company_combo = QComboBox()
-        self._company_combo.setStyleSheet(
-            f"QComboBox {{"
-            f"  background-color: {_SURFACE}; color: {_TEXT};"
-            f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-            f"  padding: 8px; font-size: 15px; font-family: 'Segoe UI';"
-            f"}}"
-            f"QComboBox:hover {{ border: 1px solid {_ACCENT}; }}"
-            f"QComboBox::drop-down {{"
-            f"  border: none; width: 24px;"
-            f"}}"
-            f"QComboBox::down-arrow {{ image: none; border: none; }}"
-            f"QComboBox QAbstractItemView {{"
-            f"  background-color: {_SURFACE}; color: {_TEXT};"
-            f"  border: 1px solid {_BORDER}; selection-background-color: {_ACCENT};"
-            f"  font-size: 15px; font-family: 'Segoe UI';"
-            f"}}"
-        )
+        self._company_combo = _CompanyComboBox(self)
         self._load_companies()
         form.addRow("Company:", self._company_combo)
 
@@ -704,10 +755,18 @@ class _ItemDialog(QDialog):
             self._unit_combo.addItem(u["unit_name"], u["id"])
 
     def _load_companies(self):
-        companies = CompanyDAO.get_all()
-        self._company_combo.addItem("-- Select Company --", None)
+        raw_companies = CompanyDAO.get_all()
+        companies = sorted(
+            raw_companies,
+            key=lambda c: (c.get("company_name") or "").strip().casefold()
+        )
+        items = [("-- Select Company --", None)]
         for c in companies:
-            self._company_combo.addItem(c["company_name"], c["id"])
+            name = (c.get("company_name") or "").strip()
+            cid = c.get("id")
+            if name and cid is not None:
+                items.append((name, cid))
+        self._company_combo.populate(items)
 
     def _add_ingredient_row(self, drugs: list[dict] | None = None, power: str = ""):
         row = _IngredientRow(self._all_drugs)
@@ -766,10 +825,14 @@ class _ItemDialog(QDialog):
                 self._unit_combo.setCurrentIndex(idx)
 
         company_id = item.get("company_id")
-        if company_id:
+        if company_id is not None:
             idx = self._company_combo.findData(company_id)
             if idx >= 0:
                 self._company_combo.setCurrentIndex(idx)
+            else:
+                self._company_combo.setCurrentIndex(-1)
+        else:
+            self._company_combo.setCurrentIndex(-1)
 
         self._pack_size_edit.setText(item.get("pack_size", ""))
         self._select_tax_structure(item)
@@ -853,6 +916,7 @@ class _ItemDialog(QDialog):
             )
             return
 
+        self._company_combo.resolve_text()
         company_id = self._company_combo.currentData()
 
         # Tax validation.  A NEW item may only be saved with one of the five

@@ -373,6 +373,7 @@ imported by:
  &#8226;   <a href="#screens.customer_ledger">screens.customer_ledger</a>
  &#8226;   <a href="#screens.customer_master">screens.customer_master</a>
  &#8226;   <a href="#screens.customer_receipt">screens.customer_receipt</a>
+ &#8226;   <a href="#screens.daily_profit_calculation">screens.daily_profit_calculation</a>
  &#8226;   <a href="#screens.day_end">screens.day_end</a>
  &#8226;   <a href="#screens.debit_note">screens.debit_note</a>
  &#8226;   <a href="#screens.doctor_master">screens.doctor_master</a>
@@ -453,6 +454,7 @@ imported by:
  &#8226;   <a href="#screens.counter_sale_actions">screens.counter_sale_actions</a>
  &#8226;   <a href="#screens.customer_ledger">screens.customer_ledger</a>
  &#8226;   <a href="#screens.customer_receipt">screens.customer_receipt</a>
+ &#8226;   <a href="#screens.daily_profit_calculation">screens.daily_profit_calculation</a>
  &#8226;   <a href="#screens.doctor_reports">screens.doctor_reports</a>
  &#8226;   <a href="#screens.drug_master">screens.drug_master</a>
  &#8226;   <a href="#screens.duplicate_sales_bill">screens.duplicate_sales_bill</a>
@@ -477,7 +479,6 @@ imported by:
  &#8226;   <a href="#ui.components">ui.components</a>
  &#8226;   <a href="#ui.crystal_report_viewer">ui.crystal_report_viewer</a>
  &#8226;   <a href="#ui.input_rules">ui.input_rules</a>
- &#8226;   <a href="#ui.main_window">ui.main_window</a>
  &#8226;   <a href="#ui.navigation_bar">ui.navigation_bar</a>
  &#8226;   <a href="#ui.searchable_filter">ui.searchable_filter</a>
  &#8226;   <a href="#ui.theme">ui.theme</a>
@@ -605,6 +606,7 @@ imported by:
  &#8226;   <a href="#screens.customer_ledger">screens.customer_ledger</a>
  &#8226;   <a href="#screens.customer_master">screens.customer_master</a>
  &#8226;   <a href="#screens.customer_receipt">screens.customer_receipt</a>
+ &#8226;   <a href="#screens.daily_profit_calculation">screens.daily_profit_calculation</a>
  &#8226;   <a href="#screens.day_end">screens.day_end</a>
  &#8226;   <a href="#screens.debit_note">screens.debit_note</a>
  &#8226;   <a href="#screens.doctor_master">screens.doctor_master</a>
@@ -767,6 +769,7 @@ imported by:
  &#8226;   <a href="#screens.customer_ledger">screens.customer_ledger</a>
  &#8226;   <a href="#screens.customer_master">screens.customer_master</a>
  &#8226;   <a href="#screens.customer_receipt">screens.customer_receipt</a>
+ &#8226;   <a href="#screens.daily_profit_calculation">screens.daily_profit_calculation</a>
  &#8226;   <a href="#screens.day_end">screens.day_end</a>
  &#8226;   <a href="#screens.debit_note">screens.debit_note</a>
  &#8226;   <a href="#screens.doctor_master">screens.doctor_master</a>
@@ -2424,6 +2427,7 @@ imported by:
     <a href="#core">core</a>
  &#8226;   <a href="#database.doctor_reports_dao">database.doctor_reports_dao</a>
  &#8226;   <a href="#database.document_printing">database.document_printing</a>
+ &#8226;   <a href="#database.duplicate_a6_cash_memo">database.duplicate_a6_cash_memo</a>
  &#8226;   <a href="#database.pharmacy_a6_receipt">database.pharmacy_a6_receipt</a>
  &#8226;   <a href="#database.sales_dao">database.sales_dao</a>
  &#8226;   <a href="#database.schedule_reports_dao">database.schedule_reports_dao</a>
@@ -2937,6 +2941,7 @@ imported by:
  &#8226;   <a href="#database.doctor_dao">database.doctor_dao</a>
  &#8226;   <a href="#database.doctor_reports_dao">database.doctor_reports_dao</a>
  &#8226;   <a href="#database.drug_dao">database.drug_dao</a>
+ &#8226;   <a href="#database.duplicate_a6_cash_memo">database.duplicate_a6_cash_memo</a>
  &#8226;   <a href="#database.duplicate_sales_dao">database.duplicate_sales_dao</a>
  &#8226;   <a href="#database.expiry_report_dao">database.expiry_report_dao</a>
  &#8226;   <a href="#database.financial_year">database.financial_year</a>
@@ -3263,7 +3268,9 @@ imports:
  &#8226;   <a href="#PySide6.QtWidgets">PySide6.QtWidgets</a>
  &#8226;   <a href="#__future__">__future__</a>
  &#8226;   <a href="#calendar">calendar</a>
+ &#8226;   <a href="#core.doc_formatter">core.doc_formatter</a>
  &#8226;   <a href="#database">database</a>
+ &#8226;   <a href="#database.connection">database.connection</a>
  &#8226;   <a href="#database.pharmacy_a6_receipt">database.pharmacy_a6_receipt</a>
  &#8226;   <a href="#logging">logging</a>
  &#8226;   <a href="#math">math</a>
@@ -3753,12 +3760,14 @@ imports:
  &#8226;   <a href="#database">database</a>
  &#8226;   <a href="#database.connection">database.connection</a>
  &#8226;   <a href="#database.purchase_dao">database.purchase_dao</a>
+ &#8226;   <a href="#database.tax_structures">database.tax_structures</a>
  &#8226;   <a href="#typing">typing</a>
 
   </div>
   <div class="import">
 imported by:
-    <a href="#screens.sales_reports">screens.sales_reports</a>
+    <a href="#screens.daily_profit_calculation">screens.daily_profit_calculation</a>
+ &#8226;   <a href="#screens.sales_reports">screens.sales_reports</a>
 
   </div>
 
@@ -3917,7 +3926,8 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#screens.item_master">screens.item_master</a>
+    <a href="#database.sales_reports_dao">database.sales_reports_dao</a>
+ &#8226;   <a href="#screens.item_master">screens.item_master</a>
  &#8226;   <a href="#screens.purchase_invoice">screens.purchase_invoice</a>
 
   </div>
@@ -14216,6 +14226,7 @@ imports:
  &#8226;   <a href="#screens.customer_ledger">screens.customer_ledger</a>
  &#8226;   <a href="#screens.customer_master">screens.customer_master</a>
  &#8226;   <a href="#screens.customer_receipt">screens.customer_receipt</a>
+ &#8226;   <a href="#screens.daily_profit_calculation">screens.daily_profit_calculation</a>
  &#8226;   <a href="#screens.day_end">screens.day_end</a>
  &#8226;   <a href="#screens.debit_note">screens.debit_note</a>
  &#8226;   <a href="#screens.doctor_master">screens.doctor_master</a>
@@ -14269,6 +14280,7 @@ imported by:
  &#8226;   <a href="#screens.customer_ledger">screens.customer_ledger</a>
  &#8226;   <a href="#screens.customer_master">screens.customer_master</a>
  &#8226;   <a href="#screens.customer_receipt">screens.customer_receipt</a>
+ &#8226;   <a href="#screens.daily_profit_calculation">screens.daily_profit_calculation</a>
  &#8226;   <a href="#screens.day_end">screens.day_end</a>
  &#8226;   <a href="#screens.debit_note">screens.debit_note</a>
  &#8226;   <a href="#screens.doctor_master">screens.doctor_master</a>
@@ -14577,6 +14589,7 @@ imports:
  &#8226;   <a href="#re">re</a>
  &#8226;   <a href="#screens">screens</a>
  &#8226;   <a href="#screens.counter_sale_actions">screens.counter_sale_actions</a>
+ &#8226;   <a href="#screens.item_master">screens.item_master</a>
  &#8226;   <a href="#screens.stock_adjustment_dialog">screens.stock_adjustment_dialog</a>
  &#8226;   <a href="#subprocess">subprocess</a>
  &#8226;   <a href="#ui">ui</a>
@@ -14734,6 +14747,33 @@ imports:
  &#8226;   <a href="#screens">screens</a>
  &#8226;   <a href="#screens.ledger_widgets">screens.ledger_widgets</a>
  &#8226;   <a href="#typing">typing</a>
+ &#8226;   <a href="#ui.theme">ui.theme</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#screens">screens</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="screens.daily_profit_calculation"></a>
+  <a target="code" href="///C:/Users/Nilesh/OneDrive/Desktop/Pharmacy%20Management%20System/screens/daily_profit_calculation.py" type="text/plain"><tt>screens.daily_profit_calculation</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#PySide6.QtCore">PySide6.QtCore</a>
+ &#8226;   <a href="#PySide6.QtGui">PySide6.QtGui</a>
+ &#8226;   <a href="#PySide6.QtWidgets">PySide6.QtWidgets</a>
+ &#8226;   <a href="#__future__">__future__</a>
+ &#8226;   <a href="#database.sales_reports_dao">database.sales_reports_dao</a>
+ &#8226;   <a href="#screens">screens</a>
+ &#8226;   <a href="#screens.sales_reports">screens.sales_reports</a>
+ &#8226;   <a href="#typing">typing</a>
+ &#8226;   <a href="#ui">ui</a>
+ &#8226;   <a href="#ui.components">ui.components</a>
+ &#8226;   <a href="#ui.crystal_report_viewer">ui.crystal_report_viewer</a>
  &#8226;   <a href="#ui.theme">ui.theme</a>
 
   </div>
@@ -15047,6 +15087,8 @@ imports:
   <div class="import">
 imported by:
     <a href="#screens">screens</a>
+ &#8226;   <a href="#screens.counter_sale">screens.counter_sale</a>
+ &#8226;   <a href="#screens.purchase_invoice">screens.purchase_invoice</a>
 
   </div>
 
@@ -15292,6 +15334,7 @@ imports:
  &#8226;   <a href="#decimal">decimal</a>
  &#8226;   <a href="#re">re</a>
  &#8226;   <a href="#screens">screens</a>
+ &#8226;   <a href="#screens.item_master">screens.item_master</a>
  &#8226;   <a href="#screens.supplier_master">screens.supplier_master</a>
  &#8226;   <a href="#ui.components">ui.components</a>
  &#8226;   <a href="#ui.theme">ui.theme</a>
@@ -15446,6 +15489,7 @@ imports:
   <div class="import">
 imported by:
     <a href="#screens">screens</a>
+ &#8226;   <a href="#screens.daily_profit_calculation">screens.daily_profit_calculation</a>
 
   </div>
 
@@ -16753,6 +16797,7 @@ imported by:
  &#8226;   <a href="#screens.counter_sale_actions">screens.counter_sale_actions</a>
  &#8226;   <a href="#screens.customer_ledger">screens.customer_ledger</a>
  &#8226;   <a href="#screens.customer_receipt">screens.customer_receipt</a>
+ &#8226;   <a href="#screens.daily_profit_calculation">screens.daily_profit_calculation</a>
  &#8226;   <a href="#screens.doctor_reports">screens.doctor_reports</a>
  &#8226;   <a href="#screens.duplicate_sales_bill">screens.duplicate_sales_bill</a>
  &#8226;   <a href="#screens.import_data">screens.import_data</a>
@@ -16780,7 +16825,6 @@ imported by:
 <span class="moduletype">Package</span>  <div class="import">
 imports:
     <a href="#ui.components">ui.components</a>
- &#8226;   <a href="#ui.fy_view">ui.fy_view</a>
  &#8226;   <a href="#ui.main_window">ui.main_window</a>
  &#8226;   <a href="#ui.navigation_bar">ui.navigation_bar</a>
  &#8226;   <a href="#ui.theme">ui.theme</a>
@@ -16795,6 +16839,7 @@ imported by:
  &#8226;   <a href="#screens.cash_book">screens.cash_book</a>
  &#8226;   <a href="#screens.counter_sale">screens.counter_sale</a>
  &#8226;   <a href="#screens.customer_ledger">screens.customer_ledger</a>
+ &#8226;   <a href="#screens.daily_profit_calculation">screens.daily_profit_calculation</a>
  &#8226;   <a href="#screens.doctor_reports">screens.doctor_reports</a>
  &#8226;   <a href="#screens.financial_year">screens.financial_year</a>
  &#8226;   <a href="#screens.import_data">screens.import_data</a>
@@ -16842,6 +16887,7 @@ imported by:
  &#8226;   <a href="#screens.counter_sale">screens.counter_sale</a>
  &#8226;   <a href="#screens.counter_sale_actions">screens.counter_sale_actions</a>
  &#8226;   <a href="#screens.credit_note">screens.credit_note</a>
+ &#8226;   <a href="#screens.daily_profit_calculation">screens.daily_profit_calculation</a>
  &#8226;   <a href="#screens.debit_note">screens.debit_note</a>
  &#8226;   <a href="#screens.financial_year">screens.financial_year</a>
  &#8226;   <a href="#screens.import_data">screens.import_data</a>
@@ -16893,6 +16939,7 @@ imports:
 imported by:
     <a href="#database.counter_sale_a6_bill">database.counter_sale_a6_bill</a>
  &#8226;   <a href="#screens.counter_sale_actions">screens.counter_sale_actions</a>
+ &#8226;   <a href="#screens.daily_profit_calculation">screens.daily_profit_calculation</a>
  &#8226;   <a href="#screens.doctor_reports">screens.doctor_reports</a>
  &#8226;   <a href="#screens.duplicate_sales_bill">screens.duplicate_sales_bill</a>
  &#8226;   <a href="#screens.ledger_report_pages">screens.ledger_report_pages</a>
@@ -16930,7 +16977,6 @@ imported by:
  &#8226;   <a href="#screens.sales_report">screens.sales_report</a>
  &#8226;   <a href="#screens.sales_reports">screens.sales_reports</a>
  &#8226;   <a href="#screens.supplier_ledger">screens.supplier_ledger</a>
- &#8226;   <a href="#ui">ui</a>
 
   </div>
 
@@ -16976,7 +17022,6 @@ imported by:
 <span class="moduletype">SourceModule</span>  <div class="import">
 imports:
     <a href="#PySide6.QtCore">PySide6.QtCore</a>
- &#8226;   <a href="#PySide6.QtGui">PySide6.QtGui</a>
  &#8226;   <a href="#PySide6.QtWidgets">PySide6.QtWidgets</a>
  &#8226;   <a href="#database">database</a>
  &#8226;   <a href="#database.auth">database.auth</a>
@@ -17107,6 +17152,7 @@ imported by:
  &#8226;   <a href="#screens.customer_ledger">screens.customer_ledger</a>
  &#8226;   <a href="#screens.customer_master">screens.customer_master</a>
  &#8226;   <a href="#screens.customer_receipt">screens.customer_receipt</a>
+ &#8226;   <a href="#screens.daily_profit_calculation">screens.daily_profit_calculation</a>
  &#8226;   <a href="#screens.day_end">screens.day_end</a>
  &#8226;   <a href="#screens.debit_note">screens.debit_note</a>
  &#8226;   <a href="#screens.doctor_master">screens.doctor_master</a>
