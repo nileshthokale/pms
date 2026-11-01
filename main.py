@@ -2,7 +2,6 @@ import sys
 
 from PySide6.QtWidgets import QApplication
 
-from database import auth
 from database.connection import init_database
 from database.financial_year import ensure_default_financial_year
 from screens.login import run_login
@@ -27,12 +26,14 @@ def main():
     install_uppercase_input(app)
 
     init_database()
-    auth.ensure_auth_schema()
     ensure_default_financial_year()
     if not run_login():
         return
 
-    window = PharmacyMainWindow()
+    # run_login() performs the required auth-schema assurance. The main
+    # window skips its standalone initialization because startup has already
+    # prepared the database and financial year for this application flow.
+    window = PharmacyMainWindow(initialize_database=False)
     # The application starts maximized on a normal Windows desktop
     # (standard maximize: title bar and min/max/close controls stay).
     window.showMaximized()

@@ -401,7 +401,9 @@ class SalesReportPage(QWidget):
 
         self.btn_export_pdf = QPushButton("Export PDF")
         self.btn_export_pdf.clicked.connect(self._on_export_pdf)
+        self.btn_export_pdf.setEnabled(False)
         fp_layout.addWidget(self.btn_export_pdf)
+        self.print_btn.setEnabled(False)
 
         fp_layout.addStretch()
 
@@ -438,7 +440,6 @@ class SalesReportPage(QWidget):
 
         self._load_filter_options()
         self.refresh_theme()
-        self._on_generate()
 
     # ── Filter and DAO Helpers ────────────────────────────────────────
 

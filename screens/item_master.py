@@ -1172,20 +1172,54 @@ class ItemMasterPage(QWidget):
     def _refresh(self, items: list[dict] | None = None):
         if items is None:
             items = ItemDAO.get_all()
-        self._table.setRowCount(len(items))
-        for row, item in enumerate(items):
-            id_item = QTableWidgetItem(str(item["id"]))
-            if item.get("legacy_id"):
-                id_item.setToolTip(f"Target Database ID: {item['id']}\nLegacy Source ID: {item['legacy_id']}")
-            self._table.setItem(row, 0, id_item)
-            self._table.setItem(row, 1, QTableWidgetItem(item["item_name"]))
-            self._table.setItem(row, 2, QTableWidgetItem(item.get("unit_name", "") or ""))
-            self._table.setItem(row, 3, QTableWidgetItem(item.get("category_name", "") or ""))
-            self._table.setItem(row, 4, QTableWidgetItem(item.get("pack_size", "")))
-            self._table.setItem(row, 5, QTableWidgetItem(item.get("company_name", "") or ""))
-            self._table.setItem(row, 6, QTableWidgetItem(item.get("pathy", "")))
-            self._table.setItem(row, 7, QTableWidgetItem(_tax_cell_text(item)))
-            self._table.setItem(row, 8, QTableWidgetItem(str(item.get("reorder_stock_level", 0))))
+        table = self._table
+        sorting_enabled = table.isSortingEnabled()
+        header = table.horizontalHeader()
+        sort_column = header.sortIndicatorSection()
+        sort_order = header.sortIndicatorOrder()
+        resize_modes = [
+            (column, header.sectionResizeMode(column))
+            for column in range(table.columnCount())
+        ]
+        updates_enabled = table.updatesEnabled()
+
+        # The table is sortable for interactive use. Keep it from sorting and
+        # repainting or measuring ResizeToContents columns after every cell
+        # while a full result set is populated. Restore the view settings once
+        # the batch is complete.
+        table.setUpdatesEnabled(False)
+        if sorting_enabled:
+            table.setSortingEnabled(False)
+        for column, mode in resize_modes:
+            if mode == QHeaderView.ResizeToContents:
+                header.setSectionResizeMode(column, QHeaderView.Interactive)
+        try:
+            table.setRowCount(len(items))
+            for row, item in enumerate(items):
+                id_item = QTableWidgetItem(str(item["id"]))
+                if item.get("legacy_id"):
+                    id_item.setToolTip(
+                        f"Target Database ID: {item['id']}\nLegacy Source ID: {item['legacy_id']}"
+                    )
+                table.setItem(row, 0, id_item)
+                table.setItem(row, 1, QTableWidgetItem(item["item_name"]))
+                table.setItem(row, 2, QTableWidgetItem(item.get("unit_name", "") or ""))
+                table.setItem(row, 3, QTableWidgetItem(item.get("category_name", "") or ""))
+                table.setItem(row, 4, QTableWidgetItem(item.get("pack_size", "")))
+                table.setItem(row, 5, QTableWidgetItem(item.get("company_name", "") or ""))
+                table.setItem(row, 6, QTableWidgetItem(item.get("pathy", "")))
+                table.setItem(row, 7, QTableWidgetItem(_tax_cell_text(item)))
+                table.setItem(
+                    row, 8, QTableWidgetItem(str(item.get("reorder_stock_level", 0)))
+                )
+        finally:
+            for column, mode in resize_modes:
+                header.setSectionResizeMode(column, mode)
+            if sorting_enabled:
+                table.setSortingEnabled(True)
+                if sort_column >= 0:
+                    table.sortItems(sort_column, sort_order)
+            table.setUpdatesEnabled(updates_enabled)
 
     def _selected_item(self) -> dict | None:
         rows = self._table.selectionModel().selectedRows()
