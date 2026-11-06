@@ -638,6 +638,7 @@ class DoctorwiseItemSaleDetailsPage(_BaseDoctorReportPage):
 
     def __init__(self, parent: Optional[QWidget] = None):
         self._all_items_master: List[Dict[str, Any]] = []
+        self._companies: List[Dict[str, Any]] = []
         self._selected_item_id: Optional[int] = None
         super().__init__(
             window_title="Doctorwise Item Sale Details Report",
@@ -700,6 +701,22 @@ class DoctorwiseItemSaleDetailsPage(_BaseDoctorReportPage):
         self.doctor_combo.currentIndexChanged.connect(self._on_doctor_changed)
         self.fp_layout.addWidget(self.doctor_combo)
 
+        self.lbl_company = QLabel("Company Name:")
+        self.fp_layout.addWidget(self.lbl_company)
+
+        self.company_combo = QComboBox()
+        self.company_combo.setEditable(True)
+        self.company_combo.setInsertPolicy(QComboBox.NoInsert)
+        if self.company_combo.completer():
+            self.company_combo.completer().setCaseSensitivity(Qt.CaseInsensitive)
+            self.company_combo.completer().setFilterMode(Qt.MatchContains)
+        self.company_combo.currentIndexChanged.connect(self._on_company_changed)
+        if self.company_combo.lineEdit():
+            self.company_combo.lineEdit().editingFinished.connect(
+                lambda: self._on_company_changed(self.company_combo.currentIndex())
+            )
+        self.fp_layout.addWidget(self.company_combo)
+
         self.lbl_msg = QLabel("")
         self.lbl_msg.setStyleSheet("color: #C00000; font-size: 11px; font-weight: bold; background: transparent;")
         self.lbl_msg.setWordWrap(True)
@@ -731,11 +748,93 @@ class DoctorwiseItemSaleDetailsPage(_BaseDoctorReportPage):
         self.main_splitter.setStretchFactor(2, 1)
 
         self._load_doctors()
-        self._load_master_items()
+        self._load_companies()
+        self._refresh_item_tree()
+
+    def _load_companies(self):
+        self._companies = DoctorReportsDAO.get_companies_list()
+        self.company_combo.blockSignals(True)
+        self.company_combo.clear()
+        self.company_combo.addItem("All Companies", None)
+        for comp in self._companies:
+            self.company_combo.addItem(comp["company_name"], comp["id"])
+        self.company_combo.setCurrentIndex(0)
+        self.company_combo.blockSignals(False)
+
+    def get_selected_company_id(self) -> Optional[int]:
+        if not hasattr(self, "company_combo") or self.company_combo is None:
+            return None
+        text = self.company_combo.currentText().strip()
+        if not text or text.lower() == "all companies" or text.lower().startswith("all "):
+            return None
+
+        curr_idx = self.company_combo.currentIndex()
+        if 0 <= curr_idx < self.company_combo.count():
+            item_text = self.company_combo.itemText(curr_idx).strip()
+            if item_text.lower() == text.lower():
+                data = self.company_combo.itemData(curr_idx)
+                if data is not None:
+                    return data
+
+        for i in range(self.company_combo.count()):
+            if self.company_combo.itemText(i).strip().lower() == text.lower():
+                data = self.company_combo.itemData(i)
+                if data is not None:
+                    return data
+
+        matches = [
+            self.company_combo.itemData(i)
+            for i in range(self.company_combo.count())
+            if text.lower() in self.company_combo.itemText(i).strip().lower()
+            and not self.company_combo.itemText(i).strip().lower().startswith("all ")
+            and self.company_combo.itemData(i) is not None
+        ]
+        if len(matches) == 1:
+            return matches[0]
+
+        return None
+
+    def get_selected_company_name(self) -> str:
+        comp_id = self.get_selected_company_id()
+        if comp_id is None:
+            return "All Companies"
+        for comp in getattr(self, "_companies", []):
+            if comp["id"] == comp_id:
+                return comp["company_name"]
+        return self.company_combo.currentText().strip()
+
+    def _refresh_item_tree(self):
+        company_id = self.get_selected_company_id()
+        doctor_id = self.get_selected_doctor_id()
+
+        # Incompatible selected item cleared if it does not belong to newly selected company
+        if self._selected_item_id is not None and company_id is not None:
+            item_comp_id = DoctorReportsDAO.get_item_company_id(self._selected_item_id)
+            if item_comp_id != company_id:
+                self._selected_item_id = None
+
+        if doctor_id is not None:
+            from_iso = self.from_date_edit.date().toString("yyyy-MM-dd")
+            to_iso = self.to_date_edit.date().toString("yyyy-MM-dd")
+            sold_items = DoctorReportsDAO.get_items_for_doctor(
+                from_iso, to_iso, doctor_id, company_id=company_id
+            )
+            if sold_items:
+                items = sold_items
+            else:
+                items = DoctorReportsDAO.get_all_master_items(company_id=company_id)
+        else:
+            items = DoctorReportsDAO.get_all_master_items(company_id=company_id)
+
+        self._populate_item_tree(items)
+
+        search_text = self.item_search.text()
+        if search_text:
+            self._filter_item_tree(search_text)
 
     def _load_master_items(self):
         self._all_items_master = DoctorReportsDAO.get_all_master_items()
-        self._populate_item_tree(self._all_items_master)
+        self._refresh_item_tree()
 
     def _populate_item_tree(self, items: List[Dict[str, Any]]):
         self.item_tree.clear()
@@ -745,14 +844,20 @@ class DoctorwiseItemSaleDetailsPage(_BaseDoctorReportPage):
         all_item.setData(0, Qt.UserRole, None)
         all_item.setFont(0, QFont("Segoe UI", 9, QFont.Bold))
 
+        selected_node = None
         for it in items:
             node = QTreeWidgetItem(self.item_tree)
             node.setText(0, it["item_name"])
             node.setData(0, Qt.UserRole, it["id"])
             if it.get("unit_name"):
                 node.setToolTip(0, f"{it['item_name']} [{it['unit_name']}]")
+            if self._selected_item_id is not None and it["id"] == self._selected_item_id:
+                selected_node = node
 
-        if self._selected_item_id is None:
+        if selected_node is not None:
+            self.item_tree.setCurrentItem(selected_node)
+        else:
+            self._selected_item_id = None
             self.item_tree.setCurrentItem(all_item)
 
     def _filter_item_tree(self, search_text: str):
@@ -765,16 +870,11 @@ class DoctorwiseItemSaleDetailsPage(_BaseDoctorReportPage):
             text = item.text(0).lower()
             item.setHidden(query not in text if query else False)
 
-    def _on_doctor_changed(self, index: int):
-        doctor_id = self.doctor_combo.itemData(index)
-        if doctor_id is not None:
-            from_iso = self.from_date_edit.date().toString("yyyy-MM-dd")
-            to_iso = self.to_date_edit.date().toString("yyyy-MM-dd")
-            sold_items = DoctorReportsDAO.get_items_for_doctor(from_iso, to_iso, doctor_id)
-            if sold_items:
-                self._populate_item_tree(sold_items)
-            else:
-                self._populate_item_tree(self._all_items_master)
+    def _on_doctor_changed(self, index: int = -1):
+        self._refresh_item_tree()
+
+    def _on_company_changed(self, index: int = -1):
+        self._refresh_item_tree()
 
     def _on_item_tree_clicked(self, item: QTreeWidgetItem, column: int):
         item_id = item.data(0, Qt.UserRole)
@@ -822,17 +922,7 @@ class DoctorwiseItemSaleDetailsPage(_BaseDoctorReportPage):
 
         # Also refresh sold items in the item tree if tree was showing master items
         if self._selected_item_id is None:
-            sold_items = DoctorReportsDAO.get_items_for_doctor(from_iso, to_iso, doctor_id)
-            if sold_items:
-                current_selected = self.item_tree.currentItem()
-                cur_data = current_selected.data(0, Qt.UserRole) if current_selected else None
-                self._populate_item_tree(sold_items)
-                if cur_data is not None:
-                    for i in range(self.item_tree.topLevelItemCount()):
-                        ti = self.item_tree.topLevelItem(i)
-                        if ti.data(0, Qt.UserRole) == cur_data:
-                            self.item_tree.setCurrentItem(ti)
-                            break
+            self._refresh_item_tree()
 
         store_name, store_address = get_default_store_identity()
         header = ReportHeaderData(

@@ -31,6 +31,9 @@ def _fresh_db(tag: str) -> str:
 class TestPurchaseNewItemTabIntegration(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        import database.connection as db_conn
+        cls._orig_db = os.environ.get("PHARMACY_DB")
+        cls._orig_conn_db_path = getattr(db_conn, "DB_PATH", None)
         cls.db_path = _fresh_db(cls.__name__)
         from database.connection import init_database
         from database.financial_year import ensure_default_financial_year
@@ -39,6 +42,16 @@ class TestPurchaseNewItemTabIntegration(unittest.TestCase):
         init_database()
         ensure_default_financial_year()
         ensure_system_ledgers()
+
+    @classmethod
+    def tearDownClass(cls):
+        import database.connection as db_conn
+        if cls._orig_db is not None:
+            os.environ["PHARMACY_DB"] = cls._orig_db
+        else:
+            os.environ.pop("PHARMACY_DB", None)
+        if cls._orig_conn_db_path is not None:
+            db_conn.DB_PATH = cls._orig_conn_db_path
 
     def setUp(self):
         # Auto-dismiss any QMessageBox during tests

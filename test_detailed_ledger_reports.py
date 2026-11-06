@@ -38,6 +38,7 @@ class _BaseLedgerTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        cls._orig_pharmacy_db = os.environ.get("PHARMACY_DB")
         cls.db_fd, cls.db_path = tempfile.mkstemp(suffix="_test_detailed_ledgers.db")
         os.close(cls.db_fd)
         os.environ["PHARMACY_DB"] = cls.db_path
@@ -45,6 +46,10 @@ class _BaseLedgerTest(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
+        if cls._orig_pharmacy_db is not None:
+            os.environ["PHARMACY_DB"] = cls._orig_pharmacy_db
+        else:
+            os.environ.pop("PHARMACY_DB", None)
         if os.path.exists(cls.db_path):
             try:
                 os.remove(cls.db_path)

@@ -41,16 +41,17 @@ class DoctorReportsDAO:
             conn.close()
 
     @staticmethod
-    def get_all_master_items() -> List[Dict[str, Any]]:
-        """Return all items from item master for the item selection tree."""
+    def get_companies_list() -> List[Dict[str, Any]]:
+        """Return distinct companies for report filtering."""
         conn = get_connection()
         try:
             cur = conn.execute(
                 """
-                SELECT i.id, i.item_name, COALESCE(u.unit_name, '') AS unit_name
-                FROM items i
-                LEFT JOIN units u ON u.id = i.unit_id
-                ORDER BY i.item_name COLLATE NOCASE ASC
+                SELECT MIN(id) AS id, company_name, MIN(short_name) AS short_name
+                FROM companies
+                WHERE company_name IS NOT NULL AND TRIM(company_name) <> ''
+                GROUP BY company_name COLLATE NOCASE
+                ORDER BY company_name COLLATE NOCASE ASC
                 """
             )
             return [dict(r) for r in cur.fetchall()]
@@ -58,15 +59,49 @@ class DoctorReportsDAO:
             conn.close()
 
     @staticmethod
-    def get_items_for_doctor(
-        from_date: str, to_date: str, doctor_id: int
-    ) -> List[Dict[str, Any]]:
-        """Return distinct items sold attributed to the selected doctor in the date range."""
+    def get_all_master_items(company_id: Optional[int] = None) -> List[Dict[str, Any]]:
+        """Return items from item master for the item selection tree, optionally filtered by company_id."""
         conn = get_connection()
         try:
+            if company_id is not None:
+                cur = conn.execute(
+                    """
+                    SELECT i.id, i.item_name, i.company_id, COALESCE(u.unit_name, '') AS unit_name
+                    FROM items i
+                    LEFT JOIN units u ON u.id = i.unit_id
+                    WHERE i.company_id = ?
+                    ORDER BY i.item_name COLLATE NOCASE ASC
+                    """,
+                    (company_id,),
+                )
+            else:
+                cur = conn.execute(
+                    """
+                    SELECT i.id, i.item_name, i.company_id, COALESCE(u.unit_name, '') AS unit_name
+                    FROM items i
+                    LEFT JOIN units u ON u.id = i.unit_id
+                    ORDER BY i.item_name COLLATE NOCASE ASC
+                    """
+                )
+            return [dict(r) for r in cur.fetchall()]
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_items_for_doctor(
+        from_date: str, to_date: str, doctor_id: int, company_id: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """Return distinct items sold attributed to the selected doctor in the date range, optionally filtered by company_id."""
+        conn = get_connection()
+        try:
+            params: list[Any] = [doctor_id, from_date, to_date]
+            comp_clause = ""
+            if company_id is not None:
+                comp_clause = "AND i.company_id = ?"
+                params.append(company_id)
             cur = conn.execute(
-                """
-                SELECT DISTINCT i.id, i.item_name, COALESCE(u.unit_name, '') AS unit_name
+                f"""
+                SELECT DISTINCT i.id, i.item_name, i.company_id, COALESCE(u.unit_name, '') AS unit_name
                 FROM sales_invoice_items sii
                 JOIN sales_invoices si ON si.id = sii.sales_invoice_id
                 JOIN items i ON i.id = sii.item_id
@@ -74,11 +109,25 @@ class DoctorReportsDAO:
                 WHERE si.doctor_id = ?
                   AND si.sale_date >= ?
                   AND si.sale_date <= ?
+                  {comp_clause}
                 ORDER BY i.item_name COLLATE NOCASE ASC
                 """,
-                (doctor_id, from_date, to_date),
+                params,
             )
             return [dict(r) for r in cur.fetchall()]
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_item_company_id(item_id: int) -> Optional[int]:
+        """Return the company_id for a given item_id, or None if unassigned or item not found."""
+        conn = get_connection()
+        try:
+            cur = conn.execute("SELECT company_id FROM items WHERE id = ?", (item_id,))
+            row = cur.fetchone()
+            if row and row["company_id"] is not None:
+                return row["company_id"]
+            return None
         finally:
             conn.close()
 

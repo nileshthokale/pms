@@ -145,12 +145,14 @@ class SearchableSelector(SearchableComboBox):
         parent: QWidget | None = None,
         max_visible: int = 10,
         max_height: int = 280,
+        prefix_only: bool = False,
     ):
         super().__init__(
             parent,
             placeholder=placeholder,
             max_visible=max_visible,
             max_height=max_height,
+            prefix_only=prefix_only,
         )
 
     def refresh_theme(self, p: dict | None = None) -> None:

@@ -99,7 +99,10 @@ class ItemwiseLedgerPage(QWidget):
         self._lbl_item.setStyleSheet(f"color: {p['text']}; font-weight: bold; font-size: 14px;")
         fl.addWidget(self._lbl_item)
 
-        self._item_selector = SearchableSelector(placeholder="-- Select Item / Medicine --")
+        self._item_selector = SearchableSelector(
+            placeholder="-- Select Item / Medicine --",
+            prefix_only=True,
+        )
         self._item_selector.setMinimumWidth(280)
         self._item_selector.selection_changed.connect(self._on_item_changed)
         fl.addWidget(self._item_selector)
@@ -262,7 +265,7 @@ class ItemwiseLedgerPage(QWidget):
     def _load_options(self):
         items = LedgerReportDAO.get_item_options()
         self._item_selector.set_options(
-            items, id_key="id", name_key="item_name", subtitle_key="company_name"
+            items, id_key="id", name_key="item_name"
         )
 
     def _set_default_dates(self):

@@ -232,7 +232,13 @@ def _entry_edit_style(p: dict | None = None) -> str:
     )
 
 
-def _make_entry_edit(placeholder: str = "", width: int | None = None, p: dict | None = None) -> QLineEdit:
+def _make_entry_edit(
+    placeholder: str = "",
+    width: int | None = None,
+    p: dict | None = None,
+    min_width: int | None = None,
+    max_width: int | None = None,
+) -> QLineEdit:
     e = QLineEdit()
     e.setPlaceholderText(placeholder)
     e.setStyleSheet(_entry_edit_style(p))
@@ -240,6 +246,11 @@ def _make_entry_edit(placeholder: str = "", width: int | None = None, p: dict | 
     e.setFixedHeight(30)
     if width:
         e.setFixedWidth(width)
+    else:
+        if min_width:
+            e.setMinimumWidth(min_width)
+        if max_width:
+            e.setMaximumWidth(max_width)
     return e
 
 
@@ -389,12 +400,25 @@ class BatchLineEdit(QLineEdit):
 
     batch_selected = Signal(dict)
 
-    def __init__(self, placeholder: str = "Batch", width: int = 82, p: dict | None = None, parent: QWidget | None = None):
+    def __init__(
+        self,
+        placeholder: str = "Batch",
+        width: int | None = None,
+        min_width: int | None = 95,
+        max_width: int | None = None,
+        p: dict | None = None,
+        parent: QWidget | None = None,
+    ):
         super().__init__(parent)
         self.setPlaceholderText(placeholder)
         self.setFixedHeight(30)
         if width:
             self.setFixedWidth(width)
+        else:
+            if min_width:
+                self.setMinimumWidth(min_width)
+            if max_width:
+                self.setMaximumWidth(max_width)
         self.setFont(QFont("Segoe UI", 9))
         self.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         self.textChanged.connect(
@@ -585,7 +609,7 @@ class ExpiryDateEdit(QWidget):
 
     dateChanged = Signal(QDate)
 
-    def __init__(self, parent: QWidget | None = None, width: int = 108, p: dict | None = None):
+    def __init__(self, parent: QWidget | None = None, width: int = 125, p: dict | None = None):
         super().__init__(parent)
         self.setObjectName("ExpiryDateEdit")
         self._current_date: QDate | None = None
@@ -780,7 +804,7 @@ class ExpiryDateEdit(QWidget):
             f"  background-color: {surface}; color: {text};"
             f"  border: 1px solid {border}; border-right: none;"
             f"  border-top-left-radius: 2px; border-bottom-left-radius: 2px;"
-            f"  padding: 2px 2px; font-size: 14px; font-weight: bold; font-family: 'Segoe UI';"
+            f"  padding: 2px 2px; font-size: 13px; font-weight: bold; font-family: 'Segoe UI';"
             f"}}"
             f"QLineEdit:focus {{ border: 1px solid {accent}; border-right: none; }}"
             f"QLineEdit:read-only {{"
@@ -880,56 +904,58 @@ class _ItemEntryBar(QWidget):
             placeholder="Type item name...",
             max_visible=9,
             max_height=270,
-            max_width=650,
-            min_width=160,
+            max_width=450,
+            min_width=180,
             allow_width_expansion=True,
+            prefix_only=True,
         )
         self.item_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.item_combo.setMinimumWidth(160)
+        self.item_combo.setMinimumWidth(180)
+        self.item_combo.setMaximumWidth(450)
         self.item_combo.setFixedHeight(30)
         self.item_combo.setToolTip("Search and select medicine / item")
 
-        self.pack_edit = _make_entry_edit("Pack", 42)
+        self.pack_edit = _make_entry_edit("Pack", min_width=50)
         self.pack_edit.setReadOnly(True)
         self.pack_edit.setFocusPolicy(Qt.NoFocus)
         self.pack_edit.setAlignment(Qt.AlignCenter)
         self.pack_edit.setFixedHeight(30)
         self.pack_edit.setToolTip("Pack size (auto-filled)")
 
-        self.batch_edit = BatchLineEdit("Batch", 82)
-        self.batch_edit.setFixedHeight(30)
-        self.batch_edit.batch_selected.connect(self._on_saved_batch_selected)
-        self.batch_edit.textChanged.connect(self._on_batch_text_changed)
-
-        self.expiry_edit = ExpiryDateEdit(width=100)
-        self.expiry_edit.setFixedHeight(30)
-
-        self.pay_qty_edit = _make_entry_edit("0", 44)
+        self.pay_qty_edit = _make_entry_edit("0", min_width=50)
         self.pay_qty_edit.setFixedHeight(30)
         self.pay_qty_edit.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.pay_qty_edit.setToolTip("Payable Quantity")
 
-        self.free_qty_edit = _make_entry_edit("0", 38)
+        self.free_qty_edit = _make_entry_edit("0", min_width=44)
         self.free_qty_edit.setFixedHeight(30)
         self.free_qty_edit.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.free_qty_edit.setToolTip("Free Quantity")
 
-        self.rate_edit = _make_entry_edit("0.00", 52)
+        self.batch_edit = BatchLineEdit("Batch", min_width=95)
+        self.batch_edit.setFixedHeight(30)
+        self.batch_edit.batch_selected.connect(self._on_saved_batch_selected)
+        self.batch_edit.textChanged.connect(self._on_batch_text_changed)
+
+        self.expiry_edit = ExpiryDateEdit(width=125)
+        self.expiry_edit.setFixedHeight(30)
+
+        self.rate_edit = _make_entry_edit("0.00", min_width=62)
         self.rate_edit.setFixedHeight(30)
         self.rate_edit.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.rate_edit.setToolTip("Purchase Rate")
 
-        self.mrp_edit = _make_entry_edit("0.00", 52)
+        self.mrp_edit = _make_entry_edit("0.00", min_width=62)
         self.mrp_edit.setFixedHeight(30)
         self.mrp_edit.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.mrp_edit.setToolTip("MRP")
 
-        self.discount_edit = _make_entry_edit("0.00", 42)
+        self.discount_edit = _make_entry_edit("0.00", min_width=48)
         self.discount_edit.setFixedHeight(30)
         self.discount_edit.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.discount_edit.setToolTip("Discount (%)")
 
-        self.gst_edit = _make_entry_edit("0", 38)
+        self.gst_edit = _make_entry_edit("0", min_width=42)
         self.gst_edit.setReadOnly(True)
         self.gst_edit.setFocusPolicy(Qt.NoFocus)
         self.gst_edit.setAlignment(Qt.AlignCenter)
@@ -938,26 +964,26 @@ class _ItemEntryBar(QWidget):
 
         self.add_btn = QPushButton("+ Add Item")
         self.add_btn.setStyleSheet(_btn_add_item_style())
-        self.add_btn.setFixedSize(84, 30)
+        self.add_btn.setFixedSize(86, 30)
         self.add_btn.setToolTip("Add item to invoice (Enter)")
 
-        # Single horizontal row layout:
+        # Single horizontal row layout with responsive redistribution:
         # Item | Pack | Qty | Free | Batch | Exp | Rate | MRP | Disc | GST | + Add Item
         self.row_layout = main_layout
         self.row1_layout = main_layout  # alias for backward compatibility
 
-        item_field = self._field("Item", self.item_combo, stretch=1)
-        main_layout.addWidget(item_field, 1)
-        main_layout.addWidget(self._field("Pack", self.pack_edit))
-        main_layout.addWidget(self._field("Qty", self.pay_qty_edit))
-        main_layout.addWidget(self._field("Free", self.free_qty_edit))
-        main_layout.addWidget(self._field("Batch", self.batch_edit))
-        main_layout.addWidget(self._field("Exp", self.expiry_edit))
-        main_layout.addWidget(self._field("Rate", self.rate_edit))
-        main_layout.addWidget(self._field("MRP", self.mrp_edit))
-        main_layout.addWidget(self._field("Disc", self.discount_edit))
-        main_layout.addWidget(self._field("GST", self.gst_edit))
-        main_layout.addWidget(self.add_btn)
+        item_field = self._field("Item", self.item_combo, stretch=3)
+        main_layout.addWidget(item_field, 3)
+        main_layout.addWidget(self._field("Pack", self.pack_edit, stretch=1), 1)
+        main_layout.addWidget(self._field("Qty", self.pay_qty_edit, stretch=1), 1)
+        main_layout.addWidget(self._field("Free", self.free_qty_edit, stretch=1), 1)
+        main_layout.addWidget(self._field("Batch", self.batch_edit, stretch=2), 2)
+        main_layout.addWidget(self._field("Exp", self.expiry_edit, stretch=0), 0)
+        main_layout.addWidget(self._field("Rate", self.rate_edit, stretch=1), 1)
+        main_layout.addWidget(self._field("MRP", self.mrp_edit, stretch=1), 1)
+        main_layout.addWidget(self._field("Disc", self.discount_edit, stretch=1), 1)
+        main_layout.addWidget(self._field("GST", self.gst_edit, stretch=1), 1)
+        main_layout.addWidget(self.add_btn, 0)
 
         # Set logical tab traversal
         QWidget.setTabOrder(self.item_combo, self.pay_qty_edit)
@@ -1049,11 +1075,19 @@ class _ItemEntryBar(QWidget):
             return _commit_existing(existing["id"])
 
         # 5. Check if text unambiguously matches exactly one item in items_data
-        matches = [
-            it for it in getattr(self.item_combo, "_items_data", [])
-            if (it[1] is not None or not it[0].startswith("--"))
-            and (text.casefold() in it[0].casefold() or text.casefold() in it[2].casefold())
-        ]
+        clean_text = text.casefold()
+        if getattr(self.item_combo, "_prefix_only", False):
+            matches = [
+                it for it in getattr(self.item_combo, "_items_data", [])
+                if (it[1] is not None or not it[0].startswith("--"))
+                and (it[0].strip().casefold().startswith(clean_text) or it[2].strip().casefold().startswith(clean_text))
+            ]
+        else:
+            matches = [
+                it for it in getattr(self.item_combo, "_items_data", [])
+                if (it[1] is not None or not it[0].startswith("--"))
+                and (clean_text in it[0].casefold() or clean_text in it[2].casefold())
+            ]
         if len(matches) == 1:
             cand_idx = matches[0][3] if len(matches[0]) >= 4 else self.item_combo._find_matching_index(matches[0][0])
             if cand_idx >= 0 and self.item_combo.itemData(cand_idx) is not None:
@@ -1107,6 +1141,7 @@ class _ItemEntryBar(QWidget):
             self._selected_batch_no = ""
             self._selected_batch_id = None
             self._selected_batch_data = None
+            self.expiry_edit.clear()
             self.set_batch_fields_readonly(False)
 
     def _field(self, label_text: str, widget: QWidget, label_width: int | None = None, stretch: int = 0) -> QWidget:
@@ -2238,19 +2273,32 @@ class _InvoiceDialog(QDialog):
 
         inv_d = self.get_invoice_date()
         for r in self._item_rows:
-            if r.expiry:
-                parsed_exp = parse_expiry_to_date(r.expiry)
-                if parsed_exp and parsed_exp < inv_d:
-                    exp_disp = parsed_exp.strftime("%d-%m-%Y")
-                    inv_disp = inv_d.strftime("%d-%m-%Y")
-                    QMessageBox.warning(
-                        self,
-                        "Expired Stock",
-                        f"Cannot save invoice: Item '{r.item_name}' (Batch '{r.batch_no}') "
-                        f"is expired ({exp_disp}) on invoice date ({inv_disp}).\n\n"
-                        f"Expired stock cannot be entered in a new purchase invoice.",
-                    )
-                    return
+            if not r.expiry or r.expiry.upper() == "DD-MM-YYYY":
+                QMessageBox.warning(
+                    self,
+                    "Validation",
+                    f"Item '{r.item_name}' (Batch '{r.batch_no}') requires a valid Expiry Date.",
+                )
+                return
+            parsed_exp = parse_expiry_to_date(r.expiry)
+            if not parsed_exp:
+                QMessageBox.warning(
+                    self,
+                    "Validation",
+                    f"Item '{r.item_name}' (Batch '{r.batch_no}') has an invalid Expiry Date '{r.expiry}'.",
+                )
+                return
+            if parsed_exp < inv_d:
+                exp_disp = parsed_exp.strftime("%d-%m-%Y")
+                inv_disp = inv_d.strftime("%d-%m-%Y")
+                QMessageBox.warning(
+                    self,
+                    "Expired Stock",
+                    f"Cannot save invoice: Item '{r.item_name}' (Batch '{r.batch_no}') "
+                    f"is expired ({exp_disp}) on invoice date ({inv_disp}).\n\n"
+                    f"Expired stock cannot be entered in a new purchase invoice.",
+                )
+                return
 
         voucher_no = getattr(self, "_full_voucher_no", None) or self.voucher_no_edit.text().strip()
         if not voucher_no:
