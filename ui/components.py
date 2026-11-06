@@ -756,6 +756,7 @@ class SearchableComboBox(ConstrainedComboBox):
         max_width: int | None = None,
         min_width: int | None = None,
         allow_width_expansion: bool = True,
+        prefix_only: bool = False,
     ):
         super().__init__(
             parent,
@@ -770,6 +771,7 @@ class SearchableComboBox(ConstrainedComboBox):
         self.setFixedHeight(32)
 
         self._placeholder = placeholder
+        self._prefix_only = prefix_only
         self._min_popup_width: int = min_width if min_width is not None else 320
         self._items_data: list[tuple[str, Any, str, int]] = []
         self._item_map: dict[str, int] = {}
@@ -787,7 +789,7 @@ class SearchableComboBox(ConstrainedComboBox):
         self._completer_model = QStandardItemModel(self)
         self._completer = QCompleter(self._completer_model, self)
         self._completer.setCaseSensitivity(Qt.CaseInsensitive)
-        self._completer.setFilterMode(Qt.MatchContains)
+        self._completer.setFilterMode(Qt.MatchStartsWith if prefix_only else Qt.MatchContains)
         self._completer.setCompletionMode(QCompleter.PopupCompletion)
         self._completer.setMaxVisibleItems(max_visible)
 
@@ -1046,11 +1048,18 @@ class SearchableComboBox(ConstrainedComboBox):
             return
 
         q_fold = query.casefold()
-        matches = [
-            it for it in self._items_data
-            if (it[1] is not None or not it[0].startswith("--"))
-            and (q_fold in it[0].casefold() or q_fold in it[2].casefold())
-        ]
+        if getattr(self, "_prefix_only", False):
+            matches = [
+                it for it in self._items_data
+                if (it[1] is not None or not it[0].startswith("--"))
+                and (it[0].strip().casefold().startswith(q_fold) or it[2].strip().casefold().startswith(q_fold))
+            ]
+        else:
+            matches = [
+                it for it in self._items_data
+                if (it[1] is not None or not it[0].startswith("--"))
+                and (q_fold in it[0].casefold() or q_fold in it[2].casefold())
+            ]
 
         self._completer_model.clear()
         if matches:
@@ -1225,11 +1234,19 @@ class SearchableComboBox(ConstrainedComboBox):
             return
 
         # 2. If text unambiguously matches exactly one item in _items_data, resolve it
-        matches = [
-            it for it in self._items_data
-            if (it[1] is not None or not it[0].startswith("--"))
-            and (text.casefold() in it[0].casefold() or text.casefold() in it[2].casefold())
-        ]
+        clean_text = text.strip().casefold()
+        if getattr(self, "_prefix_only", False):
+            matches = [
+                it for it in self._items_data
+                if (it[1] is not None or not it[0].startswith("--"))
+                and (it[0].strip().casefold().startswith(clean_text) or it[2].strip().casefold().startswith(clean_text))
+            ]
+        else:
+            matches = [
+                it for it in self._items_data
+                if (it[1] is not None or not it[0].startswith("--"))
+                and (clean_text in it[0].casefold() or clean_text in it[2].casefold())
+            ]
         if len(matches) == 1:
             cand_idx = matches[0][3] if len(matches[0]) >= 4 else self._find_matching_index(matches[0][0])
             if cand_idx >= 0 and self.itemData(cand_idx) is not None:

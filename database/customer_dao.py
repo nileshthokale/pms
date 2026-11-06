@@ -9,12 +9,18 @@ class PatientOption(str):
     Subclasses str so that isinstance(opt, str) and opt == 'NAME' remain true
     for full backward compatibility with any code expecting string suggestions.
     """
-    def __new__(cls, name: str, address: str = "", is_duplicate: bool = False):
+    def __new__(cls, name: str, address: str = "", is_duplicate: bool = False, contact_no: str = ""):
         clean_name = " ".join((name or "").split()).strip()
         obj = str.__new__(cls, clean_name)
         obj.name = clean_name
         clean_addr = " ".join((address or "").split()).strip()
         obj.address = clean_addr
+        raw_contact = "".join(c for c in str(contact_no or "") if c.isdigit())
+        if raw_contact.startswith("91") and len(raw_contact) == 12:
+            raw_contact = raw_contact[2:]
+        elif raw_contact.startswith("0") and len(raw_contact) == 11:
+            raw_contact = raw_contact[1:]
+        obj.contact_no = raw_contact[:10]
         # Show address in parentheses when disambiguation is needed for duplicate names
         obj.display_text = f"{clean_name}  ({clean_addr})" if (is_duplicate and clean_addr) else clean_name
         return obj
@@ -167,11 +173,120 @@ class CustomerDAO:
                   AND UPPER(TRIM(customer_name)) NOT IN ('WALKIN', 'WALKIN CUSTOMER')
                 """
             )
+            cols = [r[1] for r in conn.execute("PRAGMA table_info(patient_addresses)").fetchall()]
+            if "contact_no" not in cols:
+                conn.execute("ALTER TABLE patient_addresses ADD COLUMN contact_no TEXT DEFAULT ''")
+            conn.execute(
+                """
+                UPDATE patient_addresses
+                SET contact_no = (
+                    SELECT c.contact_no FROM customers c
+                    WHERE c.id = patient_addresses.customer_id
+                      AND c.contact_no IS NOT NULL AND TRIM(c.contact_no) <> ''
+                )
+                WHERE (contact_no IS NULL OR TRIM(contact_no) = '')
+                  AND customer_id IS NOT NULL
+                """
+            )
             conn.commit()
         except Exception:
             pass
         finally:
             conn.close()
+
+    @staticmethod
+    def get_saved_mobile_for_patient(patient_name: str) -> str:
+        """Return the saved mobile number (10 digits) for the specified patient name.
+
+        Checks patient_addresses, customers, and sales_invoices in priority order.
+        """
+        raw = (patient_name or "").strip()
+        if not raw:
+            return ""
+        norm = " ".join(raw.split()).upper()
+        if norm in ("WALKIN", "WALKIN CUSTOMER"):
+            return ""
+
+        CustomerDAO._ensure_patient_addresses_table()
+
+        import sqlite3
+        conn = get_connection()
+        try:
+            # 1. From patient_addresses table
+            cur = conn.execute(
+                """
+                SELECT contact_no
+                FROM patient_addresses
+                WHERE UPPER(TRIM(patient_name)) = ?
+                  AND contact_no IS NOT NULL AND TRIM(contact_no) <> ''
+                ORDER BY updated_at DESC, id DESC
+                LIMIT 1
+                """,
+                (norm,),
+            )
+            row = cur.fetchone()
+            if row:
+                val = row["contact_no"] if isinstance(row, sqlite3.Row) else row[0]
+                digits = "".join(c for c in str(val or "") if c.isdigit())
+                if digits.startswith("91") and len(digits) == 12:
+                    digits = digits[2:]
+                elif digits.startswith("0") and len(digits) == 11:
+                    digits = digits[1:]
+                if len(digits) >= 10:
+                    return digits[:10]
+
+            # 2. From customers table (customer_name match)
+            cur = conn.execute(
+                """
+                SELECT contact_no
+                FROM customers
+                WHERE UPPER(TRIM(customer_name)) = ?
+                  AND contact_no IS NOT NULL AND TRIM(contact_no) <> ''
+                  AND UPPER(TRIM(customer_name)) NOT IN ('WALKIN', 'WALKIN CUSTOMER')
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (norm,),
+            )
+            row = cur.fetchone()
+            if row:
+                val = row["contact_no"] if isinstance(row, sqlite3.Row) else row[0]
+                digits = "".join(c for c in str(val or "") if c.isdigit())
+                if digits.startswith("91") and len(digits) == 12:
+                    digits = digits[2:]
+                elif digits.startswith("0") and len(digits) == 11:
+                    digits = digits[1:]
+                if len(digits) >= 10:
+                    return digits[:10]
+
+            # 3. From historical sales where patient_name matches and customer has contact_no
+            cur = conn.execute(
+                """
+                SELECT c.contact_no
+                FROM sales_invoices si
+                JOIN customers c ON si.customer_id = c.id
+                WHERE UPPER(TRIM(si.patient_name)) = ?
+                  AND c.contact_no IS NOT NULL AND TRIM(c.contact_no) <> ''
+                  AND UPPER(TRIM(c.customer_name)) NOT IN ('WALKIN', 'WALKIN CUSTOMER')
+                ORDER BY si.sale_date DESC, si.id DESC
+                LIMIT 1
+                """,
+                (norm,),
+            )
+            row = cur.fetchone()
+            if row:
+                val = row["contact_no"] if isinstance(row, sqlite3.Row) else row[0]
+                digits = "".join(c for c in str(val or "") if c.isdigit())
+                if digits.startswith("91") and len(digits) == 12:
+                    digits = digits[2:]
+                elif digits.startswith("0") and len(digits) == 11:
+                    digits = digits[1:]
+                if len(digits) >= 10:
+                    return digits[:10]
+        finally:
+            conn.close()
+
+        return ""
 
     @staticmethod
     def get_saved_addresses_for_patient(patient_name: str) -> list[str]:
@@ -284,26 +399,26 @@ class CustomerDAO:
 
             sql = f"""
             WITH combined AS (
-                SELECT patient_name, address, 1 as priority
+                SELECT patient_name, address, contact_no, 1 as priority
                 FROM patient_addresses
                 WHERE patient_name IS NOT NULL AND TRIM(patient_name) <> ''
                   AND UPPER(TRIM(patient_name)) NOT IN ('WALKIN', 'WALKIN CUSTOMER')
 
                 UNION ALL
 
-                SELECT customer_name as patient_name, address, 2 as priority
+                SELECT customer_name as patient_name, address, contact_no, 2 as priority
                 FROM customers
                 WHERE customer_name IS NOT NULL AND TRIM(customer_name) <> ''
                   AND UPPER(TRIM(customer_name)) NOT IN ('WALKIN', 'WALKIN CUSTOMER')
 
                 UNION ALL
 
-                SELECT patient_name, '' as address, 3 as priority
+                SELECT patient_name, '' as address, '' as contact_no, 3 as priority
                 FROM sales_invoices
                 WHERE patient_name IS NOT NULL AND TRIM(patient_name) <> ''
                   AND UPPER(TRIM(patient_name)) NOT IN ('WALKIN', 'WALKIN CUSTOMER')
             )
-            SELECT patient_name, address, priority
+            SELECT patient_name, address, contact_no, priority
             FROM combined
             {where_sql}
             ORDER BY
@@ -325,21 +440,22 @@ class CustomerDAO:
             for row in rows:
                 name = " ".join(str(row[0] if not isinstance(row, sqlite3.Row) else row["patient_name"] or "").split()).strip()
                 addr = " ".join(str(row[1] if not isinstance(row, sqlite3.Row) else row["address"] or "").split()).strip()
+                cnt = str(row[2] if not isinstance(row, sqlite3.Row) else row["contact_no"] or "").strip()
                 if not name:
                     continue
                 key = (name.upper(), addr.upper())
                 if key in seen:
                     continue
                 seen.add(key)
-                raw_items.append((name, addr))
+                raw_items.append((name, addr, cnt))
                 name_counts[name.upper()] = name_counts.get(name.upper(), 0) + 1
                 if len(raw_items) >= limit:
                     break
 
             results: list[PatientOption] = []
-            for name, addr in raw_items:
+            for name, addr, cnt in raw_items:
                 is_dup = name_counts.get(name.upper(), 0) > 1
-                results.append(PatientOption(name, addr, is_duplicate=is_dup))
+                results.append(PatientOption(name, addr, is_duplicate=is_dup, contact_no=cnt))
             return results
         finally:
             conn.close()
@@ -419,12 +535,21 @@ class CustomerDAO:
         patient_name: str,
         address: str,
         customer_id: int | None = None,
+        contact_no: str = "",
     ) -> None:
-        """Preserve the patient's address in accordance with the existing data model."""
+        """Preserve the patient's address and mobile number in accordance with the existing data model."""
         clean_addr = " ".join((address or "").split()).strip()
-        if not clean_addr:
-            return
         clean_pat = " ".join((patient_name or "").split()).strip()
+
+        clean_contact = "".join(c for c in (contact_no or "") if c.isdigit())
+        if clean_contact.startswith("91") and len(clean_contact) == 12:
+            clean_contact = clean_contact[2:]
+        elif clean_contact.startswith("0") and len(clean_contact) == 11:
+            clean_contact = clean_contact[1:]
+        clean_contact = clean_contact[:10]
+
+        if not clean_addr and not clean_contact:
+            return
 
         CustomerDAO._ensure_patient_addresses_table()
 
@@ -442,51 +567,125 @@ class CustomerDAO:
 
             is_named_customer = customer_id is not None and customer_id not in walkin_ids
 
-            # 1. Dedicated patient_addresses persistence
             pat_key = clean_pat if clean_pat else "WALKIN"
-            cur.execute(
-                """
-                INSERT OR REPLACE INTO patient_addresses (patient_name, address, customer_id, updated_at)
-                VALUES (?, ?, ?, datetime('now', 'localtime'))
-                """,
-                (pat_key, clean_addr, customer_id),
-            )
 
-            # 2. If customer_id is a named customer, update their registered address
-            if is_named_customer:
-                cur.execute(
-                    "UPDATE customers SET address = ? WHERE id = ?",
-                    (clean_addr, customer_id),
-                )
+            # 1. Dedicated patient_addresses persistence
+            if clean_addr:
                 cur.execute(
                     """
-                    UPDATE account_ledgers SET address = ?
-                    WHERE id = (SELECT ledger_id FROM customers WHERE id = ?)
+                    SELECT id, contact_no FROM patient_addresses
+                    WHERE UPPER(TRIM(patient_name)) = UPPER(TRIM(?))
+                      AND UPPER(TRIM(address)) = UPPER(TRIM(?))
                     """,
-                    (clean_addr, customer_id),
+                    (pat_key, clean_addr),
                 )
+                existing_pa = cur.fetchone()
+                if existing_pa:
+                    pa_id = existing_pa[0] if not isinstance(existing_pa, sqlite3.Row) else existing_pa["id"]
+                    old_cnt = existing_pa[1] if not isinstance(existing_pa, sqlite3.Row) else existing_pa["contact_no"]
+                    cnt_to_save = clean_contact if clean_contact else (old_cnt or "")
+                    cur.execute(
+                        """
+                        UPDATE patient_addresses
+                        SET customer_id = COALESCE(?, customer_id),
+                            contact_no = ?,
+                            updated_at = datetime('now', 'localtime')
+                        WHERE id = ?
+                        """,
+                        (customer_id, cnt_to_save, pa_id),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        INSERT INTO patient_addresses (patient_name, address, customer_id, contact_no, updated_at)
+                        VALUES (?, ?, ?, ?, datetime('now', 'localtime'))
+                        """,
+                        (pat_key, clean_addr, customer_id, clean_contact),
+                    )
+            elif clean_contact and clean_pat and clean_pat.upper() not in ("WALKIN", "WALKIN CUSTOMER"):
+                cur.execute(
+                    """
+                    UPDATE patient_addresses
+                    SET contact_no = ?
+                    WHERE UPPER(TRIM(patient_name)) = UPPER(TRIM(?))
+                      AND (contact_no IS NULL OR TRIM(contact_no) = '')
+                    """,
+                    (clean_contact, clean_pat),
+                )
+
+            # 2. If customer_id is a named customer, update their registered address & contact
+            if is_named_customer:
+                if clean_addr:
+                    cur.execute(
+                        "UPDATE customers SET address = ? WHERE id = ?",
+                        (clean_addr, customer_id),
+                    )
+                    cur.execute(
+                        """
+                        UPDATE account_ledgers SET address = ?
+                        WHERE id = (SELECT ledger_id FROM customers WHERE id = ?)
+                        """,
+                        (clean_addr, customer_id),
+                    )
+                if clean_contact:
+                    cur.execute(
+                        """
+                        UPDATE customers
+                        SET contact_no = ?
+                        WHERE id = ? AND (contact_no IS NULL OR TRIM(contact_no) = '')
+                        """,
+                        (clean_contact, customer_id),
+                    )
+                    cur.execute(
+                        """
+                        UPDATE account_ledgers
+                        SET contact_no = ?
+                        WHERE id = (SELECT ledger_id FROM customers WHERE id = ?)
+                          AND (contact_no IS NULL OR TRIM(contact_no) = '')
+                        """,
+                        (clean_contact, customer_id),
+                    )
                 conn.commit()
                 return
 
-            # 3. If patient name matches an existing registered customer, keep their address updated
+            # 3. If patient name matches an existing registered customer, keep their address/contact updated safely
             if clean_pat and clean_pat.upper() not in ("WALKIN", "WALKIN CUSTOMER"):
                 cur.execute(
-                    "SELECT id, ledger_id FROM customers WHERE UPPER(TRIM(customer_name)) = UPPER(TRIM(?))",
+                    "SELECT id, ledger_id, contact_no FROM customers WHERE UPPER(TRIM(customer_name)) = UPPER(TRIM(?))",
                     (clean_pat,),
                 )
                 existing = cur.fetchone()
                 if existing:
                     cid = existing[0] if not isinstance(existing, sqlite3.Row) else existing["id"]
                     lid = existing[1] if not isinstance(existing, sqlite3.Row) else existing["ledger_id"]
-                    cur.execute(
-                        "UPDATE customers SET address = ? WHERE id = ?",
-                        (clean_addr, cid),
-                    )
-                    if lid:
+                    if clean_addr:
                         cur.execute(
-                            "UPDATE account_ledgers SET address = ? WHERE id = ?",
-                            (clean_addr, lid),
+                            "UPDATE customers SET address = ? WHERE id = ?",
+                            (clean_addr, cid),
                         )
+                        if lid:
+                            cur.execute(
+                                "UPDATE account_ledgers SET address = ? WHERE id = ?",
+                                (clean_addr, lid),
+                            )
+                    if clean_contact:
+                        cur.execute(
+                            """
+                            UPDATE customers
+                            SET contact_no = ?
+                            WHERE id = ? AND (contact_no IS NULL OR TRIM(contact_no) = '')
+                            """,
+                            (clean_contact, cid),
+                        )
+                        if lid:
+                            cur.execute(
+                                """
+                                UPDATE account_ledgers
+                                SET contact_no = ?
+                                WHERE id = ? AND (contact_no IS NULL OR TRIM(contact_no) = '')
+                                """,
+                                (clean_contact, lid),
+                            )
 
             conn.commit()
         except Exception:

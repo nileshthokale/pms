@@ -43,7 +43,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QPalette, QStandardItem, QStandardItemModel
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QPalette, QStandardItem, QStandardItemModel, QKeyEvent, QKeySequence
 
 from database.customer_dao import CustomerDAO, PatientOption
 from database.connection import get_connection
@@ -1116,6 +1116,155 @@ def _make_compact_combo() -> QComboBox:
     c.lineEdit().setFixedHeight(_METADATA_CONTROL_HEIGHT - 2)
     _keep_alive(c)
     return c
+
+
+PREFIX = "+91 "
+PREFIX_LEN = len(PREFIX)  # 4
+
+
+class MobileNumberLineEdit(QLineEdit):
+    """Line edit with fixed '+91 ' Indian country code prefix for 10-digit mobile."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet(_EDIT_STYLE)
+        _mark_cs(self, "edit")
+        self.setFont(readable_font(TYPE_INPUT))
+        self.setText(PREFIX)
+        self.setPlaceholderText("+91 9876543210")
+
+    def get_digits(self) -> str:
+        raw = self.text()
+        if raw.startswith(PREFIX):
+            digits = "".join(c for c in raw[PREFIX_LEN:] if c.isdigit())
+        else:
+            digits = "".join(c for c in raw if c.isdigit())
+            if digits.startswith("91") and len(digits) > 10:
+                digits = digits[2:]
+        return digits[:10]
+
+    def set_mobile_number(self, val: str):
+        if not val:
+            self.setText(PREFIX)
+            return
+        cleaned = "".join(c for c in str(val) if c.isdigit())
+        if cleaned.startswith("91") and len(cleaned) == 12:
+            cleaned = cleaned[2:]
+        elif cleaned.startswith("0") and len(cleaned) == 11:
+            cleaned = cleaned[1:]
+        digits = cleaned[:10]
+        self.setText(f"{PREFIX}{digits}" if digits else PREFIX)
+
+    def clean_mobile_for_db(self) -> str:
+        digits = self.get_digits()
+        return f"+91 {digits}" if digits else ""
+
+    def keyPressEvent(self, event: QKeyEvent):
+        key = event.key()
+        text = event.text()
+
+        # Select all (Ctrl+A)
+        if event.matches(QKeySequence.SelectAll):
+            super().keyPressEvent(event)
+            return
+
+        # Copy (Ctrl+C)
+        if event.matches(QKeySequence.Copy):
+            super().keyPressEvent(event)
+            return
+
+        # Paste (Ctrl+V)
+        if event.matches(QKeySequence.Paste):
+            clipboard = QApplication.clipboard().text()
+            self._paste_digits(clipboard)
+            return
+
+        # Navigation / action keys
+        if key in (
+            Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down,
+            Qt.Key_Home, Qt.Key_End, Qt.Key_Tab, Qt.Key_Backtab,
+            Qt.Key_Return, Qt.Key_Enter, Qt.Key_Escape,
+        ):
+            super().keyPressEvent(event)
+            if self.cursorPosition() < PREFIX_LEN:
+                self.setCursorPosition(PREFIX_LEN)
+            return
+
+        # Backspace handling
+        if key == Qt.Key_Backspace:
+            if self.hasSelectedText():
+                start = self.selectionStart()
+                if start < PREFIX_LEN:
+                    self.deselect()
+                    self.setText(PREFIX)
+                    self.setCursorPosition(PREFIX_LEN)
+                    return
+            elif self.cursorPosition() <= PREFIX_LEN:
+                return
+            super().keyPressEvent(event)
+            self._ensure_prefix()
+            return
+
+        # Delete handling
+        if key == Qt.Key_Delete:
+            if self.hasSelectedText():
+                start = self.selectionStart()
+                if start < PREFIX_LEN:
+                    self.deselect()
+                    self.setText(PREFIX)
+                    self.setCursorPosition(PREFIX_LEN)
+                    return
+            elif self.cursorPosition() < PREFIX_LEN:
+                self.setCursorPosition(PREFIX_LEN)
+                return
+            super().keyPressEvent(event)
+            self._ensure_prefix()
+            return
+
+        # Regular typing: digits only
+        if text and text.isdigit():
+            if self.hasSelectedText():
+                start = self.selectionStart()
+                if start < PREFIX_LEN:
+                    self.deselect()
+                    self.set_mobile_number(text)
+                    self.setCursorPosition(len(self.text()))
+                    return
+            current_digits = self.get_digits()
+            if len(current_digits) >= 10 and not self.hasSelectedText():
+                return
+            if self.cursorPosition() < PREFIX_LEN:
+                self.setCursorPosition(PREFIX_LEN)
+            super().keyPressEvent(event)
+            self._ensure_prefix()
+            return
+
+        # Block any non-digit typing
+        event.ignore()
+
+    def _ensure_prefix(self):
+        curr = self.text()
+        if not curr.startswith(PREFIX):
+            digits = "".join(c for c in curr if c.isdigit())
+            if digits.startswith("91") and len(digits) > 10:
+                digits = digits[2:]
+            self.setText(f"{PREFIX}{digits[:10]}")
+            self.setCursorPosition(len(self.text()))
+
+    def _paste_digits(self, text: str):
+        cleaned = "".join(c for c in str(text or "") if c.isdigit())
+        if cleaned.startswith("91") and len(cleaned) == 12:
+            cleaned = cleaned[2:]
+        elif cleaned.startswith("0") and len(cleaned) == 11:
+            cleaned = cleaned[1:]
+        self.set_mobile_number(cleaned)
+
+    def mousePressEvent(self, event):
+        super().mousePressEvent(event)
+        if self.cursorPosition() < PREFIX_LEN:
+            self.setCursorPosition(PREFIX_LEN)
+
+
 
 
 def _make_compact_date() -> QDateEdit:
@@ -3272,6 +3421,11 @@ class _SalePanel(QWidget):
                 self.customer_combo.setCurrentIndex(index)
                 break
         self.patient_name_edit.clear()
+        if hasattr(self, "mobile_edit"):
+            self.mobile_edit.set_mobile_number("")
+            self._user_edited_mobile = False
+            self._auto_filled_mobile_patient = None
+            self._auto_filled_mobile_digits = None
         if self.doctor_combo.count():
             self._select_default_doctor()
         self.bill_disc_edit.setText("0.00")
@@ -3443,6 +3597,9 @@ class _SalePanel(QWidget):
             # Popup mode: Customer / Patient / Doctor are re-parented into
             # the top strip, so the hidden box only needs to stay alive.
             self._customer_group = grp
+        if not hasattr(self, "mobile_edit"):
+            self.mobile_edit = MobileNumberLineEdit()
+            self.mobile_edit.textEdited.connect(self._on_mobile_edited)
         self._load_customers()
         self._load_doctors()
 
@@ -3579,6 +3736,11 @@ class _SalePanel(QWidget):
             self.address_edit.lineEdit().textEdited.connect(self._on_address_edited)
         self.address_edit.completionAccepted.connect(self._on_address_completion_accepted)
         centre.addWidget(self.address_edit, 2, 1)
+        centre.addWidget(self._lbl("Mobile No"), 3, 0, Qt.AlignRight | Qt.AlignVCenter)
+        self.mobile_edit = MobileNumberLineEdit()
+        self.mobile_edit.setMinimumWidth(200)
+        self.mobile_edit.textEdited.connect(self._on_mobile_edited)
+        centre.addWidget(self.mobile_edit, 3, 1)
         centre.setColumnStretch(1, 1)  # Stretch fields within centre grid
 
         # Wrap the middle section so it shares the available width evenly
@@ -3964,6 +4126,12 @@ class _SalePanel(QWidget):
             return
         cid = self.customer_combo.currentData()
         self.cnt_no_edit.setText(self._customer_contacts.get(cid, ""))
+        if hasattr(self, "mobile_edit"):
+            cust_cnt = self._customer_contacts.get(cid, "")
+            if cust_cnt and not getattr(self, "_user_edited_mobile", False):
+                self.mobile_edit.set_mobile_number(cust_cnt)
+                self._auto_filled_mobile_patient = None
+                self._auto_filled_mobile_digits = self.mobile_edit.get_digits()
         cust_addr = self._customer_addresses.get(cid, "")
         if cust_addr:
             self.address_edit.setText(cust_addr)
@@ -4072,9 +4240,33 @@ class _SalePanel(QWidget):
 
         outer.addLayout(row2)
 
+        if not hasattr(self, "mobile_edit"):
+            self.mobile_edit = MobileNumberLineEdit()
+            self.mobile_edit.textEdited.connect(self._on_mobile_edited)
         self.customer_combo.currentIndexChanged.connect(self._refresh_customer_info)
         self._load_customers()
         self._load_doctors()
+
+    def _on_mobile_edited(self, _text: str):
+        self._user_edited_mobile = True
+        self._auto_filled_mobile_patient = None
+        self._auto_filled_mobile_digits = None
+
+    def focus_patient_name(self):
+        """Put keyboard focus on the Patient Name entry and select all text so typing replaces it."""
+        try:
+            target = None
+            if hasattr(self, "patient_name_edit"):
+                if hasattr(self.patient_name_edit, "lineEdit") and self.patient_name_edit.lineEdit():
+                    target = self.patient_name_edit.lineEdit()
+                else:
+                    target = self.patient_name_edit
+            if target is not None:
+                target.setFocus()
+                if hasattr(target, "selectAll"):
+                    target.selectAll()
+        except Exception:
+            pass
 
     def _on_address_edited(self, text: str):
         self._user_edited_address = True
@@ -4106,6 +4298,16 @@ class _SalePanel(QWidget):
         else:
             self._update_address_for_patient(text)
 
+        if selected_data and getattr(selected_data, "contact_no", None) and not getattr(self, "_user_edited_mobile", False):
+            mob = selected_data.contact_no
+            if hasattr(self, "mobile_edit"):
+                self.mobile_edit.set_mobile_number(mob)
+                self._auto_filled_mobile_patient = getattr(selected_data, "name", text)
+                self._auto_filled_mobile_digits = self.mobile_edit.get_digits()
+                self._user_edited_mobile = False
+        else:
+            self._update_mobile_for_patient(text)
+
     def _on_patient_name_changed(self, text: str):
         full_bno = getattr(self, "_full_bill_no", None)
         if full_bno and getattr(self, "_invoice", None) is not None:
@@ -4122,6 +4324,7 @@ class _SalePanel(QWidget):
             except Exception:
                 pass
         self._update_address_for_patient(text)
+        self._update_mobile_for_patient(text)
 
     def _update_address_for_patient(self, text: str):
         if not hasattr(self, "address_edit"):
@@ -4183,6 +4386,47 @@ class _SalePanel(QWidget):
                 self.address_edit.setText("")
                 self._auto_filled_address_patient = None
                 self._auto_filled_address_text = None
+
+    def _update_mobile_for_patient(self, text: str):
+        if not hasattr(self, "mobile_edit"):
+            return
+
+        norm = " ".join((text or "").split()).strip()
+
+        # If patient name is genuinely empty or whitespace or WALKIN:
+        if not norm or norm.upper() in ("WALKIN", "WALKIN CUSTOMER"):
+            if getattr(self, "_auto_filled_mobile_patient", None):
+                self.mobile_edit.set_mobile_number("")
+                self._auto_filled_mobile_patient = None
+                self._auto_filled_mobile_digits = None
+            return
+
+        # When the patient name changes, clear previously auto-filled mobile if it belongs to a different patient
+        prev_patient = getattr(self, "_auto_filled_mobile_patient", None)
+        if prev_patient and prev_patient.upper() != norm.upper():
+            curr_digits = self.mobile_edit.get_digits()
+            auto_digits = getattr(self, "_auto_filled_mobile_digits", "")
+            if curr_digits == auto_digits or not getattr(self, "_user_edited_mobile", False):
+                self.mobile_edit.set_mobile_number("")
+                self._auto_filled_mobile_patient = None
+                self._auto_filled_mobile_digits = None
+                self._user_edited_mobile = False
+
+        if getattr(self, "_user_edited_mobile", False):
+            # User manually edited/entered this mobile: do not overwrite it.
+            return
+
+        saved_mobile = CustomerDAO.get_saved_mobile_for_patient(norm)
+        if saved_mobile:
+            self.mobile_edit.set_mobile_number(saved_mobile)
+            self._auto_filled_mobile_patient = norm
+            self._auto_filled_mobile_digits = self.mobile_edit.get_digits()
+            self._user_edited_mobile = False
+        else:
+            if getattr(self, "_auto_filled_mobile_patient", None):
+                self.mobile_edit.set_mobile_number("")
+                self._auto_filled_mobile_patient = None
+                self._auto_filled_mobile_digits = None
 
     def _load_customers(self):
         customers = CustomerDAO.get_all()
@@ -5092,6 +5336,18 @@ class _SalePanel(QWidget):
                 self._auto_filled_address_patient = pat
                 self._auto_filled_address_text = addr
 
+        cid = inv.get("customer_id")
+        if hasattr(self, "mobile_edit"):
+            mob = inv.get("contact_no") or inv.get("mobile") or ""
+            if not mob and pat:
+                mob = CustomerDAO.get_saved_mobile_for_patient(pat)
+            if not mob and cid:
+                mob = self._customer_contacts.get(cid, "")
+            self.mobile_edit.set_mobile_number(mob)
+            if mob and pat:
+                self._auto_filled_mobile_patient = pat
+                self._auto_filled_mobile_digits = self.mobile_edit.get_digits()
+
         from PySide6.QtCore import QDate
         sd = inv.get("sale_date", "")
         if sd:
@@ -5321,6 +5577,13 @@ class _SalePanel(QWidget):
             QMessageBox.warning(self, "Validation", "Customer is required.")
             return False
 
+        if hasattr(self, "mobile_edit"):
+            mob_digits = self.mobile_edit.get_digits()
+            if mob_digits and len(mob_digits) < 10:
+                self.mobile_edit.setFocus()
+                QMessageBox.warning(self, "Validation", "Mobile number must be a valid 10-digit number.")
+                return False
+
         # Drafts carry no number until Save (assigned transactionally);
         # only edits of existing named invoices require a bill number here.
         # A sale created without a patient name legitimately has a blank
@@ -5513,12 +5776,14 @@ class _SalePanel(QWidget):
                     items=items_data,
                 )
             addr_text = self.address_edit.text().strip() if hasattr(self, "address_edit") else ""
-            if addr_text:
+            mobile_digits = self.mobile_edit.get_digits() if hasattr(self, "mobile_edit") else ""
+            if addr_text or mobile_digits:
                 try:
                     CustomerDAO.save_patient_address(
                         patient_name=patient_name,
                         address=addr_text,
                         customer_id=cid,
+                        contact_no=mobile_digits,
                     )
                 except Exception:
                     pass
@@ -5549,6 +5814,7 @@ class _SalePanel(QWidget):
             "customer_id": self.customer_combo.currentData(),
             "patient_name": self.patient_name_edit.text(),
             "address": self.address_edit.text() if hasattr(self, "address_edit") else "",
+            "mobile": self.mobile_edit.get_digits() if hasattr(self, "mobile_edit") else "",
             "doctor_id": self.doctor_combo.currentData(),
             "bill_discount": self.bill_disc_edit.text(),
             "paid_amount": self.paid_edit.text(),
@@ -5620,6 +5886,20 @@ class _SalePanel(QWidget):
                 pat = state.get("patient_name", "")
                 if pat:
                     self._update_address_for_patient(pat)
+
+        if hasattr(self, "mobile_edit"):
+            mob = state.get("mobile", "")
+            if mob:
+                self.mobile_edit.set_mobile_number(mob)
+                if state.get("patient_name"):
+                    self._auto_filled_mobile_patient = state.get("patient_name")
+                    self._auto_filled_mobile_digits = self.mobile_edit.get_digits()
+            else:
+                pat = state.get("patient_name", "")
+                if pat:
+                    self._update_mobile_for_patient(pat)
+                else:
+                    self.mobile_edit.set_mobile_number("")
 
         did = state.get("doctor_id")
         if did is not None:
@@ -5882,6 +6162,12 @@ _BILL_DIALOG_STYLE = (
 
 
 class SalesBillReviewDialog(QDialog):
+
+    def focus_patient_name(self):
+        """Put keyboard focus on Patient Name in review dialog."""
+        if hasattr(self, "_panel") and hasattr(self._panel, "focus_patient_name"):
+            self._panel.focus_patient_name()
+
     """Compact "Sales Bill" review/edit step for Counter Sale.
 
     Opened by the Counter Sale **Save Sale** button *after* the draft has
@@ -6383,6 +6669,8 @@ class SalesBillReviewDialog(QDialog):
         # Committed: the page has already refreshed history via the `saved`
         # signal, so close the popup.
         self.accept()
+        if hasattr(self._source_panel, "focus_patient_name"):
+            QTimer.singleShot(0, self._source_panel.focus_patient_name)
 
     def refresh_theme(self) -> None:
         """Re-apply live Day/Night colours to the open Sales Bill popup."""
@@ -6556,6 +6844,12 @@ class _OpenBillCard(QPushButton):
 
 
 class CounterSalePage(QWidget):
+
+    def focus_patient_name(self):
+        """Put keyboard focus on Patient Name of active sale panel."""
+        if hasattr(self, "_sale_panel") and hasattr(self._sale_panel, "focus_patient_name"):
+            self._sale_panel.focus_patient_name()
+
     """Counter Sale screen.
 
     Fixed three-region desktop layout (Phase 6E — Counter Sale Layout Fix):
@@ -8342,7 +8636,8 @@ class CounterSalePage(QWidget):
         self._sale_panel.set_other_draft_reservation_provider(self._reserved_by_other_open_bills)
         self._refresh_open_bill_cards()
         self._refresh_combined_summary()
-        self._sale_panel.focus_item_name()
+        self._sale_panel.focus_patient_name()
+        QTimer.singleShot(0, self._sale_panel.focus_patient_name)
 
     def _on_sale_held(self):
         # Holding persists only the selected draft through the established
