@@ -635,3 +635,59 @@ class PurchaseDAO:
             return list(batches.values())
         finally:
             conn.close()
+
+    @staticmethod
+    def get_item_purchase_history(item_id: int) -> list[dict]:
+        """Return purchase transactions for an item ordered by date descending."""
+        conn = get_connection()
+        try:
+            query = """
+                SELECT 
+                    pi.id AS invoice_id,
+                    pi.voucher_no,
+                    pi.voucher_date,
+                    pi.purchase_type,
+                    pii.batch_no,
+                    pii.expiry,
+                    pii.pay_qty,
+                    pii.free_qty,
+                    pii.mrp,
+                    pii.rate,
+                    pii.discount,
+                    COALESCE(s.supplier_name, '') AS supplier_name
+                FROM purchase_invoice_items pii
+                JOIN purchase_invoices pi ON pi.id = pii.purchase_invoice_id
+                LEFT JOIN suppliers s ON s.id = pi.supplier_id
+                WHERE pii.item_id = ?
+                ORDER BY pi.voucher_date DESC, pi.id DESC
+            """
+            cur = conn.execute(query, (item_id,))
+            rows = [dict(r) for r in cur.fetchall()]
+            if not rows:
+                fallback_cur = conn.execute(
+                    """
+                    SELECT 
+                        sb.id AS invoice_id,
+                        '' AS voucher_no,
+                        '' AS voucher_date,
+                        'Opening/Stock' AS purchase_type,
+                        sb.batch_no,
+                        sb.expiry,
+                        sb.stock_qty AS pay_qty,
+                        0.0 AS free_qty,
+                        sb.mrp,
+                        sb.purchase_rate AS rate,
+                        0.0 AS discount,
+                        COALESCE(s.supplier_name, '') AS supplier_name
+                    FROM stock_batches sb
+                    LEFT JOIN suppliers s ON s.id = sb.supplier_id
+                    WHERE sb.item_id = ?
+                    ORDER BY sb.id DESC
+                    """,
+                    (item_id,),
+                )
+                rows = [dict(r) for r in fallback_cur.fetchall()]
+            return rows
+        finally:
+            conn.close()
+
