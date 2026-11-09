@@ -6983,13 +6983,18 @@ class CounterSalePage(QWidget):
             self._sale_panel.focus_item_name()
 
     def _open_pur_invoice(self) -> None:
+        """Open the New Purchase Invoice dialog directly as a popup."""
+        from screens.purchase_invoice import _InvoiceDialog
         self.pur_invoice_requested.emit()
-        win = self.window()
-        if win is not None and hasattr(win, "_on_menu_action"):
-            if getattr(win, "_stack", None) and getattr(win._stack, "currentWidget", None):
-                if win._stack.currentWidget() != self:
-                    return
-            win._on_menu_action("Purchase", "New Purchase")
+        dlg = _InvoiceDialog(self)
+        self._purchase_invoice_dialog = dlg
+        dlg.exec()
+        if getattr(dlg, "was_saved", False):
+            if hasattr(self, "_sale_panel") and hasattr(self._sale_panel, "_entry_bar"):
+                cur_item_id = self._sale_panel._entry_bar.selected_item_id()
+                if cur_item_id:
+                    self._sale_panel._entry_bar.reload_item_batches()
+                self._sale_panel._refresh_draft_availability()
 
     def _open_challan(self) -> None:
         self.challan_requested.emit()

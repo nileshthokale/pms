@@ -87,7 +87,6 @@ MENUS = {
     ],
     "Purchase": [
         "New Purchase",
-        "Purchase History",
         "Stock Adjustment",
         "Debit Note (Return to Supplier)",
         "Credit Note (Return from Customer)",

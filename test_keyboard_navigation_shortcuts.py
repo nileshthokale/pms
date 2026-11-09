@@ -224,8 +224,8 @@ class TestKeyboardNavigationShortcuts(unittest.TestCase):
         self.assertFalse(dlg.isVisible(), "Review dialog remained open after second Alt+S")
         self.assertTrue(dlg._panel.was_saved, "Sale was not saved after second Alt+S")
 
-    def test_new_purchase_button_on_counter_sale_navigates_to_new_purchase(self):
-        """Verify the 'New Purchase' button near 'Patient Bill History' opens New Purchase."""
+    def test_new_purchase_button_on_counter_sale_opens_new_purchase_dialog(self):
+        """Verify the 'New Purchase' button near 'Patient Bill History' opens New Purchase popup dialog directly."""
         self.win._open_counter_sale()
         self.app.processEvents()
         cs_page: screens.CounterSalePage = self.win._stack.currentWidget()
@@ -249,13 +249,25 @@ class TestKeyboardNavigationShortcuts(unittest.TestCase):
         np_idx = btn_texts.index("New Purchase")
         self.assertEqual(np_idx, pbh_idx + 1, "New Purchase must be right next to Patient Bill History")
 
-        # Click New Purchase button
+        # Click New Purchase button - should open _InvoiceDialog popup directly
+        from PySide6.QtCore import QTimer
+        from screens.purchase_invoice import _InvoiceDialog
+
+        dlg_found = []
+        def _check_dialog():
+            for w in self.app.topLevelWidgets():
+                if isinstance(w, _InvoiceDialog) and w.isVisible():
+                    dlg_found.append(w)
+                    w.reject()
+
+        QTimer.singleShot(50, _check_dialog)
         btn.click()
         self.app.processEvents()
 
+        self.assertTrue(len(dlg_found) > 0, "New Purchase popup dialog (_InvoiceDialog) did not open")
+        # Ensure we remain on CounterSalePage (did not navigate away)
         current = self.win._stack.currentWidget()
-        self.assertIsInstance(current, screens.PurchaseInvoicePage)
-        self.assertEqual(self.win._nav.status_label.text(), "Purchase / New Purchase")
+        self.assertIsInstance(current, screens.CounterSalePage)
 
 
 if __name__ == "__main__":
