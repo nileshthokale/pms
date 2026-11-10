@@ -1183,10 +1183,11 @@ class SearchableComboBox(ConstrainedComboBox):
         """Handle selection of an item from the completer popup."""
         if not index.isValid():
             return
-        data = index.data(Qt.UserRole)
-        if data is None:
+        item = self._completer_model.itemFromIndex(index)
+        if item is not None and not item.isEnabled():
             # Disabled item (e.g. 'No matching records found')
             return
+        data = index.data(Qt.UserRole)
         text = index.data(Qt.DisplayRole)
         combo_idx = index.data(Qt.UserRole + 2)
         self._block_filter = True
@@ -1326,23 +1327,35 @@ class SearchableComboBox(ConstrainedComboBox):
                 elif key in (Qt.Key_Return, Qt.Key_Enter):
                     if popup and popup.isVisible():
                         idx = popup.currentIndex()
-                        if not idx.isValid() or idx.data(Qt.UserRole) is None:
+                        if not idx.isValid():
                             for r in range(self._completer_model.rowCount()):
                                 cand = self._completer_model.index(r, 0)
-                                if cand.data(Qt.UserRole) is not None:
+                                cand_item = self._completer_model.item(r)
+                                if cand_item and cand_item.isEnabled():
                                     idx = cand
                                     break
-                        if idx.isValid() and idx.data(Qt.UserRole) is not None:
-                            self._on_completer_index_activated(idx)
-                            return True
+                        if idx.isValid():
+                            idx_item = self._completer_model.itemFromIndex(idx)
+                            if idx_item and idx_item.isEnabled():
+                                self._on_completer_index_activated(idx)
+                                return True
                     else:
                         self._resolve_current_text()
                         return False
                 elif key in (Qt.Key_Tab, Qt.Key_Backtab):
                     if popup and popup.isVisible():
                         idx = popup.currentIndex()
-                        if idx.isValid() and idx.data(Qt.UserRole) is not None:
-                            self._on_completer_index_activated(idx)
+                        if not idx.isValid():
+                            for r in range(self._completer_model.rowCount()):
+                                cand = self._completer_model.index(r, 0)
+                                cand_item = self._completer_model.item(r)
+                                if cand_item and cand_item.isEnabled():
+                                    idx = cand
+                                    break
+                        if idx.isValid():
+                            idx_item = self._completer_model.itemFromIndex(idx)
+                            if idx_item and idx_item.isEnabled():
+                                self._on_completer_index_activated(idx)
                         popup.hide()
         return super().eventFilter(obj, event)
 
@@ -1393,7 +1406,8 @@ class ReportFilterSearchCombo(SearchableComboBox):
 
         valid_items = [
             it for it in self._items_data
-            if it[1] is not None and not str(it[0]).startswith("--")
+            if (it[1] is not None or str(it[0]).lower().startswith("all "))
+            and not str(it[0]).startswith("--")
         ]
 
         matching_items = []
@@ -1462,7 +1476,7 @@ class ReportFilterSearchCombo(SearchableComboBox):
         item0.setData(default_label, Qt.DisplayRole)
         item0.setData(0, Qt.UserRole + 2)
         self._completer_model.appendRow(item0)
-        for m in self._items_data:
+        for m in self._items_data[1:]:
             if m[1] is None and str(m[0]).startswith("--"):
                 continue
             item = QStandardItem(m[0])

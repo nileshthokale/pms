@@ -47,6 +47,7 @@ from PySide6.QtWidgets import (
 from database.doctor_reports_dao import DoctorReportsDAO
 from database import financial_year
 from ui import theme
+from ui.components import ReportFilterSearchCombo
 from ui.crystal_report_viewer import (
     BlockKind,
     CONTENT_WIDTH,
@@ -253,18 +254,26 @@ class _BaseDoctorReportPage(QWidget):
 
     def _load_doctors(self):
         self._doctors = DoctorReportsDAO.get_doctors_list()
+        self.doctor_combo.blockSignals(True)
         self.doctor_combo.clear()
         self.doctor_combo.addItem("-- Select Doctor --", None)
         for doc in self._doctors:
             name = doc["doctor_name"]
             spec = doc.get("specialty")
             label = f"{name} ({spec})" if spec else name
-            self.doctor_combo.addItem(label, doc["id"])
+            raw = f"{name} {spec}".strip() if spec else name
+            self.doctor_combo.addItem(label, doc["id"], raw)
+        self.doctor_combo.setCurrentIndex(0)
+        self.doctor_combo.blockSignals(False)
 
     def get_selected_doctor_id(self) -> Optional[int]:
         text = self.doctor_combo.currentText().strip()
         if not text or text.lower().startswith("-- select"):
             return None
+
+        val = self.doctor_combo.currentData()
+        if val is not None:
+            return val
 
         curr_idx = self.doctor_combo.currentIndex()
         if 0 <= curr_idx < self.doctor_combo.count():
@@ -384,6 +393,11 @@ class _BaseDoctorReportPage(QWidget):
 
         self.main_splitter.setStyleSheet(f"QSplitter::handle {{ background-color: {p['border']}; }}")
 
+        if hasattr(self, "doctor_combo") and hasattr(self.doctor_combo, "refresh_theme"):
+            self.doctor_combo.refresh_theme()
+        if hasattr(self, "company_combo") and hasattr(self.company_combo, "refresh_theme"):
+            self.company_combo.refresh_theme()
+
         workspace_bg = QColor("#303030") if is_dark else QColor("#808080")
         self.viewer.canvas.set_workspace_bg(workspace_bg)
         self.viewer.scroll_area.setStyleSheet(
@@ -446,13 +460,12 @@ class DoctorwiseItemSalePage(_BaseDoctorReportPage):
         self.lbl_doctor = QLabel("Doctor:")
         self.fp_layout.addWidget(self.lbl_doctor)
 
-        self.doctor_combo = QComboBox()
-        self.doctor_combo.setEditable(True)
-        self.doctor_combo.setInsertPolicy(QComboBox.NoInsert)
-        if self.doctor_combo.completer():
-            self.doctor_combo.completer().setCaseSensitivity(Qt.CaseInsensitive)
-            self.doctor_combo.completer().setFilterMode(Qt.MatchContains)
+        self.doctor_combo = ReportFilterSearchCombo(self, min_width=200)
         self.doctor_combo.currentIndexChanged.connect(self._sync_tree_selection)
+        if self.doctor_combo.lineEdit():
+            self.doctor_combo.lineEdit().editingFinished.connect(
+                lambda: self._sync_tree_selection(self.doctor_combo.currentIndex())
+            )
         self.fp_layout.addWidget(self.doctor_combo)
 
         self.lbl_msg = QLabel("")
@@ -692,28 +705,22 @@ class DoctorwiseItemSaleDetailsPage(_BaseDoctorReportPage):
         self.lbl_doctor = QLabel("Doctor:")
         self.fp_layout.addWidget(self.lbl_doctor)
 
-        self.doctor_combo = QComboBox()
-        self.doctor_combo.setEditable(True)
-        self.doctor_combo.setInsertPolicy(QComboBox.NoInsert)
-        if self.doctor_combo.completer():
-            self.doctor_combo.completer().setCaseSensitivity(Qt.CaseInsensitive)
-            self.doctor_combo.completer().setFilterMode(Qt.MatchContains)
+        self.doctor_combo = ReportFilterSearchCombo(self, min_width=200)
         self.doctor_combo.currentIndexChanged.connect(self._on_doctor_changed)
+        if self.doctor_combo.lineEdit():
+            self.doctor_combo.lineEdit().editingFinished.connect(
+                lambda: self._on_doctor_changed(self.doctor_combo.currentIndex())
+            )
         self.fp_layout.addWidget(self.doctor_combo)
 
         self.lbl_company = QLabel("Company Name:")
         self.fp_layout.addWidget(self.lbl_company)
 
-        self.company_combo = QComboBox()
-        self.company_combo.setEditable(True)
-        self.company_combo.setInsertPolicy(QComboBox.NoInsert)
-        if self.company_combo.completer():
-            self.company_combo.completer().setCaseSensitivity(Qt.CaseInsensitive)
-            self.company_combo.completer().setFilterMode(Qt.MatchContains)
+        self.company_combo = ReportFilterSearchCombo(self, min_width=200)
         self.company_combo.currentIndexChanged.connect(self._on_company_changed)
         if self.company_combo.lineEdit():
             self.company_combo.lineEdit().editingFinished.connect(
-                lambda: self._on_company_changed(self.company_combo.currentIndex())
+                self._on_company_line_edit_finished
             )
         self.fp_layout.addWidget(self.company_combo)
 
@@ -751,13 +758,22 @@ class DoctorwiseItemSaleDetailsPage(_BaseDoctorReportPage):
         self._load_companies()
         self._refresh_item_tree()
 
+    def _on_company_line_edit_finished(self):
+        if hasattr(self.company_combo, "resolve_text"):
+            self.company_combo.resolve_text()
+        self._on_company_changed(self.company_combo.currentIndex())
+
     def _load_companies(self):
         self._companies = DoctorReportsDAO.get_companies_list()
         self.company_combo.blockSignals(True)
         self.company_combo.clear()
         self.company_combo.addItem("All Companies", None)
         for comp in self._companies:
-            self.company_combo.addItem(comp["company_name"], comp["id"])
+            display = str(comp.get("company_name") or "").strip()
+            short = str(comp.get("short_name") or "").strip()
+            raw = f"{display} {short}".strip() if short else display
+            if display:
+                self.company_combo.addItem(display, comp.get("id"), raw)
         self.company_combo.setCurrentIndex(0)
         self.company_combo.blockSignals(False)
 
@@ -767,6 +783,10 @@ class DoctorwiseItemSaleDetailsPage(_BaseDoctorReportPage):
         text = self.company_combo.currentText().strip()
         if not text or text.lower() == "all companies" or text.lower().startswith("all "):
             return None
+
+        val = self.company_combo.currentData()
+        if val is not None:
+            return val
 
         curr_idx = self.company_combo.currentIndex()
         if 0 <= curr_idx < self.company_combo.count():
