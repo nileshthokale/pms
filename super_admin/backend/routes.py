@@ -1,5 +1,5 @@
 """Developer-only administration over the existing licensing schema and security."""
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 import hmac
 from pathlib import Path
 import secrets
@@ -44,6 +44,27 @@ class LicenseAction(BaseModel):
     @classmethod
     def nonblank(cls, value):
         return DeviceAction.nonblank(value)
+
+
+class LicenseIssue(BaseModel):
+    customer: str = Field(min_length=1, max_length=200)
+    expires_at: datetime
+    max_devices: int = Field(ge=1, le=1000)
+    notes: str = Field(default="", max_length=1000)
+
+    @field_validator("customer")
+    @classmethod
+    def nonblank_customer(cls, value: str):
+        if not value.strip():
+            raise ValueError("Customer / Pharmacy Name cannot be blank")
+        return value.strip()
+
+    @field_validator("expires_at")
+    @classmethod
+    def ensure_tz(cls, value: datetime):
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value
 
 
 def create_admin_router(settings, sessions, clock, audit, throttle, request_ip, shutdown_registry=None):
@@ -353,6 +374,53 @@ def create_admin_router(settings, sessions, clock, audit, throttle, request_ip, 
     @router.post("/admin/licenses/{license_id}/reactivate")
     def reactivate_license(license_id: uuid.UUID, body: LicenseAction, auth=Depends(admin), session: Session = Depends(db)):
         return license_action(license_id, body, auth, session, True)
+
+    @router.post("/admin/licenses/issue")
+    def issue_license(body: LicenseIssue, auth=Depends(admin), session: Session = Depends(db)):
+        now = clock()
+        expires = body.expires_at
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+        if expires <= now:
+            raise HTTPException(400, "License expiration date must be in the future")
+        if body.max_devices < 1:
+            raise HTTPException(422, "Maximum allowed devices must be at least 1")
+
+        throttle(session, "issue-license:" + auth[0].username, 30, 300)
+
+        customer = session.scalars(select(Customer).where(Customer.name == body.customer)).first()
+        if not customer:
+            customer = Customer(id=str(uuid.uuid4()), name=body.customer)
+            session.add(customer)
+            session.flush()
+
+        activation = secrets.token_urlsafe(48)
+        license_id = str(uuid.uuid4())
+        activation_hash = digest(activation, settings.pepper)
+
+        license = License(
+            id=license_id,
+            customer_id=customer.id,
+            activation_hash=activation_hash,
+            expires_at=expires,
+            max_devices=body.max_devices,
+            status="ACTIVE",
+        )
+        session.add(license)
+
+        audit_reason = f"{license_id}: {body.notes.strip()}" if body.notes.strip() else license_id
+        audit(session, "license_issued", auth[0].username, reason=audit_reason)
+        session.commit()
+
+        return {
+            "license_id": license.id,
+            "customer_id": customer.id,
+            "customer": customer.name,
+            "activation_key": activation,
+            "expires_at": utc(license.expires_at).isoformat(),
+            "max_devices": license.max_devices,
+            "status": "ACTIVE",
+        }
 
     @router.get("/admin/audit")
     def audit_list(auth=Depends(admin), session: Session = Depends(db)):

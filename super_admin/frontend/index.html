@@ -16,6 +16,8 @@
   <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12l4 4L19 6"/></symbol>
   <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
   <symbol id="i-signal" viewBox="0 0 24 24"><path d="M3 13h4l3-7 4 12 3-5h4"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
 </defs></svg>
 <a class="skip-link" href="#overview">Skip to dashboard</a>
 <header class="site-header"><div class="header-inner">
@@ -48,7 +50,7 @@
       <section id="alert-section" class="panel alert-panel" aria-labelledby="alert-title"><div class="panel-heading"><div><p class="eyebrow">REVIEW QUEUE</p><h2 id="alert-title">New installations</h2></div><span id="alert-count" class="badge NEW">—</span></div><p class="panel-subtitle">Review newly detected software installations.</p><div id="alerts" class="alert-list" aria-busy="true"><p class="empty">Loading installation alerts…</p></div><div class="panel-note"><svg class="icon"><use href="#i-shield"/></svg>Acknowledgement records your review. Device authorization is managed separately.</div></section>
     </div>
     <section id="device-section" class="panel management" aria-labelledby="devices-title"><div class="panel-heading"><div><p class="eyebrow">INSTALLATION INVENTORY</p><h2 id="devices-title">Registered devices</h2></div><span class="section-meta" id="device-total">Loading records</span></div><div class="toolbar"><label class="search"><svg class="icon"><use href="#i-search"/></svg><input id="device-search" type="search" placeholder="Search device, customer or version" maxlength="200" aria-label="Search devices"></label><div class="filters"><label>Activity<select id="activity"><option value="all">All activity</option><option value="online">Online within threshold</option><option value="recent">Recently online</option><option value="offline">Offline</option></select></label><label>Authorization<select id="device-status"><option value="all">All statuses</option><option value="AUTHORIZED">Authorized</option><option value="PENDING">Pending</option><option value="REVOKED">Revoked</option><option value="EXPIRED">Expired</option><option value="LIMIT_REACHED">Limit reached</option><option value="NEW">New installations</option></select></label></div></div><div class="table-wrap"><table><thead><tr><th>Device / version</th><th>Customer / license</th><th>Detection</th><th>Authorization</th><th>Activity</th><th>Registration</th><th>Last seen</th><th>Actions</th></tr></thead><tbody id="devices"></tbody></table></div><div class="pagination"><p id="page" role="status">Loading records…</p><div><button id="previous" class="secondary" disabled>Previous</button><button id="next" class="secondary" disabled>Next</button></div></div></section>
-    <section id="license-section" class="panel management" aria-labelledby="licenses-title"><div class="panel-heading"><div><p class="eyebrow">SOFTWARE ACCESS</p><h2 id="licenses-title">License management</h2></div><span class="section-meta" id="license-total">Loading records</span></div><div class="toolbar"><label class="search"><svg class="icon"><use href="#i-search"/></svg><input id="license-search" type="search" placeholder="Search customer or license ID" maxlength="200" aria-label="Search licenses"></label><label class="filter-label">Status<select id="license-status"><option value="all">All licenses</option><option value="ACTIVE">Active</option><option value="REVOKED">Revoked</option><option value="EXPIRED">Expired</option></select></label></div><div class="table-wrap"><table><thead><tr><th>Customer / license</th><th>Status</th><th>Expires</th><th>Device capacity</th><th>Actions</th></tr></thead><tbody id="licenses"></tbody></table></div><div class="pagination"><p id="licenses-page" role="status">Loading records…</p><div><button id="licenses-previous" class="secondary" disabled>Previous</button><button id="licenses-next" class="secondary" disabled>Next</button></div></div></section>
+    <section id="license-section" class="panel management" aria-labelledby="licenses-title"><div class="panel-heading"><div><p class="eyebrow">SOFTWARE ACCESS</p><h2 id="licenses-title">License management</h2></div><div class="heading-controls"><button id="open-issue-license" class="primary" type="button"><svg class="icon"><use href="#i-plus"/></svg>+ Issue New License</button><span class="section-meta" id="license-total">Loading records</span></div></div><div class="toolbar"><label class="search"><svg class="icon"><use href="#i-search"/></svg><input id="license-search" type="search" placeholder="Search customer or license ID" maxlength="200" aria-label="Search licenses"></label><label class="filter-label">Status<select id="license-status"><option value="all">All licenses</option><option value="ACTIVE">Active</option><option value="REVOKED">Revoked</option><option value="EXPIRED">Expired</option></select></label></div><div class="table-wrap"><table><thead><tr><th>Customer / license</th><th>Status</th><th>Expires</th><th>Device capacity</th><th>Actions</th></tr></thead><tbody id="licenses"></tbody></table></div><div class="pagination"><p id="licenses-page" role="status">Loading records…</p><div><button id="licenses-previous" class="secondary" disabled>Previous</button><button id="licenses-next" class="secondary" disabled>Next</button></div></div></section>
     <section id="update-section" class="panel update-panel" aria-labelledby="update-title"><div class="panel-heading"><div><p class="eyebrow">RELEASE OPERATIONS</p><h2 id="update-title">Application updates</h2></div><span class="badge neutral">Not configured</span></div><div class="update-content"><div class="update-object" aria-hidden="true"><svg class="icon"><use href="#i-update"/></svg></div><div><h3>A space for your next release.</h3><p>Connect an update service to manage releases. No update API is configured for this installation.</p><div class="future-steps"><span><small>01</small>Upload & version</span><span><small>02</small>Release notes & publish</span><span><small>03</small>Device rollout status</span><span><small>04</small>History & rollback</span></div><button class="secondary" disabled>Update service required</button></div></div></section>
     <section id="audit-section" class="panel" aria-labelledby="audit-title"><div class="panel-heading"><div><p class="eyebrow">ADMINISTRATOR ACCOUNTABILITY</p><h2 id="audit-title">Audit trail</h2></div><span class="section-meta">Latest 200 events</span></div><div id="audit" class="audit-list" aria-busy="true"></div></section>
     <footer class="workspace-footer"><span>PHARMACY <strong>SUPER ADMIN</strong></span><span>Licenses & device access · Secure administration</span></footer>
@@ -57,5 +59,83 @@
 <dialog id="confirmation" class="confirmation" aria-labelledby="action-title"><form id="action"><div class="dialog-heading"><span class="dialog-emblem"><svg class="icon"><use href="#i-shield"/></svg></span><button id="cancel" type="button" class="icon-button" aria-label="Cancel"><svg class="icon"><use href="#i-close"/></svg></button></div><p class="eyebrow">CONFIRM ACCESS CHANGE</p><h2 id="action-title"></h2><p id="action-device" class="mono"></p><p id="action-description"></p><label>Reason for this action<textarea id="reason" required minlength="3" maxlength="1000" rows="3" placeholder="Enter a clear reason for the audit trail"></textarea></label><label class="check-label"><input id="confirm" type="checkbox" required>I confirm this access change for the ID shown above.</label><p id="action-error" role="alert" class="error"></p><button id="apply" type="submit">Confirm access change</button></form></dialog>
 <dialog id="history-dialog" aria-labelledby="history-title"><div class="dialog-heading"><div><p class="eyebrow">DEVICE TIMELINE</p><h2 id="history-title">Activation history</h2></div><button id="history-close" class="icon-button" aria-label="Close history"><svg class="icon"><use href="#i-close"/></svg></button></div><p id="history-device" class="mono"></p><div id="history" class="audit-list"></div><div class="pagination"><span id="history-page"></span><div><button id="history-previous" class="secondary">Previous</button><button id="history-next" class="secondary">Next</button></div></div></dialog>
 <dialog id="detail-dialog" class="detail-drawer" aria-labelledby="detail-title"><div class="dialog-heading"><div><p id="detail-eyebrow" class="eyebrow">DEVICE INFORMATION</p><h2 id="detail-title">Device details</h2></div><button id="detail-close" class="icon-button" aria-label="Close details"><svg class="icon"><use href="#i-close"/></svg></button></div><div id="detail-body"></div><div id="detail-actions" class="detail-actions"></div></dialog>
+<dialog id="issue-dialog" class="issue-dialog" aria-labelledby="issue-dialog-title">
+  <form id="issue-form">
+    <div class="dialog-heading">
+      <div>
+        <p class="eyebrow">NEW LICENSE PROVISIONING</p>
+        <h2 id="issue-dialog-title">Issue New Customer License</h2>
+      </div>
+      <button id="issue-cancel" type="button" class="icon-button" aria-label="Cancel"><svg class="icon"><use href="#i-close"/></svg></button>
+    </div>
+    <p class="dialog-desc">Generate a secure cryptographic activation key for a pharmacy customer or workstation cluster.</p>
+    
+    <label for="issue-customer">Customer / Pharmacy Name <span class="required">*</span>
+      <input id="issue-customer" type="text" required maxlength="200" placeholder="e.g. Acme Health Pharmacy">
+    </label>
+
+    <div class="form-row">
+      <label for="issue-expiry">License Expiration Date <span class="required">*</span>
+        <input id="issue-expiry" type="date" required>
+      </label>
+      <label for="issue-max-devices">Maximum Allowed Devices <span class="required">*</span>
+        <input id="issue-max-devices" type="number" min="1" max="1000" value="1" required>
+      </label>
+    </div>
+
+    <label for="issue-notes">Internal Notes <span class="optional">(optional)</span>
+      <textarea id="issue-notes" maxlength="1000" rows="3" placeholder="Reference invoice, contract ID, or location details for the audit trail"></textarea>
+    </label>
+
+    <p id="issue-error" role="alert" class="notice error" style="display:none;"></p>
+
+    <div class="dialog-buttons">
+      <button id="issue-dismiss" type="button" class="secondary">Cancel</button>
+      <button id="issue-submit" type="submit"><svg class="icon"><use href="#i-shield"/></svg>Issue License &amp; Generate Key</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="success-key-dialog" class="success-key-dialog" aria-labelledby="success-key-title">
+  <div class="dialog-heading">
+    <div class="success-heading">
+      <span class="success-icon"><svg class="icon"><use href="#i-check"/></svg></span>
+      <div>
+        <p class="eyebrow">LICENSE CREATED SUCCESSFULLY</p>
+        <h2 id="success-key-title">Activation Key Generated</h2>
+      </div>
+    </div>
+    <button id="success-key-close" type="button" class="icon-button" aria-label="Close dialog"><svg class="icon"><use href="#i-close"/></svg></button>
+  </div>
+
+  <div class="key-warning">
+    <svg class="icon"><use href="#i-alert"/></svg>
+    <div>
+      <strong>Critical Security Notice</strong>
+      <p>This activation key is shown <strong>ONLY ONCE</strong> and cannot be retrieved again from the server. Copy it now and deliver it securely to the customer.</p>
+    </div>
+  </div>
+
+  <div class="key-display-card">
+    <label for="generated-key-input">Client Activation Key</label>
+    <div class="key-copy-row">
+      <input id="generated-key-input" type="text" readonly class="key-input mono" spellcheck="false" autocomplete="off">
+      <button id="copy-key-btn" type="button"><svg class="icon"><use href="#i-copy"/></svg><span id="copy-btn-text">Copy Key</span></button>
+    </div>
+    <p id="copy-feedback" class="copy-feedback" role="status"></p>
+  </div>
+
+  <div class="issued-details-grid">
+    <div><span>Customer</span><strong id="issued-customer">—</strong></div>
+    <div><span>License ID</span><span id="issued-license-id" class="mono">—</span></div>
+    <div><span>Expires</span><strong id="issued-expires">—</strong></div>
+    <div><span>Max Devices</span><strong id="issued-devices">—</strong></div>
+  </div>
+
+  <div class="dialog-buttons single">
+    <button id="success-done-btn" type="button">Done &amp; Close</button>
+  </div>
+</dialog>
+
 <script type="module" src="/admin/assets/dashboard.js"></script>
 </body></html>

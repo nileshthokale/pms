@@ -1,14 +1,16 @@
 from dataclasses import replace
+from datetime import timedelta
 import json
 import uuid
 
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from license_server.app import create_app
-from license_server.models import Administrator, Audit, Device, License
+from license_server.app import create_app, digest
+from license_server.models import Administrator, Audit, Customer, Device, License
 from license_server.security import utc
-from tests.licensing.conftest import admin_login, change_device
+from licensing.client import LicenseClient
+from tests.licensing.conftest import MemoryStore, admin_login, change_device
 
 
 def license_action(env, action, *, headers=None, **changes):
@@ -161,3 +163,118 @@ def test_pharmacy_business_routes_and_imports_do_not_exist(env):
                 else:
                     continue
                 assert not any(module.split('.')[0] in {"database", "screens", "ui"} for module in modules)
+
+
+def test_issue_license_success_and_one_time_key(env):
+    headers = admin_login(env)
+    expires = (env["clock"].now() + timedelta(days=365)).isoformat()
+    response = env["api"].post(
+        "/admin/licenses/issue",
+        headers=headers,
+        json={
+            "customer": "Apollo Care Pharmacy",
+            "expires_at": expires,
+            "max_devices": 3,
+            "notes": "New branch order #5001",
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["activation_key"]) >= 48
+    uuid.UUID(data["license_id"])
+    assert data["customer"] == "Apollo Care Pharmacy"
+    assert data["customer_id"]
+    assert data["max_devices"] == 3
+    assert data["status"] == "ACTIVE"
+
+    activation_key = data["activation_key"]
+    license_id = data["license_id"]
+
+    with env["app"].state.sessions() as session:
+        license_row = session.get(License, license_id)
+        assert license_row is not None
+        assert license_row.activation_hash == digest(activation_key, env["settings"].pepper)
+
+        # Verify activation_key is NOT stored in License or Customer
+        for val in [license_row.id, license_row.customer_id, license_row.activation_hash, license_row.status]:
+            assert activation_key != val and activation_key not in str(val)
+        customer_row = session.get(Customer, license_row.customer_id)
+        assert customer_row is not None
+        for val in [customer_row.id, customer_row.name]:
+            assert activation_key != val and activation_key not in str(val)
+
+        audits = list(session.scalars(select(Audit).where(Audit.event == "license_issued")))
+        audit_row = next(a for a in audits if license_id in (a.reason or ""))
+        assert audit_row.actor == "developer"
+        assert "New branch order #5001" in audit_row.reason
+
+
+def test_issue_license_security_and_validation(env):
+    expires = (env["clock"].now() + timedelta(days=365)).isoformat()
+    valid_payload = {
+        "customer": "Apollo Care Pharmacy",
+        "expires_at": expires,
+        "max_devices": 3,
+        "notes": "Security test",
+    }
+
+    # Without auth -> status 401
+    assert env["api"].post("/admin/licenses/issue", json=valid_payload).status_code == 401
+
+    headers = admin_login(env)
+
+    # Without CSRF token -> status 403
+    assert env["api"].post("/admin/licenses/issue", headers={}, json=valid_payload).status_code == 403
+
+    # With non-developer role (change role to VIEWER) -> status 403
+    with env["app"].state.sessions() as session:
+        session.get(Administrator, "developer").role = "VIEWER"
+        session.commit()
+    assert env["api"].post("/admin/licenses/issue", headers=headers, json=valid_payload).status_code == 403
+
+    # Restore developer role for validation checks
+    with env["app"].state.sessions() as session:
+        session.get(Administrator, "developer").role = "DEVELOPER"
+        session.commit()
+
+    # Blank customer name -> status 422
+    assert env["api"].post("/admin/licenses/issue", headers=headers,
+                           json={**valid_payload, "customer": "   "}).status_code == 422
+    assert env["api"].post("/admin/licenses/issue", headers=headers,
+                           json={**valid_payload, "customer": ""}).status_code == 422
+
+    # Past expiration date -> status 400
+    past = (env["clock"].now() - timedelta(days=1)).isoformat()
+    assert env["api"].post("/admin/licenses/issue", headers=headers,
+                           json={**valid_payload, "expires_at": past}).status_code == 400
+
+    # max_devices < 1 -> status 422
+    assert env["api"].post("/admin/licenses/issue", headers=headers,
+                           json={**valid_payload, "max_devices": 0}).status_code == 422
+    assert env["api"].post("/admin/licenses/issue", headers=headers,
+                           json={**valid_payload, "max_devices": -1}).status_code == 422
+
+
+def test_issued_license_can_activate_desktop_client(env):
+    headers = admin_login(env)
+    expires = (env["clock"].now() + timedelta(days=365)).isoformat()
+    response = env["api"].post(
+        "/admin/licenses/issue",
+        headers=headers,
+        json={
+            "customer": "Apollo Care Pharmacy",
+            "expires_at": expires,
+            "max_devices": 3,
+            "notes": "Desktop client activation test",
+        },
+    )
+    assert response.status_code == 200
+    activation_key = response.json()["activation_key"]
+
+    store = MemoryStore()
+    client = LicenseClient(env["config"], store, clock=env["clock"], transport=env["transport"])
+    validation = client.validate(activation_key=activation_key)
+
+    assert validation.allowed is True
+    assert validation.status == "AUTHORIZED"
+

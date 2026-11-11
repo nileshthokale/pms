@@ -548,6 +548,117 @@ el('history-close').onclick = () => el('history-dialog').close();
 el('history-previous').onclick = () => showHistory(historyDevice, -pageSize);
 el('history-next').onclick = () => showHistory(historyDevice, pageSize);
 
+el('open-issue-license').onclick = () => {
+  el('issue-customer').value = '';
+  el('issue-notes').value = '';
+  el('issue-error').textContent = '';
+  el('issue-error').style.display = 'none';
+  el('issue-max-devices').value = '1';
+
+  const today = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const todayStr = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+  const nextYear = new Date(today);
+  nextYear.setFullYear(today.getFullYear() + 1);
+  const nextYearStr = `${nextYear.getFullYear()}-${pad(nextYear.getMonth() + 1)}-${pad(nextYear.getDate())}`;
+
+  el('issue-expiry').min = todayStr;
+  el('issue-expiry').value = nextYearStr;
+
+  el('issue-dialog').showModal();
+  el('issue-customer').focus();
+};
+
+el('issue-cancel').onclick = () => el('issue-dialog').close();
+el('issue-dismiss').onclick = () => el('issue-dialog').close();
+el('issue-dialog').addEventListener('cancel', event => { if (el('issue-submit').disabled) event.preventDefault(); });
+
+el('issue-form').onsubmit = async event => {
+  event.preventDefault();
+
+  const customer = el('issue-customer').value.trim();
+  if (!customer) {
+    el('issue-error').textContent = 'Customer / Pharmacy Name is required.';
+    el('issue-error').style.display = 'block';
+    return;
+  }
+
+  const expiryVal = el('issue-expiry').value;
+  const expiryDate = new Date(expiryVal + 'T23:59:59Z');
+  const now = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+
+  if (!expiryVal || isNaN(expiryDate.getTime()) || expiryVal < todayStr || expiryDate <= now) {
+    el('issue-error').textContent = 'Please select a valid future expiration date.';
+    el('issue-error').style.display = 'block';
+    return;
+  }
+
+  const maxDevices = parseInt(el('issue-max-devices').value, 10);
+  if (isNaN(maxDevices) || maxDevices < 1) {
+    el('issue-error').textContent = 'Maximum allowed devices must be at least 1.';
+    el('issue-error').style.display = 'block';
+    return;
+  }
+
+  el('issue-error').style.display = 'none';
+  el('issue-error').textContent = '';
+  el('issue-submit').disabled = true;
+  el('issue-dismiss').disabled = true;
+
+  try {
+    const result = await api('/licenses/issue', {
+      customer,
+      expires_at: expiryDate.toISOString(),
+      max_devices: maxDevices,
+      notes: el('issue-notes').value.trim()
+    });
+
+    el('issue-dialog').close();
+    el('generated-key-input').value = result.activation_key;
+    el('issued-customer').textContent = result.customer;
+    el('issued-license-id').textContent = result.license_id;
+    el('issued-expires').textContent = stamp(result.expires_at);
+    el('issued-devices').textContent = `${result.max_devices} workstation${result.max_devices > 1 ? 's' : ''}`;
+    el('copy-btn-text').textContent = 'Copy Key';
+    el('copy-feedback').textContent = '';
+    el('success-key-dialog').showModal();
+    await refresh();
+  } catch (error) {
+    el('issue-error').textContent = error.message;
+    el('issue-error').style.display = 'block';
+  } finally {
+    el('issue-submit').disabled = false;
+    el('issue-dismiss').disabled = false;
+  }
+};
+
+el('copy-key-btn').onclick = async () => {
+  const key = el('generated-key-input').value;
+  if (!key) return;
+  try {
+    if (!navigator.clipboard?.writeText) {
+      throw new Error('Clipboard API unavailable');
+    }
+    await navigator.clipboard.writeText(key);
+    el('copy-btn-text').textContent = 'Copied!';
+    el('copy-feedback').textContent = '✓ Activation key copied to clipboard';
+    setTimeout(() => { if (el('copy-btn-text')) el('copy-btn-text').textContent = 'Copy Key'; }, 3000);
+  } catch {
+    el('generated-key-input').select();
+    el('copy-feedback').textContent = 'Clipboard access denied. Please select and copy manually.';
+  }
+};
+
+el('success-key-close').onclick = () => el('success-key-dialog').close();
+el('success-done-btn').onclick = () => el('success-key-dialog').close();
+
+el('success-key-dialog').addEventListener('close', () => {
+  el('generated-key-input').value = '';
+  el('copy-feedback').textContent = '';
+});
+
 el('refresh').onclick = () => {
   retryCount = 0;
   refresh();
