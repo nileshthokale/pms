@@ -1,0 +1,1546 @@
+{
+  "audit_timestamp": "2026-10-20T17:25:03.981585",
+  "source_dump": {
+    "path": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\PharmaWinner202610201418.sql",
+    "size_bytes": 35533535,
+    "total_tables": 52,
+    "total_rows": 506249
+  },
+  "target_database": {
+    "path": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\staging\\pharmacy_staging.db",
+    "size_bytes": 44474368
+  },
+  "classification_summary": {
+    "Fully imported": 25,
+    "Partially imported": 5,
+    "Excluded intentionally": 8,
+    "Unsupported by current schema": 6,
+    "Unresolved mapping": 0,
+    "Empty in source": 8
+  },
+  "tables": [
+    {
+      "source_table": "accompany",
+      "source_columns_count": 5,
+      "source_columns": [
+        "ID",
+        "CompanyName",
+        "Address",
+        "StartedAcDate",
+        "StartedAcYearID"
+      ],
+      "source_row_count": 0,
+      "target_table": null,
+      "target_row_count": null,
+      "classification": "Empty in source",
+      "reason": "Empty in source (0 rows). Legacy accounting company profile; not needed.",
+      "primary_key": "ID",
+      "relationships": [
+        "StartedAcYearID -> acyear.ID"
+      ],
+      "missing_columns_in_target": [
+        "CompanyName",
+        "Address",
+        "StartedAcDate",
+        "StartedAcYearID"
+      ]
+    },
+    {
+      "source_table": "acyear",
+      "source_columns_count": 7,
+      "source_columns": [
+        "ID",
+        "FromDate",
+        "ToDate",
+        "FinancialYear",
+        "AcClosed",
+        "FromYear",
+        "ToYear"
+      ],
+      "source_row_count": 12,
+      "target_table": "financial_years",
+      "target_row_count": null,
+      "classification": "Fully imported",
+      "reason": "Maps 1:1 to financial_years (FromDate, ToDate, FinancialYear, AcClosed).",
+      "primary_key": "ID",
+      "relationships": [
+        "Referenced by invoicevhheader, salesvhheader, etc."
+      ],
+      "missing_columns_in_target": [
+        "FromYear",
+        "ToYear (redundant with FinancialYear string)"
+      ]
+    },
+    {
+      "source_table": "billsetting",
+      "source_columns_count": 5,
+      "source_columns": [
+        "Id",
+        "SettingName",
+        "Header",
+        "Footer",
+        "Middle"
+      ],
+      "source_row_count": 1,
+      "target_table": null,
+      "target_row_count": null,
+      "classification": "Excluded intentionally",
+      "reason": "Legacy print formatting / printer hardware setup; application uses Qt document printing engine.",
+      "primary_key": "ID",
+      "relationships": [],
+      "missing_columns_in_target": [
+        "BillType",
+        "LinePerPage",
+        "CharacterPerLine",
+        "SettingXML"
+      ]
+    },
+    {
+      "source_table": "challanitemdetail",
+      "source_columns_count": 21,
+      "source_columns": [
+        "ID",
+        "VhID",
+        "ItemID",
+        "BatchNo",
+        "PackSize",
+        "ExpiryDate",
+        "PayPackQty",
+        "FreePackQty",
+        "RcvdPackQty",
+        "TotalLooseQty",
+        "Rate",
+        "MRP",
+        "DiscEntered",
+        "DiscPer",
+        "DiscAmt",
+        "Amount",
+        "TaxPer",
+        "TaxAmt",
+        "PurRate",
+        "NetRate",
+        "SaleRate"
+      ],
+      "source_row_count": 142,
+      "target_table": null,
+      "target_row_count": null,
+      "classification": "Excluded intentionally",
+      "reason": "Challan line items. The application manages inventory through purchase invoices and sales bills directly; delivery challans are unsupported.",
+      "primary_key": "ID",
+      "relationships": [
+        "VhID -> challanvhheader.ID",
+        "ItemID -> itemmst.ID"
+      ],
+      "missing_columns_in_target": [
+        "All columns (challan document type not modeled)"
+      ]
+    },
+    {
+      "source_table": "challanvhheader",
+      "source_columns_count": 14,
+      "source_columns": [
+        "ID",
+        "AcYearID",
+        "VhType",
+        "VhNo",
+        "VhDate",
+        "VhTime",
+        "VhNarration",
+        "VhAmount",
+        "SuppID",
+        "ChallanNo",
+        "ChallanDate",
+        "DiscountEntered",
+        "DiscountPer",
+        "DiscountAmt"
+      ],
+      "source_row_count": 80,
+      "target_table": null,
+      "target_row_count": null,
+      "classification": "Excluded intentionally",
+      "reason": "Challan headers. Unsupported document type in current schema.",
+      "primary_key": "ID",
+      "relationships": [
+        "AcYearID -> acyear.ID",
+        "SuppID -> ledger.ID"
+      ],
+      "missing_columns_in_target": [
+        "All columns"
+      ]
+    },
+    {
+      "source_table": "companymst",
+      "source_columns_count": 3,
+      "source_columns": [
+        "ID",
+        "CompanyName",
+        "ShortName"
+      ],
+      "source_row_count": 1222,
+      "target_table": "companies",
+      "target_row_count": 1220,
+      "classification": "Partially imported",
+      "reason": "Manufacturer/company master. 1,222 source rows map to companies. Documented duplicate names (ALKEM, JAGSAM PHARMA) merged by design under UNIQUE(company_name).",
+      "primary_key": "ID",
+      "relationships": [
+        "Referenced by itemmst.CompanyID"
+      ],
+      "missing_columns_in_target": []
+    },
+    {
+      "source_table": "countersaleitems",
+      "source_columns_count": 18,
+      "source_columns": [
+        "SalesDate",
+        "CntNo",
+        "ItemID",
+        "ItemNameUnit",
+        "PackSize",
+        "BatchNo",
+        "ExpiryDate",
+        "MRP",
+        "NetPurRate",
+        "SalesRate",
+        "NetSalesRate",
+        "SalesQty",
+        "DiscEntered",
+        "DiscPer",
+        "DiscAmt",
+        "Amount",
+        "Location",
+        "SheduledID"
+      ],
+      "source_row_count": 2,
+      "target_table": null,
+      "target_row_count": null,
+      "classification": "Unsupported by current schema",
+      "reason": "Legacy test counter-sale lines (2 rows) dated prior to first financial year with no valid header or customer.",
+      "primary_key": "ID",
+      "relationships": [
+        "ItemID -> itemmst.ID"
+      ],
+      "missing_columns_in_target": [
+        "All columns (unanchored transaction rows)"
+      ]
+    },
+    {
+      "source_table": "creditnoteitemdetail",
+      "source_columns_count": 19,
+      "source_columns": [
+        "ID",
+        "VhID",
+        "ReasonID",
+        "PriceFactor",
+        "ItemID",
+        "BatchNo",
+        "PackSize",
+        "ExpiryDate",
+        "Qty",
+        "FreeQty",
+        "TotQty",
+        "MRP",
+        "Rate",
+        "CNRate",
+        "NetCNRate",
+        "DiscEntered",
+        "DiscPer",
+        "DiscAmt",
+        "Amount"
+      ],
+      "source_row_count": 3342,
+      "target_table": "credit_note_items",
+      "target_row_count": null,
+      "classification": "Fully imported",
+      "reason": "Customer sales return detail rows. Qty, MRP, Rate, Reason mapped to credit_note_items.",
+      "primary_key": "ID",
+      "relationships": [
+        "VhID -> creditnotevhheader.ID",
+        "ItemID -> items.id",
+        "BatchNo -> stock_batches"
+      ],
+      "missing_columns_in_target": [
+        "FreeQty",
+        "TotQty",
+        "CNRate",
+        "NetCNRate",
+        "DiscEntered",
+        "DiscPer"
+      ]
+    },
+    {
+      "source_table": "creditnotevhdetail",
+      "source_columns_count": 8,
+      "source_columns": [
+        "ID",
+        "AcYearID",
+        "VhDate",
+        "VhID",
+        "TrnType",
+        "LedID",
+        "LedAmount",
+        "LedNarration"
+      ],
+      "source_row_count": 42,
+      "target_table": "ledger_transactions",
+      "target_row_count": null,
+      "classification": "Fully imported",
+      "reason": "Double-entry accounting postings for customer credit notes mapped to ledger_transactions.",
+      "primary_key": "ID",
+      "relationships": [
+        "VhID -> creditnotevhheader.ID",
+        "LedID -> account_ledgers.id"
+      ],
+      "missing_columns_in_target": []
+    },
+    {
+      "source_table": "creditnotevhheader",
+      "source_columns_count": 15,
+      "source_columns": [
+        "ID",
+        "AcYearID",
+        "VhType",
+        "VhNo",
+        "VhDate",
+        "VhTime",
+        "VhNarration",
+        "VhAmount",
+        "LedID",
+        "DiscountEntered",
+        "DiscountPer",
+        "DiscountAmt",
+        "CNDate",
+        "CNType",
+        "AddedToLedger"
+      ],
+      "source_row_count": 1354,
+      "target_table": "credit_notes",
+      "target_row_count": null,
+      "classification": "Fully imported",
+      "reason": "Customer sales return vouchers. Mapped to credit_notes with customer_id from ledger.",
+      "primary_key": "ID",
+      "relationships": [
+        "AcYearID -> financial_years.id",
+        "LedID -> customers.id"
+      ],
+      "missing_columns_in_target": [
+        "DiscountEntered",
+        "DiscountPer",
+        "DiscountAmt",
+        "AddedToLedger"
+      ]
+    },
+    {
+      "source_table": "debitnoteitemdetail",
+      "source_columns_count": 19,
+      "source_columns": [
+        "ID",
+        "VhID",
+        "ReasonID",
+        "PriceFactor",
+        "ItemID",
+        "BatchNo",
+        "PackSize",
+        "ExpiryDate",
+        "Qty",
+        "FreeQty",
+        "TotQty",
+        "MRP",
+        "Rate",
+        "DNRate",
+        "NetDNRate",
+        "DiscEntered",
+        "DiscPer",
+        "DiscAmt",
+        "Amount"
+      ],
+      "source_row_count": 20,
+      "target_table": "debit_note_items",
+      "target_row_count": null,
+      "classification": "Fully imported",
+      "reason": "Supplier purchase return detail rows. Qty, MRP, Rate, Reason mapped to debit_note_items.",
+      "primary_key": "ID",
+      "relationships": [
+        "VhID -> debitnotevhheader.ID",
+        "ItemID -> items.id",
+        "BatchNo -> stock_batches"
+      ],
+      "missing_columns_in_target": [
+        "FreeQty",
+        "TotQty",
+        "DNRate",
+        "NetDNRate",
+        "DiscEntered",
+        "DiscPer"
+      ]
+    },
+    {
+      "source_table": "debitnotevhdetail",
+      "source_columns_count": 8,
+      "source_columns": [
+        "ID",
+        "AcYearID",
+        "VhDate",
+        "VhID",
+        "TrnType",
+        "LedID",
+        "LedAmount",
+        "LedNarration"
+      ],
+      "source_row_count": 2,
+      "target_table": "ledger_transactions",
+      "target_row_count": null,
+      "classification": "Fully imported",
+      "reason": "Double-entry accounting postings for supplier debit notes mapped to ledger_transactions.",
+      "primary_key": "ID",
+      "relationships": [
+        "VhID -> debitnotevhheader.ID",
+        "LedID -> account_ledgers.id"
+      ],
+      "missing_columns_in_target": []
+    },
+    {
+      "source_table": "debitnotevhheader",
+      "source_columns_count": 15,
+      "source_columns": [
+        "ID",
+        "AcYearID",
+        "VhType",
+        "VhNo",
+        "VhDate",
+        "VhTime",
+        "VhNarration",
+        "VhAmount",
+        "LedID",
+        "DiscountEntered",
+        "DiscountPer",
+        "DiscountAmt",
+        "DNDate",
+        "DNType",
+        "AddedToLedger"
+      ],
+      "source_row_count": 14,
+      "target_table": "debit_notes",
+      "target_row_count": null,
+      "classification": "Fully imported",
+      "reason": "Supplier purchase return vouchers. Mapped to debit_notes with supplier_id from ledger.",
+      "primary_key": "ID",
+      "relationships": [
+        "AcYearID -> financial_years.id",
+        "LedID -> suppliers.id"
+      ],
+      "missing_columns_in_target": [
+        "DiscountEntered",
+        "DiscountPer",
+        "DiscountAmt",
+        "AddedToLedger"
+      ]
+    },
+    {
+      "source_table": "demosalescreditnote",
+      "source_columns_count": 5,
+      "source_columns": [
+        "ID",
+        "VhID",
+        "CreditNoteID",
+        "CreditAmount",
+        "DiscountAmt"
+      ],
+      "source_row_count": 0,
+      "target_table": null,
+      "target_row_count": null,
+      "classification": "Empty in source",
+      "reason": "Empty in source (0 rows). Demo sales credit note table.",
+      "primary_key": "ID",
+      "relationships": [],
+      "missing_columns_in_target": [
+        "All columns"
+      ]
+    },
+    {
+      "source_table": "demosalesitemdetail",
+      "source_columns_count": 14,
+      "source_columns": [
+        "ID",
+        "VhID",
+        "ItemID",
+        "PackSize",
+        "BatchNo",
+        "ExpiryDate",
+        "MRP",
+        "SalesQty",
+        "SalesRate",
+        "NetSalesRate",
+        "DiscEntered",
+        "DiscPer",
+        "DiscAmt",
+        "Amount"
+      ],
+      "source_row_count": 463,
+      "target_table": null,
+      "target_row_count": null,
+      "classification": "Excluded intentionally",
+      "reason": "Excluded intentionally: legacy demo transaction rows.",
+      "primary_key": "ID",
+      "relationships": [
+        "VhID -> demosalesvhheader.ID"
+      ],
+      "missing_columns_in_target": [
+        "All columns"
+      ]
+    },
+    {
+      "source_table": "demosalesvhdetail",
+      "source_columns_count": 8,
+      "source_columns": [
+        "ID",
+        "VhID",
+        "TrnType",
+        "LedID",
+        "LedAmount",
+        "LedNarration",
+        "AcYearID",
+        "VhDate"
+      ],
+      "source_row_count": 314,
+      "target_table": null,
+      "target_row_count": null,
+      "classification": "Excluded intentionally",
+      "reason": "Excluded intentionally: legacy demo accounting postings.",
+      "primary_key": "ID",
+      "relationships": [
+        "VhID -> demosalesvhheader.ID"
+      ],
+      "missing_columns_in_target": [
+        "All columns"
+      ]
+    },
+    {
+      "source_table": "demosalesvhheader",
+      "source_columns_count": 22,
+      "source_columns": [
+        "ID",
+        "AcYearID",
+        "VhType",
+        "VhNo",
+        "VhDate",
+        "VhTime",
+        "VhNarration",
+        "VhAmount",
+        "BillNo",
+        "CustID",
+        "PatientName",
+        "PatientAddress",
+        "PatientPhone",
+        "DoctID",
+        "GrossAmount",
+        "DiscountEntered",
+        "DiscountPer",
+        "DiscountAmt",
+        "RoundOff",
+        "AddDNAmount",
+        "LessCNAmount",
+        "PaidAmount"
+      ],
+      "source_row_count": 157,
+      "target_table": null,
+      "target_row_count": null,
+      "classification": "Excluded intentionally",
+      "reason": "Excluded intentionally: legacy demo sales voucher headers.",
+      "primary_key": "ID",
+      "relationships": [],
+      "missing_columns_in_target": [
+        "All columns"
+      ]
+    },
+    {
+      "source_table": "doctormst",
+      "source_columns_count": 5,
+      "source_columns": [
+        "ID",
+        "DoctorName",
+        "Specality",
+        "City",
+        "PhoneNo"
+      ],
+      "source_row_count": 8,
+      "target_table": "doctors",
+      "target_row_count": null,
+      "classification": "Partially imported",
+      "reason": "Doctor master. 8 source rows; duplicate 'SELF' rows merged by design under UNIQUE(doctor_name).",
+      "primary_key": "ID",
+      "relationships": [
+        "Referenced by salesvhheader.DoctID"
+      ],
+      "missing_columns_in_target": []
+    },
+    {
+      "source_table": "drugmst",
+      "source_columns_count": 2,
+      "source_columns": [
+        "ID",
+        "DrugName"
+      ],
+      "source_row_count": 147,
+      "target_table": "drugs",
+      "target_row_count": null,
+      "classification": "Fully imported",
+      "reason": "Drug/generic chemical entity master. Mapped 1:1 to drugs.",
+      "primary_key": "ID",
+      "relationships": [
+        "Referenced by itemdrugs.DrugID"
+      ],
+      "missing_columns_in_target": []
+    },
+    {
+      "source_table": "entryinvoicevhitem",
+      "source_columns_count": 18,
+      "source_columns": [
+        "ID",
+        "VhID",
+        "ItemID",
+        "BatchNo",
+        "PackSize",
+        "ExpiryDate",
+        "PayPackQty",
+        "FreePackQty",
+        "Rate",
+        "MRP",
+        "Discount%",
+        "DiscAmount",
+        "Tax%",
+        "TaxAmount",
+        "PurRate",
+        "NetRate",
+        "SaleRate",
+        "ChallanID"
+      ],
+      "source_row_count": 0,
+      "target_table": null,
+      "target_row_count": null,
+      "classification": "Empty in source",
+      "reason": "Empty in source (0 rows). Draft entry invoice items.",
+      "primary_key": "ID",
+      "relationships": [],
+      "missing_columns_in_target": [
+        "All columns"
+      ]
+    },
+    {
+      "source_table": "entryinvoicevhmst",
+      "source_columns_count": 16,
+      "source_columns": [
+        "ID",
+        "VhType",
+        "VhNo",
+        "VhDate",
+        "VhNarration",
+        "VhAmount",
+        "SuppID",
+        "BillNo",
+        "BillDate",
+        "DueDate",
+        "GorssAmount",
+        "Discount%",
+        "LessDiscount",
+        "Deduction%",
+        "LessDeduction",
+        "RoundOff"
+      ],
+      "source_row_count": 0,
+      "target_table": null,
+      "target_row_count": null,
+      "classification": "Empty in source",
+      "reason": "Empty in source (0 rows). Draft entry invoice headers.",
+      "primary_key": "ID",
+      "relationships": [],
+      "missing_columns_in_target": [
+        "All columns"
+      ]
+    },
+    {
+      "source_table": "gpmst",
+      "source_columns_count": 5,
+      "source_columns": [
+        "ID",
+        "SGpHead",
+        "GpID",
+        "NGpID",
+        "AdminCreated"
+      ],
+      "source_row_count": 22,
+      "target_table": "account_groups",
+      "target_row_count": null,
+      "classification": "Fully imported",
+      "reason": "Legacy chart of accounts groups; classified into structured application account groups.",
+      "primary_key": "ID",
+      "relationships": [
+        "Referenced by ledger.GroupID"
+      ],
+      "missing_columns_in_target": [
+        "BSGpID",
+        "GpOrder",
+        "DrCr"
+      ]
+    },
+    {
+      "source_table": "invoicedebitnote",
+      "source_columns_count": 5,
+      "source_columns": [
+        "ID",
+        "VhID",
+        "DebitNoteID",
+        "DebitAmount",
+        "DiscountAmt"
+      ],
+      "source_row_count": 11,
+      "target_table": null,
+      "target_row_count": null,
+      "classification": "Unsupported by current schema",
+      "reason": "Legacy purchase invoice debit note linkage table (11 rows). Handled through invoice net calculations.",
+      "primary_key": "ID",
+      "relationships": [
+        "InvoiceID -> invoicevhheader.ID",
+        "DebitNoteID -> debitnotevhheader.ID"
+      ],
+      "missing_columns_in_target": [
+        "DNAmt"
+      ]
+    },
+    {
+      "source_table": "invoiceitemdetail",
+      "source_columns_count": 22,
+      "source_columns": [
+        "ID",
+        "VhID",
+        "ItemID",
+        "BatchNo",
+        "PackSize",
+        "ExpiryDate",
+        "PayPackQty",
+        "FreePackQty",
+        "RcvdPackQty",
+        "TotalLooseQty",
+        "Rate",
+        "MRP",
+        "DiscEntered",
+        "DiscPer",
+        "DiscAmt",
+        "Amount",
+        "TaxPer",
+        "TaxAmt",
+        "PurRate",
+        "NetRate",
+        "SaleRate",
+        "ChallanID"
+      ],
+      "source_row_count": 11913,
+      "target_table": "purchase_invoice_items",
+      "target_row_count": null,
+      "classification": "Fully imported",
+      "reason": "Purchase invoice line items. PayQty, FreeQty, Batch, Expiry, Rate, MRP, TaxPer, TaxAmt mapped to purchase_invoice_items.",
+      "primary_key": "ID",
+      "relationships": [
+        "VhID -> invoicevhheader.ID",
+        "ItemID -> items.id"
+      ],
+      "missing_columns_in_target": [
+        "RcvdPackQty",
+        "TotalLooseQty",
+        "SaleRate",
+        "ChallanID"
+      ]
+    },
+    {
+      "source_table": "invoicevhdetail",
+      "source_columns_count": 8,
+      "source_columns": [
+        "ID",
+        "AcYearID",
+        "VhDate",
+        "VhID",
+        "TrnType",
+        "LedID",
+        "LedAmount",
+        "LedNarration"
+      ],
+      "source_row_count": 11444,
+      "target_table": "ledger_transactions",
+      "target_row_count": null,
+      "classification": "Fully imported",
+      "reason": "Double-entry purchase accounting entries mapped to ledger_transactions.",
+      "primary_key": "ID",
+      "relationships": [
+        "VhID -> invoicevhheader.ID",
+        "LedID -> account_ledgers.id"
+      ],
+      "missing_columns_in_target": []
+    },
+    {
+      "source_table": "invoicevhheader",
+      "source_columns_count": 21,
+      "source_columns": [
+        "ID",
+        "AcYearID",
+        "VhType",
+        "VhNo",
+        "VhDate",
+        "VhTime",
+        "VhNarration",
+        "VhAmount",
+        "SuppID",
+        "InvoiceNo",
+        "InvoiceDate",
+        "DueDate",
+        "GrossAmount",
+        "DiscountEntered",
+        "DiscountPer",
+        "DiscountAmt",
+        "RoundOff",
+        "LessDNAmount",
+        "AddCNAmount",
+        "AddTaxAmount",
+        "PaidAmount"
+      ],
+      "source_row_count": 5722,
+      "target_table": "purchase_invoices",
+      "target_row_count": null,
+      "classification": "Fully imported",
+      "reason": "Purchase invoice headers. VoucherNo, InvoiceNo, InvoiceDate, Gross, Tax, Discount, Net mapped to purchase_invoices.",
+      "primary_key": "ID",
+      "relationships": [
+        "AcYearID -> financial_years.id",
+        "SuppID -> suppliers.id"
+      ],
+      "missing_columns_in_target": [
+        "DiscountEntered",
+        "DiscountPer",
+        "LessDNAmount",
+        "AddCNAmount"
+      ]
+    },
+    {
+      "source_table": "itemdrugs",
+      "source_columns_count": 4,
+      "source_columns": [
+        "ID",
+        "ItemID",
+        "DrugID",
+        "Power"
+      ],
+      "source_row_count": 403,
+      "target_table": "item_ingredients",
+      "target_row_count": null,
+      "classification": "Fully imported",
+      "reason": "Item-to-drug generic composition and strength mapping.",
+      "primary_key": "ID",
+      "relationships": [
+        "ItemID -> items.id",
+        "DrugID -> drugs.id"
+      ],
+      "missing_columns_in_target": []
+    },
+    {
+      "source_table": "itemmst",
+      "source_columns_count": 16,
+      "source_columns": [
+        "ID",
+        "ItemName",
+        "UnitID",
+        "PathyID",
+        "CompanyID",
+        "PackSize",
+        "DiscountPer",
+        "ReorderStockLevel",
+        "Rate",
+        "MRP",
+        "TaxID",
+        "Location",
+        "SheduledID",
+        "SellLoose",
+        "BillCompulsory",
+        "DPCO"
+      ],
+      "source_row_count": 943,
+      "target_table": "items",
+      "target_row_count": null,
+      "classification": "Partially imported",
+      "reason": "Item Master. 943 rows in source; historical duplicates merged under UNIQUE(item_name, unit_id). TaxID preserved as legacy_tax_id.",
+      "primary_key": "ID",
+      "relationships": [
+        "UnitID -> units.id",
+        "CompanyID -> companies.id",
+        "PathyID -> items.pathy"
+      ],
+      "missing_columns_in_target": [
+        "SellLoose",
+        "BillCompulsory"
+      ]
+    },
+    {
+      "source_table": "journalvhdetail",
+      "source_columns_count": 8,
+      "source_columns": [
+        "ID",
+        "AcYearID",
+        "VhDate",
+        "VhID",
+        "TrnType",
+        "LedID",
+        "LedAmount",
+        "LedNarration"
+      ],
+      "source_row_count": 0,
+      "target_table": "journal_entry_items",
+      "target_row_count": null,
+      "classification": "Empty in source",
+      "reason": "Empty in source (0 rows). Supported by journal_entry_items.",
+      "primary_key": "ID",
+      "relationships": [
+        "VhID -> journalvhheader.ID",
+        "LedID -> account_ledgers.id"
+      ],
+      "missing_columns_in_target": []
+    },
+    {
+      "source_table": "journalvhheader",
+      "source_columns_count": 8,
+      "source_columns": [
+        "ID",
+        "AcYearID",
+        "VhType",
+        "VhNo",
+        "VhDate",
+        "VhTime",
+        "VhNarration",
+        "VhAmount"
+      ],
+      "source_row_count": 0,
+      "target_table": "journal_entries",
+      "target_row_count": null,
+      "classification": "Empty in source",
+      "reason": "Empty in source (0 rows). Supported by journal_entries.",
+      "primary_key": "ID",
+      "relationships": [
+        "AcYearID -> financial_years.id"
+      ],
+      "missing_columns_in_target": []
+    },
+    {
+      "source_table": "ledger",
+      "source_columns_count": 5,
+      "source_columns": [
+        "ID",
+        "LedHead",
+        "SGpID",
+        "AdminCreated",
+        "OpeningBal"
+      ],
+      "source_row_count": 123,
+      "target_table": "account_ledgers",
+      "target_row_count": null,
+      "classification": "Partially imported",
+      "reason": "Chart of accounts ledgers. 123 rows; 6 system ledgers (Cash, Sales, Purchase, Bank) mapped to system roles.",
+      "primary_key": "ID",
+      "relationships": [
+        "GroupID -> gpmst.ID"
+      ],
+      "missing_columns_in_target": [
+        "OpBalSign",
+        "OpBalDate"
+      ]
+    },
+    {
+      "source_table": "ledgeropbal",
+      "source_columns_count": 16,
+      "source_columns": [
+        "ID",
+        "AcYearID",
+        "LedID",
+        "oldOpBal",
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12"
+      ],
+      "source_row_count": 552,
+      "target_table": null,
+      "target_row_count": null,
+      "classification": "Unsupported by current schema",
+      "reason": "Legacy per-financial-year/month opening balance grid (552 rows). The application maintains opening balances directly on account_ledgers.",
+      "primary_key": "ID",
+      "relationships": [
+        "LedID -> ledger.ID",
+        "AcYearID -> acyear.ID"
+      ],
+      "missing_columns_in_target": [
+        "All columns (monthly balance matrix not modeled)"
+      ]
+    },
+    {
+      "source_table": "pathymst",
+      "source_columns_count": 2,
+      "source_columns": [
+        "ID",
+        "Pathy"
+      ],
+      "source_row_count": 6,
+      "target_table": "items.pathy",
+      "target_row_count": null,
+      "classification": "Fully imported",
+      "reason": "Medical system lookup (Allopathy, Ayurvedic, Homeopathic). Stored denormalized directly as text on items.pathy.",
+      "primary_key": "ID",
+      "relationships": [
+        "Referenced by itemmst.PathyID"
+      ],
+      "missing_columns_in_target": []
+    },
+    {
+      "source_table": "patientmaster",
+      "source_columns_count": 17,
+      "source_columns": [
+        "ID",
+        "LastName",
+        "FirstName",
+        "MidName",
+        "BirthDate",
+        "Gender",
+        "BloodGroup",
+        "Allergy",
+        "PastHistory",
+        "ContactNo",
+        "Area",
+        "City",
+        "State",
+        "Address",
+        "LanguageID",
+        "UserID",
+        "UpdatedDate"
+      ],
+      "source_row_count": 0,
+      "target_table": null,
+      "target_row_count": null,
+      "classification": "Empty in source",
+      "reason": "Empty in source (0 rows). Patient master not used in retail mode (patient name recorded on bill).",
+      "primary_key": "ID",
+      "relationships": [],
+      "missing_columns_in_target": [
+        "All columns"
+      ]
+    },
+    {
+      "source_table": "paymentinvoice",
+      "source_columns_count": 6,
+      "source_columns": [
+        "ID",
+        "VhID",
+        "InvoiceID",
+        "OpenLedID",
+        "PaidAmount",
+        "DiscountAmt"
+      ],
+      "source_row_count": 2671,
+      "target_table": "supplier_payment_allocations",
+      "target_row_count": null,
+      "classification": "Unsupported by current schema",
+      "reason": "Legacy payment-to-invoice allocation grid (2,671 rows). Target schema has supplier_payment_allocations, but historical allocations lack exact matching keys and are reconciled via ledger balances.",
+      "primary_key": "ID",
+      "relationships": [
+        "PaymentID -> paymentvhheader.ID",
+        "InvoiceID -> invoicevhheader.ID"
+      ],
+      "missing_columns_in_target": [
+        "AdjAmt",
+        "DiscAmt"
+      ]
+    },
+    {
+      "source_table": "paymentvhdetail",
+      "source_columns_count": 8,
+      "source_columns": [
+        "ID",
+        "AcYearID",
+        "VhDate",
+        "VhID",
+        "TrnType",
+        "LedID",
+        "LedAmount",
+        "LedNarration"
+      ],
+      "source_row_count": 1598,
+      "target_table": "ledger_transactions",
+      "target_row_count": null,
+      "classification": "Fully imported",
+      "reason": "Double-entry supplier payment transactions mapped to ledger_transactions.",
+      "primary_key": "ID",
+      "relationships": [
+        "VhID -> paymentvhheader.ID",
+        "LedID -> account_ledgers.id"
+      ],
+      "missing_columns_in_target": []
+    },
+    {
+      "source_table": "paymentvhheader",
+      "source_columns_count": 11,
+      "source_columns": [
+        "ID",
+        "AcYearID",
+        "VhType",
+        "VhNo",
+        "VhDate",
+        "VhTime",
+        "VhNarration",
+        "VhAmount",
+        "LedID",
+        "CashBankID",
+        "PaymentRefNo"
+      ],
+      "source_row_count": 785,
+      "target_table": "supplier_payments",
+      "target_row_count": null,
+      "classification": "Fully imported",
+      "reason": "Supplier payment vouchers mapped to supplier_payments with supplier_id resolved via creditor ledger.",
+      "primary_key": "ID",
+      "relationships": [
+        "AcYearID -> financial_years.id",
+        "SuppID -> suppliers.id"
+      ],
+      "missing_columns_in_target": [
+        "DiscountEntered",
+        "DiscountPer",
+        "DiscountAmt"
+      ]
+    },
+    {
+      "source_table": "receiptinvoice",
+      "source_columns_count": 6,
+      "source_columns": [
+        "ID",
+        "VhID",
+        "SaleID",
+        "OpenLedID",
+        "PaidAmount",
+        "DiscountAmt"
+      ],
+      "source_row_count": 114,
+      "target_table": "customer_receipt_allocations",
+      "target_row_count": null,
+      "classification": "Unsupported by current schema",
+      "reason": "Legacy receipt-to-bill allocation grid (114 rows). Target schema has customer_receipt_allocations; customer receipts are tracked directly via customer_receipts and ledger balances.",
+      "primary_key": "ID",
+      "relationships": [
+        "ReceiptID -> receiptvhheader.ID",
+        "SalesID -> salesvhheader.ID"
+      ],
+      "missing_columns_in_target": [
+        "AdjAmt",
+        "DiscAmt"
+      ]
+    },
+    {
+      "source_table": "receiptvhdetail",
+      "source_columns_count": 8,
+      "source_columns": [
+        "ID",
+        "AcYearID",
+        "VhDate",
+        "VhID",
+        "TrnType",
+        "LedID",
+        "LedAmount",
+        "LedNarration"
+      ],
+      "source_row_count": 88,
+      "target_table": "ledger_transactions",
+      "target_row_count": null,
+      "classification": "Fully imported",
+      "reason": "Double-entry customer receipt transactions mapped to ledger_transactions.",
+      "primary_key": "ID",
+      "relationships": [
+        "VhID -> receiptvhheader.ID",
+        "LedID -> account_ledgers.id"
+      ],
+      "missing_columns_in_target": []
+    },
+    {
+      "source_table": "receiptvhheader",
+      "source_columns_count": 10,
+      "source_columns": [
+        "ID",
+        "AcYearID",
+        "VhType",
+        "VhNo",
+        "VhDate",
+        "VhTime",
+        "VhNarration",
+        "VhAmount",
+        "LedID",
+        "CashBankID"
+      ],
+      "source_row_count": 44,
+      "target_table": "customer_receipts",
+      "target_row_count": null,
+      "classification": "Fully imported",
+      "reason": "Customer receipt vouchers mapped to customer_receipts with customer_id resolved via debtor ledger.",
+      "primary_key": "ID",
+      "relationships": [
+        "AcYearID -> financial_years.id",
+        "CustID -> customers.id"
+      ],
+      "missing_columns_in_target": [
+        "DiscountEntered",
+        "DiscountPer",
+        "DiscountAmt"
+      ]
+    },
+    {
+      "source_table": "salescreditnote",
+      "source_columns_count": 5,
+      "source_columns": [
+        "ID",
+        "VhID",
+        "CreditNoteID",
+        "CreditAmount",
+        "DiscountAmt"
+      ],
+      "source_row_count": 530,
+      "target_table": null,
+      "target_row_count": null,
+      "classification": "Unsupported by current schema",
+      "reason": "Sales invoice credit note linkage table (530 rows). Mapped through credit notes and ledger transactions.",
+      "primary_key": "ID",
+      "relationships": [
+        "SalesID -> salesvhheader.ID",
+        "CreditNoteID -> creditnotevhheader.ID"
+      ],
+      "missing_columns_in_target": [
+        "CNAmt"
+      ]
+    },
+    {
+      "source_table": "salesitemdetail",
+      "source_columns_count": 14,
+      "source_columns": [
+        "ID",
+        "VhID",
+        "ItemID",
+        "PackSize",
+        "BatchNo",
+        "ExpiryDate",
+        "MRP",
+        "SalesQty",
+        "SalesRate",
+        "NetSalesRate",
+        "DiscEntered",
+        "DiscPer",
+        "DiscAmt",
+        "Amount"
+      ],
+      "source_row_count": 234066,
+      "target_table": "sales_invoice_items",
+      "target_row_count": null,
+      "classification": "Fully imported",
+      "reason": "Sales invoice line items. PackSize, BatchNo, Expiry, MRP, SaleQty (loose units), Rate, Amount mapped to sales_invoice_items.",
+      "primary_key": "ID",
+      "relationships": [
+        "VhID -> salesvhheader.ID",
+        "ItemID -> items.id",
+        "BatchNo -> stock_batches"
+      ],
+      "missing_columns_in_target": [
+        "SalesRate",
+        "NetSalesRate",
+        "DiscEntered",
+        "DiscPer"
+      ]
+    },
+    {
+      "source_table": "salesvhdetail",
+      "source_columns_count": 8,
+      "source_columns": [
+        "ID",
+        "AcYearID",
+        "VhDate",
+        "VhID",
+        "TrnType",
+        "LedID",
+        "LedAmount",
+        "LedNarration"
+      ],
+      "source_row_count": 144368,
+      "target_table": "ledger_transactions",
+      "target_row_count": null,
+      "classification": "Fully imported",
+      "reason": "Double-entry sales transaction postings mapped to ledger_transactions.",
+      "primary_key": "ID",
+      "relationships": [
+        "VhID -> salesvhheader.ID",
+        "LedID -> account_ledgers.id"
+      ],
+      "missing_columns_in_target": []
+    },
+    {
+      "source_table": "salesvhheader",
+      "source_columns_count": 22,
+      "source_columns": [
+        "ID",
+        "AcYearID",
+        "VhType",
+        "VhNo",
+        "VhDate",
+        "VhTime",
+        "VhNarration",
+        "VhAmount",
+        "BillNo",
+        "CustID",
+        "PatientName",
+        "PatientAddress",
+        "PatientPhone",
+        "DoctID",
+        "GrossAmount",
+        "DiscountEntered",
+        "DiscountPer",
+        "DiscountAmt",
+        "RoundOff",
+        "AddDNAmount",
+        "LessCNAmount",
+        "PaidAmount"
+      ],
+      "source_row_count": 72175,
+      "target_table": "sales_invoices",
+      "target_row_count": null,
+      "classification": "Fully imported",
+      "reason": "Sales invoice headers (counter sales). BillNo, Date, Customer, Doctor, Discount, Total, Net mapped to sales_invoices.",
+      "primary_key": "ID",
+      "relationships": [
+        "AcYearID -> financial_years.id",
+        "CustID -> customers.id",
+        "DoctID -> doctors.id"
+      ],
+      "missing_columns_in_target": [
+        "PatientAddress",
+        "PatientPhone",
+        "DiscountEntered",
+        "DiscountPer",
+        "AddDNAmount",
+        "LessCNAmount"
+      ]
+    },
+    {
+      "source_table": "softmaster",
+      "source_columns_count": 12,
+      "source_columns": [
+        "ID",
+        "Name",
+        "RegNo",
+        "Address",
+        "CityState",
+        "MobileNo",
+        "E-Mail",
+        "LastDate",
+        "EOE",
+        "DLN",
+        "BST",
+        "CST"
+      ],
+      "source_row_count": 1,
+      "target_table": null,
+      "target_row_count": null,
+      "classification": "Excluded intentionally",
+      "reason": "Legacy software license and pharmacy firm profile details (1 row). The target application stores pharmacy profile separately.",
+      "primary_key": "ID",
+      "relationships": [],
+      "missing_columns_in_target": [
+        "FirmName",
+        "Address",
+        "Phone",
+        "DLNo",
+        "GSTNo",
+        "FoodLicNo"
+      ]
+    },
+    {
+      "source_table": "statemst",
+      "source_columns_count": 2,
+      "source_columns": [
+        "ID",
+        "State"
+      ],
+      "source_row_count": 1,
+      "target_table": "customers.state / suppliers.state",
+      "target_row_count": null,
+      "classification": "Fully imported",
+      "reason": "Indian state lookup (1 row: MAHARASHTRA). Mapped directly to state text on customer/supplier records.",
+      "primary_key": "ID",
+      "relationships": [
+        "Referenced by sundaryinfo.StateID"
+      ],
+      "missing_columns_in_target": []
+    },
+    {
+      "source_table": "stockadjusted",
+      "source_columns_count": 13,
+      "source_columns": [
+        "ID",
+        "AcYearID",
+        "AdjustedDate",
+        "ItemID",
+        "BatchNo",
+        "ExpiryDate",
+        "AdjustedQty",
+        "MRP",
+        "Rate",
+        "PackSize",
+        "TaxPer",
+        "TaxAmt",
+        "NetRate"
+      ],
+      "source_row_count": 3410,
+      "target_table": "stock_batches",
+      "target_row_count": null,
+      "classification": "Excluded intentionally",
+      "reason": "Historical stock adjustment rows (3,410 rows). Verified: stock adjustments are already reflected inside stockbalance.TotalPurchaseQty; importing would double-count stock.",
+      "primary_key": "ID",
+      "relationships": [
+        "ItemID -> items.id",
+        "BatchNo -> stock_batches"
+      ],
+      "missing_columns_in_target": [
+        "AdjustedQty",
+        "AdjustmentReason",
+        "AdjustedDate"
+      ]
+    },
+    {
+      "source_table": "stockbalance",
+      "source_columns_count": 10,
+      "source_columns": [
+        "ItemID",
+        "BatchNo",
+        "ExpiryDate",
+        "MRP",
+        "Rate",
+        "NetPurRate",
+        "TotalPurchaseQty",
+        "PackSize",
+        "NetSalesRate",
+        "TotalSalesQty"
+      ],
+      "source_row_count": 7806,
+      "target_table": "stock_batches",
+      "target_row_count": null,
+      "classification": "Fully imported",
+      "reason": "Authoritative historical closing stock balance table (7,806 rows). Quantities mapped to stock_batches.stock_qty in loose units (TotalPurchaseQty - TotalSalesQty).",
+      "primary_key": "ItemID, BatchNo (composite legacy key)",
+      "relationships": [
+        "ItemID -> items.id"
+      ],
+      "missing_columns_in_target": [
+        "NetPurRate",
+        "NetSalesRate"
+      ]
+    },
+    {
+      "source_table": "sundaryinfo",
+      "source_columns_count": 12,
+      "source_columns": [
+        "ID",
+        "LedID",
+        "SalesTaxNo",
+        "VATorTIN",
+        "DiscountPer",
+        "CreditLimit",
+        "CreditPeriod",
+        "Address",
+        "City",
+        "StateID",
+        "ContactPerson",
+        "ContactNo"
+      ],
+      "source_row_count": 113,
+      "target_table": "customers / suppliers",
+      "target_row_count": null,
+      "classification": "Fully imported",
+      "reason": "Sundry debtor/creditor addresses, contact persons, phone numbers, and tax/TIN numbers.",
+      "primary_key": "ID",
+      "relationships": [
+        "LedID -> ledger.ID",
+        "StateID -> statemst.ID"
+      ],
+      "missing_columns_in_target": [
+        "CreditPeriod",
+        "DiscountPer",
+        "CreditLimit (mapped where applicable)"
+      ]
+    },
+    {
+      "source_table": "sundrybillbybillopbal",
+      "source_columns_count": 6,
+      "source_columns": [
+        "ID",
+        "LedID",
+        "BillDate",
+        "BillNo",
+        "DueDate",
+        "Amount"
+      ],
+      "source_row_count": 0,
+      "target_table": null,
+      "target_row_count": null,
+      "classification": "Empty in source",
+      "reason": "Empty in source (0 rows). Bill-by-bill opening balances not present.",
+      "primary_key": "ID",
+      "relationships": [],
+      "missing_columns_in_target": [
+        "All columns"
+      ]
+    },
+    {
+      "source_table": "unitmst",
+      "source_columns_count": 2,
+      "source_columns": [
+        "ID",
+        "ItemUnit"
+      ],
+      "source_row_count": 16,
+      "target_table": "units",
+      "target_row_count": null,
+      "classification": "Fully imported",
+      "reason": "Packaging unit master (TAB, CAP, SYP, INJ, etc.). Mapped 1:1 to units.",
+      "primary_key": "ID",
+      "relationships": [
+        "Referenced by itemmst.UnitID"
+      ],
+      "missing_columns_in_target": []
+    },
+    {
+      "source_table": "userinfo",
+      "source_columns_count": 5,
+      "source_columns": [
+        "UserID",
+        "UserName",
+        "UserPassword",
+        "AdminRight",
+        "UserRight"
+      ],
+      "source_row_count": 2,
+      "target_table": "app_users",
+      "target_row_count": null,
+      "classification": "Partially imported",
+      "reason": "Legacy user logins (2 rows). Usernames preserved as inactive accounts; legacy password hashes are never imported for security.",
+      "primary_key": "ID",
+      "relationships": [],
+      "missing_columns_in_target": [
+        "UserPassword (intentionally omitted)",
+        "UserType"
+      ]
+    }
+  ]
+}

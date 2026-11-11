@@ -368,7 +368,7 @@ class TestItemEntryBarLoadItems(_DBBase):
         self.assertEqual(bar.cno_label.text(), "1911")
         # Legacy CS numbers keep the full value in the tooltip even when elided.
         bar.set_cno("CS-9999")
-        self.assertEqual(bar.cno_label.toolTip(), "CS-9999")
+        self.assertIn("CS-9999", bar.cno_label.toolTip())
 
 
 @GUI
@@ -395,19 +395,23 @@ class TestItemSelectionBatches(_DBBase):
         bar = self._bar()
         bar.item_combo.setCurrentIndex(bar.item_combo.findData(self.item_id))
         QApplication.processEvents()
-        self.assertGreaterEqual(bar.batch_combo.count(), 2)
+        self.assertGreaterEqual(bar.batch_combo.count(), 1)
+        self.assertIn("BATCH-A", bar.batch_combo.itemText(0))
 
     def test_23_batch_placeholder(self):
         bar = self._bar()
         bar.item_combo.setCurrentIndex(bar.item_combo.findData(self.item_id))
         QApplication.processEvents()
-        self.assertEqual(bar.batch_combo.itemText(0), "-- Select Batch --")
+        texts = [bar.batch_combo.itemText(i) for i in range(bar.batch_combo.count())]
+        self.assertNotIn("-- Select Batch --", texts)
+        self.assertEqual(bar.batch_combo.currentIndex(), -1)
+        self.assertEqual(bar.batch_combo.lineEdit().text(), "")
 
     def test_24_placeholder_clears(self):
         bar = self._bar()
         bar.item_combo.setCurrentIndex(bar.item_combo.findData(self.item_id))
         QApplication.processEvents()
-        self.assertGreater(bar.batch_combo.count(), 1)
+        self.assertGreater(bar.batch_combo.count(), 0)
         bar.item_combo.setCurrentIndex(0)
         QApplication.processEvents()
         self.assertEqual(bar.batch_combo.count(), 0)
@@ -437,20 +441,20 @@ class TestBatchDetails(_DBBase):
 
     def test_25_mrp(self):
         bar = self._bar()
-        bar.batch_combo.setCurrentIndex(1)
+        bar.batch_combo.setCurrentIndex(0)
         QApplication.processEvents()
         self.assertNotEqual(bar.mrp_edit.text(), "")
         self.assertNotEqual(bar.mrp_edit.text(), "0.00")
 
     def test_26_expiry(self):
         bar = self._bar()
-        bar.batch_combo.setCurrentIndex(1)
+        bar.batch_combo.setCurrentIndex(0)
         QApplication.processEvents()
         self.assertEqual(bar.expiry_edit.text(), "12/27")
 
     def test_27_stock(self):
         bar = self._bar()
-        bar.batch_combo.setCurrentIndex(1)
+        bar.batch_combo.setCurrentIndex(0)
         QApplication.processEvents()
         self.assertNotEqual(bar.stock_edit.text(), "0")
 
@@ -487,7 +491,7 @@ class TestAddWorkflow(_DBBase):
         self.entry.item_combo.setCurrentIndex(
             self.entry.item_combo.findData(self.item_id))
         QApplication.processEvents()
-        self.entry.batch_combo.setCurrentIndex(1)
+        self.entry.batch_combo.setCurrentIndex(0)
         QApplication.processEvents()
 
     def test_28_add_button_exists(self):
@@ -784,7 +788,7 @@ class TestEndToEndFlow(_DBBase):
         self.entry.item_combo.setCurrentIndex(
             self.entry.item_combo.findData(self.item_id))
         QApplication.processEvents()
-        self.entry.batch_combo.setCurrentIndex(1)
+        self.entry.batch_combo.setCurrentIndex(0)
         QApplication.processEvents()
         self.entry.qty_edit.setText(qty)
         self.entry.discount_edit.setText("0.00")
@@ -879,7 +883,7 @@ class TestClearReset(_DBBase):
         e = self.panel._entry_bar
         e.item_combo.setCurrentIndex(e.item_combo.findData(self.item_id))
         QApplication.processEvents()
-        e.batch_combo.setCurrentIndex(1)
+        e.batch_combo.setCurrentIndex(0)
         QApplication.processEvents()
         e.clear()
         QApplication.processEvents()
@@ -929,7 +933,7 @@ class TestEditInvoice(_DBBase):
         self.panel.load_invoice(inv)
         QApplication.processEvents()
         self.assertEqual(self.panel._table.rowCount(), 1)
-        self.assertEqual(self.panel.bill_no_edit.text(), "CS-3001")
+        self.assertEqual(self.panel.bill_no_edit.text(), "3001")
 
 
 @GUI

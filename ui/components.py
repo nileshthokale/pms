@@ -21,10 +21,24 @@ from __future__ import annotations
 
 import re
 
-from PySide6.QtCore import QEvent, QStringListModel, Qt, Signal
-from PySide6.QtGui import QFont
+from PySide6.QtCore import (
+    QEvent,
+    QModelIndex,
+    QPoint,
+    QRect,
+    QStringListModel,
+    QTimer,
+    Qt,
+    Signal,
+)
+from PySide6.QtGui import (
+    QFont,
+    QStandardItem,
+    QStandardItemModel,
+)
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QApplication,
     QComboBox,
     QCompleter,
     QFrame,
@@ -719,11 +733,15 @@ class ConstrainedComboBox(QComboBox):
 class SearchableComboBox(ConstrainedComboBox):
     """Editable, searchable combo box with case-insensitive partial matching.
 
-    - Compact dropdown (~8-10 visible entries) with vertical scrollbar.
-    - Uses case-insensitive contains matching for suggestions as user types.
+    - Dynamic suggestions dropdown appears immediately on typing first character.
+    - Displays suggestions directly BELOW the corresponding input field.
+    - Filters results dynamically as each character is typed using case-insensitive substring matching.
+    - Helpful 'No matching records found' message when query matches nothing.
     - Keyboard navigation: Down/Up to highlight, Enter to select, Escape to dismiss.
+    - Mouse selection commits chosen item.
     - Prevents arbitrary text from being accepted (currentData returns None if text doesn't match).
-    - Preserves selection and updates associated fields.
+    - Preserves selected supplier/item ID and updates associated fields.
+    - Supports populate(), set_options(), addItem(), addItems(), and clear().
     """
 
     selection_changed = Signal(object)  # emits selected ID or None
@@ -738,6 +756,7 @@ class SearchableComboBox(ConstrainedComboBox):
         max_width: int | None = None,
         min_width: int | None = None,
         allow_width_expansion: bool = True,
+        prefix_only: bool = False,
     ):
         super().__init__(
             parent,
@@ -752,28 +771,40 @@ class SearchableComboBox(ConstrainedComboBox):
         self.setFixedHeight(32)
 
         self._placeholder = placeholder
+        self._prefix_only = prefix_only
+        self._min_popup_width: int = min_width if min_width is not None else 320
+        self._items_data: list[tuple[str, Any, str, int]] = []
         self._item_map: dict[str, int] = {}
         self._id_to_index: dict[Any, int] = {}
+        self._block_filter: bool = False
 
         line = self.lineEdit()
         if line is not None:
             line.setPlaceholderText(placeholder)
             line.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             line.installEventFilter(self)
+            line.textEdited.connect(self._on_text_edited)
             line.editingFinished.connect(self._resolve_current_text)
 
-        self._completer = QCompleter(self)
+        self._completer_model = QStandardItemModel(self)
+        self._completer = QCompleter(self._completer_model, self)
         self._completer.setCaseSensitivity(Qt.CaseInsensitive)
-        self._completer.setFilterMode(Qt.MatchContains)
+        self._completer.setFilterMode(Qt.MatchStartsWith if prefix_only else Qt.MatchContains)
         self._completer.setCompletionMode(QCompleter.PopupCompletion)
         self._completer.setMaxVisibleItems(max_visible)
+
         popup = self._completer.popup()
         if popup is not None:
+            popup.setFocusPolicy(Qt.NoFocus)
+            popup.setSelectionMode(QAbstractItemView.SingleSelection)
+            popup.installEventFilter(self)
             popup.setMaximumHeight(max_height)
             popup.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
             popup.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            popup.clicked.connect(self._on_completer_index_activated)
+
         self.setCompleter(self._completer)
-        self._completer.activated[str].connect(self._on_completion_str)
+        self._completer.activated[QModelIndex].connect(self._on_completer_index_activated)
 
         self.currentIndexChanged.connect(self._on_index_changed)
         self.refresh_theme()
@@ -789,6 +820,7 @@ class SearchableComboBox(ConstrainedComboBox):
         accent = p["accent"]
         selected_bg = p.get("selected", accent)
         selected_text = p.get("selected_text", "#ffffff")
+        text_dim = p.get("text_dim", "#888888")
 
         self.setStyleSheet(
             f"QComboBox {{"
@@ -828,7 +860,61 @@ class SearchableComboBox(ConstrainedComboBox):
                 f"  font-size: 15px; font-family: 'Segoe UI'; outline: 0;"
                 f"}}"
                 f"QAbstractItemView::item {{ min-height: 26px; padding: 2px 8px; }}"
+                f"QAbstractItemView::item:disabled {{ color: {text_dim}; font-style: italic; background-color: transparent; }}"
+                f"QAbstractItemView::item:selected {{ background-color: {selected_bg}; color: {selected_text}; }}"
             )
+
+    def clear(self):
+        """Clear all combo items, completer model, and mappings."""
+        self._block_filter = True
+        try:
+            super().clear()
+            self._items_data.clear()
+            self._item_map.clear()
+            self._id_to_index.clear()
+            self._completer_model.clear()
+            line = self.lineEdit()
+            if line is not None:
+                line.clear()
+                line.setToolTip("")
+        finally:
+            self._block_filter = False
+
+    def addItem(self, text: str, data: Any = None, raw_name: str | None = None):
+        """Add a single item and update completer mapping."""
+        raw = raw_name if raw_name is not None else text
+        idx = len(self._items_data)
+        text_str = str(text or "")
+        raw_str = str(raw or "")
+        self._items_data.append((text_str, data, raw_str, idx))
+        super().addItem(text_str, data)
+        self.setItemData(idx, raw_str, Qt.UserRole + 1)
+
+        t_key = text_str.strip().casefold()
+        if t_key:
+            self._item_map[t_key] = idx
+        r_key = raw_str.strip().casefold()
+        if r_key:
+            self._item_map[r_key] = idx
+        if data is not None:
+            try:
+                self._id_to_index[data] = idx
+            except TypeError:
+                pass
+            if isinstance(data, dict) and "id" in data:
+                self._id_to_index[data["id"]] = idx
+
+        # When first item is added to QComboBox, Qt auto-selects it. Keep unselected:
+        if super().count() == 1 and self.currentIndex() == 0 and data is None:
+            super().setCurrentIndex(-1)
+            line = self.lineEdit()
+            if line is not None:
+                line.clear()
+
+    def addItems(self, texts: list[str]):
+        """Add multiple text items."""
+        for t in texts:
+            self.addItem(t)
 
     def populate(self, items: list[tuple[Any, ...]]):
         """Populate items and update the completer model in a single fast batch.
@@ -836,34 +922,32 @@ class SearchableComboBox(ConstrainedComboBox):
         Each item is either (text, data) or (display_text, data, raw_name).
         """
         self.blockSignals(True)
-        super().clear()
-        self._item_map.clear()
-        self._id_to_index.clear()
+        self._block_filter = True
+        try:
+            self.clear()
+            for entry in items:
+                if len(entry) >= 3:
+                    text, data, raw_name = entry[0], entry[1], entry[2]
+                elif len(entry) == 2:
+                    if isinstance(entry[0], (int, type(None))) and isinstance(entry[1], str):
+                        data, text = entry[0], entry[1]
+                    else:
+                        text, data = entry[0], entry[1]
+                    raw_name = text
+                else:
+                    text = entry[0]
+                    data = None
+                    raw_name = text
+                self.addItem(text, data, raw_name)
 
-        names = []
-        for idx, entry in enumerate(items):
-            if len(entry) >= 3:
-                text, data, raw_name = entry[0], entry[1], entry[2]
-            else:
-                text, data = entry[0], entry[1]
-                raw_name = text
-            text_str = str(text or "")
-            super().addItem(text_str, data)
-            self.setItemData(idx, raw_name, Qt.UserRole + 1)
-            names.append(text_str)
-            self._item_map[text_str.strip().casefold()] = idx
-            if raw_name:
-                self._item_map[str(raw_name).strip().casefold()] = idx
-            if data is not None:
-                self._id_to_index[data] = idx
-
-        super().setCurrentIndex(-1)
-        line = self.lineEdit()
-        if line is not None:
-            line.clear()
-            line.setToolTip("")
-        self.blockSignals(False)
-        self._completer.setModel(QStringListModel(names, self._completer))
+            super().setCurrentIndex(-1)
+            line = self.lineEdit()
+            if line is not None:
+                line.clear()
+                line.setToolTip("")
+        finally:
+            self._block_filter = False
+            self.blockSignals(False)
 
     def set_options(
         self,
@@ -920,6 +1004,9 @@ class SearchableComboBox(ConstrainedComboBox):
     def clear_selection(self):
         """Reset combo to empty/unselected state and clear lineEdit text."""
         self.setCurrentIndex(-1)
+        popup = getattr(self, "_completer", None) and self._completer.popup()
+        if popup and popup.isVisible():
+            popup.hide()
         line = self.lineEdit()
         if line is not None:
             line.clear()
@@ -947,10 +1034,133 @@ class SearchableComboBox(ConstrainedComboBox):
             return self.itemText(idx)
         return ""
 
-    def showPopup(self):
-        prefix = self.lineEdit().text().strip() if self.lineEdit() is not None else ""
-        self._completer.setCompletionPrefix(prefix)
+    def _on_text_edited(self, text: str):
+        """Dynamically filter suggestions on typing each character and display dropdown below."""
+        if getattr(self, "_block_filter", False):
+            return
+        query = text.strip()
+        popup = self._completer.popup()
+        if not query:
+            if popup and popup.isVisible():
+                popup.hide()
+            self.setCurrentIndex(-1)
+            self.selection_changed.emit(None)
+            return
+
+        q_fold = query.casefold()
+        if getattr(self, "_prefix_only", False):
+            matches = [
+                it for it in self._items_data
+                if (it[1] is not None or not it[0].startswith("--"))
+                and (it[0].strip().casefold().startswith(q_fold) or it[2].strip().casefold().startswith(q_fold))
+            ]
+        else:
+            matches = [
+                it for it in self._items_data
+                if (it[1] is not None or not it[0].startswith("--"))
+                and (q_fold in it[0].casefold() or q_fold in it[2].casefold())
+            ]
+
+        self._completer_model.clear()
+        if matches:
+            for m in matches:
+                item = QStandardItem(m[0])
+                item.setData(m[1], Qt.UserRole)
+                item.setData(m[0], Qt.DisplayRole)
+                if len(m) >= 4:
+                    item.setData(m[3], Qt.UserRole + 2)
+                self._completer_model.appendRow(item)
+        else:
+            short_q = (query[:35] + '...') if len(query) > 35 else query
+            no_match_text = f"No matching records found for '{short_q}'"
+            item = QStandardItem(no_match_text)
+            item.setEnabled(False)
+            item.setData(None, Qt.UserRole)
+            self._completer_model.appendRow(item)
+
+        self._completer.setCompletionPrefix("")
         self._completer.complete()
+        self._position_completion_popup()
+
+    def _position_completion_popup(self):
+        """Position the completer dropdown directly BELOW the input field."""
+        popup = self._completer.popup()
+        if not popup or not popup.isVisible():
+            return
+        bottom_left = self.mapToGlobal(QPoint(0, self.height()))
+        x = bottom_left.x()
+        y = bottom_left.y() + 2
+        min_w = getattr(self, "_min_popup_width", 320) or 320
+        width = max(self.width(), min_w)
+
+        count = self._completer_model.rowCount()
+        row_height = max(26, popup.sizeHintForRow(0) if count > 0 else 26)
+        max_vis = getattr(self, "_max_visible", getattr(self, "_max_visible_items", 8)) or 8
+        visible_rows = min(max(count, 1), max_vis)
+        computed_height = row_height * visible_rows + 6
+        max_h = getattr(self, "_max_popup_height", None)
+        height = min(computed_height, max_h) if max_h else computed_height
+
+        screen = QApplication.screenAt(bottom_left) or QApplication.primaryScreen()
+        if screen:
+            screen_geo = screen.availableGeometry()
+            if y + height > screen_geo.bottom() and bottom_left.y() - self.height() - height >= screen_geo.top():
+                y = self.mapToGlobal(QPoint(0, 0)).y() - height - 2
+            if x + width > screen_geo.right():
+                x = max(screen_geo.left(), screen_geo.right() - width)
+
+        popup.setGeometry(QRect(x, y, width, height))
+
+    def show_all_suggestions(self):
+        """Show full suggestion dropdown without text filter."""
+        popup = self._completer.popup()
+        if not self._items_data:
+            return
+        self._completer_model.clear()
+        for m in self._items_data:
+            if m[1] is None and m[0].startswith("--"):
+                continue
+            item = QStandardItem(m[0])
+            item.setData(m[1], Qt.UserRole)
+            item.setData(m[0], Qt.DisplayRole)
+            if len(m) >= 4:
+                item.setData(m[3], Qt.UserRole + 2)
+            self._completer_model.appendRow(item)
+        self._completer.setCompletionPrefix("")
+        self._completer.complete()
+        self._position_completion_popup()
+
+    def showPopup(self):
+        line = self.lineEdit()
+        text = line.text().strip() if line is not None else ""
+        if text and text != getattr(self, "_placeholder", "") and self.currentData() is None:
+            self._on_text_edited(text)
+        else:
+            self.show_all_suggestions()
+            if self.currentIndex() >= 0 and self.currentData() is not None:
+                popup = self._completer.popup()
+                if popup and popup.isVisible():
+                    cur_id = self.currentData()
+                    for r in range(self._completer_model.rowCount()):
+                        item = self._completer_model.item(r)
+                        if item and item.data(Qt.UserRole) == cur_id:
+                            idx = self._completer_model.index(r, 0)
+                            popup.setCurrentIndex(idx)
+                            popup.scrollTo(idx, QAbstractItemView.PositionAtCenter)
+                            break
+
+    def findData(self, data: Any, role: int = Qt.UserRole) -> int:
+        idx = super().findData(data, role)
+        if idx >= 0:
+            return idx
+        if isinstance(data, (int, str)) and hasattr(self, "_id_to_index") and data in self._id_to_index:
+            return self._id_to_index[data]
+        if isinstance(data, int):
+            for i in range(self.count()):
+                d = self.itemData(i, role)
+                if isinstance(d, dict) and d.get("id") == data:
+                    return i
+        return -1
 
     def _find_matching_index(self, text: str) -> int:
         folded = text.strip().casefold()
@@ -969,21 +1179,45 @@ class SearchableComboBox(ConstrainedComboBox):
                 return i
         return -1
 
-    def _on_completion_str(self, text: str):
-        idx = self._find_matching_index(text)
-        if idx >= 0:
-            if self.currentIndex() == idx:
+    def _on_completer_index_activated(self, index: QModelIndex):
+        """Handle selection of an item from the completer popup."""
+        if not index.isValid():
+            return
+        item = self._completer_model.itemFromIndex(index)
+        if item is not None and not item.isEnabled():
+            # Disabled item (e.g. 'No matching records found')
+            return
+        data = index.data(Qt.UserRole)
+        text = index.data(Qt.DisplayRole)
+        combo_idx = index.data(Qt.UserRole + 2)
+        self._block_filter = True
+        try:
+            if combo_idx is not None and isinstance(combo_idx, int) and 0 <= combo_idx < self.count():
+                idx = combo_idx
+            else:
+                idx = self._find_matching_index(str(text))
+            if idx >= 0:
+                self.setCurrentIndex(idx)
                 line = self.lineEdit()
                 if line is not None:
-                    txt = self.itemText(idx)
-                    line.setText(txt)
+                    line.setText(self.itemText(idx))
                     line.setCursorPosition(0)
-                    line.setToolTip(txt)
-                self.currentIndexChanged.emit(idx)
             else:
-                self.setCurrentIndex(idx)
+                line = self.lineEdit()
+                if line is not None:
+                    line.setText(str(text))
+        finally:
+            self._block_filter = False
+
+        popup = self._completer.popup()
+        if popup and popup.isVisible():
+            popup.hide()
+
+        self.selection_changed.emit(self.currentData())
 
     def _resolve_current_text(self):
+        if getattr(self, "_block_filter", False):
+            return
         line = self.lineEdit()
         if not line:
             return
@@ -1000,11 +1234,22 @@ class SearchableComboBox(ConstrainedComboBox):
             line.setText(self.itemText(match_idx))
             return
 
-        # 2. Check if text uniquely matches a single completion suggestion
-        self._completer.setCompletionPrefix(text)
-        if self._completer.completionCount() == 1:
-            cand_text = self._completer.currentCompletion()
-            cand_idx = self._find_matching_index(cand_text)
+        # 2. If text unambiguously matches exactly one item in _items_data, resolve it
+        clean_text = text.strip().casefold()
+        if getattr(self, "_prefix_only", False):
+            matches = [
+                it for it in self._items_data
+                if (it[1] is not None or not it[0].startswith("--"))
+                and (it[0].strip().casefold().startswith(clean_text) or it[2].strip().casefold().startswith(clean_text))
+            ]
+        else:
+            matches = [
+                it for it in self._items_data
+                if (it[1] is not None or not it[0].startswith("--"))
+                and (clean_text in it[0].casefold() or clean_text in it[2].casefold())
+            ]
+        if len(matches) == 1:
+            cand_idx = matches[0][3] if len(matches[0]) >= 4 else self._find_matching_index(matches[0][0])
             if cand_idx >= 0 and self.itemData(cand_idx) is not None:
                 if self.currentIndex() != cand_idx:
                     self.setCurrentIndex(cand_idx)
@@ -1030,7 +1275,7 @@ class SearchableComboBox(ConstrainedComboBox):
     def currentData(self, role: int = Qt.UserRole) -> Any:
         line = self.lineEdit()
         typed = line.text().strip() if line is not None else ""
-        if not typed:
+        if not typed or typed == getattr(self, "_placeholder", ""):
             return None
         idx = self.currentIndex()
         if idx >= 0:
@@ -1047,51 +1292,249 @@ class SearchableComboBox(ConstrainedComboBox):
         return None
 
     def eventFilter(self, obj, event):
-        if obj == self.lineEdit() and event.type() == QEvent.KeyPress:
-            key = event.key()
-            popup = self._completer.popup()
-            if key == Qt.Key_Escape and popup is not None and popup.isVisible():
-                popup.hide()
-                return True
-            if key in (Qt.Key_Down, Qt.Key_Up):
-                if popup is not None and not popup.isVisible():
-                    self._completer.setCompletionPrefix(self.lineEdit().text().strip())
-                    self._completer.complete()
-                count = self._completer.completionCount()
-                if count and popup is not None:
-                    current = popup.currentIndex().row()
-                    if current < 0:
-                        current = 0 if key == Qt.Key_Down else count - 1
-                    elif key == Qt.Key_Down:
-                        current = min(current + 1, count - 1)
-                    else:
-                        current = max(current - 1, 0)
-                    self._completer.setCurrentRow(current)
-                    popup.setCurrentIndex(self._completer.completionModel().index(current, 0))
-                return True
-            if key in (Qt.Key_Return, Qt.Key_Enter):
-                if popup is not None and popup.isVisible():
-                    current = popup.currentIndex()
-                    if not current.isValid() and self._completer.completionCount():
-                        current = self._completer.completionModel().index(0, 0)
-                    if current.isValid():
-                        text = current.data(Qt.DisplayRole)
-                        self._on_completion_str(str(text))
+        line = self.lineEdit()
+        if obj == line:
+            if event.type() in (QEvent.MouseButtonPress, QEvent.FocusIn):
+                QTimer.singleShot(0, line.selectAll)
+            elif event.type() == QEvent.KeyPress:
+                key = event.key()
+                popup = self._completer.popup()
+                if key == Qt.Key_Escape:
+                    if popup and popup.isVisible():
                         popup.hide()
-                    return True
-                else:
-                    self._resolve_current_text()
-                    return False
-            if key in (Qt.Key_Tab, Qt.Key_Backtab):
-                if popup is not None and popup.isVisible():
-                    current = popup.currentIndex()
-                    if not current.isValid() and self._completer.completionCount():
-                        current = self._completer.completionModel().index(0, 0)
-                    if current.isValid():
-                        text = current.data(Qt.DisplayRole)
-                        self._on_completion_str(str(text))
+                        return True
+                elif key in (Qt.Key_Down, Qt.Key_Up):
+                    if not popup or not popup.isVisible():
+                        text = line.text().strip()
+                        if text and text != getattr(self, "_placeholder", "") and self.currentData() is None:
+                            self._on_text_edited(text)
+                        else:
+                            self.show_all_suggestions()
+                        return True
+                    count = self._completer_model.rowCount()
+                    if count:
+                        cur_row = popup.currentIndex().row()
+                        step = 1 if key == Qt.Key_Down else -1
+                        next_row = 0 if cur_row < 0 and key == Qt.Key_Down else (count - 1 if cur_row < 0 else cur_row + step)
+                        while 0 <= next_row < count:
+                            idx = self._completer_model.index(next_row, 0)
+                            if idx.data(Qt.UserRole) is not None:
+                                popup.setCurrentIndex(idx)
+                                popup.scrollTo(idx)
+                                return True
+                            next_row += step
+                        return True
+                elif key in (Qt.Key_Return, Qt.Key_Enter):
+                    if popup and popup.isVisible():
+                        idx = popup.currentIndex()
+                        if not idx.isValid():
+                            for r in range(self._completer_model.rowCount()):
+                                cand = self._completer_model.index(r, 0)
+                                cand_item = self._completer_model.item(r)
+                                if cand_item and cand_item.isEnabled():
+                                    idx = cand
+                                    break
+                        if idx.isValid():
+                            idx_item = self._completer_model.itemFromIndex(idx)
+                            if idx_item and idx_item.isEnabled():
+                                self._on_completer_index_activated(idx)
+                                return True
+                    else:
+                        self._resolve_current_text()
+                        return False
+                elif key in (Qt.Key_Tab, Qt.Key_Backtab):
+                    if popup and popup.isVisible():
+                        idx = popup.currentIndex()
+                        if not idx.isValid():
+                            for r in range(self._completer_model.rowCount()):
+                                cand = self._completer_model.index(r, 0)
+                                cand_item = self._completer_model.item(r)
+                                if cand_item and cand_item.isEnabled():
+                                    idx = cand
+                                    break
+                        if idx.isValid():
+                            idx_item = self._completer_model.itemFromIndex(idx)
+                            if idx_item and idx_item.isEnabled():
+                                self._on_completer_index_activated(idx)
                         popup.hide()
         return super().eventFilter(obj, event)
+
+
+class ReportFilterSearchCombo(SearchableComboBox):
+    """Searchable combo for Filter dropdowns in Reports (Purchase, Sales, Schedule, etc.).
+
+    - Automatically clears the text/selected item name when clicked.
+    - True 3-tier search engine: matches prefixes, words, tokens, and substrings.
+    - Never drops matching items.
+    - Preserves keyboard navigation (Down/Up/Enter/Escape).
+    - Restores placeholder / index 0 on blur if left blank.
+    """
+
+    def __init__(self, parent: QWidget | None = None, min_width: int = 280):
+        super().__init__(parent=parent, placeholder="", max_visible=14, min_width=min_width)
+
+    def eventFilter(self, obj, event):
+        line = self.lineEdit()
+        if obj == line:
+            if event.type() == QEvent.MouseButtonPress:
+                line.clear()
+                self._block_filter = True
+                self.setCurrentIndex(-1)
+                self._block_filter = False
+                popup = self._completer.popup()
+                if popup and popup.isVisible():
+                    popup.hide()
+            elif event.type() == QEvent.FocusOut:
+                if not line.text().strip():
+                    self.setCurrentIndex(0)
+        return super().eventFilter(obj, event)
+
+    def _on_text_edited(self, text: str):
+        if getattr(self, "_block_filter", False):
+            return
+        query = text.strip()
+        popup = self._completer.popup()
+        if not query:
+            if popup and popup.isVisible():
+                popup.hide()
+            self.setCurrentIndex(-1)
+            self.selection_changed.emit(None)
+            return
+
+        q_fold = query.casefold()
+        q_tokens = [tok for tok in q_fold.replace("-", " ").replace("/", " ").split() if tok]
+
+        valid_items = [
+            it for it in self._items_data
+            if (it[1] is not None or str(it[0]).lower().startswith("all "))
+            and not str(it[0]).startswith("--")
+        ]
+
+        matching_items = []
+        for it in valid_items:
+            display_name = it[0].casefold()
+            raw_name = it[2].casefold() if len(it) >= 3 else display_name
+            combined = f"{display_name} {raw_name} {display_name.replace('-', ' ').replace('/', ' ')}"
+
+            if q_fold in display_name or q_fold in raw_name:
+                matching_items.append(it)
+            elif q_tokens and all(tok in combined for tok in q_tokens):
+                matching_items.append(it)
+
+        tier1_prefix = []
+        tier2_word_start = []
+        tier3_contains = []
+
+        for it in matching_items:
+            display_name = it[0].casefold()
+            raw_name = it[2].casefold() if len(it) >= 3 else display_name
+            words = [w for w in display_name.replace("-", " ").replace("/", " ").split() if w]
+            raw_words = [w for w in raw_name.replace("-", " ").replace("/", " ").split() if w]
+            all_words = words + raw_words
+
+            if display_name.startswith(q_fold) or raw_name.startswith(q_fold):
+                tier1_prefix.append(it)
+            elif any(w.startswith(q_fold) for w in all_words) or (q_tokens and any(w.startswith(q_tokens[0]) for w in all_words)):
+                tier2_word_start.append(it)
+            else:
+                tier3_contains.append(it)
+
+        tier1_prefix.sort(key=lambda x: x[0].casefold())
+        tier2_word_start.sort(key=lambda x: x[0].casefold())
+        tier3_contains.sort(key=lambda x: x[0].casefold())
+
+        matches = tier1_prefix + tier2_word_start + tier3_contains
+
+        self._completer_model.clear()
+        if matches:
+            for m in matches:
+                item = QStandardItem(m[0])
+                item.setData(m[1], Qt.UserRole)
+                item.setData(m[0], Qt.DisplayRole)
+                if len(m) >= 4:
+                    item.setData(m[3], Qt.UserRole + 2)
+                self._completer_model.appendRow(item)
+        else:
+            short_q = (query[:35] + "...") if len(query) > 35 else query
+            item = QStandardItem(f"No matching records found for '{short_q}'")
+            item.setEnabled(False)
+            item.setData(None, Qt.UserRole)
+            self._completer_model.appendRow(item)
+
+        self._completer.setCompletionPrefix("")
+        self._completer.complete()
+        self._position_completion_popup()
+
+    def show_all_suggestions(self):
+        popup = self._completer.popup()
+        if not self._items_data:
+            return
+        self._completer_model.clear()
+        default_label = self._items_data[0][0] if self._items_data else "-- Select --"
+        item0 = QStandardItem(default_label)
+        item0.setData(None, Qt.UserRole)
+        item0.setData(default_label, Qt.DisplayRole)
+        item0.setData(0, Qt.UserRole + 2)
+        self._completer_model.appendRow(item0)
+        for m in self._items_data[1:]:
+            if m[1] is None and str(m[0]).startswith("--"):
+                continue
+            item = QStandardItem(m[0])
+            item.setData(m[1], Qt.UserRole)
+            item.setData(m[0], Qt.DisplayRole)
+            if len(m) >= 4:
+                item.setData(m[3], Qt.UserRole + 2)
+            self._completer_model.appendRow(item)
+        self._completer.setCompletionPrefix("")
+        self._completer.complete()
+        self._position_completion_popup()
+
+    def showPopup(self):
+        line = self.lineEdit()
+        text = line.text().strip() if line is not None else ""
+        if text and not text.startswith("--"):
+            self._on_text_edited(text)
+        else:
+            self.show_all_suggestions()
+
+    def _resolve_current_text(self):
+        if getattr(self, "_block_filter", False):
+            return
+        line = self.lineEdit()
+        if not line:
+            return
+        text = line.text().strip()
+        if not text or text.startswith("--"):
+            self.setCurrentIndex(0)
+            return
+
+        match_idx = self._find_matching_index(text)
+        if match_idx >= 0 and self.itemData(match_idx) is not None:
+            if self.currentIndex() != match_idx:
+                self.setCurrentIndex(match_idx)
+            line.setText(self.itemText(match_idx))
+            return
+
+        matches = [
+            it for it in self._items_data
+            if it[1] is not None and not str(it[0]).startswith("--")
+            and (text.casefold() in it[0].casefold() or text.casefold() in it[2].casefold())
+        ]
+        if len(matches) == 1:
+            cand_idx = matches[0][3] if len(matches[0]) >= 4 else self._find_matching_index(matches[0][0])
+            if cand_idx >= 0 and self.itemData(cand_idx) is not None:
+                if self.currentIndex() != cand_idx:
+                    self.setCurrentIndex(cand_idx)
+                line.setText(self.itemText(cand_idx))
+                return
+
+        idx = self.currentIndex()
+        if idx >= 0 and self.itemData(idx) is not None:
+            if self.itemText(idx).strip().casefold() == text.casefold():
+                line.setText(self.itemText(idx))
+                return
+
+        self.setCurrentIndex(0)
 
 
 # ── Small helpers used by screens ─────────────────────────────────────

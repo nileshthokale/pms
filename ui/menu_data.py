@@ -1,19 +1,99 @@
+class SubmenuDict(dict):
+    """Submenu dict that compares equal to its string title for backward compatibility."""
+
+    def __eq__(self, other):
+        if isinstance(other, str) and other in self:
+            return True
+        return super().__eq__(other)
+
+
+REPORT_LEDGER_SUBMENU = [
+    "Supplier Ledger",
+    "Customer Ledger",
+    "Itemwise Ledger",
+]
+
+REPORT_SALES_SUBMENU = [
+    "Daily Billwise Sales",
+    "Daily Itemwise Sales",
+    "Companywise Sales",
+    "Itemwise Sales",
+    "Profit Calculation",
+    "Daily Profit Calculation",
+    "Daily Profit Itemwise",
+]
+
+REPORT_PURCHASE_SUBMENU = [
+    "Companywise Itemwise Purchase",
+    "Companywise Supplierwise Purchase",
+    "---",
+    "Supplierwise Itemwise Purchase (Invoice)",
+    "Supplierwise Itemwise Purchase (Challan)",
+    "---",
+    "Itemwise Purchase",
+    "Itemwise Batchwise Purchase",
+]
+
+
+REPORT_STOCK_SUBMENU = [
+    "Items (All) Stock",
+    "Companywise Item Stock",
+    "Expired Item List",
+    "Item List",
+]
+
+
+REPORT_DOCTOR_SUBMENU = [
+    "Doctorwise Item Sale",
+    "Doctorwise Item Sale Details",
+]
+
+
+SCHEDULE_SALES_SUBMENU = [
+    "Datewise Schedule",
+    "Itemwise Schedule",
+    "All Items Schedule",
+]
+
+SCHEDULE_PURCHASE_SUBMENU = [
+    "Datewise Schedule",
+    "Itemwise Schedule",
+    "All Items Schedule",
+]
+
+SCHEDULE_H1_SUBMENU = [
+    SubmenuDict({"Sales": SCHEDULE_SALES_SUBMENU}),
+    SubmenuDict({"Purchase": SCHEDULE_PURCHASE_SUBMENU}),
+]
+
+SCHEDULE_NRX_SUBMENU = [
+    SubmenuDict({"Sales": SCHEDULE_SALES_SUBMENU}),
+    SubmenuDict({"Purchase": SCHEDULE_PURCHASE_SUBMENU}),
+]
+
+SCHEDULE_MENU = [
+    SubmenuDict({"H1": SCHEDULE_H1_SUBMENU}),
+    SubmenuDict({"NRX": SCHEDULE_NRX_SUBMENU}),
+]
+
+
 MENUS = {
     "Sales": [
         "New Bill",
         "Hold Bill",
-        "Return Bill",
-        "Sales History",
+        "Patient Bill History",
+        "Patient History – Bill Number Wise",
         "Day End",
     ],
     "Purchase": [
         "New Purchase",
-        "Purchase Return",
-        "Purchase History",
-        "Supplier Payment",
+        "Stock Adjustment",
+        "Debit Note (Return to Supplier)",
+        "Credit Note (Return from Customer)",
     ],
     "Account": [
-        "Customer Receipt",
+        "Supplier Payment Voucher",
+        "Customer Receipt Voucher",
         "Cash Book",
         "Bank Book",
         "Ledger",
@@ -24,15 +104,25 @@ MENUS = {
         "Balance Sheet",
     ],
     "Reports": [
-        "Sales Report",
-        "Purchase Report",
-        "Stock Report",
+        SubmenuDict({
+            "Sales Report": REPORT_SALES_SUBMENU,
+        }),
+        "Duplicate Sales Bill",
+        SubmenuDict({
+            "Purchase Report": REPORT_PURCHASE_SUBMENU,
+        }),
+        SubmenuDict({
+            "Stock Report": REPORT_STOCK_SUBMENU,
+        }),
+        SubmenuDict({
+            "Doctor's Reports": REPORT_DOCTOR_SUBMENU,
+        }),
         "Expiry Report",
         "Party Wise Report",
         "GST Report",
-        "Supplier Ledger",
-        "Customer Ledger",
-        "Itemwise Ledger",
+        {
+            "Ledger": REPORT_LEDGER_SUBMENU,
+        },
     ],
     "Master": [
         "Item Master",
@@ -49,4 +139,5 @@ MENUS = {
         "User Master",
         "Backup & Restore",
     ],
+    "Schedule": SCHEDULE_MENU,
 }

@@ -114,15 +114,20 @@ def test_ui_screens_display():
     conn = get_connection()
     try:
         # Check sales invoice
-        sale = conn.execute("SELECT id, bill_no FROM sales_invoices WHERE bill_no = '2026-2027-Cash-187-S72213'").fetchone()
+        sale = conn.execute(
+            "SELECT id, bill_no, patient_name FROM sales_invoices "
+            "WHERE bill_no = '2026-2027-Cash-187-S72213'"
+        ).fetchone()
         if sale:
-            sale_id, sale_bno = sale
-            dlg = SalesBillDetailsDialog(sale_id)
-            # Find Bill / CNo value label (blank because patient_name is empty)
-            grid = dlg._meta_group.layout()
-            val = grid.itemAtPosition(0, 1).widget().text()
-            assert val == "", f"SalesBillDetailsDialog expected blank '', got {val!r}"
-            dlg.close()
+            sale_id, sale_bno, sale_pat = sale
+            # A historical row with an empty stored patient name keeps a
+            # genuinely blank Bill / CNo; no legacy number is exposed.
+            if not (sale_pat or "").strip():
+                dlg = SalesBillDetailsDialog(sale_id)
+                grid = dlg._meta_group.layout()
+                val = grid.itemAtPosition(0, 1).widget().text()
+                assert val == "", f"SalesBillDetailsDialog expected blank, got {val!r}"
+                dlg.close()
 
         # Check genuine sales invoice with patient name
         gen_sale = conn.execute("SELECT id, bill_no, patient_name FROM sales_invoices WHERE id = 1").fetchone()
@@ -155,13 +160,13 @@ def test_ui_screens_display():
 
         # Check credit note dialog
         cn_dlg = _CreditNoteEntryDialog()
-        cn_vh = cn_dlg.voucher_no_edit.text()
+        cn_vh = (getattr(cn_dlg, "voucher_no_edit", None) or getattr(cn_dlg, "voucher_no_lbl")).text()
         assert cn_vh.isdigit(), f"_CreditNoteEntryDialog voucher {cn_vh!r} is not numeric"
         cn_dlg.close()
 
         # Check debit note dialog
         dn_dlg = _DebitNoteEntryDialog()
-        dn_vh = dn_dlg.voucher_no_edit.text()
+        dn_vh = (getattr(dn_dlg, "voucher_no_edit", None) or getattr(dn_dlg, "voucher_no_lbl")).text()
         assert dn_vh.isdigit(), f"_DebitNoteEntryDialog voucher {dn_vh!r} is not numeric"
         dn_dlg.close()
 
@@ -188,19 +193,22 @@ def test_ui_screens_display():
         sh_page._perform_search()
         assert sh_page._table.rowCount() > 0, "SalesHistoryPage returned no rows"
         first_bno_item = sh_page._table.item(0, 0)
-        assert "Full Bill No:" in first_bno_item.toolTip(), "SalesHistoryPage missing Full Bill No in tooltip"
         assert isinstance(first_bno_item.data(Qt.UserRole), int), "SalesHistoryPage missing invoice id in UserRole"
-        # Find a row with patient name (numeric) and one without (blank)
+        # Find a named row (numeric Bill No + full-number tooltip) and an
+        # unnamed row (genuinely blank Bill No + blank tooltip).
         has_verified_numeric = False
         has_verified_blank = False
         for r in range(sh_page._table.rowCount()):
             pat_text = sh_page._table.item(r, 2).text()
-            bno_text = sh_page._table.item(r, 0).text()
+            bno_item = sh_page._table.item(r, 0)
+            bno_text = bno_item.text()
             if pat_text != "WALKIN" and not has_verified_numeric:
                 assert bno_text.isdigit(), f"Row {r} with patient {pat_text!r} expected numeric bill no, got {bno_text!r}"
+                assert "Full Bill No:" in bno_item.toolTip(), "Named row missing Full Bill No tooltip"
                 has_verified_numeric = True
             elif pat_text == "WALKIN" and not has_verified_blank:
-                assert bno_text == "", f"Row {r} with empty patient expected blank bill no, got {bno_text!r}"
+                assert bno_text == "", f"Row {r} with WALKIN patient expected blank bill no, got {bno_text!r}"
+                assert bno_item.toolTip() == "", "Unnamed row must have a blank tooltip"
                 has_verified_blank = True
             if has_verified_numeric and has_verified_blank:
                 break

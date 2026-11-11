@@ -20,14 +20,43 @@ def pack_factor(pack_size) -> float:
 
     Purchase ``pay_qty``/``free_qty`` are recorded in packs while
     ``stock_batches.stock_qty`` holds individual loose units, so postings
-    multiply by this factor.  Non-numeric or missing pack sizes fall back
-    to 1.0 (one unit per pack), matching pack-size-1 items.
+    multiply by this factor. Robustly parses:
+      - Plain numbers: "10" -> 10.0, "15" -> 15.0
+      - Text suffixes: "10'S" -> 10.0, "10TAB" -> 10.0, "100ML" -> 100.0
+      - Multiplications: "1*10" -> 10.0, "10*10" -> 100.0, "1X10" -> 10.0
+    Non-numeric or missing pack sizes fall back to 1.0.
     """
-    try:
-        factor = float(str(pack_size).strip())
-    except (TypeError, ValueError, AttributeError):
+    if pack_size is None:
         return 1.0
-    return factor if factor > 0 else 1.0
+    text = str(pack_size).strip()
+    if not text:
+        return 1.0
+    try:
+        factor = float(text)
+        return factor if factor > 0 else 1.0
+    except (ValueError, TypeError):
+        pass
+
+    import re
+    # Check for expressions like 10*10 or 1*10 or 1X10
+    mult = re.match(r'^(\d+(?:\.\d+)?)\s*[*xX]\s*(\d+(?:\.\d+)?)$', text)
+    if mult:
+        try:
+            val = float(mult.group(1)) * float(mult.group(2))
+            return val if val > 0 else 1.0
+        except (ValueError, TypeError):
+            pass
+
+    # Extract leading or embedded number (e.g., 10's, 10TAB, 10 CAP, 100ML)
+    m = re.search(r'(\d+(?:\.\d+)?)', text)
+    if m:
+        try:
+            val = float(m.group(1))
+            return val if val > 0 else 1.0
+        except (ValueError, TypeError):
+            pass
+
+    return 1.0
 
 
 class PurchaseDAO:
@@ -530,7 +559,7 @@ class PurchaseDAO:
             # 1. Purchase invoice items (gives exact purchase rate, mrp, expiry)
             cur = conn.execute(
                 """
-                SELECT batch_no, expiry, rate, mrp, pack_size
+                SELECT batch_no, expiry, rate, mrp, pack_size, gst_percent
                 FROM purchase_invoice_items
                 WHERE item_id = ? AND batch_no IS NOT NULL AND TRIM(batch_no) != ''
                 ORDER BY id DESC
@@ -550,6 +579,7 @@ class PurchaseDAO:
                         "rate": float(b.get("rate") or 0.0),
                         "mrp": float(b.get("mrp") or 0.0),
                         "pack_size": str(b.get("pack_size") or ""),
+                        "gst_percent": float(b.get("gst_percent") or 0.0) if b.get("gst_percent") is not None else None,
                     }
                 else:
                     if not batches[key]["expiry"] and b.get("expiry"):
@@ -560,11 +590,13 @@ class PurchaseDAO:
                         batches[key]["mrp"] = float(b.get("mrp") or 0.0)
                     if not batches[key]["pack_size"] and b.get("pack_size"):
                         batches[key]["pack_size"] = str(b.get("pack_size") or "")
+                    if batches[key].get("gst_percent") is None and b.get("gst_percent") is not None:
+                        batches[key]["gst_percent"] = float(b.get("gst_percent") or 0.0)
 
             # 2. Stock batches (for batches that may not be in purchase_invoice_items)
             cur = conn.execute(
                 """
-                SELECT batch_no, expiry, purchase_rate AS rate, mrp, pack_size
+                SELECT id, batch_no, expiry, purchase_rate AS rate, mrp, pack_size
                 FROM stock_batches
                 WHERE item_id = ? AND batch_no IS NOT NULL AND TRIM(batch_no) != ''
                 ORDER BY id DESC
@@ -579,6 +611,8 @@ class PurchaseDAO:
                 key = bno.upper()
                 if key not in batches:
                     batches[key] = {
+                        "id": b.get("id"),
+                        "batch_id": b.get("id"),
                         "batch_no": bno,
                         "expiry": (b.get("expiry") or "").strip(),
                         "rate": float(b.get("rate") or 0.0),
@@ -586,6 +620,9 @@ class PurchaseDAO:
                         "pack_size": str(b.get("pack_size") or ""),
                     }
                 else:
+                    if not batches[key].get("id") and b.get("id"):
+                        batches[key]["id"] = b.get("id")
+                        batches[key]["batch_id"] = b.get("id")
                     if not batches[key]["expiry"] and b.get("expiry"):
                         batches[key]["expiry"] = str(b.get("expiry")).strip()
                     if batches[key]["rate"] <= 0 and float(b.get("rate") or 0.0) > 0:
@@ -598,3 +635,59 @@ class PurchaseDAO:
             return list(batches.values())
         finally:
             conn.close()
+
+    @staticmethod
+    def get_item_purchase_history(item_id: int) -> list[dict]:
+        """Return purchase transactions for an item ordered by date descending."""
+        conn = get_connection()
+        try:
+            query = """
+                SELECT 
+                    pi.id AS invoice_id,
+                    pi.voucher_no,
+                    pi.voucher_date,
+                    pi.purchase_type,
+                    pii.batch_no,
+                    pii.expiry,
+                    pii.pay_qty,
+                    pii.free_qty,
+                    pii.mrp,
+                    pii.rate,
+                    pii.discount,
+                    COALESCE(s.supplier_name, '') AS supplier_name
+                FROM purchase_invoice_items pii
+                JOIN purchase_invoices pi ON pi.id = pii.purchase_invoice_id
+                LEFT JOIN suppliers s ON s.id = pi.supplier_id
+                WHERE pii.item_id = ?
+                ORDER BY pi.voucher_date DESC, pi.id DESC
+            """
+            cur = conn.execute(query, (item_id,))
+            rows = [dict(r) for r in cur.fetchall()]
+            if not rows:
+                fallback_cur = conn.execute(
+                    """
+                    SELECT 
+                        sb.id AS invoice_id,
+                        '' AS voucher_no,
+                        '' AS voucher_date,
+                        'Opening/Stock' AS purchase_type,
+                        sb.batch_no,
+                        sb.expiry,
+                        sb.stock_qty AS pay_qty,
+                        0.0 AS free_qty,
+                        sb.mrp,
+                        sb.purchase_rate AS rate,
+                        0.0 AS discount,
+                        COALESCE(s.supplier_name, '') AS supplier_name
+                    FROM stock_batches sb
+                    LEFT JOIN suppliers s ON s.id = sb.supplier_id
+                    WHERE sb.item_id = ?
+                    ORDER BY sb.id DESC
+                    """,
+                    (item_id,),
+                )
+                rows = [dict(r) for r in fallback_cur.fetchall()]
+            return rows
+        finally:
+            conn.close()
+

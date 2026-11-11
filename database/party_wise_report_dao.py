@@ -537,7 +537,8 @@ class PartyWiseReportDAO:
                 rows = conn.execute(
                     """
                     SELECT c.id AS customer_id, c.customer_name,
-                           c.city, c.contact_no, c.ledger_id
+                           c.address, c.city, c.contact_no, c.ledger_id,
+                           c.opening_balance
                     FROM customers c
                     WHERE c.customer_name LIKE ?
                     ORDER BY c.customer_name
@@ -548,7 +549,8 @@ class PartyWiseReportDAO:
                 rows = conn.execute(
                     """
                     SELECT c.id AS customer_id, c.customer_name,
-                           c.city, c.contact_no, c.ledger_id
+                           c.address, c.city, c.contact_no, c.ledger_id,
+                           c.opening_balance
                     FROM customers c
                     ORDER BY c.customer_name
                     """,
@@ -557,13 +559,27 @@ class PartyWiseReportDAO:
             result = []
             for r in rows:
                 row = dict(r)
-                if row["ledger_id"]:
-                    bal = LedgerDAO.get_balance(row["ledger_id"])
+                addr_parts = [p.strip() for p in (row.get("address") or "", row.get("city") or "") if p and p.strip()]
+                row["address"] = " ".join(addr_parts)
+                lid = row.get("ledger_id")
+                txn_count = 0
+                if lid:
+                    bal = LedgerDAO.get_balance(lid)
                     row["ledger_balance"] = bal["closing_balance"]
                     row["ledger_balance_type"] = bal["closing_balance_type"]
+                    try:
+                        cur_cnt = conn.execute(
+                            "SELECT COUNT(*) as cnt FROM ledger_transactions WHERE ledger_id = ?",
+                            (lid,),
+                        ).fetchone()
+                        txn_count = cur_cnt["cnt"] if cur_cnt else 0
+                    except Exception:
+                        txn_count = 0
                 else:
                     row["ledger_balance"] = 0.0
                     row["ledger_balance_type"] = "Debit"
+                row["txn_count"] = txn_count
+                row["has_transactions"] = (txn_count > 0 or abs(float(row.get("opening_balance") or 0.0)) > 0.0)
                 result.append(row)
             return result
         finally:
@@ -583,7 +599,8 @@ class PartyWiseReportDAO:
                 rows = conn.execute(
                     """
                     SELECT s.id AS supplier_id, s.supplier_name,
-                           s.city, s.contact_no, s.ledger_id
+                           s.address, s.city, s.contact_no, s.ledger_id,
+                           s.opening_balance
                     FROM suppliers s
                     WHERE s.supplier_name LIKE ?
                     ORDER BY s.supplier_name
@@ -594,7 +611,8 @@ class PartyWiseReportDAO:
                 rows = conn.execute(
                     """
                     SELECT s.id AS supplier_id, s.supplier_name,
-                           s.city, s.contact_no, s.ledger_id
+                           s.address, s.city, s.contact_no, s.ledger_id,
+                           s.opening_balance
                     FROM suppliers s
                     ORDER BY s.supplier_name
                     """,
@@ -603,13 +621,27 @@ class PartyWiseReportDAO:
             result = []
             for r in rows:
                 row = dict(r)
-                if row["ledger_id"]:
-                    bal = LedgerDAO.get_balance(row["ledger_id"])
+                addr_parts = [p.strip() for p in (row.get("address") or "", row.get("city") or "") if p and p.strip()]
+                row["address"] = " ".join(addr_parts)
+                lid = row.get("ledger_id")
+                txn_count = 0
+                if lid:
+                    bal = LedgerDAO.get_balance(lid)
                     row["ledger_balance"] = bal["closing_balance"]
                     row["ledger_balance_type"] = bal["closing_balance_type"]
+                    try:
+                        cur_cnt = conn.execute(
+                            "SELECT COUNT(*) as cnt FROM ledger_transactions WHERE ledger_id = ?",
+                            (lid,),
+                        ).fetchone()
+                        txn_count = cur_cnt["cnt"] if cur_cnt else 0
+                    except Exception:
+                        txn_count = 0
                 else:
                     row["ledger_balance"] = 0.0
                     row["ledger_balance_type"] = "Credit"
+                row["txn_count"] = txn_count
+                row["has_transactions"] = (txn_count > 0 or abs(float(row.get("opening_balance") or 0.0)) > 0.0)
                 result.append(row)
             return result
         finally:

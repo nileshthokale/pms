@@ -38,6 +38,7 @@ class _BaseLedgerTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        cls._orig_pharmacy_db = os.environ.get("PHARMACY_DB")
         cls.db_fd, cls.db_path = tempfile.mkstemp(suffix="_test_detailed_ledgers.db")
         os.close(cls.db_fd)
         os.environ["PHARMACY_DB"] = cls.db_path
@@ -45,6 +46,10 @@ class _BaseLedgerTest(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
+        if cls._orig_pharmacy_db is not None:
+            os.environ["PHARMACY_DB"] = cls._orig_pharmacy_db
+        else:
+            os.environ.pop("PHARMACY_DB", None)
         if os.path.exists(cls.db_path):
             try:
                 os.remove(cls.db_path)
@@ -670,7 +675,9 @@ class TestItemwiseLedgerDAO(_BaseLedgerTest):
             to_date="2026-04-30",
         )
         self.assertEqual(report["opening_stock"], 50.0)
-        self.assertEqual(report["total_inward"], 0.0)
+        # Total Inward includes opening stock per legacy Pharma-WINNER convention
+        self.assertEqual(report["total_inward"], 50.0)
+        self.assertEqual(report["period_inward"], 0.0)
         self.assertEqual(report["total_outward"], 0.0)
         self.assertEqual(report["closing_stock"], 50.0)
         self.assertEqual(len(report["rows"]), 0)
@@ -682,14 +689,21 @@ class TestItemwiseLedgerDAO(_BaseLedgerTest):
 class TestLedgerScreensAndWiring(_BaseLedgerTest):
 
     def test_11_menu_data_has_all_three_ledger_reports(self):
-        """Reports menu must contain Supplier Ledger, Customer Ledger, Itemwise Ledger."""
+        """Reports menu must contain nested Ledger submenu with the 3 reports, not direct entries."""
         reports = MENUS["Reports"]
-        self.assertIn("Supplier Ledger", reports)
-        self.assertIn("Customer Ledger", reports)
-        self.assertIn("Itemwise Ledger", reports)
-        self.assertEqual(reports.count("Supplier Ledger"), 1)
-        self.assertEqual(reports.count("Customer Ledger"), 1)
-        self.assertEqual(reports.count("Itemwise Ledger"), 1)
+        self.assertNotIn("Supplier Ledger", reports)
+        self.assertNotIn("Customer Ledger", reports)
+        self.assertNotIn("Itemwise Ledger", reports)
+
+        ledger_entry = reports[-1]
+        self.assertIsInstance(ledger_entry, dict)
+        self.assertIn("Ledger", ledger_entry)
+        ledger_sub = ledger_entry["Ledger"]
+        self.assertEqual(ledger_sub, [
+            "Supplier Ledger",
+            "Customer Ledger",
+            "Itemwise Ledger",
+        ])
 
     def test_12_screens_package_exports_pages(self):
         """screens package must export the 3 ledger page classes."""
@@ -747,7 +761,7 @@ class TestLedgerScreensAndWiring(_BaseLedgerTest):
 
         self.assertGreaterEqual(page._table.rowCount(), 2)
         os_cell = page._table.item(0, 1)
-        self.assertIn("OPENING STOCK", os_cell.text())
+        self.assertIn("OPENING", os_cell.text())
 
     def test_16_financial_year_switch_updates_pages(self):
         """set_history_financial_year updates date range on all 3 pages."""

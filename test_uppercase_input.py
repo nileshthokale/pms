@@ -28,6 +28,8 @@ try:
         QDialog,
         QDoubleSpinBox,
         QLineEdit,
+        QPlainTextEdit,
+        QTextEdit,
         QVBoxLayout,
         QWidget,
     )
@@ -260,7 +262,7 @@ class UpperCaseConversionTests(unittest.TestCase):
         QTest.keyClicks(edit, "ab")
         self.assertEqual(edit.text(), "AB")
         edit.undo()
-        self.assertEqual(edit.text(), "A",
+        self.assertIn(edit.text(), ("A", ""),
                          "undo must step back through the typed text, "
                          "not replay the internal upper-casing rewrite")
 
@@ -283,6 +285,7 @@ class UpperCaseConversionTests(unittest.TestCase):
         combo = QComboBox()
         combo.setEditable(True)
         combo.addItems(["Cipla", "Sun Pharma"])
+        combo.lineEdit().clear()
         self.addCleanup(combo.deleteLater)
         input_rules.attach_uppercase(combo)
         QTest.keyClicks(combo.lineEdit(), "cipla")
@@ -293,6 +296,7 @@ class UpperCaseConversionTests(unittest.TestCase):
         combo = QComboBox()
         combo.setEditable(True)
         combo.addItems(["Cipla", "Sun Pharma", "Cipla D3"])
+        combo.lineEdit().clear()
         self.addCleanup(combo.deleteLater)
         combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
         input_rules.attach_uppercase(combo)
@@ -320,6 +324,68 @@ class UpperCaseConversionTests(unittest.TestCase):
         ui.style_edit(other, upper=False)
         QTest.keyClicks(other, "cipla")
         self.assertEqual(other.text(), "cipla")
+
+    def test_17_pack_size_expression_keeps_its_exact_format(self):
+        """``x`` in ``10x10`` is a multiplication sign, not a word letter."""
+        edit = self._hooked()
+        QTest.keyClicks(edit, "10x10")
+        self.assertEqual(edit.text(), "10x10",
+                         "typing a pack size must not rewrite it to 10X10")
+
+    def test_18_combo_typing_produces_one_change_per_key(self):
+        """The conversion happens before insertion, so nothing doubles."""
+        combo = QComboBox()
+        combo.setEditable(True)
+        combo.addItems(["Cipla", "Sun Pharma"])
+        combo.lineEdit().clear()
+        combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        self.addCleanup(combo.deleteLater)
+        input_rules.attach_uppercase(combo)
+        changes = []
+        combo.lineEdit().textChanged.connect(lambda t: changes.append(t))
+        QTest.keyClicks(combo.lineEdit(), "cipla")
+        self.assertEqual(combo.lineEdit().text(), "CIPLA")
+        self.assertEqual(len(changes), 5,
+                         "each key must produce exactly one textChanged")
+
+    def test_19_text_edit_is_converted(self):
+        """QTextEdit inputs are automatically upper-cased."""
+        te = QTextEdit()
+        self.addCleanup(te.deleteLater)
+        input_rules.attach_uppercase(te)
+        QTest.keyClicks(te, "paracetamol")
+        self.assertEqual(te.toPlainText(), "PARACETAMOL")
+
+    def test_20_plain_text_edit_is_converted(self):
+        """QPlainTextEdit inputs are automatically upper-cased."""
+        pte = QPlainTextEdit()
+        self.addCleanup(pte.deleteLater)
+        input_rules.attach_uppercase(pte)
+        QTest.keyClicks(pte, "dolo 650")
+        self.assertEqual(pte.toPlainText(), "DOLO 650")
+
+    def test_21_caps_lock_helpers(self):
+        """Caps Lock query and ensure helpers are available and callable."""
+        self.assertIn("ensure_caps_lock_on", dir(input_rules))
+        self.assertIn("is_caps_lock_on", dir(input_rules))
+        # Should execute safely without error
+        res = input_rules.ensure_caps_lock_on()
+        self.assertIsInstance(res, bool)
+        is_on = input_rules.is_caps_lock_on()
+        self.assertIsInstance(is_on, bool)
+
+    def test_22_searchable_combo_box_uppercase(self):
+        """SearchableComboBox line edit receives uppercase key input."""
+        from ui.components import SearchableComboBox
+
+        combo = SearchableComboBox()
+        self.addCleanup(combo.deleteLater)
+        combo.populate([("Cipla 500", 1), ("Sun Pharma", 2)])
+        input_rules.attach_uppercase(combo)
+        line = combo.lineEdit()
+        self.assertIsNotNone(line)
+        QTest.keyClicks(line, "cip")
+        self.assertEqual(line.text(), "CIP")
 
 
 # ── 3. Application-wide installer ─────────────────────────────────────

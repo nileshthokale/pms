@@ -6,13 +6,26 @@ from database.connection import get_connection
 _KEEP_PROVENANCE = object()
 
 
+def _has_legacy_id_map(conn) -> bool:
+    try:
+        r = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='legacy_id_map'"
+        ).fetchone()
+        return r is not None
+    except Exception:
+        return False
+
+
 class ItemDAO:
     @staticmethod
     def get_all() -> list[dict]:
         conn = get_connection()
         try:
+            has_lim = _has_legacy_id_map(conn)
+            lim_col = "lim.legacy_id" if has_lim else "NULL AS legacy_id"
+            lim_join = "LEFT JOIN legacy_id_map lim ON lim.entity = 'item' AND lim.new_id = i.id" if has_lim else ""
             rows = conn.execute(
-                """SELECT
+                f"""SELECT
                     i.id,
                     i.item_name,
                     COALESCE(generic_names.generic_name, '') AS generic_name,
@@ -32,8 +45,10 @@ class ItemDAO:
                     i.scheduled,
                     i.location,
                     i.pathy,
-                    i.dpco
+                    i.dpco,
+                    {lim_col}
                 FROM items i
+                {lim_join}
                 LEFT JOIN units u ON i.unit_id = u.id
                 LEFT JOIN companies c ON i.company_id = c.id
                 LEFT JOIN categories cat ON i.category_id = cat.id
@@ -99,25 +114,35 @@ class ItemDAO:
         """
         conn = get_connection()
         try:
+            clean_name = (name or "").strip()
             if exclude_id is not None:
                 row = conn.execute(
-                    "SELECT 1 FROM items WHERE item_name = ? AND unit_id IS ? AND id != ?",
-                    (name, unit_id, exclude_id),
+                    "SELECT 1 FROM items WHERE TRIM(item_name) = ? COLLATE NOCASE AND unit_id IS ? AND id != ?",
+                    (clean_name, unit_id, exclude_id),
                 ).fetchone()
             else:
                 row = conn.execute(
-                    "SELECT 1 FROM items WHERE item_name = ? AND unit_id IS ?",
-                    (name, unit_id),
+                    "SELECT 1 FROM items WHERE TRIM(item_name) = ? COLLATE NOCASE AND unit_id IS ?",
+                    (clean_name, unit_id),
                 ).fetchone()
             return row is not None
         finally:
             conn.close()
 
     @staticmethod
-    def search(name: str, category_id: int | None = None) -> list[dict]:
+    def find_by_name(name: str) -> dict | None:
+        """Find an existing item by name (case-insensitive, trimmed).
+
+        Returns the item dictionary if found, or None.
+        If multiple items share the same name under different units,
+        returns the first matching item.
+        """
+        clean_name = (name or "").strip()
+        if not clean_name:
+            return None
         conn = get_connection()
         try:
-            rows = conn.execute(
+            row = conn.execute(
                 """SELECT
                     i.id,
                     i.item_name,
@@ -142,10 +167,66 @@ class ItemDAO:
                 LEFT JOIN units u ON i.unit_id = u.id
                 LEFT JOIN companies c ON i.company_id = c.id
                 LEFT JOIN categories cat ON i.category_id = cat.id
-                WHERE i.item_name LIKE ?
+                WHERE TRIM(i.item_name) = ? COLLATE NOCASE
+                ORDER BY i.id ASC LIMIT 1""",
+                (clean_name,),
+            ).fetchone()
+            return dict(row) if row else None
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_version_key() -> tuple:
+        """Lightweight state tuple (count, max_id, total_id, sum_len) to detect item changes."""
+        conn = get_connection()
+        try:
+            row = conn.execute(
+                "SELECT COUNT(*), COALESCE(MAX(id), 0), COALESCE(TOTAL(id), 0), COALESCE(SUM(LENGTH(item_name)), 0) FROM items"
+            ).fetchone()
+            return tuple(row)
+        finally:
+            conn.close()
+
+    @staticmethod
+    def search(name: str, category_id: int | None = None) -> list[dict]:
+        conn = get_connection()
+        try:
+            has_lim = _has_legacy_id_map(conn)
+            lim_col = "lim.legacy_id" if has_lim else "NULL AS legacy_id"
+            lim_join = "LEFT JOIN legacy_id_map lim ON lim.entity = 'item' AND lim.new_id = i.id" if has_lim else ""
+            where_match = "(i.item_name LIKE ? OR lim.legacy_id = ? OR CAST(i.id AS TEXT) = ?)" if has_lim else "(i.item_name LIKE ? OR CAST(i.id AS TEXT) = ?)"
+            params = (f"%{name}%", name.strip(), name.strip(), category_id, category_id) if has_lim else (f"%{name}%", name.strip(), category_id, category_id)
+            rows = conn.execute(
+                f"""SELECT
+                    i.id,
+                    i.item_name,
+                    i.unit_id,
+                    u.unit_name,
+                    i.company_id,
+                    c.company_name,
+                    i.category_id,
+                    cat.category_name,
+                    i.pack_size,
+                    i.tax_structure,
+                    i.legacy_tax_id,
+                    i.discount,
+                    i.mrp,
+                    i.rate,
+                    i.reorder_stock_level,
+                    i.scheduled,
+                    i.location,
+                    i.pathy,
+                    i.dpco,
+                    {lim_col}
+                FROM items i
+                {lim_join}
+                LEFT JOIN units u ON i.unit_id = u.id
+                LEFT JOIN companies c ON i.company_id = c.id
+                LEFT JOIN categories cat ON i.category_id = cat.id
+                WHERE {where_match}
                 AND (? IS NULL OR i.category_id = ?)
                 ORDER BY i.item_name""",
-                (f"%{name}%", category_id, category_id),
+                params,
             ).fetchall()
             return [dict(row) for row in rows]
         finally:

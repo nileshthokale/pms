@@ -1,0 +1,230 @@
+{
+  "item_master": {
+    "total_source_items": 943,
+    "target_items": 939,
+    "missing_provenance_count": 942,
+    "provenance_discrepancies": [],
+    "tax_id_distribution": {
+      "6": 304,
+      "11": 223,
+      "12": 322,
+      "2": 43,
+      "13": 24,
+      "7": 18,
+      "1": 5,
+      "14": 2,
+      "4": 1,
+      "15": 1
+    },
+    "item_944": {
+      "id": 944,
+      "name": "MERSILK NW 5010",
+      "unit_id": 10,
+      "tax_id": 11,
+      "mrp": 0,
+      "rate": 0
+    }
+  },
+  "purchase_tax": {
+    "total_headers": 5722,
+    "total_lines": 11913,
+    "vat_lines_count": 3091,
+    "vat_rates": {
+      "5.0": 1334,
+      "0.0": 208,
+      "12.5": 107,
+      "5.5": 566,
+      "6.0": 822,
+      "13.5": 52,
+      "12.0": 2
+    },
+    "gst_lines_count": 8822,
+    "gst_rates": {
+      "6.0": 84,
+      "12.0": 6937,
+      "13.5": 5,
+      "5.0": 1256,
+      "18.0": 476,
+      "0.0": 54,
+      "28.0": 9,
+      "12.5": 1
+    },
+    "line_calc_discrepancies_count": 54,
+    "sample_line_discrepancies": [
+      {
+        "vh_id": 13,
+        "line_id": 39,
+        "date": "2015-04-07",
+        "amount": 424.8,
+        "tax_per": 5.0,
+        "stored_tax_amt": 20.82,
+        "expected_tax_amt": 21.24,
+        "diff": 0.42
+      },
+      {
+        "vh_id": 18,
+        "line_id": 47,
+        "date": "2015-04-08",
+        "amount": 1020.6,
+        "tax_per": 5.0,
+        "stored_tax_amt": 48.99,
+        "expected_tax_amt": 51.03,
+        "diff": 2.04
+      },
+      {
+        "vh_id": 60,
+        "line_id": 159,
+        "date": "2015-05-04",
+        "amount": 680.4,
+        "tax_per": 5.0,
+        "stored_tax_amt": 33.34,
+        "expected_tax_amt": 34.02,
+        "diff": 0.68
+      },
+      {
+        "vh_id": 84,
+        "line_id": 217,
+        "date": "2015-05-12",
+        "amount": 680.4,
+        "tax_per": 5.0,
+        "stored_tax_amt": 32.22,
+        "expected_tax_amt": 34.02,
+        "diff": 1.8
+      },
+      {
+        "vh_id": 84,
+        "line_id": 218,
+        "date": "2015-05-12",
+        "amount": 785.4,
+        "tax_per": 5.0,
+        "stored_tax_amt": 37.19,
+        "expected_tax_amt": 39.27,
+        "diff": 2.08
+      },
+      {
+        "vh_id": 104,
+        "line_id": 265,
+        "date": "2015-05-21",
+        "amount": 847.0,
+        "tax_per": 5.0,
+        "stored_tax_amt": 41.08,
+        "expected_tax_amt": 42.35,
+        "diff": 1.27
+      },
+      {
+        "vh_id": 109,
+        "line_id": 276,
+        "date": "2015-05-22",
+        "amount": 480.76,
+        "tax_per": 5.0,
+        "stored_tax_amt": 23.56,
+        "expected_tax_amt": 24.04,
+        "diff": 0.48
+      },
+      {
+        "vh_id": 140,
+        "line_id": 344,
+        "date": "2015-06-12",
+        "amount": 1020.6,
+        "tax_per": 5.0,
+        "stored_tax_amt": 48.99,
+        "expected_tax_amt": 51.03,
+        "diff": 2.04
+      },
+      {
+        "vh_id": 149,
+        "line_id": 367,
+        "date": "2015-06-19",
+        "amount": 420.8,
+        "tax_per": 5.0,
+        "stored_tax_amt": 20.41,
+        "expected_tax_amt": 21.04,
+        "diff": 0.63
+      },
+      {
+        "vh_id": 149,
+        "line_id": 368,
+        "date": "2015-06-19",
+        "amount": 694.65,
+        "tax_per": 5.0,
+        "stored_tax_amt": 33.69,
+        "expected_tax_amt": 34.73,
+        "diff": 1.04
+      }
+    ],
+    "header_tax_discrepancies_count": 5663,
+    "sample_header_discrepancies": [
+      {
+        "vh_id": 1,
+        "date": "2015-04-01",
+        "header_tax": 0.0,
+        "sum_line_tax": 133.0,
+        "diff": 133.0
+      },
+      {
+        "vh_id": 2,
+        "date": "2015-04-01",
+        "header_tax": 0.0,
+        "sum_line_tax": 102.32,
+        "diff": 102.32
+      },
+      {
+        "vh_id": 3,
+        "date": "2015-04-01",
+        "header_tax": 0.0,
+        "sum_line_tax": 150.0,
+        "diff": 150.0
+      },
+      {
+        "vh_id": 4,
+        "date": "2015-04-02",
+        "header_tax": 0.0,
+        "sum_line_tax": 119.1,
+        "diff": 119.1
+      },
+      {
+        "vh_id": 5,
+        "date": "2015-04-02",
+        "header_tax": 0.0,
+        "sum_line_tax": 97.98,
+        "diff": 97.98
+      },
+      {
+        "vh_id": 6,
+        "date": "2015-04-03",
+        "header_tax": 0.0,
+        "sum_line_tax": 39.39,
+        "diff": 39.39
+      },
+      {
+        "vh_id": 7,
+        "date": "2015-04-03",
+        "header_tax": 0.0,
+        "sum_line_tax": 67.62,
+        "diff": 67.62
+      },
+      {
+        "vh_id": 8,
+        "date": "2015-04-03",
+        "header_tax": 0.0,
+        "sum_line_tax": 267.42,
+        "diff": 267.42
+      },
+      {
+        "vh_id": 9,
+        "date": "2015-04-04",
+        "header_tax": 0.0,
+        "sum_line_tax": 73.14,
+        "diff": 73.14
+      },
+      {
+        "vh_id": 10,
+        "date": "2015-04-04",
+        "header_tax": 0.0,
+        "sum_line_tax": 24.18,
+        "diff": 24.18
+      }
+    ],
+    "gst_6_percent_lines_count": 84
+  }
+}

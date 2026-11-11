@@ -15,6 +15,22 @@ modified.
 """
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QKeySequence
+
+MENU_SHORTCUTS = {
+    "New Bill": "Ctrl+S",
+    "New Purchase": "Ctrl+I",
+    "Stock Adjustment": "Ctrl+A",
+    "Debit Note (Return to Supplier)": "Ctrl+D",
+    "Credit Note (Return from Customer)": "Ctrl+C",
+    "Supplier Payment Voucher": "Ctrl+P",
+    "Customer Receipt Voucher": "Ctrl+R",
+    "GST Report": "Ctrl+G",
+    "Daily Itemwise Sales": "Ctrl+T",
+    "Daily Profit Calculation": "Ctrl+O",
+    "Sales Report": "Ctrl+F1",
+    "Duplicate Sales Bill": "Ctrl+Shift+F1",
+}
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -125,9 +141,21 @@ class NavigationBar(QWidget):
         tl.setContentsMargins(10, 0, 8, 0)
         tl.setSpacing(8)
 
-        self._brand_label = QLabel(APP_TITLE)
+        import os
+        is_staging = os.environ.get("PHARMACY_STAGING_MODE") == "1"
+        brand_text = f"{APP_TITLE} [STAGING]" if is_staging else APP_TITLE
+        self._brand_label = QLabel(brand_text)
         self._brand_label.setObjectName("BrandLabel")
         tl.addWidget(self._brand_label)
+
+        if is_staging:
+            self.staging_badge = QLabel("STAGING / AUDIT MODE")
+            self.staging_badge.setObjectName("StagingBadge")
+            self.staging_badge.setStyleSheet(
+                "background-color: #b45309; color: #ffffff; font-weight: bold; "
+                "font-size: 11px; border-radius: 3px; padding: 2px 8px; margin-left: 6px;"
+            )
+            tl.addWidget(self.staging_badge)
 
         self._menu_hint = QLabel("")
         self._menu_hint.setObjectName("NavMenuHint")
@@ -175,17 +203,54 @@ class NavigationBar(QWidget):
         ml.setSpacing(0)
 
         self._menus: list[QMenu] = []
+
+        def _populate_menu_items(parent_menu: QMenu, menu_items: list, top_label: str, path_prefix: str = ""):
+            for item in menu_items:
+                if isinstance(item, dict):
+                    for sub_title, sub_items in item.items():
+                        sub_menu = parent_menu.addMenu(sub_title)
+                        sub_menu.setObjectName(f"NavSubMenu_{sub_title}")
+                        new_prefix = f"{path_prefix} > {sub_title}" if path_prefix else sub_title
+                        if sub_title in MENU_SHORTCUTS:
+                            sub_menu.menuAction().setShortcut(QKeySequence(MENU_SHORTCUTS[sub_title]))
+                            sub_menu.menuAction().triggered.connect(
+                                lambda checked=False, m=top_label, a=new_prefix: self.menu_action_triggered.emit(m, a)
+                            )
+                        self._menus.append(sub_menu)
+                        if isinstance(sub_items, (list, tuple)):
+                            _populate_menu_items(sub_menu, sub_items, top_label, new_prefix)
+                elif isinstance(item, tuple) and len(item) == 2 and isinstance(item[1], (list, tuple)):
+                    sub_title, sub_items = item
+                    sub_menu = parent_menu.addMenu(sub_title)
+                    sub_menu.setObjectName(f"NavSubMenu_{sub_title}")
+                    new_prefix = f"{path_prefix} > {sub_title}" if path_prefix else sub_title
+                    self._menus.append(sub_menu)
+                    _populate_menu_items(sub_menu, sub_items, top_label, new_prefix)
+                else:
+                    item_text = item
+                    if item_text == "---" or (isinstance(item_text, str) and item_text.startswith("---")):
+                        parent_menu.addSeparator()
+                    else:
+                        action = parent_menu.addAction(item_text)
+                        if item_text in MENU_SHORTCUTS:
+                            action.setShortcut(QKeySequence(MENU_SHORTCUTS[item_text]))
+                        if top_label == "Schedule":
+                            action_arg = f"{path_prefix} > {item_text}" if path_prefix else item_text
+                        else:
+                            action_arg = item_text
+
+                        action.triggered.connect(
+                            lambda checked=False, m=top_label, a=action_arg: self.menu_action_triggered.emit(m, a)
+                        )
+
         for label, items in MENUS.items():
             btn = QPushButton(label)
             btn.setObjectName("NavButton")
             btn.setFlat(True)
 
             menu = QMenu(btn)
-            for item_text in items:
-                action = menu.addAction(item_text)
-                action.triggered.connect(
-                    lambda checked=False, m=label, a=item_text: self.menu_action_triggered.emit(m, a)
-                )
+            menu.setObjectName(f"NavMenu_{label}")
+            _populate_menu_items(menu, items, label, "")
             btn.setMenu(menu)
             self._menus.append(menu)
             ml.addWidget(btn)
@@ -200,6 +265,15 @@ class NavigationBar(QWidget):
 
         theme.theme_manager.on_changed(self._apply_theme)
         self._apply_theme()
+
+    @property
+    def shortcut_actions(self) -> list:
+        actions = []
+        for menu in self._menus:
+            for act in menu.actions():
+                if not act.isSeparator() and not act.shortcut().isEmpty():
+                    actions.append(act)
+        return actions
 
     # ── data ─────────────────────────────────────────────────────────
     def set_viewing_financial_year(self, year: dict | None):

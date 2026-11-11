@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+import calendar
+import re
+from datetime import date, datetime, timedelta
+from typing import Any, Optional
 from database.connection import get_connection
+from database.expiry_report_dao import parse_expiry
 
 
 class StockDAO:
@@ -42,7 +47,8 @@ class StockDAO:
     def search(item_name: str = "", batch_no: str = "",
                company_id: int | None = None,
                expiry_from: str = "", expiry_to: str = "",
-               stock_status: str = "All") -> list[dict]:
+               stock_status: str = "All",
+               include_zero_stock: bool = False) -> list[dict]:
         """Unified search with optional filters. stock_status: All|In Stock|Low Stock|Out of Stock|Expired."""
         clauses: list[str] = []
         params: list = []
@@ -71,11 +77,8 @@ class StockDAO:
         elif stock_status == "Out of Stock":
             clauses.append("sb.stock_qty <= 0")
         elif stock_status == "Expired":
-            # Expiry in MM/YY format — compare against today
-            # We do the comparison in Python after fetching to keep the query simple,
-            # but we still filter out obviously non-expired rows at SQL level when possible.
-            # For robustness we fetch all and filter expired in Python.
-            pass  # handled below after query
+            if not include_zero_stock:
+                clauses.append("sb.stock_qty > 0")
 
         where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
         query = StockDAO._BASE_QUERY + where + " ORDER BY i.item_name, sb.batch_no"
@@ -106,29 +109,19 @@ class StockDAO:
 
     @staticmethod
     def get_expiring(within_months: int = 3) -> list[dict]:
-        """Return batches expiring within N months from today."""
-        from datetime import datetime, timedelta
-        today = datetime.now()
+        """Return batches expiring within N months from today (including already expired)."""
+        today = date.today()
         cutoff = today + timedelta(days=within_months * 30)
-        cutoff_str = cutoff.strftime("%m/%y")
 
         all_batches = StockDAO.get_all()
         result = []
         for b in all_batches:
             exp = b.get("expiry", "")
-            if exp and StockDAO._is_expired(exp):
-                # Already expired
+            if not exp:
+                continue
+            parsed = parse_expiry(exp)
+            if parsed and parsed <= cutoff:
                 result.append(b)
-            elif exp:
-                # Check if expiring within N months
-                try:
-                    parts = exp.split("/")
-                    exp_month, exp_year = int(parts[0]), int(parts[1])
-                    exp_date = datetime(2000 + exp_year, exp_month, 1)
-                    if exp_date <= cutoff:
-                        result.append(b)
-                except (ValueError, IndexError):
-                    pass
         return result
 
     @staticmethod
@@ -177,15 +170,21 @@ class StockDAO:
         }
 
     @staticmethod
-    def get_stock_batches_for_item(item_id: int) -> list[dict]:
+    def get_stock_batches_for_item(item_id: int, include_zero_stock: bool = False) -> list[dict]:
+        """Return stock batches for an item.
+        
+        Set include_zero_stock=True for return transactions (credit notes)
+        where a sold-out batch can be accepted back into inventory.
+        """
         conn = get_connection()
         try:
+            where_clause = "WHERE item_id = ?" if include_zero_stock else "WHERE item_id = ? AND stock_qty > 0"
             cur = conn.execute(
-                """
+                f"""
                 SELECT id, item_id, batch_no, expiry, pack_size,
-                       mrp, purchase_rate, stock_qty
+                       mrp, purchase_rate, net_rate, stock_qty
                 FROM stock_batches
-                WHERE item_id = ? AND stock_qty > 0
+                {where_clause}
                 ORDER BY batch_no
                 """,
                 (item_id,),
@@ -201,7 +200,7 @@ class StockDAO:
             cur = conn.execute(
                 """
                 SELECT id, item_id, batch_no, expiry, pack_size,
-                       mrp, purchase_rate, stock_qty
+                       mrp, purchase_rate, net_rate, stock_qty
                 FROM stock_batches
                 WHERE id = ?
                 """,
@@ -213,15 +212,403 @@ class StockDAO:
             conn.close()
 
     @staticmethod
-    def _is_expired(expiry: str) -> bool:
-        """Check if expiry in MM/YY format is before today."""
-        if not expiry:
-            return False
+    def get_batches_for_adjustment(item_id: int) -> list[dict]:
+        """Return all batches for an item for stock adjustment.
+
+        Orders batches prioritizing available stock using actual date comparisons:
+        1. Active unexpired batches with stock (FEFO: earliest valid expiry date first).
+        2. Active unexpired batches with zero stock (available for addition).
+        3. Expired batches with stock (for write-off / adjustment).
+        4. Invalid/missing expiry or zero-stock historical batches at the bottom.
+
+        Includes actual stored rates, tax percent from purchase history,
+        calculated net rate, real parsed date objects, and eligibility tags.
+        """
+        conn = get_connection()
         try:
-            from datetime import datetime
-            parts = expiry.strip().split("/")
-            month, year = int(parts[0]), int(parts[1])
-            exp_date = datetime(2000 + year, month, 1)
-            return exp_date < datetime.now()
-        except (ValueError, IndexError):
+            cur = conn.execute(
+                """
+                SELECT
+                    sb.id,
+                    sb.item_id,
+                    i.item_name,
+                    sb.batch_no,
+                    sb.expiry,
+                    COALESCE(NULLIF(sb.pack_size, ''), i.pack_size, '1') AS pack_size,
+                    COALESCE(sb.mrp, 0.0) AS mrp,
+                    COALESCE(sb.purchase_rate, 0.0) AS purchase_rate,
+                    COALESCE(sb.net_rate, 0.0) AS net_rate,
+                    COALESCE(sb.stock_qty, 0.0) AS stock_qty,
+                    COALESCE(
+                        (
+                            SELECT pii.gst_percent
+                            FROM purchase_invoice_items pii
+                            WHERE pii.item_id = sb.item_id AND pii.batch_no = sb.batch_no
+                            ORDER BY pii.id DESC
+                            LIMIT 1
+                        ),
+                        0.0
+                    ) AS tax_percent
+                FROM stock_batches sb
+                JOIN items i ON i.id = sb.item_id
+                WHERE sb.item_id = ?
+                """,
+                (item_id,),
+            )
+            rows = [dict(r) for r in cur.fetchall()]
+            today = date.today()
+            for r in rows:
+                if not r.get("net_rate") and r.get("purchase_rate"):
+                    tax = float(r.get("tax_percent") or 0.0)
+                    r["net_rate"] = round(float(r["purchase_rate"]) * (1.0 + tax / 100.0), 2)
+                parsed_exp = StockDAO.parse_expiry_date(r.get("expiry"))
+                is_valid_exp = (parsed_exp is not None)
+                is_exp = (parsed_exp is not None and parsed_exp < today)
+                is_unexp = (parsed_exp is not None and parsed_exp >= today)
+                stock_qty = float(r.get("stock_qty") or 0.0)
+                is_zero = (stock_qty <= 0.0)
+
+                r["parsed_expiry"] = parsed_exp
+                r["is_valid_expiry"] = is_valid_exp
+                r["is_expired"] = is_exp
+                r["is_unexpired"] = is_unexp
+                r["is_zero_stock"] = is_zero
+                # An eligible batch for active stock MUST have a valid, unexpired date and positive stock
+                r["is_eligible"] = (is_unexp and not is_zero)
+
+            def batch_sort_key(b: dict):
+                p_exp = b["parsed_expiry"]
+                s_qty = float(b.get("stock_qty") or 0.0)
+                is_unexp = b["is_unexpired"]
+                is_exp = b["is_expired"]
+
+                if is_unexp and s_qty > 0:
+                    group = 1
+                    exp_val = p_exp or date.max
+                elif is_exp and s_qty > 0:
+                    group = 2
+                    exp_val = p_exp or date.min
+                elif s_qty <= 0:
+                    group = 3
+                    exp_val = p_exp or date.max
+                else:
+                    group = 4
+                    exp_val = p_exp or date.min
+
+                return (group, exp_val, str(b.get("batch_no") or "").upper(), int(b["id"]))
+
+            rows.sort(key=batch_sort_key)
+            return rows
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_item_stock_summary(item_id: int) -> dict:
+        """Calculate authoritative item-level stock summary under verified unit conventions.
+
+        - All stock quantities in stock_batches, sales_invoice_items, and credit_note_items
+          are stored in LOOSE UNITS (e.g. individual tablets/capsules).
+        - Purchases and debit notes are stored in PACKS and converted via pack_size.
+        - eligible_stock: sum of stock_qty of active valid unexpired batches with stock_qty > 0.
+        - expired_stock: sum of stock_qty of expired or invalid batches with stock_qty > 0.
+        - total_book_stock: sum of all stock_batches.stock_qty for the item.
+        """
+        batches = StockDAO.get_batches_for_adjustment(item_id)
+        eligible_stock = sum(
+            float(b.get("stock_qty") or 0.0) for b in batches
+            if b.get("is_unexpired") and float(b.get("stock_qty") or 0.0) > 0.0
+        )
+        expired_stock = sum(
+            float(b.get("stock_qty") or 0.0) for b in batches
+            if (b.get("is_expired") or not b.get("is_valid_expiry")) and float(b.get("stock_qty") or 0.0) > 0.0
+        )
+        total_book_stock = sum(float(b.get("stock_qty") or 0.0) for b in batches)
+
+        active_batches = [
+            b for b in batches
+            if b.get("is_unexpired") and float(b.get("stock_qty") or 0.0) > 0.0
+        ]
+        expired_batches = [
+            b for b in batches
+            if (b.get("is_expired") or not b.get("is_valid_expiry")) and float(b.get("stock_qty") or 0.0) > 0.0
+        ]
+        zero_batches = [b for b in batches if float(b.get("stock_qty") or 0.0) <= 0.0]
+
+        return {
+            "item_id": item_id,
+            "eligible_stock": eligible_stock,
+            "expired_stock": expired_stock,
+            "total_book_stock": total_book_stock,
+            "batches": batches,
+            "active_batches": active_batches,
+            "expired_batches": expired_batches,
+            "zero_batches": zero_batches,
+            "active_batch_count": len(active_batches),
+            "expired_batch_count": len(expired_batches),
+            "total_batch_count": len(batches),
+        }
+
+    @staticmethod
+    def get_batch_ledger_movement(item_id: int, stock_batch_id: int | None = None, batch_no: str | None = None) -> dict:
+        """Trace movement ledger for a batch and reconcile against stock_batches.stock_qty.
+
+        Movement formula:
+          Purchases (loose) = (pay_qty + free_qty) * pack_size
+          Sales (loose) = sale_qty
+          Sales Returns (loose) = return_qty from credit_note_items
+          Purchase Returns (loose) = return_qty * pack_size from debit_note_items
+          Stock Adjustments (loose) = adjusted_qty from stock_adjustments
+          Calculated Book Stock = Purchases - Sales + Sales Returns - Purchase Returns + Adjustments
+        """
+        from database.purchase_dao import pack_factor
+        conn = get_connection()
+        try:
+            batch = None
+            if stock_batch_id:
+                cur = conn.execute("SELECT * FROM stock_batches WHERE id = ?", (stock_batch_id,))
+                r = cur.fetchone()
+                if r:
+                    batch = dict(r)
+            if not batch and batch_no:
+                cur = conn.execute("SELECT * FROM stock_batches WHERE item_id = ? AND batch_no = ?", (item_id, batch_no))
+                r = cur.fetchone()
+                if r:
+                    batch = dict(r)
+
+            b_id = batch["id"] if batch else stock_batch_id
+            b_no = (batch.get("batch_no") if batch else batch_no) or ""
+            p_size = batch.get("pack_size") if batch else ""
+            p_factor = pack_factor(p_size)
+
+            # Purchases (loose)
+            p_cur = conn.execute(
+                """
+                SELECT SUM((pay_qty + COALESCE(free_qty, 0)) * ?)
+                FROM purchase_invoice_items
+                WHERE item_id = ? AND batch_no = ?
+                """,
+                (p_factor, item_id, b_no),
+            )
+            pur_loose = float(p_cur.fetchone()[0] or 0.0)
+
+            # Sales (loose)
+            s_cur = conn.execute(
+                """
+                SELECT SUM(sale_qty)
+                FROM sales_invoice_items
+                WHERE item_id = ? AND (stock_batch_id = ? OR batch_no = ?)
+                """,
+                (item_id, b_id, b_no),
+            )
+            sale_loose = float(s_cur.fetchone()[0] or 0.0)
+
+            # Credit Notes / Sales returns (loose)
+            cn_cur = conn.execute(
+                """
+                SELECT SUM(return_qty)
+                FROM credit_note_items
+                WHERE item_id = ? AND (stock_batch_id = ? OR batch_no = ?)
+                """,
+                (item_id, b_id, b_no),
+            )
+            cn_loose = float(cn_cur.fetchone()[0] or 0.0)
+
+            # Debit Notes / Purchase returns (respects is_pack_qty flag)
+            dn_cur = conn.execute(
+                """
+                SELECT SUM(
+                    CASE
+                        WHEN is_pack_qty = 1 THEN (return_qty + COALESCE(free_qty, 0)) * ?
+                        ELSE (return_qty + COALESCE(free_qty, 0))
+                    END
+                )
+                FROM debit_note_items
+                WHERE item_id = ? AND (stock_batch_id = ? OR batch_no = ?)
+                """,
+                (p_factor, item_id, b_id, b_no),
+            )
+            dn_loose = float(dn_cur.fetchone()[0] or 0.0)
+
+            # Stock Adjustments (loose)
+            adj_cur = conn.execute(
+                """
+                SELECT SUM(adjusted_qty)
+                FROM stock_adjustments
+                WHERE item_id = ? AND (stock_batch_id = ? OR batch_no = ?)
+                """,
+                (item_id, b_id, b_no),
+            )
+            adj_loose = float(adj_cur.fetchone()[0] or 0.0)
+
+            calc_stock = pur_loose - sale_loose + cn_loose - dn_loose + adj_loose
+            stored_stock = float(batch.get("stock_qty") or 0.0) if batch else 0.0
+
+            return {
+                "item_id": item_id,
+                "batch_id": b_id,
+                "batch_no": b_no,
+                "pack_factor": p_factor,
+                "purchased_loose": pur_loose,
+                "sold_loose": sale_loose,
+                "sales_returns_loose": cn_loose,
+                "purchase_returns_loose": dn_loose,
+                "adjustments_loose": adj_loose,
+                "calculated_book_stock": calc_stock,
+                "stored_stock": stored_stock,
+                "variance": stored_stock - calc_stock,
+            }
+        finally:
+            conn.close()
+
+    @staticmethod
+    def parse_expiry_date(val: Any) -> Optional[date]:
+        """Parse stored or entered expiry value into a datetime.date object.
+
+        Handles:
+        - date / datetime objects
+        - ISO format: YYYY-MM-DD
+        - Date formats: DD-MM-YYYY, DD/MM/YYYY, DD.MM.YYYY
+        - Month/Year formats: MM/YY, MM/YYYY, MM-YY, MM-YYYY, YYYY-MM (resolves to last day of month)
+        - Compact numeric strings: DDMMYYYY, MMYYYY, MMYY
+
+        Returns None for missing, empty, or unparseable values (never raises).
+        """
+        if not val:
+            return None
+        if isinstance(val, datetime):
+            return val.date()
+        if isinstance(val, date):
+            return val
+        s = str(val).strip()
+        if not s or s.upper() in ("NONE", "NULL", "DD-MM-YYYY", "MM/YY", "-", "--"):
+            return None
+
+        # Try standard date formats
+        for fmt in (
+            "%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d",
+            "%d.%m.%Y", "%d-%m-%y", "%d/%m/%y", "%d.%m.%y",
+        ):
+            try:
+                return datetime.strptime(s, fmt).date()
+            except ValueError:
+                pass
+
+        # Split on separators (-, /, .)
+        parts = [p.strip() for p in re.split(r"[-/.]", s) if p.strip()]
+        if len(parts) == 2:
+            try:
+                if len(parts[0]) == 4:
+                    y = int(parts[0])
+                    m = int(parts[1])
+                else:
+                    m = int(parts[0])
+                    y = int(parts[1])
+                    if y < 100:
+                        y += 2000
+                if 1 <= m <= 12:
+                    last_day = calendar.monthrange(y, m)[1]
+                    return date(y, m, last_day)
+            except Exception:
+                pass
+
+        if s.isdigit():
+            try:
+                if len(s) == 8:
+                    d, m, y = int(s[:2]), int(s[2:4]), int(s[4:])
+                    if 1 <= m <= 12 and 1 <= d <= 31 and 1900 <= y <= 2100:
+                        return date(y, m, d)
+                    y, m, d = int(s[:4]), int(s[4:6]), int(s[6:])
+                    if 1 <= m <= 12 and 1 <= d <= 31 and 1900 <= y <= 2100:
+                        return date(y, m, d)
+                elif len(s) == 6:
+                    d, m, y = int(s[:2]), int(s[2:4]), int(s[4:]) + 2000
+                    if 1 <= m <= 12 and 1 <= d <= 31:
+                        return date(y, m, d)
+                elif len(s) == 4:
+                    m, y = int(s[:2]), int(s[2:]) + 2000
+                    if 1 <= m <= 12:
+                        last_day = calendar.monthrange(y, m)[1]
+                        return date(y, m, last_day)
+            except Exception:
+                pass
+
+        return None
+
+    @staticmethod
+    def is_valid_and_unexpired(expiry: Any, today: date | None = None) -> bool:
+        """Return True only if expiry date is present, valid, and >= today."""
+        parsed = StockDAO.parse_expiry_date(expiry)
+        if parsed is None:
             return False
+        if today is None:
+            today = date.today()
+        return parsed >= today
+
+    @staticmethod
+    def _is_expired(expiry: Any, today: date | None = None) -> bool:
+        """Check if expiry date is before today.
+
+        Note: Missing or invalid expiry dates return False here but are
+        NOT considered valid unexpired dates. Use is_valid_and_unexpired()
+        to check if a batch is valid and non-expired.
+        """
+        parsed = StockDAO.parse_expiry_date(expiry)
+        if parsed is None:
+            return False
+        if today is None:
+            today = date.today()
+        return parsed < today
+
+    @staticmethod
+    def get_demand_order_items() -> list[dict]:
+        """Identify items whose current stock is at or below their configured reorder level.
+
+        Returns items where reorder_stock_level > 0 and current_stock <= reorder_stock_level,
+        with associated suppliers and contact numbers from purchase history.
+        Each associated supplier is listed without duplicating item stock quantities.
+        """
+        conn = get_connection()
+        try:
+            cur = conn.execute(
+                """
+                WITH item_stocks AS (
+                    SELECT
+                        i.id AS item_id,
+                        i.item_name,
+                        COALESCE(u.unit_name, '') AS unit_name,
+                        COALESCE(SUM(sb.stock_qty), 0) AS current_stock,
+                        i.reorder_stock_level
+                    FROM items i
+                    LEFT JOIN units u ON u.id = i.unit_id
+                    LEFT JOIN stock_batches sb ON sb.item_id = i.id
+                    WHERE i.reorder_stock_level > 0
+                    GROUP BY i.id
+                    HAVING current_stock <= i.reorder_stock_level
+                ),
+                item_suppliers AS (
+                    SELECT DISTINCT
+                        pii.item_id,
+                        s.id AS supplier_id,
+                        s.supplier_name,
+                        COALESCE(s.contact_no, '') AS contact_no
+                    FROM purchase_invoice_items pii
+                    JOIN purchase_invoices pi ON pi.id = pii.purchase_invoice_id
+                    JOIN suppliers s ON s.id = pi.supplier_id
+                )
+                SELECT
+                    s_item.item_id,
+                    s_item.item_name,
+                    s_item.unit_name,
+                    s_item.current_stock,
+                    s_item.reorder_stock_level,
+                    COALESCE(s_sup.supplier_name, '-') AS supplier_name,
+                    COALESCE(s_sup.contact_no, '-') AS contact_no
+                FROM item_stocks s_item
+                LEFT JOIN item_suppliers s_sup ON s_sup.item_id = s_item.item_id
+                ORDER BY s_item.item_name, s_sup.supplier_name
+                """
+            )
+            return [dict(r) for r in cur.fetchall()]
+        finally:
+            conn.close()
+

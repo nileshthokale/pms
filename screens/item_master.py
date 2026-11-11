@@ -40,8 +40,12 @@ from database.tax_structures import (
     VALID_TAX_VALUES,
     is_gst_rate,
     legacy_display,
+    rate_percent,
+    resolve_gst_rate,
+    resolve_tax_display,
 )
 
+from ui.components import SearchableComboBox
 from ui.input_rules import attach_uppercase
 from ui.theme import palette
 _p = palette()
@@ -71,16 +75,7 @@ _REMOVE_TOOLTIP = "Remove ingredient"
 
 
 def _tax_cell_text(item: dict) -> str:
-    """Grid text for an item row.
-
-    The stored value decides, with the provenance column consulted for a
-    legacy code: a genuine GST rate shows its GST name (including ``12``,
-    which the owner remapped for the imported items carrying it), an unmapped
-    legacy code shows the explicit mapping-required flag, and EMPTY (a
-    VAT-only imported item) shows blank.
-    """
-    from database.tax_structures import resolve_tax_display
-
+    """Grid text for an item row using its verified GST mapping."""
     return resolve_tax_display(item.get("tax_structure"), item.get("legacy_tax_id"))
 
 
@@ -469,13 +464,85 @@ class _IngredientRow(QWidget):
         }
 
 
+_COMPANY_POPUP_MAX_ROWS = 11
+_COMPANY_POPUP_MAX_HEIGHT = 320
+_COMPANY_POPUP_MIN_WIDTH = 320
+
+
+class _CompanyComboBox(SearchableComboBox):
+    """Searchable company selector with case-insensitive filtering.
+
+    Limits popup height to ~300-350 px (target: 320 px), shows a vertical scrollbar,
+    stays within screen area directly below the input field, preserves company database IDs,
+    and prevents accidental creation of duplicate companies.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(
+            parent,
+            placeholder="Search or select company...",
+            max_visible=_COMPANY_POPUP_MAX_ROWS,
+            max_height=_COMPANY_POPUP_MAX_HEIGHT,
+            min_width=_COMPANY_POPUP_MIN_WIDTH,
+        )
+        self.setFixedHeight(38)
+        attach_uppercase(self)
+        combo_style = (
+            f"QComboBox {{"
+            f"  background-color: {_SURFACE}; color: {_TEXT};"
+            f"  border: 1px solid {_BORDER}; border-radius: 2px;"
+            f"  padding: 8px; font-size: 15px; font-family: 'Segoe UI';"
+            f"}}"
+            f"QComboBox:hover {{ border: 1px solid {_ACCENT}; }}"
+            f"QComboBox::drop-down {{"
+            f"  border: none; width: 24px;"
+            f"}}"
+            f"QComboBox::down-arrow {{ image: none; border: none; }}"
+            f"QComboBox QAbstractItemView {{"
+            f"  background-color: {_SURFACE}; color: {_TEXT};"
+            f"  border: 1px solid {_BORDER}; selection-background-color: {_ACCENT};"
+            f"  font-size: 15px; font-family: 'Segoe UI';"
+            f"}}"
+        )
+        self.setStyleSheet(combo_style)
+        line = self.lineEdit()
+        if line is not None:
+            line.setStyleSheet(
+                f"QLineEdit {{"
+                f"  background: transparent; color: {_TEXT};"
+                f"  border: none; padding: 0px;"
+                f"  font-size: 15px; font-family: 'Segoe UI';"
+                f"}}"
+            )
+        popup = self._completer.popup()
+        if popup is not None:
+            popup.setStyleSheet(
+                f"QAbstractItemView {{"
+                f"  background-color: {_SURFACE}; color: {_TEXT};"
+                f"  border: 1px solid {_BORDER};"
+                f"  selection-background-color: {_ACCENT}; selection-color: #ffffff;"
+                f"  font-size: 15px; font-family: 'Segoe UI'; outline: 0;"
+                f"}}"
+                f"QAbstractItemView::item {{ min-height: 26px; padding: 2px 8px; }}"
+                f"QAbstractItemView::item:disabled {{ color: {_TEXT_DIM}; font-style: italic; background-color: transparent; }}"
+                f"QAbstractItemView::item:selected {{ background-color: {_ACCENT}; color: #ffffff; }}"
+            )
+
+
 class _ItemDialog(QDialog):
     """Modal dialog for adding or editing an item."""
 
-    def __init__(self, parent: QWidget | None = None, *, item: dict | None = None):
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        *,
+        item: dict | None = None,
+        initial_name: str = "",
+    ):
         super().__init__(parent)
         self._item = item
         self._saved = False
+        self._saved_item_id: int | None = None
         self._ingredient_rows: list[_IngredientRow] = []
         # One read of the drug master for the whole dialog: the rows only
         # ever narrow this list, they never re-query it.
@@ -523,10 +590,11 @@ class _ItemDialog(QDialog):
 
         self._item_name_edit = QLineEdit()
         self._item_name_edit.setPlaceholderText("Enter item name")
+        if not item and initial_name:
+            self._item_name_edit.setText(initial_name)
         form.addRow("Item Name *:", self._item_name_edit)
 
-        self._unit_combo = QComboBox()
-        self._unit_combo.setStyleSheet(
+        combo_style = (
             f"QComboBox {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; border-radius: 2px;"
@@ -543,27 +611,13 @@ class _ItemDialog(QDialog):
             f"  font-size: 15px; font-family: 'Segoe UI';"
             f"}}"
         )
+
+        self._unit_combo = QComboBox()
+        self._unit_combo.setStyleSheet(combo_style)
         self._load_units()
         form.addRow("Unit:", self._unit_combo)
 
-        self._company_combo = QComboBox()
-        self._company_combo.setStyleSheet(
-            f"QComboBox {{"
-            f"  background-color: {_SURFACE}; color: {_TEXT};"
-            f"  border: 1px solid {_BORDER}; border-radius: 2px;"
-            f"  padding: 8px; font-size: 15px; font-family: 'Segoe UI';"
-            f"}}"
-            f"QComboBox:hover {{ border: 1px solid {_ACCENT}; }}"
-            f"QComboBox::drop-down {{"
-            f"  border: none; width: 24px;"
-            f"}}"
-            f"QComboBox::down-arrow {{ image: none; border: none; }}"
-            f"QComboBox QAbstractItemView {{"
-            f"  background-color: {_SURFACE}; color: {_TEXT};"
-            f"  border: 1px solid {_BORDER}; selection-background-color: {_ACCENT};"
-            f"  font-size: 15px; font-family: 'Segoe UI';"
-            f"}}"
-        )
+        self._company_combo = _CompanyComboBox(self)
         self._load_companies()
         form.addRow("Company:", self._company_combo)
 
@@ -682,6 +736,8 @@ class _ItemDialog(QDialog):
         # -- Load existing data for edit --
         if item:
             self._populate(item)
+        elif initial_name:
+            self._unit_combo.setFocus()
 
         # Whether the user touched the tax dropdown since the dialog opened.
         # An untouched edit must preserve an EMPTY tax value (and provenance)
@@ -699,10 +755,18 @@ class _ItemDialog(QDialog):
             self._unit_combo.addItem(u["unit_name"], u["id"])
 
     def _load_companies(self):
-        companies = CompanyDAO.get_all()
-        self._company_combo.addItem("-- Select Company --", None)
+        raw_companies = CompanyDAO.get_all()
+        companies = sorted(
+            raw_companies,
+            key=lambda c: (c.get("company_name") or "").strip().casefold()
+        )
+        items = [("-- Select Company --", None)]
         for c in companies:
-            self._company_combo.addItem(c["company_name"], c["id"])
+            name = (c.get("company_name") or "").strip()
+            cid = c.get("id")
+            if name and cid is not None:
+                items.append((name, cid))
+        self._company_combo.populate(items)
 
     def _add_ingredient_row(self, drugs: list[dict] | None = None, power: str = ""):
         row = _IngredientRow(self._all_drugs)
@@ -761,10 +825,14 @@ class _ItemDialog(QDialog):
                 self._unit_combo.setCurrentIndex(idx)
 
         company_id = item.get("company_id")
-        if company_id:
+        if company_id is not None:
             idx = self._company_combo.findData(company_id)
             if idx >= 0:
                 self._company_combo.setCurrentIndex(idx)
+            else:
+                self._company_combo.setCurrentIndex(-1)
+        else:
+            self._company_combo.setCurrentIndex(-1)
 
         self._pack_size_edit.setText(item.get("pack_size", ""))
         self._select_tax_structure(item)
@@ -785,34 +853,33 @@ class _ItemDialog(QDialog):
                 self._add_ingredient_row(drugs=drug_data, power=ing.get("power", ""))
 
     def _select_tax_structure(self, item: dict) -> None:
-        """Show an item's stored tax value without rewriting it.
-
-        The stored value decides, not the provenance:
-
-        * EMPTY (a VAT-only imported item) falls back to the ZERO GST default;
-        * a genuine GST rate selects that GST option — including ``12``, which
-          the owner remapped for every imported item that carried it;
-        * anything else is an unmapped legacy code, so the dialog appends one
-          clearly flagged entry and selects it.
-
-        Saving an unrelated field change keeps value and provenance exactly as
-        they were.  Nothing is silently converted.
-        """
+        """Select item's tax structure, matching its verified GST rate or displaying unmapped legacy flag."""
+        self._tax_touched = False
         value = "" if item.get("tax_structure") is None else str(item.get("tax_structure")).strip()
+        legacy_id = item.get("legacy_tax_id")
+
+        # 1. Check if the value is directly a valid GST rate
+        if is_gst_rate(value):
+            index = self._tax_structure_combo.findData(value)
+            if index >= 0:
+                self._tax_structure_combo.setCurrentIndex(index)
+                return
+
+        # 2. Check if the value or legacy_tax_id resolves to a verified GST rate
+        resolved_rate = resolve_gst_rate(value, legacy_id)
+        if resolved_rate is not None:
+            index = self._tax_structure_combo.findData(resolved_rate)
+            if index >= 0:
+                self._tax_structure_combo.setCurrentIndex(index)
+                return
+
+        # 3. If empty, select default
         if not value:
             self._tax_structure_combo.setCurrentIndex(
                 self._tax_structure_combo.findData(DEFAULT_TAX_VALUE))
             return
 
-        index = self._tax_structure_combo.findData(value)
-        if index >= 0:
-            self._tax_structure_combo.setCurrentIndex(index)
-            return
-
-        # addItem() does not report the new row index, so derive it.  The
-        # flagged entry is appended last and carries the stored value, so
-        # findData() could also return an earlier GST option sharing the same
-        # numeric data (e.g. '12'); the count-based index avoids that.
+        # 4. Truly unmapped legacy tax code (e.g. 1, 4, 15): append flagged entry
         self._tax_structure_combo.addItem(legacy_display(value), value)
         index = self._tax_structure_combo.count() - 1
         self._legacy_tax_index = index
@@ -849,6 +916,7 @@ class _ItemDialog(QDialog):
             )
             return
 
+        self._company_combo.resolve_text()
         company_id = self._company_combo.currentData()
 
         # Tax validation.  A NEW item may only be saved with one of the five
@@ -864,10 +932,20 @@ class _ItemDialog(QDialog):
             original_tax = str(self._item.get("tax_structure") or "").strip()
             original_legacy = self._item.get("legacy_tax_id")
         if self._item and not self._tax_touched:
-            # Untouched edit: keep value and provenance byte-for-byte,
-            # including EMPTY tax values that display the GST default.
-            tax_value = original_tax
-            new_legacy_tax_id = original_legacy
+            # Untouched edit: keep EMPTY tax values that display the GST default
+            if not original_tax:
+                tax_value = ""
+                new_legacy_tax_id = original_legacy
+            else:
+                resolved = resolve_gst_rate(original_tax, original_legacy)
+                if resolved is not None:
+                    tax_value = resolved
+                    new_legacy_tax_id = original_legacy if original_legacy is not None else (
+                        int(original_tax) if original_tax.isdigit() and original_tax not in VALID_TAX_VALUES else None
+                    )
+                else:
+                    tax_value = original_tax
+                    new_legacy_tax_id = original_legacy
         else:
             is_new_selection = (
                 not self._item
@@ -885,9 +963,8 @@ class _ItemDialog(QDialog):
 
             if not self._item:
                 new_legacy_tax_id = None
-            elif tax_value != original_tax:
-                # Deliberate conversion: the new GST value replaces the legacy
-                # code, so provenance is cleared.  Nothing converts automatically.
+            elif tax_value != original_tax and tax_value != resolve_gst_rate(original_tax, original_legacy):
+                # Deliberate conversion to a different GST value: provenance is cleared.
                 new_legacy_tax_id = None
             else:
                 new_legacy_tax_id = original_legacy
@@ -921,19 +998,30 @@ class _ItemDialog(QDialog):
             if data and data["drug_id"] is not None:
                 ingredients.append(data)
 
-        if self._item:
-            ItemDAO.update(self._item["id"], **kwargs)
-            ItemDAO.save_ingredients(self._item["id"], ingredients)
-        else:
-            item_id = ItemDAO.insert(**kwargs)
-            ItemDAO.save_ingredients(item_id, ingredients)
+        try:
+            if self._item:
+                ItemDAO.update(self._item["id"], **kwargs)
+                ItemDAO.save_ingredients(self._item["id"], ingredients)
+                self._saved_item_id = self._item["id"]
+            else:
+                item_id = ItemDAO.insert(**kwargs)
+                ItemDAO.save_ingredients(item_id, ingredients)
+                self._saved_item_id = item_id
 
-        self._saved = True
-        self.accept()
+            self._saved = True
+            self.accept()
+        except Exception as exc:
+            self._saved = False
+            self._saved_item_id = None
+            QMessageBox.critical(self, "Error Saving Item", f"Failed to save item: {exc}")
 
     @property
     def was_saved(self) -> bool:
         return self._saved
+
+    @property
+    def saved_item_id(self) -> int | None:
+        return self._saved_item_id
 
 
 class ItemMasterPage(QWidget):
@@ -1084,17 +1172,54 @@ class ItemMasterPage(QWidget):
     def _refresh(self, items: list[dict] | None = None):
         if items is None:
             items = ItemDAO.get_all()
-        self._table.setRowCount(len(items))
-        for row, item in enumerate(items):
-            self._table.setItem(row, 0, QTableWidgetItem(str(item["id"])))
-            self._table.setItem(row, 1, QTableWidgetItem(item["item_name"]))
-            self._table.setItem(row, 2, QTableWidgetItem(item.get("unit_name", "") or ""))
-            self._table.setItem(row, 3, QTableWidgetItem(item.get("category_name", "") or ""))
-            self._table.setItem(row, 4, QTableWidgetItem(item.get("pack_size", "")))
-            self._table.setItem(row, 5, QTableWidgetItem(item.get("company_name", "") or ""))
-            self._table.setItem(row, 6, QTableWidgetItem(item.get("pathy", "")))
-            self._table.setItem(row, 7, QTableWidgetItem(_tax_cell_text(item)))
-            self._table.setItem(row, 8, QTableWidgetItem(str(item.get("reorder_stock_level", 0))))
+        table = self._table
+        sorting_enabled = table.isSortingEnabled()
+        header = table.horizontalHeader()
+        sort_column = header.sortIndicatorSection()
+        sort_order = header.sortIndicatorOrder()
+        resize_modes = [
+            (column, header.sectionResizeMode(column))
+            for column in range(table.columnCount())
+        ]
+        updates_enabled = table.updatesEnabled()
+
+        # The table is sortable for interactive use. Keep it from sorting and
+        # repainting or measuring ResizeToContents columns after every cell
+        # while a full result set is populated. Restore the view settings once
+        # the batch is complete.
+        table.setUpdatesEnabled(False)
+        if sorting_enabled:
+            table.setSortingEnabled(False)
+        for column, mode in resize_modes:
+            if mode == QHeaderView.ResizeToContents:
+                header.setSectionResizeMode(column, QHeaderView.Interactive)
+        try:
+            table.setRowCount(len(items))
+            for row, item in enumerate(items):
+                id_item = QTableWidgetItem(str(item["id"]))
+                if item.get("legacy_id"):
+                    id_item.setToolTip(
+                        f"Target Database ID: {item['id']}\nLegacy Source ID: {item['legacy_id']}"
+                    )
+                table.setItem(row, 0, id_item)
+                table.setItem(row, 1, QTableWidgetItem(item["item_name"]))
+                table.setItem(row, 2, QTableWidgetItem(item.get("unit_name", "") or ""))
+                table.setItem(row, 3, QTableWidgetItem(item.get("category_name", "") or ""))
+                table.setItem(row, 4, QTableWidgetItem(item.get("pack_size", "")))
+                table.setItem(row, 5, QTableWidgetItem(item.get("company_name", "") or ""))
+                table.setItem(row, 6, QTableWidgetItem(item.get("pathy", "")))
+                table.setItem(row, 7, QTableWidgetItem(_tax_cell_text(item)))
+                table.setItem(
+                    row, 8, QTableWidgetItem(str(item.get("reorder_stock_level", 0)))
+                )
+        finally:
+            for column, mode in resize_modes:
+                header.setSectionResizeMode(column, mode)
+            if sorting_enabled:
+                table.setSortingEnabled(True)
+                if sort_column >= 0:
+                    table.sortItems(sort_column, sort_order)
+            table.setUpdatesEnabled(updates_enabled)
 
     def _selected_item(self) -> dict | None:
         rows = self._table.selectionModel().selectedRows()
@@ -1137,3 +1262,6 @@ class ItemMasterPage(QWidget):
         else:
             items = ItemDAO.search(search_text)
             self._refresh(items)
+
+
+ItemDialog = _ItemDialog

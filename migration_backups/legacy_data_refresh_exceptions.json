@@ -1,0 +1,147 @@
+{
+  "generated_at": "2026-10-20T15:35:31.033942",
+  "tax_exceptions": {
+    "item_944_legacy_tax_id_11": {
+      "item_name": "MERSILK NW 5010",
+      "legacy_tax_id": 11,
+      "status": "WARNING",
+      "reason": "Legacy TaxID 11 is ambiguous (63% historical plurality 12%, 35% 5%). Imported as legacy_tax_id=11 and tax_structure='11' requiring explicit user mapping."
+    },
+    "gst_era_6_percent_lines": {
+      "count": 84,
+      "status": "WARNING",
+      "reason": "84 purchase invoice lines in July 2017 carry TaxPer=6.0%. Represents transitional GST rollout bills (SGST component alone or state tax). Stored verbatim without alteration."
+    },
+    "items_legacy_tax_id_backfilled": {
+      "count": 942,
+      "status": "PASS",
+      "reason": "Backfilled legacy_tax_id across all mapped items to fix defect where NULL legacy_tax_id caused TaxID 12 to falsely display as GST 12%."
+    }
+  },
+  "party_exceptions": {
+    "doctor_self_duplicates_merged": {
+      "status": "PASS",
+      "reason": "doctormst had 2 duplicate entries for 'SELF' (IDs 3 and 6). Consolidated under UNIQUE(doctor_name) to target doctor ID 11. Transaction references intact."
+    },
+    "native_supplier_242_preserved": {
+      "status": "PASS",
+      "reason": "Supplier ID 242 ('National Distributors', ledger_id 125) was created natively post-migration and preserved untouched."
+    }
+  },
+  "voucher_collisions": {
+    "sale_72219_collision": {
+      "legacy_id": 72219,
+      "bill_no_original": "1910",
+      "assigned_bill_no": "2026-2027-1910#72219",
+      "reason": "Native sales invoice 72048 already claimed '2026-2027-1910'. Suffix applied to preserve both records without overwriting."
+    }
+  },
+  "financial_exceptions": {
+    "purchase_header_discrepancies": {
+      "count": 15,
+      "status": "WARNING",
+      "sample": [
+        {
+          "vh_id": 18,
+          "vh_no": 18,
+          "date": "2015-04-08",
+          "header_amount": 1050.0,
+          "calculated_amount": 1048.98,
+          "difference": 1.02
+        },
+        {
+          "vh_id": 84,
+          "vh_no": 83,
+          "date": "2015-05-12",
+          "header_amount": 901.0,
+          "calculated_amount": 1457.88,
+          "difference": 556.88
+        },
+        {
+          "vh_id": 113,
+          "vh_no": 112,
+          "date": "2015-05-25",
+          "header_amount": 2349.0,
+          "calculated_amount": 2226.39,
+          "difference": 122.61
+        },
+        {
+          "vh_id": 429,
+          "vh_no": 424,
+          "date": "2015-11-16",
+          "header_amount": 3792.0,
+          "calculated_amount": 3701.0,
+          "difference": 91.0
+        },
+        {
+          "vh_id": 533,
+          "vh_no": 528,
+          "date": "2016-01-15",
+          "header_amount": 2405.0,
+          "calculated_amount": 2375.66,
+          "difference": 29.34
+        }
+      ],
+      "reason": "15 historical purchase invoices have >1 rupee discrepancy between header and sum of lines due to debit note deductions or cashier manual roundoffs in legacy Pharma-WINNER."
+    },
+    "sales_header_discrepancies": {
+      "count": 526,
+      "status": "WARNING",
+      "sample": [
+        {
+          "vh_id": 57,
+          "bill_no": "39",
+          "date": "2015-04-02",
+          "header_amount": 181.0,
+          "calculated_amount": 256.14,
+          "difference": 75.14
+        },
+        {
+          "vh_id": 64,
+          "bill_no": "0",
+          "date": "2015-04-02",
+          "header_amount": 110.0,
+          "calculated_amount": 181.0,
+          "difference": 71.0
+        },
+        {
+          "vh_id": 136,
+          "bill_no": "98",
+          "date": "2015-04-06",
+          "header_amount": 103.0,
+          "calculated_amount": 210.28,
+          "difference": 107.28
+        },
+        {
+          "vh_id": 160,
+          "bill_no": "113",
+          "date": "2015-04-06",
+          "header_amount": 183.0,
+          "calculated_amount": 236.68,
+          "difference": 53.68
+        },
+        {
+          "vh_id": 236,
+          "bill_no": "168",
+          "date": "2015-04-10",
+          "header_amount": 224.0,
+          "calculated_amount": 282.08,
+          "difference": 58.08
+        }
+      ],
+      "reason": "526 counter-sale bills (0.7%) have >1 rupee difference due to cash discounts and header roundoffs. Line amounts preserved verbatim."
+    }
+  },
+  "stock_exceptions": {
+    "negative_stock_batches": {
+      "count": 14,
+      "status": "WARNING",
+      "reason": "14 historical batches in stockbalance had TotalSalesQty > TotalPurchaseQty in the legacy source. Preserved as negative loose units without artificial clamping."
+    },
+    "stock_adjustments_unmapped_to_prevent_double_count": {
+      "count": 3410,
+      "status": "EXCLUDED",
+      "reason": "stockadjusted rows (3,410) are already accounted for inside stockbalance.TotalPurchaseQty. Re-applying them would double-count stock."
+    }
+  }
+}

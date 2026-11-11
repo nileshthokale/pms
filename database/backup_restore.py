@@ -35,6 +35,8 @@ from database.connection import get_db_path
 
 # Every table created by database.connection.init_database().
 # A backup missing any of these is not a valid pharmacy database.
+# Keep this list in step with init_database(): a table added to the schema
+# but not here would let validation accept an incomplete database.
 EXPECTED_TABLES = [
     "account_groups",
     "account_ledgers",
@@ -42,6 +44,7 @@ EXPECTED_TABLES = [
     "companies",
     "credit_note_items",
     "credit_notes",
+    "customer_receipt_allocations",
     "customer_receipts",
     "customers",
     "debit_note_items",
@@ -50,15 +53,20 @@ EXPECTED_TABLES = [
     "drugs",
     "financial_years",
     "item_ingredients",
+    "item_opening_balances",
     "items",
     "journal_entries",
     "journal_entry_items",
+    "legacy_id_map",
     "ledger_transactions",
+    "patient_addresses",
     "purchase_invoice_items",
     "purchase_invoices",
     "sales_invoice_items",
     "sales_invoices",
+    "stock_adjustments",
     "stock_batches",
+    "supplier_payment_allocations",
     "supplier_payments",
     "suppliers",
     "units",

@@ -1,4 +1,4 @@
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QEvent, QObject
 from PySide6.QtWidgets import (
     QApplication,
     QLabel,
@@ -8,12 +8,25 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+import os
 import screens
 from database import init_database
 from database import auth
 from database import financial_year
-from version import APP_TITLE
+import version
 from ui import theme
+from ui.input_rules import install_uppercase_input, ensure_caps_lock_on
+
+
+def _get_window_title(action: str = "") -> str:
+    """Return the application window title, ensuring staging mode branding is preserved."""
+    base = version.APP_TITLE
+    if os.environ.get("PHARMACY_STAGING_MODE") == "1":
+        if "[STAGING / AUDIT MODE]" not in base:
+            base = f"{version.APP_NAME} [STAGING / AUDIT MODE] v{version.APP_VERSION}"
+    if action:
+        return f"{base}  -  {action}"
+    return base
 from ui import components as ui
 from ui.menu_data import MENUS
 from ui.navigation_bar import NavigationBar
@@ -32,13 +45,102 @@ class PlaceholderPage(QWidget):
         layout.addWidget(body, 1)
 
 
+class MainWindowShortcutFilter(QObject):
+    """Application-wide hotkey filter for PMS navigation shortcuts."""
+
+    def __init__(self, main_win: "PharmacyMainWindow"):
+        super().__init__(main_win)
+        self.main_win = main_win
+
+    def eventFilter(self, watched, event):
+        if event.type() == QEvent.KeyPress:
+            mods = event.modifiers()
+            key = event.key()
+
+            # Alt+S: in Counter Sale -> open Save Bill popup; in popup -> save bill directly.
+            if (mods & Qt.AltModifier) and key == Qt.Key_S:
+                active_dlg = QApplication.activeModalWidget() or QApplication.activeWindow()
+                if active_dlg is not None and hasattr(active_dlg, "_on_final_save"):
+                    active_dlg._on_final_save()
+                    return True
+                curr = self.main_win._stack.currentWidget()
+                if self.main_win._is_route_current("Sales:New Bill"):
+                    if hasattr(curr, "_sale_panel"):
+                        curr._sale_panel._on_save()
+                    return True
+
+            if mods == Qt.ControlModifier:
+                # Ctrl+S: Counter Sale page
+                if key == Qt.Key_S:
+                    self.main_win._open_counter_sale()
+                    return True
+
+                # Ctrl+B: Sales Bill
+                elif key == Qt.Key_B:
+                    self.main_win._open_sales_bill()
+                    return True
+
+                # Ctrl+I: New Purchase page
+                elif key == Qt.Key_I:
+                    self.main_win._on_menu_action("Purchase", "New Purchase")
+                    return True
+
+                # Ctrl+A: Stock Adjustment
+                elif key == Qt.Key_A:
+                    from PySide6.QtWidgets import QLineEdit, QTextEdit, QPlainTextEdit
+                    fw = QApplication.focusWidget()
+                    if isinstance(fw, (QLineEdit, QTextEdit, QPlainTextEdit)) and fw.text() and not fw.hasSelectedText():
+                        return False  # Let editor Select All
+                    self.main_win._open_stock_adjustment()
+                    return True
+
+                # Ctrl+C: Credit Note (Return from Customer)
+                elif key == Qt.Key_C:
+                    from PySide6.QtWidgets import QLineEdit, QTextEdit, QPlainTextEdit
+                    fw = QApplication.focusWidget()
+                    if isinstance(fw, (QLineEdit, QTextEdit, QPlainTextEdit)) and fw.hasSelectedText():
+                        return False  # Let editor Copy
+                    self.main_win._on_menu_action("Purchase", "Credit Note (Return from Customer)")
+                    return True
+
+                # Ctrl+D: Debit Note (Return to Supplier)
+                elif key == Qt.Key_D:
+                    self.main_win._on_menu_action("Purchase", "Debit Note (Return to Supplier)")
+                    return True
+
+                # Ctrl+P: Supplier Payment Voucher
+                elif key == Qt.Key_P:
+                    self.main_win._on_menu_action("Account", "Supplier Payment Voucher")
+                    return True
+
+                # Ctrl+R: Customer Receipt / Payment Voucher
+                elif key == Qt.Key_R:
+                    self.main_win._on_menu_action("Account", "Customer Receipt Voucher")
+                    return True
+
+                # Ctrl+G: GST Report
+                elif key == Qt.Key_G:
+                    self.main_win._on_menu_action("Reports", "GST Report")
+                    return True
+
+                # Ctrl+T: Daily Itemwise Sales
+                elif key == Qt.Key_T:
+                    self.main_win._on_menu_action("Reports", "Daily Itemwise Sales")
+                    return True
+
+        return super().eventFilter(watched, event)
+
+
 class PharmacyMainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, initialize_database: bool = True):
         super().__init__()
-        init_database()
-        auth.ensure_auth_schema()
-        financial_year.ensure_default_financial_year()
-        self.setWindowTitle(APP_TITLE)
+        install_uppercase_input(QApplication.instance())
+        ensure_caps_lock_on()
+        if initialize_database:
+            init_database()
+            auth.ensure_auth_schema()
+            financial_year.ensure_default_financial_year()
+        self.setWindowTitle(_get_window_title())
         # Desktop-first: comfortable at 1366x768 and scales up to 1920x1080.
         self.resize(1366, 760)
         self.setMinimumSize(1024, 640)
@@ -60,115 +162,414 @@ class PharmacyMainWindow(QMainWindow):
         self._stack = QStackedWidget()
         root_layout.addWidget(self._stack, 1)
 
-        self._page_map: dict[str, int] = {}
+        self._viewing_financial_year: dict | None = None
         self._build_pages()
 
+        for act in self._nav.shortcut_actions:
+            self.addAction(act)
+        self._shortcut_filter = MainWindowShortcutFilter(self)
+        QApplication.instance().installEventFilter(self._shortcut_filter)
         theme.theme_manager.on_changed(self._on_theme_changed)
         self._apply_theme()
 
+    def _open_counter_sale(self):
+        self._on_menu_action("Sales", "New Bill")
+        curr = self._stack.currentWidget()
+        if hasattr(curr, "focus_entry"):
+            curr.focus_entry()
+        elif hasattr(curr, "_sale_panel"):
+            curr._sale_panel.focus_item_name()
+
+    def _open_sales_bill(self):
+        curr = self._stack.currentWidget()
+        if self._is_route_current("Sales:New Bill"):
+            if hasattr(curr, "_sale_panel") and curr._sale_panel._item_rows:
+                curr._sale_panel._on_save()
+            elif hasattr(curr, "focus_entry"):
+                curr.focus_entry()
+        else:
+            self._on_menu_action("Sales", "New Bill")
+            curr = self._stack.currentWidget()
+            if hasattr(curr, "focus_entry"):
+                curr.focus_entry()
+
+    def _open_stock_adjustment(self):
+        curr = self._stack.currentWidget()
+        if self._is_route_current("Purchase:Stock Adjustment") or self._is_route_current("Purchase:Adjusted Stock"):
+            if hasattr(curr, "_on_new"):
+                curr._on_new()
+        else:
+            self._on_menu_action("Purchase", "Stock Adjustment")
+
+    @classmethod
+    def _flatten_menu_items(cls, items, parent_path: str = ""):
+        for item in items:
+            if isinstance(item, dict):
+                for sub_title, sub_items in item.items():
+                    current_path = f"{parent_path} > {sub_title}" if parent_path else sub_title
+                    if isinstance(sub_items, (list, tuple)):
+                        yield from cls._flatten_menu_items(sub_items, current_path)
+                    else:
+                        yield sub_items, current_path
+            elif isinstance(item, tuple) and len(item) == 2 and isinstance(item[1], (list, tuple)):
+                sub_title, sub_items = item
+                current_path = f"{parent_path} > {sub_title}" if parent_path else sub_title
+                yield from cls._flatten_menu_items(sub_items, current_path)
+            else:
+                if item == "---" or (isinstance(item, str) and item.startswith("---")):
+                    continue
+                yield item, (parent_path if parent_path else None)
+
     def _build_pages(self):
-        # Pages are resolved through the screens package attributes so a
-        # theme switch (which reloads the screen modules) provides fresh
-        # classes on rebuild.
+        """Register cheap route placeholders; page widgets are built on demand."""
         page_index = 0
+        self._page_factories: dict[int, object] = {}
+        self._page_instances: dict[int, QWidget] = {}
+        self._page_map: dict[str, int] = {}
+
         for menu_name, items in MENUS.items():
-            for item_name in items:
-                if menu_name == "Master" and item_name == "Company Master":
-                    page = screens.CompanyMasterPage()
-                elif menu_name == "Master" and item_name == "Unit Master":
-                    page = screens.UnitMasterPage()
-                elif menu_name == "Master" and item_name == "Drug Master":
-                    page = screens.DrugMasterPage()
-                elif menu_name == "Master" and item_name == "Supplier Master":
-                    page = screens.SupplierMasterPage()
-                elif menu_name == "Master" and item_name == "Customer Master":
-                    page = screens.CustomerMasterPage()
-                elif menu_name == "Master" and item_name == "Doctor Master":
-                    page = screens.DoctorMasterPage()
-                elif menu_name == "Master" and item_name == "Item Master":
-                    page = screens.ItemMasterPage()
-                elif menu_name == "Master" and item_name == "Category Master":
-                    page = screens.CategoryMasterPage()
-                elif menu_name == "Master" and item_name == "Backup & Restore":
-                    page = screens.BackupRestorePage()
-                elif menu_name == "Master" and item_name == "Import Data":
-                    page = screens.ImportDataPage()
-                elif menu_name == "Master" and item_name == "User Master":
-                    page = screens.UserManagementPage()
-                elif menu_name == "Master" and item_name == "Account Group":
-                    page = screens.AccountGroupMasterPage()
-                elif menu_name == "Master" and item_name == "Financial Year":
-                    page = screens.FinancialYearPage()
-                elif menu_name == "Purchase" and item_name == "New Purchase":
-                    page = screens.PurchaseInvoicePage()
-                elif menu_name == "Purchase" and item_name == "Purchase History":
-                    page = screens.PurchaseInvoicePage()
-                elif menu_name == "Reports" and item_name == "Stock Report":
-                    page = screens.StockMasterPage()
-                elif menu_name == "Reports" and item_name == "Sales Report":
-                    page = screens.SalesReportPage()
-                elif menu_name == "Reports" and item_name == "Purchase Report":
-                    page = screens.PurchaseReportPage()
-                elif menu_name == "Reports" and item_name == "Expiry Report":
-                    page = screens.ExpiryReportPage()
-                elif menu_name == "Reports" and item_name == "Party Wise Report":
-                    page = screens.PartyWiseReportPage()
-                elif menu_name == "Reports" and item_name == "GST Report":
-                    page = screens.GSTReportPage()
-                elif menu_name == "Reports" and item_name == "Supplier Ledger":
-                    page = screens.SupplierLedgerPage()
-                elif menu_name == "Reports" and item_name == "Customer Ledger":
-                    page = screens.CustomerLedgerPage()
-                elif menu_name == "Reports" and item_name == "Itemwise Ledger":
-                    page = screens.ItemwiseLedgerPage()
-                elif menu_name == "Sales" and item_name == "New Bill":
-                    page = screens.CounterSalePage()
-                    # The Counter Sale toolbar's "Sales History" button is
-                    # a second entry point: route it through the identical
-                    # menu action so both open the same page, view and
-                    # status text (one navigation path, no duplicate
-                    # handlers or routes).
-                    page.sales_history_requested.connect(
-                        lambda: self._on_menu_action("Sales", "Sales History")
-                    )
-                elif menu_name == "Sales" and item_name == "Hold Bill":
-                    page = screens.HoldBillPage()
-                elif menu_name == "Sales" and item_name == "Day End":
-                    page = screens.DayEndPage()
-                elif menu_name == "Sales" and item_name == "Sales History":
-                    page = screens.SalesHistoryPage()
-                elif menu_name == "Sales" and item_name == "Return Bill":
-                    page = screens.CreditNotePage()
-                elif menu_name == "Purchase" and item_name == "Purchase Return":
-                    page = screens.DebitNotePage()
-                elif menu_name == "Purchase" and item_name == "Supplier Payment":
-                    page = screens.SupplierPaymentPage()
-                elif menu_name == "Account" and item_name == "Customer Receipt":
-                    page = screens.CustomerReceiptPage()
-                elif menu_name == "Account" and item_name == "Cash Book":
-                    page = screens.CashBookPage()
-                elif menu_name == "Account" and item_name == "Bank Book":
-                    page = screens.BankBookPage()
-                elif menu_name == "Account" and item_name == "Ledger":
-                    page = screens.AccountLedgerPage()
-                elif menu_name == "Account" and item_name == "Journal Entry":
-                    page = screens.JournalEntryPage()
-                elif menu_name == "Account" and item_name == "Account Roles":
-                    page = screens.AccountRolesPage()
-                elif menu_name == "Account" and item_name == "Trial Balance":
-                    page = screens.TrialBalancePage()
-                elif menu_name == "Account" and item_name == "Profit & Loss":
-                    page = screens.ProfitLossPage()
-                elif menu_name == "Account" and item_name == "Balance Sheet":
-                    page = screens.BalanceSheetPage()
-                else:
-                    page = PlaceholderPage(f"{menu_name}  >  {item_name}")
-                ui.polish_page(page)
-                self._stack.addWidget(page)
+            for item_name, sub_title in self._flatten_menu_items(items):
+                self._page_factories[page_index] = (
+                    lambda menu=menu_name, item=item_name, section=sub_title:
+                    self._create_page(menu, item, section)
+                )
+                self._stack.addWidget(QWidget(self._stack))
                 self._page_map[f"{menu_name}:{item_name}"] = page_index
+                if sub_title:
+                    self._page_map[f"{menu_name}:{sub_title}:{item_name}"] = page_index
+                    self._page_map[f"{menu_name}:{sub_title} > {item_name}"] = page_index
                 page_index += 1
 
+        if "Reports:Sales Report" not in self._page_map:
+            self._page_factories[page_index] = (
+                lambda: self._create_page("Reports", "Sales Report", None)
+            )
+            self._stack.addWidget(QWidget(self._stack))
+            self._page_map["Reports:Sales Report"] = page_index
+            page_index += 1
+        if "Reports:Daily Sales Report" not in self._page_map and "Reports:Sales Report" in self._page_map:
+            self._page_map["Reports:Daily Sales Report"] = self._page_map["Reports:Sales Report"]
+        if "Reports:Purchase Report" not in self._page_map:
+            self._page_factories[page_index] = (
+                lambda: self._create_page("Reports", "Purchase Report", None)
+            )
+            self._stack.addWidget(QWidget(self._stack))
+            self._page_map["Reports:Purchase Report"] = page_index
+            page_index += 1
+        if "Reports:Doctor's Reports" not in self._page_map and "Reports:Doctorwise Item Sale" in self._page_map:
+            self._page_map["Reports:Doctor's Reports"] = self._page_map["Reports:Doctorwise Item Sale"]
+        if "Purchase:Debit Note (Return to Supplier)" in self._page_map:
+            self._page_map["Account:Debit Note (Return to Supplier)"] = self._page_map["Purchase:Debit Note (Return to Supplier)"]
+            self._page_map["Account:Debit Note"] = self._page_map["Purchase:Debit Note (Return to Supplier)"]
+            self._page_map["Purchase:Debit Note"] = self._page_map["Purchase:Debit Note (Return to Supplier)"]
+        if "Purchase:Credit Note (Return from Customer)" in self._page_map:
+            self._page_map["Account:Credit Note (Return from Customer)"] = self._page_map["Purchase:Credit Note (Return from Customer)"]
+            self._page_map["Account:Credit Note"] = self._page_map["Purchase:Credit Note (Return from Customer)"]
+            self._page_map["Purchase:Credit Note"] = self._page_map["Purchase:Credit Note (Return from Customer)"]
+        if "Sales:New Bill" in self._page_map:
+            self._page_map["Sales:Counter Sale"] = self._page_map["Sales:New Bill"]
+            self._page_map["Sales:Sales Bill"] = self._page_map["Sales:New Bill"]
+        if "Purchase:New Purchase" in self._page_map:
+            self._page_map["Purchase:Purchase History"] = self._page_map["Purchase:New Purchase"]
+        if "Account:Customer Receipt Voucher" in self._page_map:
+            self._page_map["Account:Customer Payment Voucher"] = self._page_map["Account:Customer Receipt Voucher"]
+            self._page_map["Account:Customer Payment"] = self._page_map["Account:Customer Receipt Voucher"]
+
+        # The first route was the application's initial visible page before
+        # lazy loading. Materialize just that route to preserve startup UX.
+        if page_index:
+            self._ensure_page(0)
+
+    def _create_page(self, menu_name: str, item_name: str, sub_title: str | None):
+        """Build one route on first use, preserving its original wiring."""
+        if menu_name == "Master" and item_name == "Company Master":
+            page = screens.CompanyMasterPage()
+        elif menu_name == "Master" and item_name == "Unit Master":
+            page = screens.UnitMasterPage()
+        elif menu_name == "Master" and item_name == "Drug Master":
+            page = screens.DrugMasterPage()
+        elif menu_name == "Master" and item_name == "Supplier Master":
+            page = screens.SupplierMasterPage()
+        elif menu_name == "Master" and item_name == "Customer Master":
+            page = screens.CustomerMasterPage()
+        elif menu_name == "Master" and item_name == "Doctor Master":
+            page = screens.DoctorMasterPage()
+        elif menu_name == "Master" and item_name == "Item Master":
+            page = screens.ItemMasterPage()
+        elif menu_name == "Master" and item_name == "Category Master":
+            page = screens.CategoryMasterPage()
+        elif menu_name == "Master" and item_name == "Backup & Restore":
+            page = screens.BackupRestorePage()
+        elif menu_name == "Master" and item_name == "Import Data":
+            page = screens.ImportDataPage()
+        elif menu_name == "Master" and item_name == "User Master":
+            page = screens.UserManagementPage()
+        elif menu_name == "Master" and item_name == "Account Group":
+            page = screens.AccountGroupMasterPage()
+        elif menu_name == "Master" and item_name == "Financial Year":
+            page = screens.FinancialYearPage()
+        elif menu_name == "Purchase" and item_name in ("New Purchase", "Purchase History"):
+            page = screens.PurchaseInvoicePage()
+        elif menu_name == "Purchase" and item_name in ("Stock Adjustment", "Adjusted Stock"):
+            page = screens.AdjustedStockListPage()
+        elif menu_name == "Purchase" and item_name in (
+            "Debit Note (Return to Supplier)", "Debit Note"
+        ):
+            page = screens.DebitNotePage()
+        elif menu_name == "Purchase" and item_name in (
+            "Credit Note (Return from Customer)", "Credit Note"
+        ):
+            page = screens.CreditNotePage()
+        elif menu_name == "Reports" and item_name == "Items (All) Stock":
+            page = screens.ItemsAllStockPage()
+            page.close_requested.connect(
+                lambda: self._on_menu_action("Sales", "New Bill")
+            )
+        elif menu_name == "Reports" and item_name == "Companywise Item Stock":
+            page = screens.CompanywiseItemStockPage()
+            page.close_requested.connect(
+                lambda: self._on_menu_action("Sales", "New Bill")
+            )
+        elif menu_name == "Reports" and item_name == "Expired Item List":
+            page = screens.ExpiredItemListPage()
+            page.close_requested.connect(
+                lambda: self._on_menu_action("Sales", "New Bill")
+            )
+        elif menu_name == "Reports" and item_name == "Item List":
+            page = screens.ItemListPage()
+            page.close_requested.connect(
+                lambda: self._on_menu_action("Sales", "New Bill")
+            )
+        elif menu_name == "Reports" and item_name == "Daily Billwise Sales":
+            page = screens.DailyBillwiseSalesPage()
+            page.close_requested.connect(
+                lambda: self._on_menu_action("Sales", "New Bill")
+            )
+        elif menu_name == "Reports" and item_name == "Daily Itemwise Sales":
+            page = screens.DailyItemwiseSalesPage()
+            page.close_requested.connect(
+                lambda: self._on_menu_action("Sales", "New Bill")
+            )
+        elif menu_name == "Reports" and item_name == "Companywise Sales":
+            page = screens.CompanywiseSalesPage()
+            page.close_requested.connect(
+                lambda: self._on_menu_action("Sales", "New Bill")
+            )
+        elif menu_name == "Reports" and item_name == "Itemwise Sales":
+            page = screens.ItemwiseSalesPage()
+            page.close_requested.connect(
+                lambda: self._on_menu_action("Sales", "New Bill")
+            )
+        elif menu_name == "Reports" and item_name == "Profit Calculation":
+            page = screens.DailyProfitCalculationPage()
+            page.close_requested.connect(
+                lambda: self._on_menu_action("Sales", "New Bill")
+            )
+        elif menu_name == "Reports" and item_name == "Daily Profit Calculation":
+            page = screens.DailyProfitCalculationReportPage()
+            page.close_requested.connect(
+                lambda: self._on_menu_action("Sales", "New Bill")
+            )
+        elif menu_name == "Reports" and item_name == "Daily Profit Itemwise":
+            page = screens.DailyProfitItemwisePage()
+            page.close_requested.connect(
+                lambda: self._on_menu_action("Sales", "New Bill")
+            )
+        elif menu_name == "Reports" and item_name in ("Sales Report", "Daily Sales Report"):
+            page = screens.SalesReportPage()
+        elif menu_name == "Reports" and item_name == "Duplicate Sales Bill":
+            page = screens.DuplicateSalesBillListPage()
+
+        elif menu_name == "Reports" and item_name == "Purchase Report":
+            page = screens.PurchaseReportPage()
+        elif menu_name == "Reports" and item_name == "Companywise Itemwise Purchase":
+            page = screens.CompanywiseItemwisePurchasePage()
+            page.close_requested.connect(
+                lambda: self._on_menu_action("Sales", "New Bill")
+            )
+        elif menu_name == "Reports" and item_name == "Companywise Supplierwise Purchase":
+            page = screens.CompanywiseSupplierwisePurchasePage()
+            page.close_requested.connect(
+                lambda: self._on_menu_action("Sales", "New Bill")
+            )
+        elif menu_name == "Reports" and item_name == "Supplierwise Itemwise Purchase (Invoice)":
+            page = screens.SupplierwiseItemwiseInvoicePurchasePage()
+            page.close_requested.connect(
+                lambda: self._on_menu_action("Sales", "New Bill")
+            )
+        elif menu_name == "Reports" and item_name == "Supplierwise Itemwise Purchase (Challan)":
+            page = screens.SupplierwiseItemwiseChallanPurchasePage()
+            page.close_requested.connect(
+                lambda: self._on_menu_action("Sales", "New Bill")
+            )
+        elif menu_name == "Reports" and item_name == "Itemwise Purchase":
+            page = screens.ItemwisePurchasePage()
+            page.close_requested.connect(
+                lambda: self._on_menu_action("Sales", "New Bill")
+            )
+        elif menu_name == "Reports" and item_name == "Itemwise Batchwise Purchase":
+            page = screens.ItemwiseBatchwisePurchasePage()
+            page.close_requested.connect(
+                lambda: self._on_menu_action("Sales", "New Bill")
+            )
+        elif menu_name == "Reports" and item_name == "Expiry Report":
+            page = screens.ExpiryReportPage()
+        elif menu_name == "Reports" and item_name == "Party Wise Report":
+            page = screens.PartyWiseReportPage()
+        elif menu_name == "Reports" and item_name == "GST Report":
+            page = screens.GSTReportPage()
+        elif menu_name == "Reports" and item_name == "Supplier Ledger":
+            page = screens.SupplierLedgerPage()
+        elif menu_name == "Reports" and item_name == "Customer Ledger":
+            page = screens.CustomerLedgerPage()
+        elif menu_name == "Reports" and item_name == "Itemwise Ledger":
+            page = screens.ItemwiseLedgerPage()
+        elif menu_name == "Reports" and item_name == "Doctorwise Item Sale":
+            page = screens.DoctorwiseItemSalePage()
+            page.close_requested.connect(
+                lambda: self._on_menu_action("Sales", "New Bill")
+            )
+        elif menu_name == "Reports" and item_name == "Doctorwise Item Sale Details":
+            page = screens.DoctorwiseItemSaleDetailsPage()
+            page.close_requested.connect(
+                lambda: self._on_menu_action("Sales", "New Bill")
+            )
+        elif menu_name == "Sales" and item_name == "New Bill":
+            page = screens.CounterSalePage()
+            # The Counter Sale toolbar's patient bill history button is
+            # a second entry point: route it through the identical
+            # menu action so both open the same page, view and
+            # status text (one navigation path, no duplicate
+            # handlers or routes).
+            page.sales_history_requested.connect(
+                lambda: self._on_menu_action("Sales", "Patient Bill History")
+            )
+            page.challan_requested.connect(
+                lambda: self._on_menu_action("Reports", "Supplierwise Itemwise Purchase (Challan)")
+            )
+            page.debit_note_requested.connect(
+                lambda: self._on_menu_action("Purchase", "Debit Note (Return to Supplier)")
+            )
+            page.credit_note_requested.connect(
+                lambda: self._on_menu_action("Purchase", "Credit Note (Return from Customer)")
+            )
+        elif menu_name == "Sales" and item_name == "Hold Bill":
+            page = screens.HoldBillPage()
+        elif menu_name == "Sales" and item_name == "Day End":
+            page = screens.DayEndPage()
+        elif menu_name == "Sales" and item_name == "Patient Bill History":
+            page = screens.SalesHistoryPage()
+        elif menu_name == "Sales" and item_name in (
+            "Patient History – Bill Number Wise",
+            "Patient History - Bill Number Wise",
+        ):
+            page = screens.PatientHistoryBillWisePage()
+            page.close_requested.connect(
+                lambda: self._on_menu_action("Sales", "New Bill")
+            )
+        elif menu_name == "Account" and item_name in (
+            "Supplier Payment Voucher", "Supplier Payment"
+        ):
+            page = screens.SupplierPaymentPage()
+        elif menu_name == "Account" and item_name in (
+            "Customer Receipt Voucher", "Customer Receipt"
+        ):
+            page = screens.CustomerReceiptPage()
+        elif menu_name == "Account" and item_name == "Cash Book":
+            page = screens.CashBookPage()
+        elif menu_name == "Account" and item_name == "Bank Book":
+            page = screens.BankBookPage()
+        elif menu_name == "Account" and item_name == "Ledger":
+            page = screens.AccountLedgerPage()
+        elif menu_name == "Account" and item_name == "Journal Entry":
+            page = screens.JournalEntryPage()
+        elif menu_name == "Account" and item_name == "Account Roles":
+            page = screens.AccountRolesPage()
+        elif menu_name == "Account" and item_name == "Trial Balance":
+            page = screens.TrialBalancePage()
+        elif menu_name == "Account" and item_name == "Profit & Loss":
+            page = screens.ProfitLossPage()
+        elif menu_name == "Account" and item_name == "Balance Sheet":
+            page = screens.BalanceSheetPage()
+        elif menu_name == "Schedule":
+            st = "NRX" if (sub_title and "NRX" in sub_title) else "H1"
+            is_sales = bool(sub_title and "Sales" in sub_title)
+            if is_sales:
+                if item_name == "Datewise Schedule":
+                    page = screens.ScheduleSalesDatewisePage(schedule_type=st)
+                elif item_name == "Itemwise Schedule":
+                    page = screens.ScheduleSalesItemwisePage(schedule_type=st)
+                elif item_name == "All Items Schedule":
+                    page = screens.ScheduleSalesAllItemsPage(schedule_type=st)
+                else:
+                    page = PlaceholderPage(f"{menu_name}  >  {sub_title}  >  {item_name}")
+            else:
+                if item_name == "Datewise Schedule":
+                    page = screens.SchedulePurchaseDatewisePage(schedule_type=st)
+                elif item_name == "Itemwise Schedule":
+                    page = screens.SchedulePurchaseItemwisePage(schedule_type=st)
+                elif item_name == "All Items Schedule":
+                    page = screens.SchedulePurchaseAllItemsPage(schedule_type=st)
+                else:
+                    page = PlaceholderPage(f"{menu_name}  >  {sub_title}  >  {item_name}")
+            page.close_requested.connect(
+                lambda: self._on_menu_action("Sales", "New Bill")
+            )
+
+        else:
+            page = PlaceholderPage(f"{menu_name}  >  {item_name}")
+        ui.polish_page(page)
+        return page
+
+    def _ensure_page(self, index: int) -> QWidget:
+        """Construct and cache a route the first time it is selected."""
+        existing = self._page_instances.get(index)
+        if existing is not None:
+            return existing
+        factory = self._page_factories.get(index)
+        if factory is None:
+            raise KeyError(f"No page factory registered for route index {index}")
+
+        page = factory()
+        placeholder = self._stack.widget(index)
+        was_current = self._stack.currentIndex() == index
+        self._stack.removeWidget(placeholder)
+        self._stack.insertWidget(index, page)
+        placeholder.deleteLater()
+        self._page_instances[index] = page
+
+        if self._viewing_financial_year is not None:
+            apply_view = getattr(page, "set_history_financial_year", None)
+            if callable(apply_view):
+                apply_view(self._viewing_financial_year)
+        if was_current:
+            self._stack.setCurrentWidget(page)
+        return page
+
+    def _is_route_current(self, route_key: str) -> bool:
+        index = self._page_map.get(route_key)
+        return index is not None and self._page_instances.get(index) is self._stack.currentWidget()
+
     def _on_menu_action(self, menu: str, action: str):
+        _LEGACY_REDIRECTS = {
+            ("Purchase", "Purchase History"): ("Purchase", "New Purchase"),
+            ("Sales", "Return Bill"): ("Purchase", "Credit Note (Return from Customer)"),
+            ("Purchase", "Purchase Return"): ("Purchase", "Debit Note (Return to Supplier)"),
+            ("Purchase", "Supplier Payment"): ("Account", "Supplier Payment Voucher"),
+            ("Reports", "Stock Report"): ("Reports", "Items (All) Stock"),
+            ("Account", "Debit Note (Return to Supplier)"): ("Purchase", "Debit Note (Return to Supplier)"),
+            ("Account", "Credit Note (Return from Customer)"): ("Purchase", "Credit Note (Return from Customer)"),
+            ("Account", "Debit Note"): ("Purchase", "Debit Note (Return to Supplier)"),
+            ("Account", "Credit Note"): ("Purchase", "Credit Note (Return from Customer)"),
+            ("Sales", "Counter Sale"): ("Sales", "New Bill"),
+            ("Sales", "Sales Bill"): ("Sales", "New Bill"),
+            ("Account", "Supplier Payment"): ("Account", "Supplier Payment Voucher"),
+            ("Account", "Customer Payment"): ("Account", "Customer Receipt Voucher"),
+            ("Account", "Customer Payment Voucher"): ("Account", "Customer Receipt Voucher"),
+            ("Account", "Customer Receipt"): ("Account", "Customer Receipt Voucher"),
+        }
+        if (menu, action) in _LEGACY_REDIRECTS:
+            menu, action = _LEGACY_REDIRECTS[(menu, action)]
         permission = auth.MENU_PERMISSIONS.get(action)
         if permission:
             try:
@@ -178,10 +579,22 @@ class PharmacyMainWindow(QMainWindow):
                 QMessageBox.warning(self, "Permission denied", str(exc))
                 return
         key = f"{menu}:{action}"
+        target_index = None
         if key in self._page_map:
-            self._stack.setCurrentIndex(self._page_map[key])
-            self.setWindowTitle(f"{APP_TITLE}  -  {action}")
+            target_index = self._page_map[key]
+        elif f"Reports:{action}" in self._page_map:
+            target_index = self._page_map[f"Reports:{action}"]
+        elif f"Schedule:{action}" in self._page_map:
+            target_index = self._page_map[f"Schedule:{action}"]
+
+        if target_index is not None:
+            widget = self._ensure_page(target_index)
+            self._stack.setCurrentWidget(widget)
+            win_title = getattr(widget, "window_title_text", None) or action
+            self.setWindowTitle(_get_window_title(win_title))
             self._nav.status_label.setText(f"{menu} / {action}")
+            if hasattr(widget, "focus_entry"):
+                widget.focus_entry()
 
     # ── financial-year viewing ──────────────────────────────────
     def _on_financial_year_view(self, year: dict):
@@ -193,11 +606,11 @@ class PharmacyMainWindow(QMainWindow):
         chosen year (period reports use 1 April–31 March, position
         reports use the 31 March closing date).
         """
-        for index in range(self._stack.count()):
-            page = self._stack.widget(index)
+        self._viewing_financial_year = dict(year) if year else None
+        for page in self._page_instances.values():
             apply_view = getattr(page, "set_history_financial_year", None)
             if callable(apply_view):
-                apply_view(year)
+                apply_view(self._viewing_financial_year)
         self._nav.set_viewing_financial_year(year)
 
     # ── logout ───────────────────────────────────────────────────────
@@ -215,7 +628,7 @@ class PharmacyMainWindow(QMainWindow):
             self.close()
             return
         self._nav.refresh_user()
-        self.setWindowTitle(APP_TITLE)
+        self.setWindowTitle(_get_window_title())
 
     # ── theme ────────────────────────────────────────────────────────
     def _apply_theme(self):
@@ -326,3 +739,9 @@ class PharmacyMainWindow(QMainWindow):
             except Exception:
                 continue
             self._refresh_widget_tree(widget)
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() in (QEvent.Type.ActivationChange, QEvent.Type.WindowStateChange):
+            if self.isActiveWindow():
+                ensure_caps_lock_on()

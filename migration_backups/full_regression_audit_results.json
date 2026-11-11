@@ -1,0 +1,265 @@
+{
+  "timestamp": "2026-10-21T10:56:30",
+  "suites": {
+    "test_full_app_data_integrity": {
+      "returncode": 0,
+      "tests_run": 9,
+      "passed": 9,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 1.216,
+      "status": "PASS"
+    },
+    "test_counter_sale_batch_integrity": {
+      "returncode": 0,
+      "tests_run": 10,
+      "passed": 10,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 3.352,
+      "status": "PASS"
+    },
+    "test_legacy_refresh_verification": {
+      "returncode": 0,
+      "tests_run": 11,
+      "passed": 11,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 0.588,
+      "status": "PASS"
+    },
+    "test_expiry_report": {
+      "returncode": 0,
+      "tests_run": 43,
+      "passed": 43,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 3.971,
+      "status": "PASS"
+    },
+    "test_legacy_migration": {
+      "returncode": 0,
+      "tests_run": 215,
+      "passed": 210,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 5,
+      "duration_seconds": 19.796,
+      "status": "PASS"
+    },
+    "test_phase2_party_masters": {
+      "returncode": 0,
+      "tests_run": 5,
+      "passed": 5,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 1.586,
+      "status": "PASS"
+    },
+    "test_phase3_purchase_stock": {
+      "returncode": 0,
+      "tests_run": 9,
+      "passed": 9,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 0.188,
+      "status": "PASS"
+    },
+    "test_legacy_stock_migration_audit": {
+      "returncode": 0,
+      "tests_run": 35,
+      "passed": 35,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 0.704,
+      "status": "PASS"
+    },
+    "test_legacy_stock_resolution": {
+      "returncode": 0,
+      "tests_run": 18,
+      "passed": 18,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 0.948,
+      "status": "PASS"
+    },
+    "test_accounting_posting": {
+      "returncode": 0,
+      "tests_run": 44,
+      "passed": 44,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 4.442,
+      "status": "PASS"
+    },
+    "test_accounting_end_to_end": {
+      "returncode": 0,
+      "tests_run": 29,
+      "passed": 29,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 4.122,
+      "status": "PASS"
+    },
+    "test_credit_note_posting": {
+      "returncode": 0,
+      "tests_run": 36,
+      "passed": 36,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 3.886,
+      "status": "PASS"
+    },
+    "test_debit_note_posting": {
+      "returncode": 0,
+      "tests_run": 41,
+      "passed": 41,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 5.365,
+      "status": "PASS"
+    },
+    "test_supplier_payment_posting": {
+      "returncode": 0,
+      "tests_run": 46,
+      "passed": 46,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 4.336,
+      "status": "PASS"
+    },
+    "test_voucher_system_and_ledger_integration": {
+      "returncode": 0,
+      "tests_run": 11,
+      "passed": 11,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 7.569,
+      "status": "PASS"
+    },
+    "test_counter_sale_posting": {
+      "returncode": 0,
+      "tests_run": 42,
+      "passed": 42,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 4.677,
+      "status": "PASS"
+    },
+    "test_stock_reports_suite": {
+      "returncode": 0,
+      "tests_run": 18,
+      "passed": 18,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 43.576,
+      "status": "PASS"
+    },
+    "test_sales_reports_suite": {
+      "returncode": 0,
+      "tests_run": 19,
+      "passed": 19,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 2.852,
+      "status": "PASS"
+    },
+    "test_purchase_reports_suite": {
+      "returncode": 0,
+      "tests_run": 23,
+      "passed": 23,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 6.909,
+      "status": "PASS"
+    },
+    "test_gst_report": {
+      "returncode": 0,
+      "tests_run": 42,
+      "passed": 42,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 5.935,
+      "status": "PASS"
+    },
+    "test_balance_sheet": {
+      "returncode": 0,
+      "tests_run": 50,
+      "passed": 50,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 8.965,
+      "status": "PASS"
+    },
+    "test_profit_loss": {
+      "returncode": 0,
+      "tests_run": 50,
+      "passed": 50,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 8.686,
+      "status": "PASS"
+    },
+    "test_trial_balance": {
+      "returncode": 0,
+      "tests_run": 50,
+      "passed": 50,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 7.41,
+      "status": "PASS"
+    },
+    "test_item_name_unit_unique": {
+      "returncode": 0,
+      "tests_run": 12,
+      "passed": 12,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 1.916,
+      "status": "PASS"
+    },
+    "test_loose_stock_units": {
+      "returncode": 0,
+      "tests_run": 9,
+      "passed": 9,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 0.418,
+      "status": "PASS"
+    }
+  },
+  "totals": {
+    "suites_run": 25,
+    "suites_passed": 25,
+    "suites_failed": 0,
+    "total_tests": 877,
+    "passed": 872,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 5
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "generated_at": "2026-10-20T18:00:46.779884",
+  "source_dump": {
+    "file": "PharmaWinner202610201418.sql",
+    "size_bytes": 35533535,
+    "sha256": "6e54dd819a077fd5a24e40ce8c21ad85f4e3040ea47dd337162347075802c388",
+    "total_tables": 52,
+    "total_source_rows": 506249
+  },
+  "staging_database": {
+    "path": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\staging\\pharmacy_staging.db",
+    "size_bytes": 45350912,
+    "integrity_check": "ok",
+    "foreign_key_violations": 0,
+    "double_entry": {
+      "debits": 47251923.27,
+      "credits": 47251923.27,
+      "diff": 0.0,
+      "is_balanced": true
+    }
+  },
+  "active_database_protection": {
+    "path": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\data\\pharmacy.db",
+    "baseline_t0_sha256": "5a8f768322d00e42184be70d519b65b0871c7cdf54376b078b395d5ff808fb32",
+    "current_sha256": "673aed780ee2d89b1ead216db10b7edd2acebdc44b43ea875b683f8a48ce8a97",
+    "is_untouched": false
+  },
+  "row_level_partition": {
+    "PRESERVED_IN_ARCHIVE": 4102,
+    "EXCLUDED_WITH_REASON": 4350,
+    "MERGED_WITH_REASON": 7,
+    "VERIFIED_UPDATE": 1066,
+    "IMPORTED": 940,
+    "ALREADY_MATCHED": 495784,
+    "UNRESOLVED": 0
+  },
+  "key_stock_reconciliations": {
+    "CGT26065C": {
+      "target_item_id": 1796,
+      "target_item_name": "EFEREM SP",
+      "legacy_item_id": 853,
+      "dump_closing_loose": 184.0,
+      "native_movement": 240.0,
+      "final_staging_loose": 424.0,
+      "expected": 424.0,
+      "status": "PASS"
+    },
+    "AC2604005C": {
+      "target_item_id": 1442,
+      "target_item_name": "STABIZOL DSR",
+      "legacy_item_id": 499,
+      "dump_closing_loose": 219.0,
+      "native_movement": -1.0,
+      "final_staging_loose": 218.0,
+      "expected": 218.0,
+      "status": "PASS"
+    },
+    "146005EH": {
+      "legacy_item_id": 72,
+      "dump_closing_loose": -42.0,
+      "native_movement": 0.0,
+      "final_staging_loose": -42.0,
+      "expected": -42.0,
+      "status": "PASS"
+    }
+  },
+  "credit_note_posting_safety": {
+    "unposted_headers_count": 5,
+    "ledger_transactions_created": 0,
+    "safety_status": "PASS",
+    "rule": "Zero double-entry transactions fabricated for credit notes with AddedToLedger='N'"
+  },
+  "tax_review_decoupling": {
+    "tax_mappings_requiring_review_count": 1,
+    "items": [
+      {
+        "legacy_item_id": 944,
+        "item_name": "MERSILK NW 5010",
+        "legacy_tax_id": 11,
+        "target_assigned_id": 1885,
+        "status": "TAX_MAPPING_REQUIRED",
+        "note": "Imported with legacy_tax_id='11' and tax_structure='11'. Modern GST rate must be assigned by user."
+      }
+    ]
+  }
+}

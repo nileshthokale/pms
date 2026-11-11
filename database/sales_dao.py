@@ -21,9 +21,11 @@ class SalesDAO:
     ) -> str:
         """Display form for a stored bill number.
 
-        Returns only the numeric / sequence component (e.g. '1905', '0251', '1', '187')
-        when patient_name is present (or omitted). If patient_name is provided and is empty
-        or contains only whitespace, returns a blank string.
+        Returns only the numeric / sequence component (e.g. '1905', '0251',
+        '1', '187').  A blank stored bill number stays blank.  When the
+        caller supplies the *original* patient name and it is empty or
+        whitespace, the historical bill number is hidden as well: those
+        records were created without a patient name.
         """
         if patient_name is not None and not str(patient_name).strip():
             return ""
@@ -45,19 +47,27 @@ class SalesDAO:
             # any plain numbers already saved, so 2026-2027-1910 -> 1911.
             # Historical rows are never rewritten; uniqueness is enforced by
             # the UNIQUE(bill_no) constraint plus the guard loop below.
+            active_name = ""
             try:
-                from database import financial_year as _fy
-
-                _active = _fy.get_active_financial_year()
-                active_name = (_active.get("name") if _active else "") or ""
+                cur.execute("SELECT name FROM financial_years WHERE is_active = 1 LIMIT 1")
+                fy_row = cur.fetchone()
+                if fy_row:
+                    active_name = fy_row[0] if isinstance(fy_row, (tuple, list)) else fy_row["name"]
             except Exception:
-                active_name = ""
+                try:
+                    from database import financial_year as _fy
+                    _active = _fy.get_active_financial_year()
+                    active_name = (_active.get("name") if _active else "") or ""
+                except Exception:
+                    active_name = ""
             active_name = (active_name or "").strip()
             max_num: int | None = None
             if active_name:
                 try:
                     cur.execute(
-                        "SELECT bill_no FROM sales_invoices WHERE bill_no LIKE ?",
+                        "SELECT bill_no FROM sales_invoices "
+                        "WHERE bill_no LIKE ? "
+                        "AND bill_no IS NOT NULL AND TRIM(bill_no) <> ''",
                         (f"{active_name}-%",),
                     )
                     for r in cur.fetchall():
@@ -73,7 +83,8 @@ class SalesDAO:
                 try:
                     cur.execute(
                         "SELECT bill_no FROM sales_invoices "
-                        "WHERE bill_no NOT GLOB '*[^0-9]*' AND bill_no != ''"
+                        "WHERE bill_no NOT GLOB '*[^0-9]*' "
+                        "AND bill_no IS NOT NULL AND TRIM(bill_no) <> ''"
                     )
                     for r in cur.fetchall():
                         last = (r["bill_no"] or "").strip()
@@ -84,7 +95,7 @@ class SalesDAO:
                     pass
                 if max_num is not None:
                     next_num = max_num + 1
-                    candidate = str(next_num)
+                    candidate = f"{active_name}-{next_num}"
                     cur.execute(
                         "SELECT 1 FROM sales_invoices WHERE bill_no = ? LIMIT 1",
                         (candidate,),
@@ -92,7 +103,7 @@ class SalesDAO:
                     guard = 0
                     while cur.fetchone() is not None and guard < 10000:
                         next_num += 1
-                        candidate = str(next_num)
+                        candidate = f"{active_name}-{next_num}"
                         cur.execute(
                             "SELECT 1 FROM sales_invoices WHERE bill_no = ? LIMIT 1",
                             (candidate,),
@@ -101,8 +112,12 @@ class SalesDAO:
                     return candidate
             # Fallback: legacy convention (CS-0001 style) for databases with
             # no active-FY numeric history (fresh installs, isolated tests).
+            # Blank business bill numbers carry no sequence information and
+            # must never become the prefix/width source.
             cur.execute(
-                "SELECT bill_no FROM sales_invoices ORDER BY id DESC LIMIT 50"
+                "SELECT bill_no FROM sales_invoices "
+                "WHERE bill_no IS NOT NULL AND TRIM(bill_no) <> '' "
+                "ORDER BY id DESC LIMIT 50"
             )
             rows = cur.fetchall()
             if not rows:
@@ -185,7 +200,7 @@ class SalesDAO:
         try:
             cur = conn.execute(
                 """
-                SELECT si.*, c.customer_name, d.doctor_name
+                SELECT si.*, c.customer_name, c.address, d.doctor_name
                 FROM sales_invoices si
                 LEFT JOIN customers c ON c.id = si.customer_id
                 LEFT JOIN doctors d ON d.id = si.doctor_id
@@ -319,7 +334,7 @@ class SalesDAO:
         try:
             cur = conn.execute(
                 """
-                SELECT si.*, c.customer_name, d.doctor_name
+                SELECT si.*, c.customer_name, c.address, d.doctor_name
                 FROM sales_invoices si
                 LEFT JOIN customers c ON c.id = si.customer_id
                 LEFT JOIN doctors d ON d.id = si.doctor_id
@@ -338,9 +353,10 @@ class SalesDAO:
         try:
             cur = conn.execute(
                 """
-                SELECT sii.*, i.item_name
+                SELECT sii.*, i.item_name, sb.net_rate, sb.purchase_rate
                 FROM sales_invoice_items sii
                 LEFT JOIN items i ON i.id = sii.item_id
+                LEFT JOIN stock_batches sb ON sb.id = sii.stock_batch_id
                 WHERE sii.sales_invoice_id = ?
                 ORDER BY sii.id
                 """,
@@ -369,7 +385,7 @@ class SalesDAO:
             where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
             cur = conn.execute(
                 f"""
-                SELECT si.*, c.customer_name, d.doctor_name
+                SELECT si.*, c.customer_name, c.address, d.doctor_name
                 FROM sales_invoices si
                 LEFT JOIN customers c ON c.id = si.customer_id
                 LEFT JOIN doctors d ON d.id = si.doctor_id
@@ -383,7 +399,7 @@ class SalesDAO:
             conn.close()
 
     @staticmethod
-    def insert_invoice(*, bill_no: str, sale_date: str, sale_time: str,
+    def insert_invoice(*, bill_no: str | None, sale_date: str, sale_time: str,
                        sale_type: str, customer_id: int | None,
                        patient_name: str, doctor_id: int | None,
                        discount: float, paid_amount: float,
@@ -397,6 +413,34 @@ class SalesDAO:
         mrp, sale_qty, discount_amount, amount.
         Returns the new invoice id.
         """
+        patient_was_empty = not (patient_name or "").strip()
+        pat = (patient_name or "").strip()
+        patient_name = pat if pat else "WALKIN"
+
+        if customer_id is None:
+            from database.customer_dao import CustomerDAO
+            customer_id = CustomerDAO.get_or_create_walkin()
+
+        # Resolve active financial year name for prefix scoping before transaction
+        try:
+            from database import financial_year as _fy
+            _active = _fy.get_active_financial_year()
+            active_name = (_active.get("name") if _active else "") or ""
+        except Exception:
+            active_name = ""
+        active_name = (active_name or "").strip()
+
+        bno = "" if bill_no is None else str(bill_no).strip()
+        if bill_no is None and not patient_was_empty:
+            # Only a named sale is allowed to consume a generated bill
+            # number.  Calling with bill_no="" is an explicit request to keep
+            # a genuinely blank business Bill No (used by unnamed walk-ins);
+            # it is never silently replaced by a generated number.
+            bno = SalesDAO.generate_next_bill_no()
+        if bno and active_name and bno.isdigit():
+            bno = f"{active_name}-{bno}"
+        bill_no = bno
+
         conn = get_connection()
         try:
             cur = conn.cursor()
@@ -404,8 +448,10 @@ class SalesDAO:
 
             # Transactional uniqueness check: if bill_no already exists,
             # advance to the next sequential free bill_no within this transaction.
+            # Blank numbers are intentionally shared by unnamed sales and are
+            # excluded from the partial unique index, so they need no check.
             guard = 0
-            while guard < 10000:
+            while bill_no and guard < 10000:
                 cur.execute("SELECT 1 FROM sales_invoices WHERE bill_no = ? LIMIT 1", (bill_no,))
                 if cur.fetchone() is None:
                     break
@@ -430,6 +476,18 @@ class SalesDAO:
                 ),
             )
             invoice_id = cur.lastrowid
+
+            # Require valid medicine items before saving
+            if not items:
+                raise ValueError("Please select a medicine name before saving.")
+            for itm in items:
+                i_id = itm.get("item_id")
+                if not i_id:
+                    raise ValueError("Please select a medicine name before saving.")
+                cur.execute("SELECT id, item_name FROM items WHERE id = ?", (i_id,))
+                row_check = cur.fetchone()
+                if not row_check or not (row_check["item_name"] or "").strip():
+                    raise ValueError("Please select a medicine name before saving.")
 
             # Insert items and deduct stock
             for item in items:
@@ -507,6 +565,13 @@ class SalesDAO:
             6. Post the updated accounting effect.
         Any failure rolls back everything (sale, stock, accounting).
         """
+        pat = (patient_name or "").strip()
+        patient_name = pat if pat else "WALKIN"
+        # Existing invoices keep the bill number they were saved with.  A
+        # blank number stays blank (editing must never invent a number for an
+        # unnamed sale), and genuine historical numbers are preserved.
+        bill_no = (bill_no or "").strip()
+
         conn = get_connection()
         try:
             cur = conn.cursor()
@@ -551,6 +616,18 @@ class SalesDAO:
                     net_amount, remarks, invoice_id,
                 ),
             )
+
+            # Require valid medicine items before saving
+            if not items:
+                raise ValueError("Please select a medicine name before saving.")
+            for itm in items:
+                i_id = itm.get("item_id")
+                if not i_id:
+                    raise ValueError("Please select a medicine name before saving.")
+                cur.execute("SELECT id, item_name FROM items WHERE id = ?", (i_id,))
+                row_check = cur.fetchone()
+                if not row_check or not (row_check["item_name"] or "").strip():
+                    raise ValueError("Please select a medicine name before saving.")
 
             # Insert new items and deduct stock (same checks as insert)
             for item in items:
@@ -935,5 +1012,136 @@ class SalesDAO:
                 (limit,),
             )
             return [r[0] for r in cur.fetchall() if r[0]]
+        finally:
+            conn.close()
+
+
+    @staticmethod
+    def search_patient_bill_history(
+        *,
+        bill_no: str = "",
+        patient_name: str = "",
+        start_date: str = "",
+        end_date: str = "",
+        limit: int = 100,
+        offset: int = 0,
+    ) -> tuple[list[dict], int]:
+        """Search patient bill history with item counts, doctors, and amounts.
+
+        Allows finding previous sales bills by bill number (exact, prefixed,
+        padded) and/or patient name (word-by-word matching in any order),
+        with optional date range filtering.
+
+        Returns (rows, total_count).
+        """
+        conn = get_connection()
+        try:
+            clauses: list[str] = []
+            params: list = []
+
+            if bill_no and bill_no.strip():
+                clean_bno = bill_no.strip()
+                if clean_bno.isdigit():
+                    num_val = str(int(clean_bno))
+                    numeric_patterns = [clean_bno, num_val]
+                    like_patterns = [
+                        f"%-{clean_bno}",
+                        f"%-{clean_bno}#%",
+                        f"%-{clean_bno}-S%",
+                        f"%-{num_val}",
+                        f"%-{num_val}#%",
+                        f"%-{num_val}-S%",
+                    ]
+                    if len(num_val) < 4:
+                        for pad_len in range(len(num_val) + 1, 5):
+                            padded = num_val.zfill(pad_len)
+                            like_patterns.extend([
+                                f"%-{padded}",
+                                f"%-{padded}#%",
+                                f"%-{padded}-S%",
+                            ])
+                    exact_conds = []
+                    seen_exact = set()
+                    for p in numeric_patterns:
+                        if p not in seen_exact:
+                            seen_exact.add(p)
+                            exact_conds.append("si.bill_no = ?")
+                            params.append(p)
+                    like_conds = []
+                    seen_like = set()
+                    for p in like_patterns:
+                        if p not in seen_like:
+                            seen_like.add(p)
+                            like_conds.append("si.bill_no LIKE ?")
+                            params.append(p)
+                    clauses.append(f"({' OR '.join(exact_conds + like_conds)})")
+                else:
+                    clauses.append("si.bill_no LIKE ?")
+                    params.append(f"%{clean_bno}%")
+
+            if patient_name and patient_name.strip():
+                for word in patient_name.split():
+                    clauses.append("si.patient_name LIKE ?")
+                    params.append(f"%{word}%")
+
+            if start_date and start_date.strip():
+                clauses.append("substr(si.sale_date, 1, 10) >= ?")
+                params.append(start_date.strip())
+
+            if end_date and end_date.strip():
+                clauses.append("substr(si.sale_date, 1, 10) <= ?")
+                params.append(end_date.strip())
+
+            where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+
+            count_cur = conn.execute(
+                f"SELECT COUNT(*) FROM sales_invoices si {where}",
+                params,
+            )
+            total_count = count_cur.fetchone()[0]
+
+            cur = conn.execute(
+                f"""
+                SELECT si.id, si.bill_no, si.sale_date, si.sale_time,
+                       COALESCE(NULLIF(TRIM(si.patient_name), ''), 'WALKIN') AS patient_name,
+                       COALESCE(d.doctor_name, '') AS doctor_name,
+                       COALESCE(si.total_amount, 0.0) AS total_amount,
+                       COALESCE(si.discount, 0.0) AS discount,
+                       COALESCE(si.paid_amount, 0.0) AS paid_amount,
+                       COALESCE(si.round_off, 0.0) AS round_off,
+                       COALESCE(si.net_amount, 0.0) AS net_amount,
+                       COALESCE(si.remarks, '') AS remarks
+                FROM sales_invoices si
+                LEFT JOIN doctors d ON d.id = si.doctor_id
+                {where}
+                ORDER BY si.sale_date DESC, si.id DESC
+                LIMIT ? OFFSET ?
+                """,
+                (*params, limit, offset),
+            )
+            rows = [dict(r) for r in cur.fetchall()]
+
+            if rows:
+                ids = [r["id"] for r in rows]
+                placeholders = ",".join("?" * len(ids))
+                item_counts = dict(
+                    conn.execute(
+                        f"""
+                        SELECT sales_invoice_id, COUNT(*)
+                        FROM sales_invoice_items
+                        WHERE sales_invoice_id IN ({placeholders})
+                        GROUP BY sales_invoice_id
+                        """,
+                        ids,
+                    ).fetchall()
+                )
+                for r in rows:
+                    r["total_items"] = item_counts.get(r["id"], 0)
+                    r["raw_bill_no"] = r.get("bill_no", "")
+                    r["display_bill_no"] = SalesDAO.display_bill_no(
+                        r.get("bill_no", ""),
+                        patient_name=r.get("patient_name", ""),
+                    )
+            return rows, total_count
         finally:
             conn.close()

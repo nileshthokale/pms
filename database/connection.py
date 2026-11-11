@@ -46,7 +46,11 @@ def get_db_path() -> str:
     data/pharmacy.db (development) or the per-user app-data directory
     (packaged EXE — see get_app_data_dir()).
     """
-    db_path = os.environ.get("PHARMACY_DB") or _default_db_path()
+    db_path = (
+        os.environ.get("PHARMACY_DB")
+        or os.environ.get("PHARMACY_DB_PATH")
+        or _default_db_path()
+    )
     # The full-suite runner sets this guard so a test that accidentally drops
     # PHARMACY_DB (or points it back at the app database) still cannot open
     # the real business database for writing.
@@ -57,11 +61,32 @@ def get_db_path() -> str:
             os.path.abspath(protected_path)
         ):
             return safe_path
+    # The isolated test release must never fall back to a normal database.
+    # Its entry point sets PHARMACY_DB explicitly; if that configuration is
+    # ever lost, refuse rather than silently opening the production path.
+    if os.environ.get("PHARMACY_TEST_RELEASE") == "1" and not (
+        os.environ.get("PHARMACY_DB") or os.environ.get("PHARMACY_DB_PATH")
+    ):
+        raise RuntimeError(
+            "[TEST RELEASE] PHARMACY_DB is not configured. Refusing to fall back "
+            "to a normal application database."
+        )
     return db_path
 
 
 def get_connection() -> sqlite3.Connection:
     db_path = get_db_path()
+    # A test release seeds its database from the bundled snapshot on first
+    # launch.  It must never silently create an empty database if that file
+    # later disappears (which would look like all business data vanished).
+    if (
+        os.environ.get("PHARMACY_REQUIRE_EXISTING_DB") == "1"
+        and not os.path.isfile(db_path)
+    ):
+        raise RuntimeError(
+            f"[TEST RELEASE] Refusing to create a new empty database at {db_path}. "
+            "The isolated test database is missing; restore it instead."
+        )
     os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
     conn = sqlite3.connect(db_path)
     conn.execute("PRAGMA journal_mode=WAL")
@@ -159,7 +184,7 @@ def init_database():
             """
             CREATE TABLE IF NOT EXISTS doctors (
                 id           INTEGER PRIMARY KEY AUTOINCREMENT,
-                doctor_name  TEXT    NOT NULL UNIQUE,
+                doctor_name  TEXT    NOT NULL,
                 city         TEXT    DEFAULT '',
                 specialty    TEXT    DEFAULT '',
                 phone_no     TEXT    DEFAULT ''
@@ -273,7 +298,12 @@ def init_database():
             """
             CREATE TABLE IF NOT EXISTS sales_invoices (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                bill_no         TEXT    NOT NULL UNIQUE,
+                -- A counter sale created without a patient name has a
+                -- genuinely blank business bill number.  Empty strings are
+                -- allowed to repeat; the partial unique index created by
+                -- _migrate_sales_invoices_blank_bill_no() keeps every
+                -- non-empty bill number unique.
+                bill_no         TEXT    NOT NULL DEFAULT '',
                 sale_date       TEXT    NOT NULL,
                 sale_time       TEXT    DEFAULT '',
                 sale_type       TEXT    DEFAULT 'Cash',
@@ -319,7 +349,8 @@ def init_database():
                 customer_id     INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
                 total_amount    REAL    DEFAULT 0.0,
                 ledger_amount   REAL    DEFAULT 0.0,
-                remarks         TEXT    DEFAULT ''
+                remarks         TEXT    DEFAULT '',
+                added_to_ledger TEXT    DEFAULT 'N'
             )
             """
         )
@@ -339,7 +370,8 @@ def init_database():
                 less_amount     REAL    DEFAULT 0.0,
                 amount          REAL    DEFAULT 0.0,
                 return_reason   TEXT    DEFAULT '',
-                price_factor    REAL    DEFAULT 1.0
+                price_factor    REAL    DEFAULT 1.0,
+                is_pack_qty     INTEGER DEFAULT 0
             )
             """
         )
@@ -355,7 +387,8 @@ def init_database():
                 supplier_id     INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
                 total_amount    REAL    DEFAULT 0.0,
                 ledger_amount   REAL    DEFAULT 0.0,
-                remarks         TEXT    DEFAULT ''
+                remarks         TEXT    DEFAULT '',
+                added_to_ledger TEXT    DEFAULT 'N'
             )
             """
         )
@@ -372,6 +405,7 @@ def init_database():
                 rate            REAL    DEFAULT 0.0,
                 mrp             REAL    DEFAULT 0.0,
                 return_qty      REAL    DEFAULT 0.0,
+                free_qty        REAL    DEFAULT 0.0,
                 less_amount     REAL    DEFAULT 0.0,
                 amount          REAL    DEFAULT 0.0,
                 return_reason   TEXT    DEFAULT '',
@@ -408,6 +442,44 @@ def init_database():
                 remarks         TEXT    DEFAULT ''
             )
             """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS supplier_payment_allocations (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                supplier_payment_id INTEGER NOT NULL REFERENCES supplier_payments(id) ON DELETE CASCADE,
+                purchase_invoice_id INTEGER NOT NULL REFERENCES purchase_invoices(id) ON DELETE CASCADE,
+                allocated_amount    REAL    NOT NULL DEFAULT 0.0,
+                discount_amount     REAL    DEFAULT 0.0
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_spa_payment "
+            "ON supplier_payment_allocations(supplier_payment_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_spa_invoice "
+            "ON supplier_payment_allocations(purchase_invoice_id)"
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS customer_receipt_allocations (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                customer_receipt_id INTEGER NOT NULL REFERENCES customer_receipts(id) ON DELETE CASCADE,
+                sales_invoice_id    INTEGER NOT NULL REFERENCES sales_invoices(id) ON DELETE CASCADE,
+                allocated_amount    REAL    NOT NULL DEFAULT 0.0,
+                discount_amount     REAL    DEFAULT 0.0
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_cra_receipt "
+            "ON customer_receipt_allocations(customer_receipt_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_cra_invoice "
+            "ON customer_receipt_allocations(sales_invoice_id)"
         )
         conn.execute(
             """
@@ -484,6 +556,45 @@ def init_database():
         conn.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_financial_year_active "
             "ON financial_years(is_active) WHERE is_active = 1"
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS legacy_id_map (
+                entity TEXT NOT NULL,
+                legacy_id TEXT NOT NULL,
+                new_id INTEGER NOT NULL,
+                PRIMARY KEY (entity, legacy_id)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS patient_addresses (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                patient_name TEXT    NOT NULL COLLATE NOCASE,
+                address      TEXT    NOT NULL,
+                customer_id  INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+                updated_at   TEXT    DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(patient_name, address)
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_patient_addresses_pat "
+            "ON patient_addresses(patient_name COLLATE NOCASE)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_patient_addresses_addr "
+            "ON patient_addresses(address COLLATE NOCASE)"
+        )
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO patient_addresses (patient_name, address, customer_id)
+            SELECT customer_name, address, id
+            FROM customers
+            WHERE address IS NOT NULL AND TRIM(address) <> ''
+              AND UPPER(TRIM(customer_name)) NOT IN ('WALKIN', 'WALKIN CUSTOMER')
+            """
         )
 
         # ── Phase 1: Customer/Supplier → Account Ledger mapping ──
@@ -571,12 +682,135 @@ def init_database():
                 "INTEGER NULL REFERENCES account_groups(id) ON DELETE SET NULL"
             )
 
+        # ── Debit Note & Credit Note migrations ──
+        cur.execute("PRAGMA table_info(debit_note_items)")
+        dni_cols = {row[1] for row in cur.fetchall()}
+        if "free_qty" not in dni_cols:
+            cur.execute("ALTER TABLE debit_note_items ADD COLUMN free_qty REAL DEFAULT 0.0")
+        if "is_pack_qty" not in dni_cols:
+            cur.execute("ALTER TABLE debit_note_items ADD COLUMN is_pack_qty INTEGER DEFAULT 0")
+
+        cur.execute("PRAGMA table_info(debit_notes)")
+        dn_cols = {row[1] for row in cur.fetchall()}
+        if "added_to_ledger" not in dn_cols:
+            cur.execute("ALTER TABLE debit_notes ADD COLUMN added_to_ledger TEXT DEFAULT 'N'")
+            cur.execute(
+                """
+                UPDATE debit_notes SET added_to_ledger = 'Y'
+                WHERE id IN (
+                    SELECT DISTINCT reference_id FROM ledger_transactions
+                    WHERE reference_type = 'DEBIT_NOTE'
+                )
+                """
+            )
+
+        cur.execute("PRAGMA table_info(credit_notes)")
+        cn_cols = {row[1] for row in cur.fetchall()}
+        if "added_to_ledger" not in cn_cols:
+            cur.execute("ALTER TABLE credit_notes ADD COLUMN added_to_ledger TEXT DEFAULT 'N'")
+            cur.execute(
+                """
+                UPDATE credit_notes SET added_to_ledger = 'Y'
+                WHERE id IN (
+                    SELECT DISTINCT reference_id FROM ledger_transactions
+                    WHERE reference_type = 'CREDIT_NOTE'
+                )
+                """
+            )
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sales_invoices_patient "
+            "ON sales_invoices(patient_name COLLATE NOCASE)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_customers_name_nocase "
+            "ON customers(customer_name COLLATE NOCASE)"
+        )
+
+        # ── Item Opening Balances & Baseline Stock Reconciliation ──
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS item_opening_balances (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                item_id        INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+                opening_date   TEXT    NOT NULL DEFAULT '2015-04-01',
+                opening_stock  REAL    NOT NULL DEFAULT 0.0,
+                source         TEXT    DEFAULT 'legacy_baseline',
+                notes          TEXT    DEFAULT '',
+                created_at     TEXT    DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(item_id, opening_date)
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_item_opening_balances_item_id "
+            "ON item_opening_balances(item_id)"
+        )
+
+        cur.execute("PRAGMA table_info(items)")
+        item_cols = {row[1] for row in cur.fetchall()}
+        if "opening_stock" not in item_cols:
+            cur.execute("ALTER TABLE items ADD COLUMN opening_stock REAL DEFAULT 0.0")
+
+        # Auto-populate baseline opening stock if table is empty but items and transactions exist
+        cur.execute("SELECT 1 FROM item_opening_balances LIMIT 1")
+        if cur.fetchone() is None:
+            cur.execute("SELECT 1 FROM items LIMIT 1")
+            if cur.fetchone() is not None:
+                from database.ledger_report_dao import LedgerReportDAO
+                LedgerReportDAO.reconcile_item_baseline_stock(conn=conn, overwrite=False)
+
+        # ── Stock Adjustments Audit & Tracking ──
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS stock_adjustments (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                adjustment_date     TEXT    NOT NULL,
+                adjustment_time     TEXT    DEFAULT '',
+                item_id             INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+                stock_batch_id      INTEGER NOT NULL REFERENCES stock_batches(id) ON DELETE CASCADE,
+                batch_no            TEXT    NOT NULL,
+                expiry              TEXT    DEFAULT '',
+                pack_size           TEXT    DEFAULT '',
+                previous_qty        REAL    NOT NULL DEFAULT 0.0,
+                adjusted_qty        REAL    NOT NULL,
+                resulting_qty       REAL    NOT NULL DEFAULT 0.0,
+                mrp                 REAL    DEFAULT 0.0,
+                rate                REAL    DEFAULT 0.0,
+                tax_percent         REAL    DEFAULT 0.0,
+                net_rate            REAL    DEFAULT 0.0,
+                reason              TEXT    DEFAULT '',
+                user_name           TEXT    DEFAULT '',
+                created_at          TEXT    DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_stock_adjustments_item "
+            "ON stock_adjustments(item_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_stock_adjustments_batch "
+            "ON stock_adjustments(stock_batch_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_stock_adjustments_date "
+            "ON stock_adjustments(adjustment_date)"
+        )
+
         conn.commit()
 
         # Runs after the commit above so that no transaction is open: PRAGMA
         # foreign_keys is a silent no-op inside one, and the rebuild has to be
         # able to switch foreign keys off.
         _migrate_items_name_unit_unique(conn)
+
+        # Existing databases were created with bill_no TEXT NOT NULL UNIQUE.
+        # The UNIQUE constraint allows only one empty string, which is
+        # incompatible with multiple unnamed walk-in sales having a genuinely
+        # blank Bill No.  Replace it with a partial unique index that keeps
+        # every non-empty number unique while allowing any number of blanks.
+        _migrate_sales_invoices_blank_bill_no(conn)
     finally:
         conn.close()
 
@@ -711,3 +945,175 @@ def _migrate_items_name_unit_unique(conn: sqlite3.Connection) -> None:
             conn.execute("PRAGMA foreign_keys=ON")
         except sqlite3.Error:  # pragma: no cover - connection already closing
             pass
+
+
+def _snapshot_before_sales_invoice_rebuild(conn: sqlite3.Connection) -> str | None:
+    """Best-effort consistent snapshot before rebuilding sales_invoices."""
+    db_path = get_db_path()
+    try:
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_dir = os.path.join(
+            os.path.dirname(os.path.abspath(db_path)), "backups"
+        )
+        os.makedirs(backup_dir, exist_ok=True)
+        backup_path = os.path.join(
+            backup_dir, f"pharmacy_backup_pre_sales_bill_rebuild_{stamp}.db"
+        )
+        destination = sqlite3.connect(backup_path)
+        try:
+            conn.backup(destination)
+            destination.commit()
+        finally:
+            destination.close()
+        return backup_path
+    except (OSError, sqlite3.Error):
+        return None
+
+
+def _sales_invoices_has_inline_bill_unique(conn: sqlite3.Connection) -> bool:
+    """True when the old column-level ``UNIQUE`` on bill_no is still present.
+
+    A partial unique index created by this module has an SQL definition in
+    sqlite_master; the implicit index created by a column-level UNIQUE does
+    not.  Only the implicit one forces a table rebuild.
+    """
+    try:
+        indexes = conn.execute("PRAGMA index_list(sales_invoices)").fetchall()
+    except sqlite3.Error:
+        return False
+    for index in indexes:
+        try:
+            if not index["unique"]:
+                continue
+            name = index["name"]
+            quoted = str(name).replace('"', '""')
+            columns = [
+                row["name"]
+                for row in conn.execute(f'PRAGMA index_info("{quoted}")')
+            ]
+            if columns != ["bill_no"]:
+                continue
+            definition = conn.execute(
+                "SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?",
+                (name,),
+            ).fetchone()
+            if definition is None or not definition["sql"]:
+                return True
+        except (sqlite3.Error, KeyError, IndexError):
+            continue
+    return False
+
+
+def _migrate_sales_invoices_blank_bill_no(conn: sqlite3.Connection) -> None:
+    """Allow multiple genuinely blank business bill numbers.
+
+    New counter sales created without a patient name must store an empty
+    ``bill_no``.  The original schema used ``bill_no TEXT NOT NULL UNIQUE``,
+    which permits only one empty string; a second unnamed sale would fail or
+    be forced to invent a number.  The table is rebuilt only when that old
+    implicit UNIQUE index is detected.  Every non-empty bill number remains
+    unique through a partial unique index, and the internal ``id`` / foreign
+    keys are copied unchanged.
+    """
+    rebuild = _sales_invoices_has_inline_bill_unique(conn)
+    if rebuild:
+        _snapshot_before_sales_invoice_rebuild(conn)
+
+        target_columns = (
+            "id", "bill_no", "sale_date", "sale_time", "sale_type",
+            "customer_id", "patient_name", "doctor_id", "discount",
+            "paid_amount", "total_amount", "round_off", "net_amount",
+            "remarks",
+        )
+        existing = {
+            row["name"] for row in conn.execute("PRAGMA table_info(sales_invoices)")
+        }
+        shared = [column for column in target_columns if column in existing]
+        if "id" not in shared or "bill_no" not in shared:
+            return
+        column_list = ", ".join(f'"{column}"' for column in shared)
+
+        conn.execute("PRAGMA foreign_keys=OFF")
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            conn.execute(
+                """
+                CREATE TABLE sales_invoices_rebuild (
+                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                    bill_no         TEXT    NOT NULL DEFAULT '',
+                    sale_date       TEXT    NOT NULL,
+                    sale_time       TEXT    DEFAULT '',
+                    sale_type       TEXT    DEFAULT 'Cash',
+                    customer_id     INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+                    patient_name    TEXT    DEFAULT '',
+                    doctor_id       INTEGER REFERENCES doctors(id) ON DELETE SET NULL,
+                    discount        REAL    DEFAULT 0.0,
+                    paid_amount     REAL    DEFAULT 0.0,
+                    total_amount    REAL    DEFAULT 0.0,
+                    round_off       REAL    DEFAULT 0.0,
+                    net_amount      REAL    DEFAULT 0.0,
+                    remarks         TEXT    DEFAULT ''
+                )
+                """
+            )
+            expected = conn.execute(
+                "SELECT COUNT(*) FROM sales_invoices"
+            ).fetchone()[0]
+            conn.execute(
+                f"INSERT INTO sales_invoices_rebuild ({column_list}) "
+                f"SELECT {column_list} FROM sales_invoices"
+            )
+            conn.execute("DROP TABLE sales_invoices")
+            conn.execute(
+                "ALTER TABLE sales_invoices_rebuild RENAME TO sales_invoices"
+            )
+
+            # AUTOINCREMENT's high-water mark lived in the dropped table.
+            # Preserve it so a new sale can never reuse a historical id.
+            high = conn.execute(
+                "SELECT COALESCE(MAX(id), 0) FROM sales_invoices"
+            ).fetchone()[0]
+            conn.execute(
+                "DELETE FROM sqlite_sequence "
+                "WHERE name IN ('sales_invoices', 'sales_invoices_rebuild')"
+            )
+            if high:
+                conn.execute(
+                    "INSERT INTO sqlite_sequence (name, seq) "
+                    "VALUES ('sales_invoices', ?)",
+                    (high,),
+                )
+
+            copied = conn.execute(
+                "SELECT COUNT(*) FROM sales_invoices"
+            ).fetchone()[0]
+            violations = conn.execute("PRAGMA foreign_key_check").fetchall()
+            if copied != expected or violations:
+                conn.execute("ROLLBACK")
+                raise RuntimeError(
+                    "sales_invoices rebuild failed and was rolled back: "
+                    f"{copied} of {expected} rows copied, "
+                    f"{len(violations)} foreign key violations"
+                )
+            conn.execute("COMMIT")
+        except Exception:
+            try:
+                conn.execute("ROLLBACK")
+            except sqlite3.Error:
+                pass
+            raise
+        finally:
+            try:
+                conn.execute("PRAGMA foreign_keys=ON")
+            except sqlite3.Error:  # pragma: no cover - connection already closing
+                pass
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_sales_invoices_patient "
+        "ON sales_invoices(patient_name COLLATE NOCASE)"
+    )
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS ux_sales_invoices_bill_no_nonblank "
+        "ON sales_invoices(bill_no) WHERE bill_no <> ''"
+    )
+    conn.commit()

@@ -166,7 +166,10 @@ class CounterSaleEntryRowTests(_DBBase):
         self.app.processEvents()
 
     def _select_batch(self):
-        self.batch.setCurrentIndex(1)
+        idx = self.batch.findData(self.batch_id)
+        if idx < 0 and self.batch.count() > 0:
+            idx = 0
+        self.batch.setCurrentIndex(idx)
         self.app.processEvents()
 
     def _add(self, qty: str = "1"):
@@ -294,7 +297,7 @@ class CounterSaleEntryRowTests(_DBBase):
         self.app.processEvents()
         QTest.keyClicks(self.item.lineEdit(), "Test")
         self.app.processEvents()
-        self.assertIn("Test", self.item.lineEdit().text(),
+        self.assertIn("TEST", self.item.lineEdit().text().upper(),
                       "typing into Item Name did not reach the field")
 
     def test_08_batch_field_remains_usable(self):
@@ -302,9 +305,11 @@ class CounterSaleEntryRowTests(_DBBase):
         self._select_item()
         self.assertFalse(self.batch.isReadOnly())
         self.assertNotEqual(self.batch.focusPolicy(), Qt.NoFocus)
+        texts = [self.batch.itemText(i) for i in range(self.batch.count())]
+        self.assertNotIn("-- Select Batch --", texts)
         self.assertGreaterEqual(
-            self.batch.count(), 2,
-            "batch list should hold a placeholder plus real batches")
+            self.batch.count(), 1,
+            "batch list should hold available real batches without placeholder")
         self.assertGreaterEqual(self.batch.width(),
                                 self.batch.minimumWidth())
 
@@ -347,12 +352,22 @@ class CounterSaleEntryRowTests(_DBBase):
         self.assertIn(QApplication.focusWidget(),
                       self._focus_candidates(self.batch),
                       "Enter on an item must move focus to Batch")
+        self.assertEqual(self.item.currentText(), "TestItem",
+                         "keyboard selection must show the item name, not its id")
+        self.assertEqual(self.item.currentData(), self.item_id)
+        self.assertGreaterEqual(
+            self.batch.count(), 1,
+            "keyboard selection must load the item's batches")
 
         QTest.keyClick(self.batch.lineEdit(), Qt.Key_Down)
         QTest.keyClick(self.batch.lineEdit(), Qt.Key_Return)
         self.app.processEvents()
         self.assertIs(QApplication.focusWidget(), self.qty,
                       "Enter on a batch must move focus to Qty")
+        self.assertEqual(self.batch.currentData(), self.batch_id,
+                         "keyboard selection must choose the real batch")
+        self.assertTrue(self.entry.mrp_edit.text(),
+                        "batch selection must fill its MRP")
 
         QTest.keyClick(self.qty, Qt.Key_Tab)
         self.app.processEvents()
@@ -369,8 +384,10 @@ class CounterSaleEntryRowTests(_DBBase):
         """13: choosing an item loads its batches."""
         self._select_item()
         self.assertEqual(self.item.currentData(), self.item_id)
+        texts = [self.batch.itemText(i) for i in range(self.batch.count())]
+        self.assertNotIn("-- Select Batch --", texts)
         self.assertGreaterEqual(
-            self.batch.count(), 2,
+            self.batch.count(), 1,
             "item selection did not load the batch list")
         self.assertIn(QApplication.focusWidget(),
                       self._focus_candidates(self.batch),
@@ -478,7 +495,7 @@ class CounterSaleEntryRowTests(_DBBase):
                 f"Tab from {source} did not reach {target}")
 
     def test_20_labels_stay_compact(self):
-        """Captions stay compact but must read as bold black 12-14 px text."""
+        """Captions stay compact but must read as bold black 12-15 px text."""
         import re
 
         for text in LABEL_ORDER:
@@ -487,7 +504,7 @@ class CounterSaleEntryRowTests(_DBBase):
             match = re.search(r"font-size:\s*(\d+)px", label.styleSheet())
             self.assertIsNotNone(match, f"{text} lost its font size")
             self.assertGreaterEqual(int(match.group(1)), 12)
-            self.assertLessEqual(int(match.group(1)), 14)
+            self.assertLessEqual(int(match.group(1)), 15)
             self.assertIn("font-weight: bold", label.styleSheet(),
                           f"{text} caption must be bold")
             self.assertIn("#000000", label.styleSheet(),

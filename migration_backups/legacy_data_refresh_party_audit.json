@@ -1,0 +1,123 @@
+{
+  "suppliers": {
+    "total_audited": 85,
+    "issues_count": 0,
+    "issues": [],
+    "sample_reconciled_balances": [
+      {
+        "supplier_id": 157,
+        "name": "KARWA AGENCIES",
+        "opening_balance": -652.0,
+        "purchases_sum": 87517.0,
+        "payments_sum": 30024.0,
+        "debit_notes_sum": 0,
+        "ledger_debits": 30024.0,
+        "ledger_credits": 87517.0
+      },
+      {
+        "supplier_id": 158,
+        "name": "ANAND PHARMA",
+        "opening_balance": -10403.0,
+        "purchases_sum": 284938.0,
+        "payments_sum": 86574.0,
+        "debit_notes_sum": 0,
+        "ledger_debits": 86574.0,
+        "ledger_credits": 284938.0
+      },
+      {
+        "supplier_id": 159,
+        "name": "BHUMI PHARMA",
+        "opening_balance": -31900.0,
+        "purchases_sum": 524838.0,
+        "payments_sum": 396197.0,
+        "debit_notes_sum": 0,
+        "ledger_debits": 396292.0,
+        "ledger_credits": 524838.0
+      },
+      {
+        "supplier_id": 160,
+        "name": "SANJIVANI AGENCIES",
+        "opening_balance": -21098.0,
+        "purchases_sum": 1373330.0,
+        "payments_sum": 877869.0,
+        "debit_notes_sum": 0,
+        "ledger_debits": 877869.0,
+        "ledger_credits": 1373330.0
+      },
+      {
+        "supplier_id": 161,
+        "name": "SHRI AGENCIES",
+        "opening_balance": -7421.0,
+        "purchases_sum": 156859.0,
+        "payments_sum": 35846.0,
+        "debit_notes_sum": 0,
+        "ledger_debits": 35846.0,
+        "ledger_credits": 156859.0
+      },
+      {
+        "supplier_id": 162,
+        "name": "TRILOK AGENCIES",
+        "opening_balance": -15882.0,
+        "purchases_sum": 33021.0,
+        "payments_sum": 20080.0,
+        "debit_notes_sum": 0,
+        "ledger_debits": 20080.0,
+        "ledger_credits": 33021.0
+      },
+      {
+        "supplier_id": 163,
+        "name": "SHRI BHAGWAN AGENCIES",
+        "opening_balance": -7691.0,
+        "purchases_sum": 311472.0,
+        "payments_sum": 66892.0,
+        "debit_notes_sum": 0,
+        "ledger_debits": 66892.0,
+        "ledger_credits": 311472.0
+      },
+      {
+        "supplier_id": 164,
+        "name": "GUNDECHA AGENCIES",
+        "opening_balance": -10479.0,
+        "purchases_sum": 1029369.0,
+        "payments_sum": 1002531.0,
+        "debit_notes_sum": 0,
+        "ledger_debits": 1002531.0,
+        "ledger_credits": 1029369.0
+      },
+      {
+        "supplier_id": 165,
+        "name": "DHANASHRI AGENCIES",
+        "opening_balance": -1202.0,
+        "purchases_sum": 139832.0,
+        "payments_sum": 83139.0,
+        "debit_notes_sum": 0,
+        "ledger_debits": 83139.0,
+        "ledger_credits": 139832.0
+      },
+      {
+        "supplier_id": 166,
+        "name": "SURYA PHARMA",
+        "opening_balance": -19430.0,
+        "purchases_sum": 149849.0,
+        "payments_sum": 15000.0,
+        "debit_notes_sum": 0,
+        "ledger_debits": 15000.0,
+        "ledger_credits": 149849.0
+      }
+    ]
+  },
+  "customers": {
+    "total_audited": 29,
+    "issues_count": 0,
+    "issues": []
+  },
+  "doctors": {
+    "total_audited": 8,
+    "issues_count": 0,
+    "issues": []
+  },
+  "transaction_references": {
+    "broken_references_count": 0,
+    "issues": []
+  }
+}

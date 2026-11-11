@@ -252,8 +252,7 @@ class TestUIDialogCalculation(unittest.TestCase):
                                msg="Purchase rate = 1567.44 / 20")
         self.assertAlmostEqual(row.net_rate, 65.31, places=2,
                                msg="Net rate = 1567.44 / 24")
-        self.assertAlmostEqual(row.pp, 1567.44, places=2,
-                               msg="PP = amount + gst = 1567.44")
+        self.assertEqual(row.pp, 27.6, msg="PP = profit percentage = 27.6%")
 
         # Verify totals
         self.assertEqual(dlg.total_amount_label.text(), "1492.80")
@@ -309,8 +308,8 @@ class TestUIDialogCalculation(unittest.TestCase):
         self.assertAlmostEqual(row.amount, 900.00, places=2)
         # GST = 900 × 12% = 108
         self.assertAlmostEqual(row.gst_amount, 108.00, places=2)
-        # PP = 900 + 108 = 1008
-        self.assertAlmostEqual(row.pp, 1008.00, places=2)
+        # PP = ((200 - 100.80) / 100.80) * 100 = 98.41%
+        self.assertAlmostEqual(row.pp, 98.41, places=2)
         # Purchase rate = 1008 / 10 = 100.80
         self.assertAlmostEqual(row.purchase_rate, 100.80, places=2)
         # Net rate = 1008 / 12 = 84.00

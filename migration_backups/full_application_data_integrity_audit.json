@@ -1,0 +1,89 @@
+{
+  "total_screens_audited": 46,
+  "screens_verified_ok": 39,
+  "screens_needing_fixes": 7,
+  "total_exceptions_cataloged": 8,
+  "root_causes_identified": [
+    {
+      "id": "RC-1",
+      "name": "Window Title Bar Staging Masking",
+      "component": "ui/main_window.py",
+      "description": "Dynamic menu action overwrites window title with static APP_TITLE, hiding [STAGING / AUDIT MODE] banner.",
+      "screens_affected": "All (40+ screens)"
+    },
+    {
+      "id": "RC-2",
+      "name": "Expiry Date Format Misinterpretation in StockDAO",
+      "component": "database/stock_dao.py",
+      "description": "_is_expired and get_expiring split on '/' expecting MM/YY, failing silently on ISO YYYY-MM-DD stored batches (returns False for all 7,808 batches).",
+      "screens_affected": [
+        "stock_master.py",
+        "stock_reports.py"
+      ]
+    },
+    {
+      "id": "RC-3",
+      "name": "Zero-Stock Exclusion on Sales Returns",
+      "component": "database/stock_dao.py / screens/credit_note.py",
+      "description": "get_stock_batches_for_item filters stock_qty > 0, preventing selection of sold-out batches when accepting customer returns.",
+      "screens_affected": [
+        "credit_note.py"
+      ]
+    },
+    {
+      "id": "RC-4",
+      "name": "Party Balance Discrepancy (Opening Balance Omission)",
+      "component": "database/customer_receipt_dao.py / database/supplier_payment_dao.py",
+      "description": "get_customer_balance and get_supplier_balance omit account_ledgers.opening_balance, while ledger reports include it.",
+      "screens_affected": [
+        "customer_receipt.py",
+        "supplier_payment.py",
+        "party_wise_report.py",
+        "supplier_ledger.py",
+        "customer_ledger.py"
+      ]
+    },
+    {
+      "id": "RC-5",
+      "name": "Non-Numeric Pack Size Rejection in pack_factor",
+      "component": "database/purchase_dao.py",
+      "description": "float() conversion fails on packaging strings like 10'S, 1*10, 10TAB, causing factor to default to 1.0 instead of actual pack unit count.",
+      "screens_affected": [
+        "purchase_invoice.py",
+        "stock_reports.py",
+        "doctor_reports.py",
+        "sales_reports.py"
+      ]
+    },
+    {
+      "id": "RC-6",
+      "name": "Numeric Batch Numbers Perceived as Internal IDs",
+      "component": "screens/counter_sale.py / batch controls",
+      "description": "1,042 of 7,808 batches are genuine manufacturer numbers that are purely numeric (e.g. '133', '1461'). Auto-popups made them appear like IDs.",
+      "screens_affected": [
+        "counter_sale.py",
+        "sales_history.py",
+        "purchase_invoice.py"
+      ]
+    },
+    {
+      "id": "RC-7",
+      "name": "Lexicographical Table Sorting on Formatted Monetary Values",
+      "component": "screens/stock_master.py / multiple tables",
+      "description": "String formatting in QTableWidgetItem causes alphabetical sort ('100.00' < '20.00') rather than numerical sort.",
+      "screens_affected": [
+        "stock_master.py",
+        "sales_history.py"
+      ]
+    },
+    {
+      "id": "RC-8",
+      "name": "Target Primary Key vs Legacy ID Cognitive Divergence",
+      "component": "screens/item_master.py",
+      "description": "Item Master displays target database ID (e.g. 946-1885) rather than source legacy ID (1-944), causing user confusion over item numbering.",
+      "screens_affected": [
+        "item_master.py"
+      ]
+    }
+  ]
+}
