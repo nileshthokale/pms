@@ -273,6 +273,8 @@ class PharmacyMainWindow(QMainWindow):
         if "Sales:New Bill" in self._page_map:
             self._page_map["Sales:Counter Sale"] = self._page_map["Sales:New Bill"]
             self._page_map["Sales:Sales Bill"] = self._page_map["Sales:New Bill"]
+        if "Purchase:New Purchase" in self._page_map:
+            self._page_map["Purchase:Purchase History"] = self._page_map["Purchase:New Purchase"]
         if "Account:Customer Receipt Voucher" in self._page_map:
             self._page_map["Account:Customer Payment Voucher"] = self._page_map["Account:Customer Receipt Voucher"]
             self._page_map["Account:Customer Payment"] = self._page_map["Account:Customer Receipt Voucher"]
@@ -310,9 +312,7 @@ class PharmacyMainWindow(QMainWindow):
             page = screens.AccountGroupMasterPage()
         elif menu_name == "Master" and item_name == "Financial Year":
             page = screens.FinancialYearPage()
-        elif menu_name == "Purchase" and item_name == "New Purchase":
-            page = screens.PurchaseInvoicePage()
-        elif menu_name == "Purchase" and item_name == "Purchase History":
+        elif menu_name == "Purchase" and item_name in ("New Purchase", "Purchase History"):
             page = screens.PurchaseInvoicePage()
         elif menu_name == "Purchase" and item_name in ("Stock Adjustment", "Adjusted Stock"):
             page = screens.AdjustedStockListPage()
@@ -448,9 +448,6 @@ class PharmacyMainWindow(QMainWindow):
             page.sales_history_requested.connect(
                 lambda: self._on_menu_action("Sales", "Patient Bill History")
             )
-            page.pur_invoice_requested.connect(
-                lambda: self._on_menu_action("Purchase", "New Purchase")
-            )
             page.challan_requested.connect(
                 lambda: self._on_menu_action("Reports", "Supplierwise Itemwise Purchase (Challan)")
             )
@@ -564,6 +561,7 @@ class PharmacyMainWindow(QMainWindow):
             self.statusBar().showMessage(gate.message)
             return
         _LEGACY_REDIRECTS = {
+            ("Purchase", "Purchase History"): ("Purchase", "New Purchase"),
             ("Sales", "Return Bill"): ("Purchase", "Credit Note (Return from Customer)"),
             ("Purchase", "Purchase Return"): ("Purchase", "Debit Note (Return to Supplier)"),
             ("Purchase", "Supplier Payment"): ("Account", "Supplier Payment Voucher"),

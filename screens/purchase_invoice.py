@@ -883,6 +883,188 @@ class _InvoiceItemRow:
         return d
 
 
+
+class _ItemPurchaseHistoryDialog(QDialog):
+    """Modal dialog displaying recent purchase history for a selected item, matching Pharma-WINNER."""
+
+    def __init__(self, parent: QWidget | None = None, *, item_id: int, item_name: str):
+        super().__init__(parent)
+        self.setWindowTitle(f"Item Purchase History [ {item_name} ]")
+        self.setMinimumWidth(840)
+        self.setMinimumHeight(400)
+        self.resize(890, 440)
+        self.setModal(True)
+
+        self.selected_batch: dict | None = None
+        self._history_data: list[dict] = []
+
+        self.setStyleSheet(
+            "QDialog { background-color: #f0f2f5; }"
+            "QLabel { color: #111827; font-family: 'Segoe UI'; font-size: 13px; }"
+        )
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(8)
+
+        # Table matching Image 3: Tran.No, Tran.Date, Tran.Type, BatchNo, PayQty, FreeQty, MRP, Rate, DiscAmt, Supplier
+        self.table = QTableWidget()
+        self.table.setColumnCount(10)
+        self.table.setHorizontalHeaderLabels([
+            "Tran.No", "Tran.Date", "Tran.Type", "BatchNo", "PayQty", "FreeQty",
+            "MRP", "Rate", "DiscAmt", "Supplier"
+        ])
+        self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.table.verticalHeader().setVisible(False)
+        self.table.setShowGrid(True)
+        self.table.setAlternatingRowColors(True)
+
+        # Pharma-WINNER styling: yellow/cream alternating rows, dark blue selection
+        self.table.setStyleSheet(
+            "QTableWidget {"
+            "  background-color: #ffffff; color: #000000;"
+            "  gridline-color: #cccccc; border: 1px solid #7eaadb;"
+            "  alternate-background-color: #ffffeb; font-family: 'Segoe UI'; font-size: 12px;"
+            "}"
+            "QTableWidget::item:selected {"
+            "  background-color: #0055aa; color: #ffffff;"
+            "}"
+            "QHeaderView::section {"
+            "  background-color: #e2e8f0; color: #0f172a;"
+            "  font-weight: bold; font-size: 12px; font-family: 'Segoe UI';"
+            "  border: 1px solid #cbd5e1; padding: 4px;"
+            "}"
+        )
+
+        hv = self.table.horizontalHeader()
+        hv.setStretchLastSection(True)
+        self.table.setColumnWidth(0, 75)   # Tran.No
+        self.table.setColumnWidth(1, 95)   # Tran.Date
+        self.table.setColumnWidth(2, 105)  # Tran.Type
+        self.table.setColumnWidth(3, 105)  # BatchNo
+        self.table.setColumnWidth(4, 65)   # PayQty
+        self.table.setColumnWidth(5, 65)   # FreeQty
+        self.table.setColumnWidth(6, 75)   # MRP
+        self.table.setColumnWidth(7, 80)   # Rate
+        self.table.setColumnWidth(8, 70)   # DiscAmt
+        # Column 9 (Supplier) stretches
+
+        layout.addWidget(self.table, 1)
+
+        # Bottom bar with Ok button
+        bottom_bar = QHBoxLayout()
+        bottom_bar.setContentsMargins(0, 0, 0, 0)
+        bottom_bar.addStretch()
+
+        self.ok_btn = QPushButton("Ok")
+        self.ok_btn.setFixedSize(80, 26)
+        self.ok_btn.setStyleSheet(
+            "QPushButton { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ffffff, stop:1 #dbe7f5); border: 1px solid #7eaadb; border-radius: 2px; color: #0a3663; font-size: 12px; font-weight: bold; } QPushButton:hover { background: #cde2f8; } QPushButton:focus { border: 2px solid #0055aa; }"
+        )
+        self.ok_btn.clicked.connect(self._on_ok_clicked)
+        bottom_bar.addWidget(self.ok_btn)
+        layout.addLayout(bottom_bar)
+
+        self.table.itemDoubleClicked.connect(self._on_double_clicked)
+
+        self._load_data(item_id)
+        self.ok_btn.setFocus()
+
+    def _load_data(self, item_id: int):
+        rows = PurchaseDAO.get_item_purchase_history(item_id)
+        self._history_data = rows
+        self.table.setRowCount(len(rows))
+        for row_idx, r in enumerate(rows):
+            # Tran.No
+            raw_vno = str(r.get("voucher_no") or "")
+            vno_disp = _display_voucher_no(raw_vno) if raw_vno else str(r.get("invoice_id") or "")
+            item_vno = QTableWidgetItem(vno_disp)
+            item_vno.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            self.table.setItem(row_idx, 0, item_vno)
+
+            # Tran.Date (DD-MM-YYYY)
+            raw_date = str(r.get("voucher_date") or "").strip()
+            date_disp = ""
+            if raw_date:
+                try:
+                    d_obj = datetime.strptime(raw_date[:10], "%Y-%m-%d")
+                    date_disp = d_obj.strftime("%d-%m-%Y")
+                except Exception:
+                    date_disp = raw_date
+            item_date = QTableWidgetItem(date_disp)
+            item_date.setTextAlignment(Qt.AlignCenter)
+            self.table.setItem(row_idx, 1, item_date)
+
+            # Tran.Type
+            ptype = str(r.get("purchase_type") or "Credit").strip()
+            type_disp = f"{ptype} Invoice" if not ptype.lower().endswith("invoice") else ptype
+            item_type = QTableWidgetItem(type_disp)
+            item_type.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            self.table.setItem(row_idx, 2, item_type)
+
+            # BatchNo
+            item_batch = QTableWidgetItem(str(r.get("batch_no") or ""))
+            item_batch.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            self.table.setItem(row_idx, 3, item_batch)
+
+            # PayQty
+            pay_q = float(r.get("pay_qty") or 0.0)
+            pay_disp = f"{int(pay_q)}" if pay_q == int(pay_q) else f"{pay_q:.2f}"
+            item_pay = QTableWidgetItem(pay_disp)
+            item_pay.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            self.table.setItem(row_idx, 4, item_pay)
+
+            # FreeQty
+            free_q = float(r.get("free_qty") or 0.0)
+            free_disp = f"{int(free_q)}" if free_q == int(free_q) else f"{free_q:.2f}"
+            item_free = QTableWidgetItem(free_disp)
+            item_free.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            self.table.setItem(row_idx, 5, item_free)
+
+            # MRP
+            mrp_v = float(r.get("mrp") or 0.0)
+            item_mrp = QTableWidgetItem(f"{mrp_v:.2f}")
+            item_mrp.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            self.table.setItem(row_idx, 6, item_mrp)
+
+            # Rate
+            rate_v = float(r.get("rate") or 0.0)
+            item_rate = QTableWidgetItem(f"{rate_v:.2f}")
+            item_rate.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            self.table.setItem(row_idx, 7, item_rate)
+
+            # DiscAmt
+            disc_v = float(r.get("discount") or 0.0)
+            item_disc = QTableWidgetItem(f"{disc_v:.2f}")
+            item_disc.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            self.table.setItem(row_idx, 8, item_disc)
+
+            # Supplier
+            sup_name = str(r.get("supplier_name") or "")
+            item_sup = QTableWidgetItem(sup_name)
+            item_sup.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            self.table.setItem(row_idx, 9, item_sup)
+
+        if len(rows) > 0:
+            self.table.selectRow(0)
+
+    def _on_ok_clicked(self):
+        curr_row = self.table.currentRow()
+        if 0 <= curr_row < len(getattr(self, "_history_data", [])):
+            self.selected_batch = self._history_data[curr_row]
+        self.accept()
+
+    def _on_double_clicked(self, item):
+        self._on_ok_clicked()
+
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Escape):
+            self._on_ok_clicked()
+            return
+        super().keyPressEvent(event)
+
 class _ItemEntryBar(QWidget):
     """Entry bar for adding a single item to the invoice on a single horizontal row."""
 
@@ -962,6 +1144,24 @@ class _ItemEntryBar(QWidget):
         self.gst_edit.setFixedHeight(30)
         self.gst_edit.setToolTip("GST (%)")
 
+        self.btn_item_edit = QPushButton("Edit")
+        self.btn_item_edit.setFixedSize(36, 26)
+        self.btn_item_edit.setStyleSheet(
+            "QPushButton { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ffffff, stop:1 #dbe7f5); border: 1px solid #7eaadb; border-radius: 2px; color: #0a3663; font-size: 11px; font-weight: bold; padding: 1px 4px; } QPushButton:hover { background: #cde2f8; }"
+        )
+        self.btn_item_edit.setToolTip("Edit selected item master")
+        self.btn_item_edit.setFocusPolicy(Qt.NoFocus)
+        self.btn_item_edit.clicked.connect(self._on_edit_item)
+
+        self.btn_item_hist = QPushButton("Hist")
+        self.btn_item_hist.setFixedSize(36, 26)
+        self.btn_item_hist.setStyleSheet(
+            "QPushButton { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ffffff, stop:1 #dbe7f5); border: 1px solid #7eaadb; border-radius: 2px; color: #0a3663; font-size: 11px; font-weight: bold; padding: 1px 4px; } QPushButton:hover { background: #cde2f8; }"
+        )
+        self.btn_item_hist.setToolTip("View item purchase history")
+        self.btn_item_hist.setFocusPolicy(Qt.NoFocus)
+        self.btn_item_hist.clicked.connect(self._on_item_hist)
+
         self.add_btn = QPushButton("+ Add Item")
         self.add_btn.setStyleSheet(_btn_add_item_style())
         self.add_btn.setFixedSize(86, 30)
@@ -972,8 +1172,8 @@ class _ItemEntryBar(QWidget):
         self.row_layout = main_layout
         self.row1_layout = main_layout  # alias for backward compatibility
 
-        item_field = self._field("Item", self.item_combo, stretch=3)
-        main_layout.addWidget(item_field, 3)
+        item_field = self._item_field()
+        main_layout.addWidget(item_field, 5)
         main_layout.addWidget(self._field("Pack", self.pack_edit, stretch=1), 1)
         main_layout.addWidget(self._field("Qty", self.pay_qty_edit, stretch=1), 1)
         main_layout.addWidget(self._field("Free", self.free_qty_edit, stretch=1), 1)
@@ -1143,6 +1343,78 @@ class _ItemEntryBar(QWidget):
             self._selected_batch_data = None
             self.expiry_edit.clear()
             self.set_batch_fields_readonly(False)
+
+    def _item_field(self) -> QWidget:
+        container = QWidget()
+        container.setMinimumWidth(325)
+        h = QHBoxLayout(container)
+        h.setContentsMargins(0, 0, 0, 0)
+        h.setSpacing(2)
+        lbl = QLabel("Item")
+        lbl.setFont(QFont("Segoe UI", 9, QFont.Bold))
+        lbl.setStyleSheet(f"color: {_TEXT}; font-size: 11px; font-weight: bold; font-family: 'Segoe UI'; margin: 0; padding: 0; background: transparent;")
+        self._entry_labels.append(lbl)
+        h.addWidget(lbl)
+        h.addWidget(self.item_combo, 1)
+        h.addWidget(self.btn_item_edit)
+        h.addWidget(self.btn_item_hist)
+        return container
+
+    def _on_edit_item(self):
+        iid = self.item_combo.currentData()
+        if not iid:
+            QMessageBox.information(self, "Edit Item", "Please select an item first.")
+            return
+        try:
+            full_item = ItemDAO.get_by_id(iid)
+            if not full_item:
+                QMessageBox.warning(self, "Edit Item", "Could not load item data.")
+                return
+            from screens.item_master import _ItemDialog
+            parent_window = self.window() if self.window() is not None else self
+            dlg = _ItemDialog(parent_window, item=full_item)
+            if dlg.exec():
+                self._load_items()
+                idx = self.item_combo.findData(iid)
+                if idx >= 0:
+                    self.item_combo.setCurrentIndex(idx)
+                    inv_dialog = self.window()
+                    if hasattr(inv_dialog, "_on_item_changed"):
+                        inv_dialog._on_item_changed(idx)
+        except Exception as exc:
+            QMessageBox.warning(self, "Edit Item", f"Could not edit item: {exc}")
+
+    def _on_item_hist(self):
+        iid = self.item_combo.currentData()
+        if not iid:
+            QMessageBox.information(self, "Item History", "Please select an item first.")
+            return
+        item_text = self.item_combo.currentText().strip()
+        parent_window = self.window() if self.window() is not None else self
+        dlg = _ItemPurchaseHistoryDialog(parent_window, item_id=iid, item_name=item_text)
+        dlg.exec()
+        if dlg.selected_batch:
+            b = dlg.selected_batch
+            bno = (b.get("batch_no") or "").strip()
+            if bno:
+                self.batch_edit.setText(bno)
+            exp = (b.get("expiry") or "").strip()
+            if exp:
+                try:
+                    if len(exp) >= 10 and "-" in exp:
+                        d = datetime.strptime(exp[:10], "%Y-%m-%d")
+                        exp_fmt = d.strftime("%d-%m-%Y")
+                    else:
+                        exp_fmt = exp
+                    self.expiry_edit.setText(exp_fmt)
+                except Exception:
+                    self.expiry_edit.setText(exp)
+            rate_val = float(b.get("rate") or 0.0)
+            if rate_val > 0:
+                self.rate_edit.setText(f"{rate_val:.2f}")
+            mrp_val = float(b.get("mrp") or 0.0)
+            if mrp_val > 0:
+                self.mrp_edit.setText(f"{mrp_val:.2f}")
 
     def _field(self, label_text: str, widget: QWidget, label_width: int | None = None, stretch: int = 0) -> QWidget:
         container = QWidget()
@@ -1330,6 +1602,8 @@ class _InvoiceDialog(QDialog):
         # Item entry bar
         self._entry_bar = _ItemEntryBar(self)
         self._entry_bar.get_invoice_date_fn = self.get_invoice_date
+        self.btn_item_edit = self._entry_bar.btn_item_edit
+        self.btn_item_hist = self._entry_bar.btn_item_hist
         top_layout.addWidget(self._entry_bar)
 
         root.addWidget(top)

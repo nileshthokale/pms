@@ -10,14 +10,9 @@ from typing import Any, Dict, List
 
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
 TEST_DB_PATH = os.path.join(tempfile.gettempdir(), "_test_doc_comp_filter.db")
-if os.path.exists(TEST_DB_PATH):
-    try:
-        os.remove(TEST_DB_PATH)
-    except OSError:
-        pass
-os.environ["PHARMACY_DB"] = TEST_DB_PATH
 
-from PySide6.QtCore import QDate, Qt
+from PySide6.QtCore import QDate, QEvent, QPointF, Qt
+from PySide6.QtGui import QKeyEvent, QMouseEvent
 from PySide6.QtWidgets import QApplication
 
 _app = QApplication.instance() or QApplication(sys.argv)
@@ -31,12 +26,21 @@ from database.unit_dao import UnitDAO
 from database.customer_dao import CustomerDAO
 from database.sales_dao import SalesDAO
 from database.doctor_reports_dao import DoctorReportsDAO
+from ui.components import ReportFilterSearchCombo
 from screens.doctor_reports import DoctorwiseItemSaleDetailsPage, BlockKind
 
 
 class TestDoctorReportCompanyFilter(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        cls._orig_db = os.environ.get("PHARMACY_DB")
+        cls.db_path = TEST_DB_PATH
+        if os.path.exists(cls.db_path):
+            try:
+                os.remove(cls.db_path)
+            except OSError:
+                pass
+        os.environ["PHARMACY_DB"] = cls.db_path
         init_database()
         auth.ensure_auth_schema()
         financial_year.ensure_financial_year_schema()
@@ -232,7 +236,11 @@ class TestDoctorReportCompanyFilter(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        if os.path.exists(cls.db_path):
+        if hasattr(cls, "_orig_db") and cls._orig_db is not None:
+            os.environ["PHARMACY_DB"] = cls._orig_db
+        else:
+            os.environ.pop("PHARMACY_DB", None)
+        if hasattr(cls, "db_path") and os.path.exists(cls.db_path):
             try:
                 os.remove(cls.db_path)
             except OSError:
@@ -526,6 +534,95 @@ class TestDoctorReportCompanyFilter(unittest.TestCase):
             self.assertEqual(cur.fetchone()[0], 3)
         finally:
             conn.close()
+
+    def test_13_company_search_click_to_clear_and_search(self):
+        """Clicking on company_combo text field clears text, typing searches with 3-tier ranking."""
+        page = DoctorwiseItemSaleDetailsPage()
+        combo = page.company_combo
+        self.assertIsInstance(combo, ReportFilterSearchCombo)
+
+        # 1. Initial state
+        self.assertEqual(combo.currentText(), "All Companies")
+        self.assertIsNone(page.get_selected_company_id())
+
+        # 2. Click on company text field -> text is cleared
+        line = combo.lineEdit()
+        click_evt = QMouseEvent(
+            QEvent.MouseButtonPress,
+            QPointF(10, 10),
+            Qt.LeftButton,
+            Qt.LeftButton,
+            Qt.NoModifier,
+        )
+        combo.eventFilter(line, click_evt)
+        self.assertEqual(line.text(), "", "Click must clear 'All Companies' text")
+
+        # 3. Type 'c' -> completer popup opens with CIPLA LTD
+        line.setText("c")
+        combo._on_text_edited("c")
+        popup = combo._completer.popup()
+        self.assertTrue(popup.isVisible(), "Completer popup must open on typing")
+        count_c = combo._completer_model.rowCount()
+        self.assertGreater(count_c, 0)
+        first_item = combo._completer_model.item(0).text()
+        self.assertTrue(first_item.upper().startswith("C"), f"Prefix match should rank first, got {first_item}")
+
+        # 4. Key down and Enter to select CIPLA LTD
+        down_evt = QKeyEvent(QEvent.KeyPress, Qt.Key_Down, Qt.NoModifier)
+        combo.eventFilter(line, down_evt)
+        enter_evt = QKeyEvent(QEvent.KeyPress, Qt.Key_Return, Qt.NoModifier)
+        combo.eventFilter(line, enter_evt)
+
+        self.assertEqual(combo.currentText(), "CIPLA LTD")
+        self.assertEqual(page.get_selected_company_id(), self.comp_cipla_id)
+        # Tree should be filtered to Cipla items (ASTHALIN and CIPLOX)
+        self.assertEqual(page.item_tree.topLevelItemCount(), 3)
+
+        # 5. Click on company text field again -> cleared
+        combo.eventFilter(line, click_evt)
+        self.assertEqual(line.text(), "", "Click must clear selected company name")
+
+        # 6. Focus out without typing -> restores 'All Companies'
+        focus_out = QEvent(QEvent.FocusOut)
+        combo.eventFilter(line, focus_out)
+        self.assertEqual(combo.currentText(), "All Companies")
+        self.assertIsNone(page.get_selected_company_id())
+        self.assertEqual(page.item_tree.topLevelItemCount(), 6)
+
+    def test_14_doctor_search_click_to_clear_and_search(self):
+        """Clicking on doctor_combo text field clears text, typing searches with 3-tier ranking."""
+        page = DoctorwiseItemSaleDetailsPage()
+        combo = page.doctor_combo
+        self.assertIsInstance(combo, ReportFilterSearchCombo)
+
+        # 1. Initial state
+        self.assertEqual(combo.currentText(), "-- Select Doctor --")
+        self.assertIsNone(page.get_selected_doctor_id())
+
+        # 2. Click on doctor text field -> cleared
+        line = combo.lineEdit()
+        click_evt = QMouseEvent(
+            QEvent.MouseButtonPress,
+            QPointF(10, 10),
+            Qt.LeftButton,
+            Qt.LeftButton,
+            Qt.NoModifier,
+        )
+        combo.eventFilter(line, click_evt)
+        self.assertEqual(line.text(), "", "Click must clear '-- Select Doctor --' text")
+
+        # 3. Type 'sharma'
+        line.setText("sharma")
+        combo._on_text_edited("sharma")
+        popup = combo._completer.popup()
+        self.assertTrue(popup.isVisible())
+        self.assertEqual(combo._completer_model.rowCount(), 1)
+        self.assertIn("Sharma", combo._completer_model.item(0).text())
+
+        # 4. Select Dr. Sharma
+        enter_evt = QKeyEvent(QEvent.KeyPress, Qt.Key_Return, Qt.NoModifier)
+        combo.eventFilter(line, enter_evt)
+        self.assertEqual(page.get_selected_doctor_id(), self.doc1_id)
 
 
 if __name__ == "__main__":

@@ -34,6 +34,7 @@ class TestPurchaseDebitCreditMenu(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
+        os.environ.pop("PHARMACY_DB", None)
         try:
             if os.path.exists(cls.tmp_db.name):
                 os.remove(cls.tmp_db.name)
@@ -50,9 +51,9 @@ class TestPurchaseDebitCreditMenu(unittest.TestCase):
         self.assertNotIn("Debit Note (Return to Supplier)", account_items)
         self.assertNotIn("Credit Note (Return from Customer)", account_items)
 
-        # Existing items in Purchase are preserved
+        # Existing items in Purchase are preserved; Purchase History removed
         self.assertIn("New Purchase", purchase_items)
-        self.assertIn("Purchase History", purchase_items)
+        self.assertNotIn("Purchase History", purchase_items)
         self.assertIn("Stock Adjustment", purchase_items)
 
         # Existing items in Account are preserved
@@ -123,9 +124,6 @@ class TestPurchaseDebitCreditMenu(unittest.TestCase):
         dn_idx = win._page_map["Purchase:Debit Note (Return to Supplier)"]
         cn_idx = win._page_map["Purchase:Credit Note (Return from Customer)"]
 
-        self.assertIsInstance(win._stack.widget(dn_idx), screens.DebitNotePage)
-        self.assertIsInstance(win._stack.widget(cn_idx), screens.CreditNotePage)
-
         # Test switching to Debit Note via Purchase menu
         win._on_menu_action("Purchase", "Debit Note (Return to Supplier)")
         self.assertEqual(win._stack.currentIndex(), dn_idx)
@@ -146,6 +144,13 @@ class TestPurchaseDebitCreditMenu(unittest.TestCase):
         win._on_menu_action("Account", "Credit Note (Return from Customer)")
         self.assertEqual(win._stack.currentIndex(), cn_idx)
         self.assertEqual(win._nav.status_label.text(), "Purchase / Credit Note (Return from Customer)")
+
+        # Test legacy / backward compatibility redirection from Purchase History
+        win._on_menu_action("Purchase", "Purchase History")
+        np_idx = win._page_map["Purchase:New Purchase"]
+        self.assertEqual(win._stack.currentIndex(), np_idx)
+        self.assertIsInstance(win._stack.currentWidget(), screens.PurchaseInvoicePage)
+        self.assertEqual(win._nav.status_label.text(), "Purchase / New Purchase")
 
         win.close()
 
