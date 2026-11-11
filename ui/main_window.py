@@ -53,6 +53,10 @@ class MainWindowShortcutFilter(QObject):
         self.main_win = main_win
 
     def eventFilter(self, watched, event):
+        from licensing.gate import current_gate
+        gate = current_gate()
+        if gate is not None and not gate.allowed:
+            return False  # Keep lock-screen input available without pharmacy hotkeys.
         if event.type() == QEvent.KeyPress:
             mods = event.modifiers()
             key = event.key()
@@ -554,6 +558,11 @@ class PharmacyMainWindow(QMainWindow):
         return index is not None and self._page_instances.get(index) is self._stack.currentWidget()
 
     def _on_menu_action(self, menu: str, action: str):
+        from licensing.gate import current_gate
+        gate = current_gate()
+        if gate is not None and not gate.allowed:
+            self.statusBar().showMessage(gate.message)
+            return
         _LEGACY_REDIRECTS = {
             ("Sales", "Return Bill"): ("Purchase", "Credit Note (Return from Customer)"),
             ("Purchase", "Purchase Return"): ("Purchase", "Debit Note (Return to Supplier)"),

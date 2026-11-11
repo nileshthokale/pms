@@ -104,6 +104,7 @@ def main():
 
     # Set environment variables for connection.py
     os.environ["PHARMACY_DB"] = str(STAGING_DB)
+    os.environ["PHARMACY_MODE"] = "STAGING"
     os.environ["PHARMACY_TEST_PROTECTED_DB"] = str(ACTIVE_DB)
     os.environ["PHARMACY_TEST_SAFE_DB"] = str(STAGING_DB)
     os.environ["PHARMACY_STAGING_MODE"] = "1"

@@ -1,0 +1,57 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: licensing
+      POSTGRES_USER: licensing
+      POSTGRES_PASSWORD: ${LICENSE_POSTGRES_PASSWORD:?Set a strong database password}
+    volumes:
+      - licensing_pg:/var/lib/postgresql/data
+    networks: [licensing]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U licensing -d licensing"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+  api:
+    build:
+      context: ..
+      dockerfile: license_server/Dockerfile
+    environment:
+      LICENSE_DATABASE_URL: ${LICENSE_DATABASE_URL:?Set postgresql+psycopg URL with URL-encoded credentials}
+      LICENSE_SIGNING_KEY_FILE: /run/secrets/license_signing_key
+      LICENSE_SECRET_PEPPER: ${LICENSE_SECRET_PEPPER:?Set random secret pepper}
+      LICENSE_KEY_ID: primary
+      LICENSE_ONLINE_THRESHOLD_SECONDS: 900
+    secrets: [license_signing_key]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [licensing]
+    restart: unless-stopped
+  proxy:
+    image: caddy:2
+    environment:
+      LICENSE_DOMAIN: ${LICENSE_DOMAIN:?Set public licensing domain}
+    ports: ["443:443", "80:80"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      licensing:
+        ipv4_address: 172.30.0.10
+    depends_on: [api]
+    restart: unless-stopped
+secrets:
+  license_signing_key:
+    file: ${LICENSE_PRIVATE_KEY_FILE:?Set private key path outside repository}
+volumes:
+  licensing_pg:
+  caddy_data:
+  caddy_config:
+networks:
+  licensing:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24

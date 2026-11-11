@@ -1,0 +1,22 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "fastapi",
+  "installCommand": "python -m pip install -r license_server/requirements.txt",
+  "buildCommand": "python -m super_admin.backend.build_frontend",
+  "functions": {
+    "super_admin/backend/app.py": {
+      "maxDuration": 30,
+      "excludeFiles": "{{data,database,backups,migration_backups,staging,screens,ui,core,reports,docs,temp,scratch,tools,scripts,tests,build,dist,.agents,.kilo,.venv,public}/**,super_admin/tests/**,**/*.{db,sqlite3,pem,key},**/*.db-*,**/.env*}"
+    }
+  },
+  "headers": [
+    {
+      "source": "/admin/assets/(.*)",
+      "headers": [
+        {"key": "Cache-Control", "value": "public, max-age=0, must-revalidate"},
+        {"key": "X-Content-Type-Options", "value": "nosniff"},
+        {"key": "Strict-Transport-Security", "value": "max-age=31536000; includeSubDomains"}
+      ]
+    }
+  ]
+}

@@ -32,3 +32,15 @@ test_release_validation/
 migration_backups/*.csv
 migration_backups/*.jsonl
 migration_backups/*changes.json
+
+# Licensing secrets and device state must never be committed.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+license-state.bin
+.vercel/
+public/
+node_modules/
+.pytest_cache/
