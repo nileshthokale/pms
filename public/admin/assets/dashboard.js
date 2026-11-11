@@ -1,0 +1,658 @@
+// Licensing presentation and API orchestration. The optional 3D renderer lives in network.js.
+const el = id => document.getElementById(id);
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+const pageSize = 20, networkLimit = 24;
+let csrf = '', offset = 0, licenseOffset = 0, pending = null, historyDevice = '', historyOffset = 0;
+let refreshVersion = 0, lastSync = null, scene, sceneLoading = false, sceneVisible = false;
+let networkDevices = [], selectedDevice = '', motionPaused = reducedMotion.matches, detailVersion = 0, usingFallback = false;
+const counters = new Map();
+
+const stamp = value => value ? new Date(value).toLocaleString(undefined, {dateStyle:'medium', timeStyle:'short'}) : 'Not recorded';
+const stampExact = value => value ? new Date(value).toLocaleString(undefined, {dateStyle:'medium', timeStyle:'medium'}) : 'Not recorded';
+function timeAgo(date, ref = new Date()) {
+  if (!date) return '';
+  const sec = Math.floor((new Date(ref).getTime() - new Date(date).getTime()) / 1000);
+  if (sec < 0) return 'just now';
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  return `${Math.floor(hr / 24)}d ago`;
+}
+
+let heartbeatThreshold = 900, recentThreshold = 86400, lastServerTime = null;
+
+function getDeviceActivity(d, refTime = lastServerTime || new Date(), hbSec = heartbeatThreshold, rcSec = recentThreshold) {
+  if (d.activity_status === 'online' || d.activity === 'online') {
+    return { status: 'Online*', dot: 'green', detail: 'Recent heartbeat' };
+  }
+  if (d.activity_status === 'recently_online' || d.activity === 'recently_online') {
+    return { status: 'Recently online', dot: 'amber', detail: `Heartbeat ${timeAgo(d.last_seen, refTime)}` };
+  }
+  if (d.activity_status === 'offline' || d.activity === 'offline') {
+    return { status: 'Offline', dot: 'muted', detail: 'Outside heartbeat threshold' };
+  }
+  if (!d.last_seen) return { status: 'Offline', dot: 'muted', detail: 'Never recorded' };
+  const lastMs = new Date(d.last_seen).getTime();
+  const refMs = new Date(refTime).getTime();
+  const diffSec = Math.max(0, (refMs - lastMs) / 1000);
+  if (d.online || diffSec <= hbSec) {
+    return { status: 'Online*', dot: 'green', detail: 'Recent heartbeat' };
+  }
+  if (diffSec <= rcSec) {
+    return { status: 'Recently online', dot: 'amber', detail: `Heartbeat ${timeAgo(d.last_seen, refTime)}` };
+  }
+  return { status: 'Offline', dot: 'muted', detail: 'Outside heartbeat threshold' };
+}
+
+const friendly = value => value.toLowerCase().replaceAll('_', ' ').replace(/^\w/, c => c.toUpperCase());
+function node(tag, text, cls) {
+  const item = document.createElement(tag);
+  if (text != null) item.textContent = text;
+  if (cls) item.className = cls;
+  return item;
+}
+function icon(name) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.classList.add('icon'); svg.setAttribute('aria-hidden', 'true');
+  const use = document.createElementNS(svg.namespaceURI, 'use'); use.setAttribute('href', '#i-' + name); svg.append(use); return svg;
+}
+function button(text, onClick, cls = 'secondary') {
+  const b = node('button', text, cls); b.type = 'button'; b.onclick = onClick; return b;
+}
+function badge(status) {return node('span', friendly(status), 'badge ' + status);}
+function deviceColor(d) {
+  if (d.effective_status === 'REVOKED') return 'red';
+  if (d.detection === 'NEW') return 'amber';
+  return getDeviceActivity(d).dot;
+}
+
+async function api(path, body, signal) {
+  const timeout = AbortSignal.timeout(15000);
+  let response;
+  try {
+    response = await fetch('/admin' + path, {
+      method: body === undefined ? 'GET' : 'POST',
+      credentials: 'same-origin',
+      headers: body === undefined ? {} : {'Content-Type':'application/json','X-CSRF-Token':csrf},
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: signal ? AbortSignal.any([signal, timeout]) : timeout
+    });
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    throw new Error(body === undefined ? 'The licensing API could not be reached. Displayed records may be outdated. Refresh to retry.' : 'The request could not be confirmed. Refresh to check the recorded status before retrying.');
+  }
+  if (response.status === 401) {location.assign('/admin/sign-in'); throw new Error('Please sign in.');}
+  let data;
+  try {data = await response.json();} catch {throw new Error('The API returned an unreadable response. Refresh to check the status.');}
+  if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'The action could not be completed.');
+  return data;
+}
+
+function connection(state, label) {el('connection').className = 'connection ' + state; el('connection-label').textContent = label;}
+function emptyRow(target, columns, text) {const row = node('tr'), cell = node('td', text, 'empty'); cell.colSpan = columns; row.append(cell); target.replaceChildren(row);}
+function pager(prefix, current, length, total) {
+  el(prefix + 'page').textContent = total ? `${current + 1}–${current + length} of ${total}` : 'No records';
+  el(prefix + 'previous').disabled = current === 0;
+  el(prefix + 'next').disabled = current + length >= total;
+}
+
+const stats = [
+  ['total','Registered devices','Installation inventory','device','',null],
+  ['online','Online devices','Within heartbeat threshold','signal','green-card','total'],
+  ['offline','Offline devices','Outside heartbeat threshold','clock','gray-card','total'],
+  ['new_alerts','New installation alerts','Awaiting acknowledgement','alert','amber-card','total'],
+  ['active_licenses','Active licenses','Current software access','shield','green-card',null],
+  ['revoked_licenses','Revoked licenses','License access disabled','shield','red-card',null],
+  ['revoked','Revoked devices','Device access disabled','device','red-card','total']
+];
+
+for (const [key,label,sub,glyph,cls] of stats) {
+  const card = node('article', null, 'card loading ' + cls), top = node('div', null, 'card-top');
+  const object = node('span', null, 'stat-icon'); object.append(icon(glyph));
+  const graphic = node('span', null, 'stat-mini'); graphic.setAttribute('aria-hidden','true');
+  for (let i=0;i<4;i++) graphic.append(node('i'));
+  top.append(object, graphic); const value = node('div', '—', 'stat-value');
+  card.append(top, value, node('span',label,'stat-label'), node('span',sub,'stat-sub'));
+  el('summary').append(card); counters.set(key,{card,value,graphic,number:null,frame:0});
+  card.addEventListener('pointermove', event => {
+    if (reducedMotion.matches || event.pointerType !== 'mouse') return;
+    const rect = card.getBoundingClientRect(), x = (event.clientX-rect.left)/rect.width, y = (event.clientY-rect.top)/rect.height;
+    card.style.setProperty('--tilt-x', `${(0.5-y)*2}deg`); card.style.setProperty('--tilt-y', `${(x-.5)*3}deg`);
+  });
+  card.addEventListener('pointerleave', () => {card.style.setProperty('--tilt-x','0deg');card.style.setProperty('--tilt-y','0deg');});
+}
+
+function renderSummary(data) {
+  for (const [key,label,,, ,denominator] of stats) {
+    const c = counters.get(key), next = data[key], previous = c.number;
+    cancelAnimationFrame(c.frame); c.card.classList.remove('loading'); c.card.setAttribute('aria-label',`${label}: ${next}`);
+    c.number = next;
+    const base = denominator ? data[denominator] : key.includes('licenses') ? data.active_licenses + data.revoked_licenses : data.total;
+    const ratio = base ? Math.min(1,next/base) : 0;
+    c.graphic.title = `${next} of ${base} in the displayed status counts`;
+    [...c.graphic.children].forEach((bar,i) => {bar.style.height = `${Math.max(2,22*Math.min(1,Math.max(0,ratio*4-i)))}px`;});
+    if (previous == null || previous === next || reducedMotion.matches) {c.value.textContent = next.toLocaleString();continue;}
+    const start = performance.now();
+    const tick = time => {const t = Math.min(1,(time-start)/600);c.value.textContent = Math.round(previous+(next-previous)*(1-(1-t)**3)).toLocaleString();if(t<1)c.frame=requestAnimationFrame(tick);};
+    c.frame = requestAnimationFrame(tick);
+  }
+  el('summary').setAttribute('aria-busy','false'); el('nav-devices').textContent = data.total; el('nav-alerts').textContent = data.new_alerts;
+}
+
+function renderDevices(data) {
+  const target = el('devices'); target.replaceChildren();
+  const refTime = data.server_time ? new Date(data.server_time) : (lastServerTime ? new Date(lastServerTime) : new Date());
+  const hbSec = data.heartbeat_threshold_seconds || heartbeatThreshold;
+  const rcSec = recentThreshold;
+
+  for (const d of data.devices) {
+    const row = node('tr'); row.dataset.deviceId = d.device_id;
+    function cell(value, detail, cls) {const td = node('td',value,cls);if(detail)td.append(node('small',detail));row.append(td);return td;}
+    const identity = cell(null); identity.append(button(d.device_id, () => showDevice(d.device_id), 'text-button mono'),node('small','App ' + (d.app_version || 'Unknown')));
+    cell(d.customer || 'Unassociated',d.license_id || 'No license'); cell(null).append(badge(d.detection)); cell(null).append(badge(d.effective_status));
+
+    const act = getDeviceActivity(d, refTime, hbSec, rcSec);
+    const activity = node('span',null,'activity-state'); activity.append(node('i',null,'dot ' + act.dot),node('span',act.status));
+    cell(null,act.detail).append(activity);
+
+    cell(stamp(d.first_seen),'Activated: ' + stamp(d.first_activation));
+    cell(stampExact(d.last_seen), d.last_seen ? timeAgo(d.last_seen, refTime) : null);
+    cell(null,null,'actions').append(button('History', () => showHistory(d.device_id)),button(d.status === 'REVOKED' ? 'Reactivate' : 'Revoke',() => confirmAction('devices',d.device_id,d.status === 'REVOKED'),d.status === 'REVOKED' ? 'secondary' : 'danger'));
+    target.append(row);
+  }
+  if (!data.devices.length) emptyRow(target,8,'No devices match your search or filters.');
+  pager('',offset,data.devices.length,data.total); el('device-total').textContent = `${data.total.toLocaleString()} matching devices`;
+}
+
+function renderLicenses(data) {
+  const target = el('licenses'); target.replaceChildren();
+  for (const l of data.licenses) {
+    const row = node('tr'), customer = node('td');customer.append(button(l.customer,() => showLicense(l),'text-button'),node('small',l.license_id));row.append(customer);
+    const status = node('td');status.append(badge(l.status));row.append(status,node('td',stamp(l.expires_at)));
+    const usage = node('td',null,'capacity'), label = node('div',null,'capacity-label'); label.append(node('span',`${l.authorized_devices} / ${l.max_devices}`),node('span','authorized'));
+    const track = node('div',null,'capacity-track'), fill = node('div',null,'capacity-fill');fill.style.width = `${Math.min(100,l.authorized_devices/l.max_devices*100)}%`;track.append(fill);usage.append(label,track);row.append(usage);
+    const actions = node('td',null,'actions');actions.append(button('Details',() => showLicense(l)),button(l.status === 'REVOKED' ? 'Reactivate' : 'Revoke',() => confirmAction('licenses',l.license_id,l.status === 'REVOKED'),l.status === 'REVOKED' ? 'secondary' : 'danger'));row.append(actions);target.append(row);
+  }
+  if (!data.licenses.length) emptyRow(target,5,'No licenses match your search or filters.');
+  pager('licenses-',licenseOffset,data.licenses.length,data.total);el('license-total').textContent = `${data.total.toLocaleString()} matching licenses`;
+}
+
+function renderAlerts(alerts, total) {
+  const target = el('alerts'); target.replaceChildren(); el('alert-count').textContent = total;
+  if (!alerts.length) {const object = node('div',null,'empty-icon');object.append(icon('check'));const empty = node('p',null,'empty');empty.append(node('strong','All installations reviewed'),node('span','No unacknowledged installation alerts.'));target.append(object,empty);}
+  for (const a of alerts) {
+    const card = node('article',null,'alert'), top = node('div',null,'alert-top');top.append(button(a.customer || 'Unassociated installation',()=>showDevice(a.device_id),'text-button alert-title'),badge('NEW'));
+    const meta = node('div',null,'alert-meta');meta.append(node('div','License: ' + (a.license_id || 'Not associated'),'mono'),node('div','App version ' + (a.app_version || 'Unknown')),node('small','First seen ' + stamp(a.first_seen)));
+    const bottom = node('div',null,'alert-bottom'), ack = button('Acknowledge',async () => {
+      ack.disabled = true;
+      try {await api(`/alerts/${encodeURIComponent(a.id)}/acknowledge`,{});el('result').textContent='Installation alert acknowledged.';await refresh();}
+      catch(error){el('error').textContent=error.message;}finally{ack.disabled=false;}
+    });
+    bottom.append(node('span','Awaiting review'),ack);card.append(top,node('p',a.device_id,'mono'),meta,bottom);target.append(card);
+  }
+  if (total > alerts.length) target.append(node('p',`Showing the latest ${alerts.length} of ${total} outstanding alerts. Acknowledge reviewed alerts to reveal older records.`,'detail-note'));
+  target.setAttribute('aria-busy','false');
+}
+
+function auditRow(a) {
+  const row = node('div',null,'audit-row'), glyph=node('span',null,'audit-icon');glyph.append(icon(a.event.includes('revok') ? 'shield' : a.event.includes('device') ? 'device' : 'clock'));
+  const body = node('div');body.append(node('strong',friendly(a.event)),node('p',`${a.actor}${a.device_id ? ' · '+a.device_id : ''}${a.reason ? ' · '+a.reason : ''}`));row.append(glyph,body,node('time',stamp(a.created_at),'audit-time'));return row;
+}
+
+const POLL_INTERVAL = 30000;
+const BASE_RETRY_DELAY = 2000;
+const MAX_RETRIES = 5;
+let pollTimer = null;
+let retryCount = 0;
+let isRefreshing = false;
+let queuedRefresh = false;
+
+function scheduleNextPoll(delay = POLL_INTERVAL) {
+  if (pollTimer) {
+    clearTimeout(pollTimer);
+    pollTimer = null;
+  }
+  if (document.hidden) return;
+  pollTimer = setTimeout(async () => {
+    if (document.querySelector('dialog[open]')) {
+      scheduleNextPoll(POLL_INTERVAL);
+      return;
+    }
+    await refresh();
+  }, delay);
+}
+
+async function refresh() {
+  if (isRefreshing) {
+    queuedRefresh = true;
+    return;
+  }
+  isRefreshing = true;
+  queuedRefresh = false;
+
+  if (pollTimer) {
+    clearTimeout(pollTimer);
+    pollTimer = null;
+  }
+
+  const version = ++refreshVersion;
+  el('refresh').disabled = true;
+  el('refresh').setAttribute('aria-busy', 'true');
+  el('error').textContent = '';
+
+  const deviceParams = new URLSearchParams({offset, limit: pageSize, activity: el('activity').value, status: el('device-status').value, q: el('device-search').value});
+  const licenseParams = new URLSearchParams({offset: licenseOffset, limit: pageSize, status: el('license-status').value, q: el('license-search').value});
+
+  try {
+    if (!csrf) {
+      const me = await api('/me');
+      csrf = me.csrf_token;
+      el('user').textContent = me.username;
+      el('environment').textContent = me.environment;
+    }
+    const [summary, devices, licenses, alerts, audit, network] = await Promise.all([
+      api('/summary'),
+      api('/devices?' + deviceParams),
+      api('/licenses?' + licenseParams),
+      api('/alerts'),
+      api('/audit'),
+      api(`/devices?limit=${networkLimit}`)
+    ]);
+
+    if (version !== refreshVersion) return;
+
+    heartbeatThreshold = summary.heartbeat_threshold_seconds || 900;
+    recentThreshold = summary.recent_threshold_seconds || 86400;
+    lastServerTime = network.server_time || devices.server_time || new Date().toISOString();
+
+    // A revocation can remove the last item on a filtered final page. Return to a valid page.
+    if (offset && !devices.devices.length && devices.total <= offset) {
+      offset = Math.max(0, Math.floor(Math.max(0, devices.total - 1) / pageSize) * pageSize);
+      isRefreshing = false;
+      refresh();
+      return;
+    }
+    if (licenseOffset && !licenses.licenses.length && licenses.total <= licenseOffset) {
+      licenseOffset = Math.max(0, Math.floor(Math.max(0, licenses.total - 1) / pageSize) * pageSize);
+      isRefreshing = false;
+      refresh();
+      return;
+    }
+
+    renderSummary(summary);
+    renderDevices(devices);
+    renderLicenses(licenses);
+    renderAlerts(alerts, summary.new_alerts);
+    el('audit').replaceChildren(...audit.map(auditRow));
+    el('audit').setAttribute('aria-busy', 'false');
+    if (!audit.length) el('audit').append(node('p', 'No administrator events recorded.', 'empty'));
+
+    lastSync = new Date();
+    retryCount = 0;
+    el('last-sync').textContent = 'Synced ' + lastSync.toLocaleTimeString(undefined, {hour:'2-digit', minute:'2-digit'});
+    connection('', 'API reachable');
+    el('connection').title = 'Last successful API sync: ' + lastSync.toLocaleString();
+    el('freshness').textContent = `*Online: heartbeat within ${heartbeatThreshold / 60} minutes. Updated ${stampExact(lastServerTime)}. Earlier heartbeats are offline, not live connections.`;
+
+    networkDevices = network.devices;
+    el('network-count').textContent = `${network.devices.length} of ${network.total} devices`;
+    el('network-count').title = 'Latest registered devices; all installations are searchable in the inventory.';
+    renderRoster();
+    if (scene) scene.update(networkDevices);
+    else if (usingFallback) {
+      const count = el('network-stage').querySelectorAll('.fallback-device').length;
+      if (count !== networkDevices.length) fallbackNetwork();
+    } else ensureScene();
+
+    scheduleNextPoll(POLL_INTERVAL);
+  } catch (error) {
+    el('error').textContent = error.message;
+    connection('disconnected', 'Sync unavailable');
+    if (!lastSync) {
+      el('scene-loading').textContent = 'Device data unavailable. Refresh to retry.';
+      el('scene-state').textContent = 'Waiting for API data';
+    }
+    if (retryCount < MAX_RETRIES) {
+      const delay = Math.min(BASE_RETRY_DELAY * Math.pow(2, retryCount), POLL_INTERVAL);
+      retryCount++;
+      scheduleNextPoll(delay);
+    } else {
+      scheduleNextPoll(POLL_INTERVAL);
+    }
+  } finally {
+    isRefreshing = false;
+    if (version === refreshVersion) {
+      el('refresh').disabled = false;
+      el('refresh').setAttribute('aria-busy', 'false');
+    }
+    if (queuedRefresh) {
+      queuedRefresh = false;
+      refresh();
+    }
+  }
+}
+
+function renderRoster() {
+  el('network-roster').replaceChildren(...networkDevices.map(d => {
+    const act = getDeviceActivity(d);
+    const b = button(null, () => showDevice(d.device_id), '');
+    b.dataset.deviceId = d.device_id;
+    b.setAttribute('aria-label', `${d.customer || 'Unassociated'} · ${d.device_id} · ${act.status} · ${friendly(d.effective_status)}`);
+    b.append(node('i', null, 'dot ' + deviceColor(d)), node('span', d.device_id.slice(0, 8)));
+    b.classList.toggle('selected', selectedDevice === d.device_id);
+    return b;
+  }));
+  if (!networkDevices.length) el('network-roster').append(node('p', 'No registered devices.', 'detail-note'));
+}
+
+function selectDevice(id) {
+  selectedDevice = id;
+  scene?.select(id);
+  el('network-roster').querySelectorAll('button').forEach(b => {
+    b.classList.toggle('selected', b.dataset.deviceId === id);
+    b.setAttribute('aria-pressed', String(b.dataset.deviceId === id));
+  });
+}
+
+function fallbackNetwork() {
+  usingFallback = true;
+  const map = node('div', null, 'fallback-map');
+  map.append(node('div', 'Licensing server', 'fallback-server'));
+  for (const d of networkDevices) {
+    const act = getDeviceActivity(d);
+    const b = button(null, () => showDevice(d.device_id), 'fallback-device');
+    b.append(icon('device'), node('span', d.customer || d.device_id.slice(0, 8)), node('span', act.status), badge(d.effective_status));
+    map.append(b);
+  }
+  el('scene-loading')?.remove();
+  el('network-stage').querySelector('.fallback-map')?.remove();
+  el('network-stage').append(map);
+  el('scene-state').textContent = '3D unavailable · accessible device map';
+  el('motion-toggle').disabled = true;
+}
+
+async function ensureScene() {
+  if (!sceneVisible || sceneLoading || scene || !lastSync) return;
+  sceneLoading = true;
+  try {
+    const module = await import('./network.js');
+    scene = module.createNetwork(el('network-stage'), {
+      onSelect: id => showDevice(id),
+      onState: text => el('scene-state').textContent = text,
+      onFailure: () => { scene?.dispose(); scene = null; fallbackNetwork(); },
+      paused: motionPaused,
+      reducedMotion: reducedMotion.matches
+    });
+    scene.update(networkDevices);
+    scene.select(selectedDevice);
+    el('scene-loading')?.remove();
+  } catch {
+    fallbackNetwork();
+  }
+}
+
+const sceneObserver = new IntersectionObserver(entries => {
+  sceneVisible = entries[0].isIntersecting;
+  scene?.setVisible(sceneVisible);
+  if (sceneVisible) ensureScene();
+}, {threshold: .05});
+sceneObserver.observe(el('network-stage'));
+
+function updateMotion() {
+  el('motion-toggle').textContent = reducedMotion.matches ? 'Reduced motion enabled' : motionPaused ? 'Resume motion' : 'Pause motion';
+  el('motion-toggle').disabled = reducedMotion.matches;
+  el('motion-toggle').setAttribute('aria-pressed', String(motionPaused));
+  scene?.setMotion(motionPaused, reducedMotion.matches);
+}
+el('motion-toggle').onclick = () => { motionPaused = !motionPaused; updateMotion(); };
+reducedMotion.addEventListener('change', () => { motionPaused = reducedMotion.matches; updateMotion(); });
+updateMotion();
+
+function detailFields(fields) {
+  const grid = node('dl', null, 'detail-grid');
+  for (const [key, value] of fields) {
+    const row = node('div');
+    row.append(node('dt', key), node('dd', value ?? 'Not associated'));
+    grid.append(row);
+  }
+  return grid;
+}
+
+function openDetail(title, eyebrow) {
+  el('detail-title').textContent = title;
+  el('detail-eyebrow').textContent = eyebrow;
+  el('detail-body').replaceChildren(node('p', 'Loading information…', 'empty'));
+  el('detail-actions').replaceChildren();
+  if (!el('detail-dialog').open) el('detail-dialog').showModal();
+}
+
+async function showDevice(id) {
+  selectDevice(id);
+  const version = ++detailVersion;
+  openDetail('Device details', 'INSTALLATION INFORMATION');
+  try {
+    const d = await api(`/devices/${encodeURIComponent(id)}`);
+    if (version !== detailVersion || !el('detail-dialog').open) return;
+    const refTime = lastServerTime ? new Date(lastServerTime) : new Date();
+    const act = getDeviceActivity(d, refTime);
+    const identity = node('div', null, 'detail-identity');
+    identity.append(icon('device'), node('h3', d.customer || 'Unassociated installation'), badge(d.effective_status), node('p', d.device_id, 'mono'));
+    el('detail-body').replaceChildren(identity, detailFields([
+      ['Device status', friendly(d.status)],
+      ['Effective access', friendly(d.effective_status)],
+      ['Detection', d.detection === 'NEW' ? 'Awaiting review' : 'Reviewed / seen'],
+      ['License', d.license_id],
+      ['License status', d.license_status === 'DISABLED' ? 'Revoked' : d.license_status],
+      ['License expiry', stamp(d.license_expires_at)],
+      ['Application', d.app_version],
+      ['Registered', stamp(d.first_seen)],
+      ['First activation', stamp(d.first_activation)],
+      ['Last seen', stampExact(d.last_seen) + (d.last_seen ? ` (${timeAgo(d.last_seen, refTime)})` : '')],
+      ['Activity', `${act.status} (${act.detail})`]
+    ]), node('p', 'Activity reports the last observed heartbeat. Licensing authorization is a separate status.', 'detail-note'));
+    el('detail-actions').append(
+      button('Activity history', () => { el('detail-dialog').close(); showHistory(id); }),
+      button(d.status === 'REVOKED' ? 'Reactivate device' : 'Revoke device', () => confirmAction('devices', id, d.status === 'REVOKED'), d.status === 'REVOKED' ? 'secondary' : 'danger')
+    );
+  } catch (error) {
+    if (version === detailVersion) el('detail-body').replaceChildren(node('p', error.message, 'error'));
+  }
+}
+
+async function showLicense(l) {
+  const version = ++detailVersion;
+  openDetail('License details', 'SOFTWARE AUTHORIZATION');
+  const identity = node('div', null, 'detail-identity');
+  identity.append(icon('shield'), node('h3', l.customer), badge(l.status), node('p', l.license_id, 'mono'));
+  const associations = node('div', null, 'associated-devices');
+  associations.append(node('h3', 'Associated installations'), node('p', 'Loading devices…', 'detail-note'));
+  el('detail-body').replaceChildren(identity, detailFields([
+    ['Customer ID', l.customer_id],
+    ['Expires', stamp(l.expires_at)],
+    ['Authorized', `${l.authorized_devices} devices`],
+    ['Device limit', l.max_devices]
+  ]), associations);
+  el('detail-actions').append(
+    button(l.status === 'REVOKED' ? 'Reactivate license' : 'Revoke license', () => confirmAction('licenses', l.license_id, l.status === 'REVOKED'), l.status === 'REVOKED' ? 'secondary' : 'danger')
+  );
+  try {
+    const data = await api('/devices?' + new URLSearchParams({license_id: l.license_id, limit: 20}));
+    if (version !== detailVersion || !el('detail-dialog').open) return;
+    associations.replaceChildren(node('h3', 'Associated installations'));
+    for (const d of data.devices) {
+      const b = button(null, () => showDevice(d.device_id), '');
+      b.append(node('span', d.device_id.slice(0, 8) + ' · App ' + d.app_version), badge(d.effective_status));
+      associations.append(b);
+    }
+    associations.append(node('p', data.total ? `Showing ${data.devices.length} of ${data.total} associated devices. Search the license ID in the device inventory to browse all.` : 'No associated devices.', 'detail-note'));
+  } catch (error) {
+    if (version === detailVersion) associations.replaceChildren(node('p', error.message, 'error'));
+  }
+}
+
+function confirmAction(kind, id, reactivate) {
+  el('detail-dialog').close();
+  pending = {kind, id, action: reactivate ? 'reactivate' : 'revoke'};
+  el('action-title').textContent = `${reactivate ? 'Reactivate' : 'Revoke'} ${kind === 'licenses' ? 'license' : 'device'}`;
+  el('action-device').textContent = id;
+  el('action-description').textContent = reactivate ? 'Access resumes after a successful signed validation. License reactivation keeps individually revoked devices revoked.' : `Revocation applies to ${kind === 'licenses' ? 'all associated devices' : 'this device'} after the next successful validation. Active database transactions finish safely.`;
+  el('reason').value = '';
+  el('confirm').checked = false;
+  el('action-error').textContent = '';
+  el('apply').className = reactivate ? '' : 'danger';
+  el('confirmation').showModal();
+  el('reason').focus();
+}
+
+async function showHistory(id, change = 0) {
+  if (historyDevice !== id) historyOffset = 0;
+  historyDevice = id;
+  historyOffset = Math.max(0, historyOffset + change);
+  try {
+    const data = await api(`/devices/${encodeURIComponent(id)}/history?offset=${historyOffset}&limit=${pageSize}`);
+    el('history-device').textContent = `${id} · Registered ${stamp(data.first_seen)} · First activation ${stamp(data.first_activation)}`;
+    el('history').replaceChildren(...data.events.map(auditRow));
+    if (!data.events.length) el('history').append(node('p', 'No activation events recorded.', 'empty'));
+    pager('history-', historyOffset, data.events.length, data.total);
+    if (!el('history-dialog').open) el('history-dialog').showModal();
+  } catch (error) {
+    el('error').textContent = error.message;
+  }
+}
+
+el('action').onsubmit = async event => {
+  event.preventDefault();
+  el('apply').disabled = true;
+  el('cancel').disabled = true;
+  try {
+    const match = pending.kind === 'licenses' ? {confirmed_license_id: pending.id} : {confirmed_device_id: pending.id};
+    const result = await api(`/${pending.kind}/${encodeURIComponent(pending.id)}/${pending.action}`, {confirm: el('confirm').checked, ...match, reason: el('reason').value});
+    el('result').textContent = result.message;
+    el('confirmation').close();
+    await refresh();
+  } catch (error) {
+    el('action-error').textContent = error.message;
+  } finally {
+    el('apply').disabled = false;
+    el('cancel').disabled = false;
+  }
+};
+
+el('confirmation').addEventListener('cancel', event => { if (el('apply').disabled) event.preventDefault(); });
+el('cancel').onclick = () => el('confirmation').close();
+el('detail-close').onclick = () => el('detail-dialog').close();
+el('detail-dialog').addEventListener('close', () => { detailVersion++; });
+el('history-close').onclick = () => el('history-dialog').close();
+el('history-previous').onclick = () => showHistory(historyDevice, -pageSize);
+el('history-next').onclick = () => showHistory(historyDevice, pageSize);
+
+el('refresh').onclick = () => {
+  retryCount = 0;
+  refresh();
+};
+
+let searchTimer;
+for (const id of ['device-search', 'license-search']) {
+  el(id).addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      if (id === 'device-search') offset = 0;
+      else licenseOffset = 0;
+      refresh();
+    }, 300);
+  });
+}
+
+for (const id of ['activity', 'device-status', 'license-status']) {
+  el(id).onchange = () => {
+    if (id === 'license-status') licenseOffset = 0;
+    else offset = 0;
+    refresh();
+  };
+}
+
+el('previous').onclick = () => { offset = Math.max(0, offset - pageSize); refresh(); };
+el('next').onclick = () => { offset += pageSize; refresh(); };
+el('licenses-previous').onclick = () => { licenseOffset = Math.max(0, licenseOffset - pageSize); refresh(); };
+el('licenses-next').onclick = () => { licenseOffset += pageSize; refresh(); };
+
+el('logout').onclick = async () => {
+  el('logout').disabled = true;
+  try {
+    await api('/logout', {});
+    location.assign('/admin/sign-in');
+  } catch (error) {
+    el('error').textContent = error.message;
+    el('logout').disabled = false;
+  }
+};
+
+function closeNavigation() {
+  el('main-navigation').classList.remove('open');
+  el('nav-toggle').setAttribute('aria-expanded', 'false');
+  el('nav-toggle').setAttribute('aria-label', 'Open navigation');
+}
+el('nav-toggle').onclick = () => {
+  const open = el('main-navigation').classList.toggle('open');
+  el('nav-toggle').setAttribute('aria-expanded', String(open));
+  el('nav-toggle').setAttribute('aria-label', open ? 'Close navigation' : 'Open navigation');
+};
+el('main-navigation').addEventListener('keydown', event => {
+  if (event.key === 'Escape') {
+    closeNavigation();
+    el('nav-toggle').focus();
+  }
+});
+
+for (const link of document.querySelectorAll('.nav-link')) {
+  link.addEventListener('click', () => {
+    document.querySelectorAll('.nav-link').forEach(a => {
+      a.classList.toggle('active', a === link);
+      if (a === link) a.setAttribute('aria-current', 'location');
+      else a.removeAttribute('aria-current');
+    });
+    closeNavigation();
+    const target = document.querySelector(link.hash);
+    if (!reducedMotion.matches) target.animate([{transform:'perspective(1400px) rotateX(.6deg)'}, {transform:'none'}], {duration:400, easing:'ease-out'});
+  });
+}
+
+const freshnessWatchdog = setInterval(() => {
+  if (lastSync && Date.now() - lastSync.getTime() > 65000 && !document.hidden) {
+    connection('pending', 'Sync outdated');
+  }
+}, 15000);
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    if (pollTimer) {
+      clearTimeout(pollTimer);
+      pollTimer = null;
+    }
+  } else {
+    if (document.querySelector('dialog[open]')) return;
+    const now = Date.now();
+    const elapsed = lastSync ? now - lastSync.getTime() : Infinity;
+    if (elapsed >= POLL_INTERVAL) {
+      refresh();
+    } else {
+      scheduleNextPoll(POLL_INTERVAL - elapsed);
+    }
+  }
+});
+
+window.addEventListener('pagehide', () => {
+  if (pollTimer) {
+    clearTimeout(pollTimer);
+    pollTimer = null;
+  }
+  clearTimeout(searchTimer);
+  clearInterval(freshnessWatchdog);
+  sceneObserver.disconnect();
+  scene?.dispose();
+  for (const c of counters.values()) cancelAnimationFrame(c.frame);
+});
+
+refresh();
