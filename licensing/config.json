@@ -1,6 +1,8 @@
 {
-  "server_url": "",
-  "public_keys": {},
+  "server_url": "https://pms-zeta-livid.vercel.app",
+  "public_keys": {
+    "primary": "RPIYJwkrVmSP0lbzozg1s2TymWLAEM39CJAWjnGk/ho="
+  },
   "heartbeat_seconds": 300,
   "activation_mode": "ALERT",
   "offline_grace_hours": 48

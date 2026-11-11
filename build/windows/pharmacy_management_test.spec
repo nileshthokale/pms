@@ -47,6 +47,7 @@ a = Analysis(
         # Bundled read-only seed.  It is never opened for writing: the EXE
         # copies it into the per-user test folder on first launch.
         (str(SEED_DB), "seed"),
+        (str(PROJECT_ROOT / "licensing" / "config.json"), "licensing"),
     ],
     hiddenimports=[
         # The application entry point is imported inside a function after the
@@ -61,6 +62,14 @@ a = Analysis(
         "openpyxl.utils",
         "openpyxl.workbook",
         "openpyxl.worksheet",
+        "licensing",
+        "licensing.client",
+        "licensing.gate",
+        "licensing.protocol",
+        "licensing.storage",
+        "licensing.qt",
+        "httpx",
+        "cryptography",
     ],
     hookspath=[],
     hooksconfig={},

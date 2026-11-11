@@ -32,7 +32,9 @@ a = Analysis(
     [str(PROJECT_ROOT / "main.py")],
     pathex=[str(PROJECT_ROOT)],
     binaries=[],
-    datas=[],
+    datas=[
+        (str(PROJECT_ROOT / "licensing" / "config.json"), "licensing"),
+    ],
     hiddenimports=[
         # Lazily imported inside functions; keep them even if static
         # analysis already finds them.
@@ -43,6 +45,14 @@ a = Analysis(
         "openpyxl.utils",
         "openpyxl.workbook",
         "openpyxl.worksheet",
+        "licensing",
+        "licensing.client",
+        "licensing.gate",
+        "licensing.protocol",
+        "licensing.storage",
+        "licensing.qt",
+        "httpx",
+        "cryptography",
     ],
     hookspath=[],
     hooksconfig={},

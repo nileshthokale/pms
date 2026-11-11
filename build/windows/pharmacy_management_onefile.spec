@@ -30,6 +30,7 @@ a = Analysis(
     binaries=[],
     datas=[
         (str(SEED_DB), "seed"),
+        (str(PROJECT_ROOT / "licensing" / "config.json"), "licensing"),
     ],
     hiddenimports=[
         "main",
@@ -40,6 +41,14 @@ a = Analysis(
         "openpyxl.utils",
         "openpyxl.workbook",
         "openpyxl.worksheet",
+        "licensing",
+        "licensing.client",
+        "licensing.gate",
+        "licensing.protocol",
+        "licensing.storage",
+        "licensing.qt",
+        "httpx",
+        "cryptography",
     ],
     hookspath=[],
     hooksconfig={},
