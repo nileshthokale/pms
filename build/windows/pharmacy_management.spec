@@ -21,6 +21,7 @@ Packaging contract (see docs/windows_build_1.0.0.md):
 
 import os
 from pathlib import Path
+from PyInstaller.utils.hooks import collect_submodules
 
 PROJECT_ROOT = Path(SPECPATH).resolve().parent.parent
 APP_VERSION = "1.0.0"
@@ -53,7 +54,7 @@ a = Analysis(
         "licensing.qt",
         "httpx",
         "cryptography",
-    ],
+    ] + collect_submodules("screens") + collect_submodules("database") + collect_submodules("ui"),
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
