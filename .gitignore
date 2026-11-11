@@ -32,3 +32,11 @@ test_release_validation/
 migration_backups/*.csv
 migration_backups/*.jsonl
 migration_backups/*changes.json
+
+# Neon & Node dependencies
+.neon
+.env.local
+.env
+node_modules/
+package-lock.json
+
