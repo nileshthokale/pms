@@ -39,4 +39,6 @@ migration_backups/*changes.json
 .env
 node_modules/
 package-lock.json
+scratch/
+
 
