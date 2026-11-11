@@ -23,3 +23,7 @@ PharmaWinner*.sql
 # build/windows/pharmacy_management.spec stays tracked.
 dist/
 build/pharmacy_management/
+.neon
+.env.local
+node_modules/
+
