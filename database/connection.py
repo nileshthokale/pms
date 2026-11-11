@@ -36,21 +36,37 @@ def _default_db_path() -> str:
 def get_db_path() -> str:
     """Resolve the database file path for connections.
 
-    Honors the PHARMACY_DB environment variable when set — the test
-    suite sets it per test class to a throwaway *_test_*.db file so the
-    real application database is never touched by tests. The path is
-    resolved on every call (not at import) so test classes can each
-    point at their own database.
+    Honors PHARMACY_DB or PHARMACY_DB_PATH when set, except in explicit
+    PRODUCTION mode, which is restricted to the existing source-tree
+    production database. The test suite sets PHARMACY_DB per test class
+    to a throwaway *_test_*.db file so the real application database is
+    never touched by tests. The path is resolved on every call (not at
+    import) so test classes can each point at their own database.
 
     Production code never sets PHARMACY_DB and always uses
     data/pharmacy.db (development) or the per-user app-data directory
     (packaged EXE — see get_app_data_dir()).
     """
-    db_path = (
+    configured_path = (
         os.environ.get("PHARMACY_DB")
         or os.environ.get("PHARMACY_DB_PATH")
-        or _default_db_path()
     )
+    if os.environ.get("PHARMACY_MODE", "").upper() == "PRODUCTION":
+        production_path = os.path.realpath(_DB_PATH)
+        if os.environ.get("PHARMACY_STAGING_MODE") == "1":
+            raise RuntimeError(
+                "Production mode cannot be combined with the staging startup flag."
+            )
+        if configured_path and os.path.normcase(
+            os.path.realpath(configured_path)
+        ) != os.path.normcase(production_path):
+            raise RuntimeError(
+                "Production mode is restricted to the existing production "
+                f"database: {production_path}"
+            )
+        return production_path
+
+    db_path = configured_path or _default_db_path()
     # The full-suite runner sets this guard so a test that accidentally drops
     # PHARMACY_DB (or points it back at the app database) still cannot open
     # the real business database for writing.
@@ -74,8 +90,55 @@ def get_db_path() -> str:
     return db_path
 
 
+class _LicensedConnection(sqlite3.Connection):
+    """A license lease covers the connection lifetime, including its transaction."""
+    _license_gate = None
+
+    def close(self):
+        try:
+            super().close()
+        finally:
+            if self._license_gate is not None:
+                self._license_gate.release()
+                self._license_gate = None
+
+    def __del__(self):
+        # Explicit close is used by DAOs; also release abandoned read connections.
+        try:
+            self.close()
+        except sqlite3.Error:
+            pass  # interpreter/thread teardown must not raise an unraisable error
+
+
 def get_connection() -> sqlite3.Connection:
+    from licensing.gate import current_gate
+
+    gate = current_gate()
+    if gate is not None:
+        gate.acquire()
+    try:
+        conn = _open_connection()
+        conn._license_gate = gate
+        return conn
+    except BaseException:
+        if gate is not None:
+            gate.release()
+        raise
+
+
+def _open_connection() -> sqlite3.Connection:
     db_path = get_db_path()
+    if os.environ.get("PHARMACY_MODE", "").upper() == "PRODUCTION":
+        if not os.path.isfile(db_path):
+            raise RuntimeError(
+                f"Production database not found: {db_path}. "
+                "Refusing to create an empty production database."
+            )
+        if os.path.getsize(db_path) == 0:
+            raise RuntimeError(
+                f"Production database is empty: {db_path}. "
+                "Refusing to initialize an empty production database."
+            )
     # A test release seeds its database from the bundled snapshot on first
     # launch.  It must never silently create an empty database if that file
     # later disappears (which would look like all business data vanished).
@@ -88,11 +151,15 @@ def get_connection() -> sqlite3.Connection:
             "The isolated test database is missing; restore it instead."
         )
     os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
-    conn = sqlite3.connect(db_path)
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
-    conn.row_factory = sqlite3.Row
-    return conn
+    conn = sqlite3.connect(db_path, factory=_LicensedConnection)
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA foreign_keys=ON")
+        conn.row_factory = sqlite3.Row
+        return conn
+    except BaseException:
+        conn.close()
+        raise
 
 
 def init_database():

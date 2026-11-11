@@ -1,0 +1,7 @@
+{
+  "server_url": "",
+  "public_keys": {},
+  "heartbeat_seconds": 300,
+  "activation_mode": "ALERT",
+  "offline_grace_hours": 48
+}

@@ -1,0 +1,86 @@
+{
+  "date": "2026-11-09",
+  "licensing_postgresql_suite": {
+    "passed": 28,
+    "failed": 0,
+    "warning": "Starlette/anyio deprecation"
+  },
+  "actual_tls_postgresql_smoke": {
+    "database": "PostgreSQL 17.6 isolated loopback cluster",
+    "tls": "Verified loopback certificate",
+    "public_deployment": false,
+    "activation": "AUTHORIZED",
+    "heartbeat": "AUTHORIZED",
+    "dashboard_total": 1,
+    "dashboard_html": 200,
+    "revocation": "REVOKED",
+    "restart_after_revocation": "REVOKED",
+    "reactivation": "AUTHORIZED"
+  },
+  "pharmacy_regression": {
+    "run": 509,
+    "passed": 496,
+    "failures": 13,
+    "errors": 0,
+    "skipped": 0
+  },
+  "baseline_comparison": {
+    "run": 184,
+    "same_failures": 13,
+    "new_failures": 0
+  },
+  "existing_failure_names": [
+    "test_11_walkin_fully_paid_sale (test_counter_sale_posting.TestWalkinSales.test_11_walkin_fully_paid_sale)",
+    "test_12_walkin_underpaid_rejected (test_counter_sale_posting.TestWalkinSales.test_12_walkin_underpaid_rejected)",
+    "test_13_walkin_touches_no_customer_ledger (test_counter_sale_posting.TestWalkinSales.test_13_walkin_touches_no_customer_ledger)",
+    "test_37_purchase_crud_still_works (test_purchase_posting.TestRegression.test_37_purchase_crud_still_works)",
+    "test_24_sales_number (test_document_printing.DocumentPrintingTests.test_24_sales_number)",
+    "test_25_purchase_number (test_document_printing.DocumentPrintingTests.test_25_purchase_number)",
+    "test_26_credit_number (test_document_printing.DocumentPrintingTests.test_26_credit_number)",
+    "test_27_debit_number (test_document_printing.DocumentPrintingTests.test_27_debit_number)",
+    "test_28_receipt_number (test_document_printing.DocumentPrintingTests.test_28_receipt_number)",
+    "test_29_payment_number (test_document_printing.DocumentPrintingTests.test_29_payment_number)",
+    "test_37_counter_stored_values (test_document_printing.DocumentPrintingTests.test_37_counter_stored_values)",
+    "test_72_plain_preview (test_document_printing.DocumentPrintingTests.test_72_plain_preview)",
+    "test_25_stock_master_still_works (test_sales_report.TestRegressionReports.test_25_stock_master_still_works)"
+  ],
+  "production_protection": {
+    "verified_at_utc": "2026-11-09T08:12:04.645450+00:00",
+    "databases": [
+      {
+        "path": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\data\\pharmacy.db",
+        "sha256_before": "e87e89a2772052169efe551bdf49a0b205b376d873a5769737a6bafdb11685a4",
+        "sha256_after": "e87e89a2772052169efe551bdf49a0b205b376d873a5769737a6bafdb11685a4",
+        "unchanged": true,
+        "sidecars_unchanged": true
+      },
+      {
+        "path": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\pharmacy.db",
+        "sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unchanged": true,
+        "sidecars_unchanged": true
+      },
+      {
+        "path": "C:\\Users\\Nilesh\\AppData\\Local\\PharmacyManagementSystem\\pharmacy.db",
+        "sha256_before": "c5672f3817900f57f8e3bea9cc9e7af526b4ab6f3572c4f11b67fa4dd9974fcb",
+        "sha256_after": "c5672f3817900f57f8e3bea9cc9e7af526b4ab6f3572c4f11b67fa4dd9974fcb",
+        "unchanged": true,
+        "sidecars_unchanged": true
+      }
+    ],
+    "clone_integrity": "ok",
+    "clone_foreign_key_violations": 0,
+    "clone_counts": {
+      "sales_invoices": 72255,
+      "purchase_invoices": 5732,
+      "items": 940,
+      "stock_batches": 7817,
+      "customers": 29,
+      "suppliers": 86,
+      "ledger_transactions": 157788
+    }
+  },
+  "exe_built": false,
+  "public_remote_monitoring_verified": false
+}

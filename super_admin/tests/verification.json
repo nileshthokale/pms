@@ -1,0 +1,131 @@
+{
+  "date": "2026-11-09",
+  "tests": {
+    "postgresql_desktop_super_admin_suite": {
+      "passed": 54,
+      "failed": 0,
+      "skipped": 0,
+      "warning": "Starlette/anyio deprecation"
+    },
+    "browser_acceptance": {
+      "login": true,
+      "summary": true,
+      "device_history": true,
+      "device_revoke_reactivate": true,
+      "license_revoke_reactivate": true,
+      "offline_filter": true,
+      "logout": true,
+      "page_errors": []
+    },
+    "browser_redesign": {
+      "webgl": true,
+      "scene_hover_click": true,
+      "keyboard_details": true,
+      "pagination": true,
+      "device_search_filters": true,
+      "license_search_filters_details": true,
+      "acknowledgement": true,
+      "updates_unconfigured": true,
+      "navigation": true,
+      "responsive": true,
+      "reduced_motion": true,
+      "outage_recovery": true,
+      "webgl_fallback": true,
+      "logout": true,
+      "page_errors": []
+    },
+    "https_postgresql_dpapi_smoke": {
+      "database": "PostgreSQL 17.6 isolated loopback cluster",
+      "tls": "Verified loopback certificate",
+      "public_deployment": false,
+      "activation": "AUTHORIZED",
+      "heartbeat": "AUTHORIZED",
+      "dashboard_total": 1,
+      "dashboard_html": 200,
+      "revocation": "REVOKED",
+      "restart_after_revocation": "REVOKED",
+      "reactivation": "AUTHORIZED"
+    },
+    "vercel_config_upload_builder_checks": {
+      "schema_valid": true,
+      "official_builder_entrypoint": {
+        "kind": "py-module:attr",
+        "entrypoint": "super_admin.backend.app:app"
+      },
+      "retained_files": [
+        ".vercelignore",
+        "license_server/__init__.py",
+        "license_server/app.py",
+        "license_server/models.py",
+        "license_server/requirements.txt",
+        "license_server/security.py",
+        "license_server/settings.py",
+        "licensing/__init__.py",
+        "licensing/protocol.py",
+        "pyproject.toml",
+        "super_admin/__init__.py",
+        "super_admin/backend/__init__.py",
+        "super_admin/backend/app.py",
+        "super_admin/backend/build_frontend.py",
+        "super_admin/backend/routes.py",
+        "super_admin/frontend/dashboard.js",
+        "super_admin/frontend/index.html",
+        "super_admin/frontend/login.html",
+        "super_admin/frontend/login.js",
+        "super_admin/frontend/network.js",
+        "super_admin/frontend/style.css",
+        "super_admin/frontend/three.module.min.js",
+        "super_admin/frontend/THREE-LICENSE.txt",
+        "vercel.json"
+      ],
+      "pharmacy_upload_excluded": true
+    },
+    "actual_vercel_runtime_asgi_detection": true,
+    "python_javascript_syntax": true,
+    "git_whitespace": true
+  },
+  "production_database_protection": {
+    "verified_at_utc": "2026-11-09T08:56:34.316664+00:00",
+    "databases": [
+      {
+        "path": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\data\\pharmacy.db",
+        "sha256_before": "e87e89a2772052169efe551bdf49a0b205b376d873a5769737a6bafdb11685a4",
+        "sha256_after": "e87e89a2772052169efe551bdf49a0b205b376d873a5769737a6bafdb11685a4",
+        "unchanged": true,
+        "sidecars_unchanged": true
+      },
+      {
+        "path": "C:\\Users\\Nilesh\\OneDrive\\Desktop\\Pharmacy Management System\\pharmacy.db",
+        "sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unchanged": true,
+        "sidecars_unchanged": true
+      },
+      {
+        "path": "C:\\Users\\Nilesh\\AppData\\Local\\PharmacyManagementSystem\\pharmacy.db",
+        "sha256_before": "c5672f3817900f57f8e3bea9cc9e7af526b4ab6f3572c4f11b67fa4dd9974fcb",
+        "sha256_after": "c5672f3817900f57f8e3bea9cc9e7af526b4ab6f3572c4f11b67fa4dd9974fcb",
+        "unchanged": true,
+        "sidecars_unchanged": true
+      }
+    ]
+  },
+  "shared_licensing_schema": "license_server.models.Base (8 existing tables; no schema changes)",
+  "desktop_code_changed_this_task": false,
+  "public_vercel_deployment_completed": false,
+  "exe_built": false,
+  "remaining_steps": [
+    "Configure Vercel project/account and environment-specific secrets",
+    "Provision or migrate existing central licensing PostgreSQL only",
+    "Initialize/check schema and create developer administrator",
+    "Configure stable HTTPS domain and desktop public URL/key",
+    "Run Vercel cloud build/deploy and actual remote test-device acceptance"
+  ],
+  "tooling_setup": [
+    "npm install --prefix temp/super_admin_validation/tooling @vercel/python@31.0.0 ignore@7.0.5 ajv@8.17.1 ajv-formats@3.0.1 playwright@1.56.1 --no-audit --no-fund",
+    "python -m pip install vercel-runtime==0.24.1",
+    "Download https://openapi.vercel.sh/vercel.json to temp/super_admin_validation/vercel.schema.json",
+    "node super_admin/tests/verify_deployment.cjs",
+    "node super_admin/tests/browser_acceptance.cjs"
+  ]
+}

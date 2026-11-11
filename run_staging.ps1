@@ -88,6 +88,8 @@ if ($RunningInstances) {
 
 # 6. Set session environment variables
 $env:PHARMACY_DB = $StagingDb
+$PreviousPharmacyMode = $env:PHARMACY_MODE
+$env:PHARMACY_MODE = "STAGING"
 $env:PHARMACY_TEST_PROTECTED_DB = $ActiveDb
 $env:PHARMACY_TEST_SAFE_DB = $StagingDb
 $env:PHARMACY_STAGING_MODE = "1"
@@ -128,6 +130,11 @@ finally {
     Remove-Item Env:\PHARMACY_TEST_SAFE_DB -ErrorAction SilentlyContinue
     Remove-Item Env:\PHARMACY_STAGING_MODE -ErrorAction SilentlyContinue
     Remove-Item Env:\PYTHONUNBUFFERED -ErrorAction SilentlyContinue
+    if ($null -eq $PreviousPharmacyMode) {
+        Remove-Item Env:\PHARMACY_MODE -ErrorAction SilentlyContinue
+    } else {
+        $env:PHARMACY_MODE = $PreviousPharmacyMode
+    }
 }
 
 if ($IsCheckOnly) {

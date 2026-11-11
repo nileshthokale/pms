@@ -44,10 +44,12 @@ Use Windows PowerShell from the repository root. Python 3.13.x is the version us
 py -3.13 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-python main.py
+.\run_production.ps1
 ```
 
-On first launch, the application creates its database schema and prompts you to create the initial ADMIN account. There are no default usernames or passwords. Use a password of at least eight characters.
+The production launcher explicitly selects the existing `data\pharmacy.db`, verifies its pharmacy tables and records, and refuses to create or initialize an empty production database. Run `.\run_production.ps1 check` for a preflight without opening the UI. The isolated staging environment has its own launcher, `.\run_staging.ps1`.
+
+First-run schema setup and initial ADMIN creation are available only for a separately provisioned development or test database; the production launcher requires existing pharmacy records. There are no default usernames or passwords. Use a password of at least eight characters.
 
 The pinned runtime dependencies are listed in [`requirements.txt`](requirements.txt): PySide6 and openpyxl.
 
