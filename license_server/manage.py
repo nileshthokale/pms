@@ -4,6 +4,7 @@ import base64
 from datetime import datetime, timezone
 import getpass
 import json
+import os
 from pathlib import Path
 import secrets
 import uuid
@@ -17,6 +18,25 @@ from sqlalchemy.orm import Session
 from license_server.app import digest
 from license_server.models import Administrator, Audit, Base, Customer, License
 from license_server.settings import Settings
+
+
+def _resolve_db_url():
+    url = os.environ.get("LICENSE_DATABASE_URL") or os.environ.get("DATABASE_URL")
+    if not url:
+        env_local = Path(__file__).resolve().parents[1] / ".env.local"
+        if env_local.exists():
+            for line in env_local.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line.startswith("DATABASE_URL="):
+                    url = line.split("=", 1)[1].strip().strip('"').strip("'")
+                    break
+    if not url:
+        raise ValueError("LICENSE_DATABASE_URL or DATABASE_URL must be configured")
+    if url.startswith("postgresql://"):
+        url = "postgresql+psycopg://" + url[len("postgresql://"):]
+    elif url.startswith("postgres://"):
+        url = "postgresql+psycopg://" + url[len("postgres://"):]
+    return url
 
 
 def main():
@@ -50,15 +70,16 @@ def main():
             json.dump({"primary": public}, output, indent=2)
         print("Signing key created. Restrict private-file permissions to the service account.")
         return
-    settings = Settings.from_env()
-    engine = create_engine(settings.database_url)
-    if args.command == "init-db":
-        Base.metadata.create_all(engine)
-        print("Licensing schema v1 created (idempotent; pharmacy schema is never accessed).")
-        return
-    with Session(engine) as session:
-        now = datetime.now(timezone.utc)
-        if args.command == "create-admin":
+
+    if args.command in ("init-db", "create-admin"):
+        db_url = _resolve_db_url()
+        engine = create_engine(db_url)
+        if args.command == "init-db":
+            Base.metadata.create_all(engine)
+            print("Licensing schema v1 created (idempotent; pharmacy schema is never accessed).")
+            return
+        with Session(engine) as session:
+            now = datetime.now(timezone.utc)
             if session.get(Administrator, args.username):
                 parser.error("Administrator already exists")
             password = getpass.getpass("New developer password (minimum 12 characters): ")
@@ -66,35 +87,42 @@ def main():
                 parser.error("Password too short or confirmation does not match")
             session.add(Administrator(username=args.username, password_hash=PasswordHasher().hash(password), role="DEVELOPER"))
             session.add(Audit(id=str(uuid.uuid4()), event="admin_created", actor="server-cli", reason=args.username, created_at=now))
+            session.commit()
+            print(f"Administrator '{args.username}' created successfully.")
+            return
+
+    settings = Settings.from_env()
+    engine = create_engine(settings.database_url)
+    with Session(engine) as session:
+        now = datetime.now(timezone.utc)
+        user = session.get(Administrator, args.admin)
+        try:
+            valid = bool(user and user.active and user.role == "DEVELOPER" and PasswordHasher().verify(user.password_hash, getpass.getpass("Developer password: ")))
+        except Exception:
+            valid = False
+        if not valid:
+            parser.error("Developer authentication failed")
+        expires = datetime.fromisoformat(args.expires)
+        if expires.tzinfo is None or expires <= now:
+            parser.error("Expiry must be a future timestamp with a timezone")
+        if args.command == "issue-license":
+            if args.max_devices < 1:
+                parser.error("Device limit must be positive")
+            customer = Customer(id=str(uuid.uuid4()), name=args.customer)
+            session.add(customer)
+            session.flush()
+            activation = secrets.token_urlsafe(48)
+            license_id = str(uuid.uuid4())
+            session.add(License(id=license_id, customer_id=customer.id, activation_hash=digest(activation, settings.pepper),
+                                expires_at=expires, max_devices=args.max_devices, status="ACTIVE"))
+            event, reason = "license_issued", license_id
         else:
-            user = session.get(Administrator, args.admin)
-            try:
-                valid = bool(user and user.active and user.role == "DEVELOPER" and PasswordHasher().verify(user.password_hash, getpass.getpass("Developer password: ")))
-            except Exception:
-                valid = False
-            if not valid:
-                parser.error("Developer authentication failed")
-            expires = datetime.fromisoformat(args.expires)
-            if expires.tzinfo is None or expires <= now:
-                parser.error("Expiry must be a future timestamp with a timezone")
-            if args.command == "issue-license":
-                if args.max_devices < 1:
-                    parser.error("Device limit must be positive")
-                customer = Customer(id=str(uuid.uuid4()), name=args.customer)
-                session.add(customer)
-                session.flush()
-                activation = secrets.token_urlsafe(48)
-                license_id = str(uuid.uuid4())
-                session.add(License(id=license_id, customer_id=customer.id, activation_hash=digest(activation, settings.pepper),
-                                    expires_at=expires, max_devices=args.max_devices, status="ACTIVE"))
-                event, reason = "license_issued", license_id
-            else:
-                license = session.scalar(select(License).where(License.id == args.license_id).with_for_update())
-                if not license:
-                    parser.error("License not found")
-                license.expires_at, license.status = expires, args.status
-                event, reason = "license_updated", args.license_id + ": " + args.reason
-            session.add(Audit(id=str(uuid.uuid4()), event=event, actor=user.username, reason=reason, created_at=now))
+            license = session.scalar(select(License).where(License.id == args.license_id).with_for_update())
+            if not license:
+                parser.error("License not found")
+            license.expires_at, license.status = expires, args.status
+            event, reason = "license_updated", args.license_id + ": " + args.reason
+        session.add(Audit(id=str(uuid.uuid4()), event=event, actor=user.username, reason=reason, created_at=now))
         session.commit()
         if args.command == "issue-license":
             print("License ID:", license_id)
