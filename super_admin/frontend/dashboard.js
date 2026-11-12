@@ -4,6 +4,7 @@ const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 const pageSize = 20, networkLimit = 24;
 let csrf = '', offset = 0, licenseOffset = 0, pending = null, historyDevice = '', historyOffset = 0;
 let pendingRenew = null, pendingEdit = null, pendingArchive = null, pendingUnlink = null;
+let pendingDeleteDevice = null, pendingAssignDevice = null, pendingRegenerateKey = null;
 let renewTargetDate = null, renewExtensionDays = 30;
 const formatDateInput = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 let refreshVersion = 0, lastSync = null, scene, sceneLoading = false, sceneVisible = false;
@@ -87,8 +88,17 @@ async function api(path, body, signal) {
     throw new Error(body === undefined ? 'The licensing API could not be reached. Displayed records may be outdated. Refresh to retry.' : 'The request could not be confirmed. Refresh to check the recorded status before retrying.');
   }
   if (response.status === 401) {location.assign('/admin/sign-in'); throw new Error('Please sign in.');}
+  const text = await response.text();
   let data;
-  try {data = await response.json();} catch {throw new Error('The API returned an unreadable response. Refresh to check the status.');}
+  try {
+    data = JSON.parse(text);
+  } catch {
+    if (!response.ok) {
+      const clean = text.replace(/<[^>]*>/g, '').trim();
+      throw new Error(clean ? (clean.length > 150 ? clean.slice(0, 150) + '…' : clean) : `Server error (${response.status})`);
+    }
+    throw new Error('The API returned an unreadable response. Refresh to check the status.');
+  }
   if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'The action could not be completed.');
   return data;
 }
@@ -166,8 +176,11 @@ function renderDevices(data) {
     actionBtns.append(button('History', () => showHistory(d.device_id)));
     if (d.license_id) {
       actionBtns.append(button('Unlink', () => openUnlinkDialog(d), 'danger'));
+    } else {
+      actionBtns.append(button('Assign License', () => openAssignDeviceDialog(d), 'primary'));
     }
     actionBtns.append(button(d.status === 'REVOKED' ? 'Reactivate' : 'Revoke', () => confirmAction('devices', d.device_id, d.status === 'REVOKED'), d.status === 'REVOKED' ? 'secondary' : 'danger'));
+    actionBtns.append(button('Delete', () => openDeleteDeviceDialog(d), 'danger'));
     cell(null, null, 'actions').append(actionBtns);
     target.append(row);
   }
@@ -192,7 +205,10 @@ function renderLicenses(data) {
       button(isInactive ? 'Reactivate' : 'Revoke', () => confirmAction('licenses', l.license_id, isInactive), isInactive ? 'secondary' : 'danger')
     );
     if (l.status !== 'ARCHIVED') {
-      actionBtns.append(button('Archive', () => openArchiveDialog(l), 'danger'));
+      actionBtns.append(
+        button('Archive', () => openArchiveDialog(l), 'danger'),
+        button('New Key', () => openRegenerateKeyDialog(l), 'secondary')
+      );
     }
     actionBtns.append(button('History', () => showLicenseHistory(l.license_id, l.customer)));
     actions.append(actionBtns);
@@ -992,6 +1008,189 @@ el('unlink-device-form').onsubmit = async event => {
   } finally {
     el('unlink-submit').disabled = false;
     el('unlink-cancel').disabled = false;
+  }
+};
+
+function openDeleteDeviceDialog(device) {
+  pendingDeleteDevice = device;
+  el('delete-device-id').textContent = device.device_id;
+  el('delete-device-customer').textContent = `${device.customer || 'Unassociated'} (License: ${device.license_id || 'None'})`;
+  el('delete-device-reason').value = '';
+  el('delete-device-confirm').checked = false;
+  el('delete-device-error').textContent = '';
+  el('delete-device-error').style.display = 'none';
+  el('delete-device-dialog').showModal();
+  el('delete-device-reason').focus();
+}
+
+el('delete-device-cancel').onclick = () => el('delete-device-dialog').close();
+el('delete-device-dialog').addEventListener('cancel', event => { if (el('delete-device-submit').disabled) event.preventDefault(); });
+
+el('delete-device-form').onsubmit = async event => {
+  event.preventDefault();
+  if (!pendingDeleteDevice) return;
+  const reason = el('delete-device-reason').value.trim();
+  if (reason.length < 3) {
+    el('delete-device-error').textContent = 'Please provide a reason (at least 3 characters).';
+    el('delete-device-error').style.display = 'block';
+    return;
+  }
+  if (!el('delete-device-confirm').checked) {
+    el('delete-device-error').textContent = 'Please check the confirmation box.';
+    el('delete-device-error').style.display = 'block';
+    return;
+  }
+  el('delete-device-error').style.display = 'none';
+  el('delete-device-submit').disabled = true;
+  el('delete-device-cancel').disabled = true;
+  try {
+    const result = await api(`/devices/${encodeURIComponent(pendingDeleteDevice.device_id)}/delete`, {
+      confirm: true,
+      confirmed_device_id: pendingDeleteDevice.device_id,
+      reason
+    });
+    el('delete-device-dialog').close();
+    el('result').textContent = result.message || 'Device deleted successfully.';
+    await refresh();
+  } catch (error) {
+    el('delete-device-error').textContent = error.message;
+    el('delete-device-error').style.display = 'block';
+  } finally {
+    el('delete-device-submit').disabled = false;
+    el('delete-device-cancel').disabled = false;
+  }
+};
+
+async function openAssignDeviceDialog(device) {
+  pendingAssignDevice = device;
+  el('assign-device-id').textContent = device.device_id;
+  el('assign-device-status').textContent = device.effective_status || device.status || 'PENDING';
+  el('assign-device-reason').value = 'Authorized customer workstation';
+  el('assign-device-error').textContent = '';
+  el('assign-device-error').style.display = 'none';
+  el('assign-device-submit').disabled = false;
+  el('assign-device-dialog').showModal();
+
+  const select = el('assign-device-license-select');
+  select.innerHTML = '<option value="">Loading active licenses…</option>';
+  try {
+    const data = await api('/licenses?status=ACTIVE&limit=100');
+    select.innerHTML = '';
+    const available = data.licenses.filter(l => l.authorized_devices < l.max_devices);
+    if (!available.length) {
+      select.innerHTML = '<option value="">No licenses with available capacity found</option>';
+      el('assign-device-submit').disabled = true;
+      return;
+    }
+    for (const l of available) {
+      const opt = document.createElement('option');
+      opt.value = l.license_id;
+      opt.textContent = `${l.customer} (Seats: ${l.authorized_devices}/${l.max_devices} used | Expires: ${new Date(l.expires_at).toLocaleDateString()})`;
+      select.append(opt);
+    }
+    el('assign-device-submit').disabled = false;
+  } catch (err) {
+    select.innerHTML = '<option value="">Failed to load licenses</option>';
+    el('assign-device-error').textContent = err.message;
+    el('assign-device-error').style.display = 'block';
+    el('assign-device-submit').disabled = true;
+  }
+}
+
+el('assign-device-cancel').onclick = () => el('assign-device-dialog').close();
+el('assign-device-dialog').addEventListener('cancel', event => { if (el('assign-device-submit').disabled) event.preventDefault(); });
+
+el('assign-device-form').onsubmit = async event => {
+  event.preventDefault();
+  if (!pendingAssignDevice) return;
+  const licenseId = el('assign-device-license-select').value;
+  if (!licenseId) {
+    el('assign-device-error').textContent = 'Please select a license.';
+    el('assign-device-error').style.display = 'block';
+    return;
+  }
+  const reason = el('assign-device-reason').value.trim();
+  if (reason.length < 3) {
+    el('assign-device-error').textContent = 'Please provide a reason (at least 3 characters).';
+    el('assign-device-error').style.display = 'block';
+    return;
+  }
+  el('assign-device-error').style.display = 'none';
+  el('assign-device-submit').disabled = true;
+  el('assign-device-cancel').disabled = true;
+  try {
+    const result = await api(`/devices/${encodeURIComponent(pendingAssignDevice.device_id)}/assign`, {
+      confirmed_device_id: pendingAssignDevice.device_id,
+      license_id: licenseId,
+      reason
+    });
+    el('assign-device-dialog').close();
+    el('result').textContent = result.message || 'Device assigned and authorized successfully.';
+    await refresh();
+  } catch (error) {
+    el('assign-device-error').textContent = error.message;
+    el('assign-device-error').style.display = 'block';
+  } finally {
+    el('assign-device-submit').disabled = false;
+    el('assign-device-cancel').disabled = false;
+  }
+};
+
+function openRegenerateKeyDialog(license) {
+  pendingRegenerateKey = license;
+  el('regenerate-key-license-id').textContent = license.license_id;
+  el('regenerate-key-customer-name').textContent = license.customer || 'Unknown';
+  el('regenerate-key-reason').value = '';
+  el('regenerate-key-confirm').checked = false;
+  el('regenerate-key-error').textContent = '';
+  el('regenerate-key-error').style.display = 'none';
+  el('regenerate-key-dialog').showModal();
+  el('regenerate-key-reason').focus();
+}
+
+el('regenerate-key-cancel').onclick = () => el('regenerate-key-dialog').close();
+el('regenerate-key-dialog').addEventListener('cancel', event => { if (el('regenerate-key-submit').disabled) event.preventDefault(); });
+
+el('regenerate-key-form').onsubmit = async event => {
+  event.preventDefault();
+  if (!pendingRegenerateKey) return;
+  const reason = el('regenerate-key-reason').value.trim();
+  if (reason.length < 3) {
+    el('regenerate-key-error').textContent = 'Please provide a reason (at least 3 characters).';
+    el('regenerate-key-error').style.display = 'block';
+    return;
+  }
+  if (!el('regenerate-key-confirm').checked) {
+    el('regenerate-key-error').textContent = 'Please confirm replacement of the key.';
+    el('regenerate-key-error').style.display = 'block';
+    return;
+  }
+  el('regenerate-key-error').style.display = 'none';
+  el('regenerate-key-submit').disabled = true;
+  el('regenerate-key-cancel').disabled = true;
+  try {
+    const result = await api(`/licenses/${encodeURIComponent(pendingRegenerateKey.license_id)}/regenerate-key`, {
+      confirm: true,
+      confirmed_license_id: pendingRegenerateKey.license_id,
+      reason
+    });
+    el('regenerate-key-dialog').close();
+    el('generated-key-input').value = result.activation_key;
+    el('issued-customer').textContent = result.customer;
+    el('issued-license-id').textContent = result.license_id;
+    el('issued-expires').textContent = stamp(result.expires_at);
+    el('issued-devices').textContent = `${result.max_devices} workstation${result.max_devices > 1 ? 's' : ''}`;
+    el('copy-btn-text').textContent = 'Copy Key';
+    el('copy-feedback').textContent = '';
+    el('success-key-dialog').showModal();
+    el('result').textContent = result.message || 'New activation key generated successfully.';
+    await refresh();
+  } catch (error) {
+    el('regenerate-key-error').textContent = error.message;
+    el('regenerate-key-error').style.display = 'block';
+  } finally {
+    el('regenerate-key-submit').disabled = false;
+    el('regenerate-key-cancel').disabled = false;
   }
 };
 

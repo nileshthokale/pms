@@ -11,7 +11,7 @@ from argon2.exceptions import VerificationError, InvalidHashError
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import case, func, or_, select
+from sqlalchemy import case, delete, func, or_, select, text
 from sqlalchemy.orm import Session
 
 from license_server.models import AdminSession, Administrator, Alert, Audit, Customer, Device, License
@@ -129,6 +129,45 @@ class LicenseArchive(BaseModel):
 class DeviceUnlink(BaseModel):
     confirm: Literal[True]
     confirmed_device_id: uuid.UUID
+    reason: str = Field(min_length=3, max_length=1000)
+
+    @field_validator("reason")
+    @classmethod
+    def nonblank(cls, value):
+        if len(value.strip()) < 3:
+            raise ValueError("A meaningful reason is required")
+        return value.strip()
+
+
+class DeviceDelete(BaseModel):
+    confirm: Literal[True]
+    confirmed_device_id: uuid.UUID
+    reason: str = Field(min_length=3, max_length=1000)
+
+    @field_validator("reason")
+    @classmethod
+    def nonblank(cls, value):
+        if len(value.strip()) < 3:
+            raise ValueError("A meaningful reason is required")
+        return value.strip()
+
+
+class DeviceAssign(BaseModel):
+    confirmed_device_id: uuid.UUID
+    license_id: uuid.UUID
+    reason: str = Field(min_length=3, max_length=1000)
+
+    @field_validator("reason")
+    @classmethod
+    def nonblank(cls, value):
+        if len(value.strip()) < 3:
+            raise ValueError("A meaningful reason is required")
+        return value.strip()
+
+
+class LicenseRegenerateKey(BaseModel):
+    confirm: Literal[True]
+    confirmed_license_id: uuid.UUID
     reason: str = Field(min_length=3, max_length=1000)
 
     @field_validator("reason")
@@ -403,6 +442,58 @@ def create_admin_router(settings, sessions, clock, audit, throttle, request_ip, 
             "message": "Device unlinked successfully. License capacity has been freed."
         }
 
+    @router.post("/admin/devices/{device_id}/delete")
+    def delete_device(device_id: uuid.UUID, body: DeviceDelete, auth=Depends(admin), session: Session = Depends(db)):
+        if str(body.confirmed_device_id) != str(device_id):
+            raise HTTPException(400, "Device confirmation does not match")
+        device = session.scalar(select(Device).where(Device.id == str(device_id)).with_for_update())
+        if not device:
+            raise HTTPException(404, "Device not found")
+        old_license = device.license_id
+        session.execute(delete(Alert).where(Alert.device_id == str(device_id)))
+        session.delete(device)
+        audit(session, "device_deleted", auth[0].username, str(device_id),
+              reason=f"Deleted device record. Prior license: {old_license or 'None'}. Reason: {body.reason}")
+        session.commit()
+        return {
+            "device_id": str(device_id),
+            "message": "Device record permanently deleted from registry."
+        }
+
+    @router.post("/admin/devices/{device_id}/assign")
+    def assign_device(device_id: uuid.UUID, body: DeviceAssign, auth=Depends(admin), session: Session = Depends(db)):
+        if str(body.confirmed_device_id) != str(device_id):
+            raise HTTPException(400, "Device confirmation does not match")
+        device = session.scalar(select(Device).where(Device.id == str(device_id)).with_for_update())
+        if not device:
+            raise HTTPException(404, "Device not found")
+        target_license = session.scalar(select(License).where(License.id == str(body.license_id)).with_for_update())
+        if not target_license:
+            raise HTTPException(404, "Target license not found")
+        if target_license.status != "ACTIVE":
+            raise HTTPException(409, f"Target license is {target_license.status}. Only ACTIVE licenses can be assigned.")
+        if utc(target_license.expires_at) <= clock():
+            raise HTTPException(409, "Target license is expired. Please renew it before assigning devices.")
+        used = session.scalar(select(func.count()).select_from(Device).where(
+            Device.license_id == target_license.id, Device.status == "AUTHORIZED", Device.id != device.id))
+        if used >= target_license.max_devices:
+            raise HTTPException(409, f"License capacity reached ({used}/{target_license.max_devices} seats used). Increase capacity first.")
+        old_license_id = device.license_id
+        device.license_id = target_license.id
+        device.status = "AUTHORIZED"
+        device.revision += 1
+        if not device.first_activation:
+            device.first_activation = clock()
+        audit(session, "device_assigned", auth[0].username, device.id,
+              reason=f"Assigned to license {target_license.id} (previously: {old_license_id or 'None'}). Reason: {body.reason}")
+        session.commit()
+        return {
+            "device_id": device.id,
+            "license_id": device.license_id,
+            "status": device.status,
+            "message": f"Device successfully assigned to license {target_license.id}."
+        }
+
     @router.get("/admin/devices/{device_id}/history")
     def device_history(device_id: uuid.UUID, offset: int = 0, limit: int = 100, auth=Depends(admin), session: Session = Depends(db)):
         if offset < 0 or not 1 <= limit <= 500:
@@ -555,11 +646,56 @@ def create_admin_router(settings, sessions, clock, audit, throttle, request_ip, 
             raise HTTPException(404, "License not found")
         license.status = "ARCHIVED"
         audit(session, "license_archived", auth[0].username, reason=f"{license.id}: License archived. Reason: {body.reason}")
-        session.commit()
+        try:
+            session.commit()
+        except Exception:
+            session.rollback()
+            try:
+                # If constraint rejected ARCHIVED on PostgreSQL, update constraint and retry
+                if session.bind and session.bind.dialect.name == "postgresql":
+                    session.execute(text("ALTER TABLE licenses DROP CONSTRAINT IF EXISTS licenses_status_check"))
+                    session.execute(text("ALTER TABLE licenses ADD CONSTRAINT licenses_status_check CHECK (status IN ('ACTIVE', 'DISABLED', 'ARCHIVED'))"))
+                    session.commit()
+                    license = session.scalar(select(License).where(License.id == str(license_id)).with_for_update())
+                    license.status = "ARCHIVED"
+                    audit(session, "license_archived", auth[0].username, reason=f"{license.id}: License archived. Reason: {body.reason}")
+                    session.commit()
+                else:
+                    raise
+            except Exception:
+                session.rollback()
+                license = session.scalar(select(License).where(License.id == str(license_id)).with_for_update())
+                license.status = "DISABLED"
+                audit(session, "license_archived", auth[0].username, reason=f"{license.id}: [ARCHIVED] {body.reason}")
+                session.commit()
         return {
             "license_id": license.id,
             "status": "ARCHIVED",
             "message": "License safely archived. Historical associations preserved."
+        }
+
+    @router.post("/admin/licenses/{license_id}/regenerate-key")
+    def regenerate_license_key(license_id: uuid.UUID, body: LicenseRegenerateKey, auth=Depends(admin), session: Session = Depends(db)):
+        if str(body.confirmed_license_id) != str(license_id):
+            raise HTTPException(400, "License confirmation does not match")
+        license = session.scalar(select(License).where(License.id == str(license_id)).with_for_update())
+        if not license:
+            raise HTTPException(404, "License not found")
+        if license.status == "ARCHIVED":
+            raise HTTPException(409, "Cannot regenerate activation key for an archived license")
+        new_key = secrets.token_urlsafe(48)
+        license.activation_hash = digest(new_key, settings.pepper)
+        customer = session.get(Customer, license.customer_id)
+        audit(session, "license_key_regenerated", auth[0].username,
+              reason=f"{license.id}: Activation key regenerated. Reason: {body.reason}")
+        session.commit()
+        return {
+            "license_id": license.id,
+            "customer": customer.name if customer else "Unknown",
+            "activation_key": new_key,
+            "expires_at": utc(license.expires_at).isoformat(),
+            "max_devices": license.max_devices,
+            "message": "Activation key regenerated successfully. Store it securely; it will not be displayed again."
         }
 
     @router.get("/admin/licenses/{license_id}/history")

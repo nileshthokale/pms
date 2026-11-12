@@ -38,7 +38,7 @@ a = Analysis(
         "licensing.qt",
         "httpx",
         "cryptography",
-    ] + collect_submodules("screens") + collect_submodules("database") + collect_submodules("ui"),
+    ] + collect_submodules("screens") + collect_submodules("database") + collect_submodules("ui") + collect_submodules("reports") + collect_submodules("core"),
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

@@ -30,7 +30,7 @@ class LicenseDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("License validation required")
         self.setWindowModality(Qt.ApplicationModal)
-        self.setMinimumWidth(480)
+        self.setMinimumWidth(520)
         layout = QVBoxLayout(self)
         self.message = QLabel()
         self.message.setWordWrap(True)
@@ -41,17 +41,33 @@ class LicenseDialog(QDialog):
         self.device = QLabel()
         self.device.setTextInteractionFlags(Qt.TextSelectableByMouse)
         layout.addWidget(self.device)
-        layout.addWidget(QLabel("Activation key (provided by support):"))
+
+        copy_btn = QPushButton("Copy Device ID")
+        copy_btn.clicked.connect(self._copy_device_id)
+        layout.addWidget(copy_btn)
+
+        layout.addWidget(QLabel("Activation key (48-character key, not License UUID):"))
         self.key = QLineEdit()
-        self.key.setEchoMode(QLineEdit.Password)
+        self.key.setPlaceholderText("Paste your activation key here (e.g. 48-character token)")
+        self.key.setEchoMode(QLineEdit.Normal)
         layout.addWidget(self.key)
+
+        hint = QLabel("Tip: You can also authorize this Device ID directly in Super Admin.")
+        hint.setStyleSheet("color: #888; font-size: 11px;")
+        layout.addWidget(hint)
+
         self.retry = QPushButton("Validate over internet")
         self.retry.clicked.connect(self._retry)
         layout.addWidget(self.retry)
 
+    def _copy_device_id(self):
+        text = self.device.text().replace("Device ID: ", "").strip()
+        if text:
+            clipboard = QApplication.clipboard()
+            clipboard.setText(text)
+
     def _retry(self):
         value = self.key.text().strip() or None
-        self.key.clear()
         self.retry_requested.emit(value)
 
     def reject(self):

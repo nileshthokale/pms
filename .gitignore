@@ -24,6 +24,7 @@ PharmaWinner*.sql
 dist/
 build/pharmacy_management/
 build/pharmacy_management_test/
+build/pharmacy_management_onefile/
 build/test_release_staging/
 build/*.txt
 test_release_validation/

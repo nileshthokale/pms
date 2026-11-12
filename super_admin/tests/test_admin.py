@@ -665,3 +665,107 @@ def test_security_and_validation_for_new_endpoints(env):
                            json={"confirm": True, "confirmed_device_id": device_id, "reason": "   "}).status_code == 422
 
 
+def test_device_delete_and_assign_workflow(env):
+    headers = admin_login(env)
+    license_id = env["license_id"]
+
+    # Register an unassociated pending device (e.g. user pasted wrong key or no key)
+    store = MemoryStore()
+    client = LicenseClient(env["config"], store, clock=env["clock"], transport=env["transport"])
+    val = client.validate(activation_key="wrong-key-123")
+    assert val.allowed is False
+    assert val.status == "PENDING"
+    dev_id = client.state["device_id"]
+
+    # Verify device is recorded in database as PENDING with no license
+    with env["app"].state.sessions() as session:
+        d = session.get(Device, dev_id)
+        assert d is not None
+        assert d.license_id is None
+        assert d.status == "PENDING"
+
+    # 1. Direct Assignment from Dashboard: Admin assigns pending device to active license
+    res_assign = env["api"].post(
+        f"/admin/devices/{dev_id}/assign",
+        headers=headers,
+        json={
+            "confirmed_device_id": dev_id,
+            "license_id": license_id,
+            "reason": "Authorized workstation for pharmacy counter",
+        },
+    )
+    assert res_assign.status_code == 200
+    assert res_assign.json()["status"] == "AUTHORIZED"
+    assert res_assign.json()["license_id"] == license_id
+
+    # Desktop client now validates over internet -> SUCCEEDS immediately!
+    val_after_assign = client.validate()
+    assert val_after_assign.allowed is True
+    assert val_after_assign.status == "AUTHORIZED"
+
+    # 2. Deletion: Admin permanently deletes device
+    res_del = env["api"].post(
+        f"/admin/devices/{dev_id}/delete",
+        headers=headers,
+        json={
+            "confirm": True,
+            "confirmed_device_id": dev_id,
+            "reason": "Decommissioned old test workstation",
+        },
+    )
+    assert res_del.status_code == 200
+
+    with env["app"].state.sessions() as session:
+        assert session.get(Device, dev_id) is None
+        # Verify audit log
+        audit_entry = session.scalar(
+            select(Audit).where(Audit.event == "device_deleted", Audit.device_id == dev_id)
+        )
+        assert audit_entry is not None
+        assert "Decommissioned old test workstation" in audit_entry.reason
+
+
+def test_license_regenerate_key_workflow(env):
+    headers = admin_login(env)
+    license_id = env["license_id"]
+    old_key = env["activation"]
+
+    # Regenerate key
+    res = env["api"].post(
+        f"/admin/licenses/{license_id}/regenerate-key",
+        headers=headers,
+        json={
+            "confirm": True,
+            "confirmed_license_id": license_id,
+            "reason": "Customer misplaced original activation token",
+        },
+    )
+    assert res.status_code == 200
+    new_key = res.json()["activation_key"]
+    assert new_key != old_key
+    assert len(new_key) >= 40
+
+    # Old key fails for new device activation
+    store_old = MemoryStore()
+    client_old = LicenseClient(env["config"], store_old, clock=env["clock"], transport=env["transport"])
+    val_old = client_old.validate(activation_key=old_key)
+    assert val_old.allowed is False
+    assert val_old.status == "PENDING"
+
+    # New key succeeds for new device activation
+    store_new = MemoryStore()
+    client_new = LicenseClient(env["config"], store_new, clock=env["clock"], transport=env["transport"])
+    val_new = client_new.validate(activation_key=new_key)
+    assert val_new.allowed is True
+    assert val_new.status == "AUTHORIZED"
+
+    # Verify audit log
+    with env["app"].state.sessions() as session:
+        audit_row = session.scalar(
+            select(Audit).where(Audit.event == "license_key_regenerated").order_by(Audit.created_at.desc())
+        )
+        assert audit_row is not None
+        assert audit_row.actor == "developer"
+        assert "misplaced original activation token" in audit_row.reason
+
+

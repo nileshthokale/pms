@@ -104,6 +104,29 @@ class Registration(DeviceRequest):
     activation_key: str | None = Field(default=None, max_length=200)
 
 
+def ensure_schema_compatibility(engine):
+    """Idempotently ensure database constraints allow ARCHIVED status."""
+    if getattr(engine, "dialect", None) and engine.dialect.name == "postgresql":
+        try:
+            from sqlalchemy import text
+            with engine.begin() as conn:
+                conn.execute(text("""
+                    DO $$
+                    BEGIN
+                        IF EXISTS (
+                            SELECT 1 FROM pg_constraint WHERE conname = 'licenses_status_check'
+                        ) THEN
+                            ALTER TABLE licenses DROP CONSTRAINT licenses_status_check;
+                        END IF;
+                        ALTER TABLE licenses ADD CONSTRAINT licenses_status_check CHECK (status IN ('ACTIVE', 'DISABLED', 'ARCHIVED'));
+                    EXCEPTION WHEN OTHERS THEN
+                        NULL;
+                    END $$;
+                """))
+        except Exception:
+            pass
+
+
 def create_app(settings=None, *, engine=None, clock=utcnow):
     patch_proactor_connection_lost()
     settings = settings or Settings.from_env()
@@ -113,6 +136,7 @@ def create_app(settings=None, *, engine=None, clock=utcnow):
         engine = create_engine(settings.database_url, pool_pre_ping=True,
                                poolclass=NullPool if settings.vercel else None,
                                connect_args={"connect_timeout": 5})
+    ensure_schema_compatibility(engine)
     sessions = sessionmaker(engine, expire_on_commit=False)
     shutdown_registry = ShutdownRegistry()
     app = FastAPI(title="Pharmacy Device Licensing", docs_url=None, redoc_url=None, openapi_url=None)

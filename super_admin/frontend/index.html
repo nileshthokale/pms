@@ -335,5 +335,127 @@
   </form>
 </dialog>
 
+<dialog id="delete-device-dialog" class="action-modal" aria-labelledby="delete-device-dialog-title">
+  <form id="delete-device-form">
+    <div class="dialog-heading">
+      <div>
+        <p class="eyebrow">DANGER ZONE</p>
+        <h2 id="delete-device-dialog-title">Delete Device Record</h2>
+      </div>
+      <button type="button" class="icon-button" aria-label="Cancel" onclick="document.getElementById('delete-device-cancel').click()"><svg class="icon"><use href="#i-close"/></svg></button>
+    </div>
+
+    <div class="key-warning" style="margin-top: 0;">
+      <svg class="icon"><use href="#i-alert"/></svg>
+      <div>
+        <strong>Permanent Deletion Warning</strong>
+        <p>This permanently removes this registered device from the licensing registry. Associated installation alerts will also be cleared.</p>
+      </div>
+    </div>
+
+    <div class="issued-details-grid" style="margin: 16px 0;">
+      <div><span>Device ID</span><span id="delete-device-id" class="mono">—</span></div>
+      <div><span>Customer / License</span><strong id="delete-device-customer">—</strong></div>
+    </div>
+
+    <label for="delete-device-reason">Reason for deleting device <span class="required">*</span>
+      <textarea id="delete-device-reason" required minlength="3" maxlength="1000" rows="3" placeholder="Reason for deleting this device registration"></textarea>
+    </label>
+
+    <label class="check-label">
+      <input id="delete-device-confirm" type="checkbox" required> I confirm permanently deleting this device record.
+    </label>
+
+    <p id="delete-device-error" class="notice error" style="display:none;"></p>
+
+    <div class="dialog-buttons">
+      <button id="delete-device-cancel" type="button" class="secondary">Cancel</button>
+      <button id="delete-device-submit" type="submit" class="danger"><svg class="icon"><use href="#i-close"/></svg>Delete Device</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="assign-device-dialog" class="action-modal" aria-labelledby="assign-device-dialog-title">
+  <form id="assign-device-form">
+    <div class="dialog-heading">
+      <div>
+        <p class="eyebrow">DEVICE AUTHORIZATION</p>
+        <h2 id="assign-device-dialog-title">Assign Device to License</h2>
+      </div>
+      <button type="button" class="icon-button" aria-label="Cancel" onclick="document.getElementById('assign-device-cancel').click()"><svg class="icon"><use href="#i-close"/></svg></button>
+    </div>
+
+    <div class="key-warning" style="margin-top: 0;">
+      <svg class="icon"><use href="#i-shield"/></svg>
+      <div>
+        <strong>Direct Device Authorization</strong>
+        <p>Assign this computer to an active customer license. The workstation will be immediately authorized at its next server validation.</p>
+      </div>
+    </div>
+
+    <div class="issued-details-grid" style="margin: 16px 0;">
+      <div><span>Device ID</span><span id="assign-device-id" class="mono">—</span></div>
+      <div><span>Current Status</span><strong id="assign-device-status">—</strong></div>
+    </div>
+
+    <label for="assign-device-license-select">Select Active License <span class="required">*</span>
+      <select id="assign-device-license-select" required style="width: 100%; padding: 10px; background: #000; border: 1px solid var(--line); border-radius: 6px; color: #fff; margin-top: 6px;">
+        <option value="">Loading active licenses…</option>
+      </select>
+    </label>
+
+    <label for="assign-device-reason" style="margin-top: 14px;">Reason for assignment <span class="required">*</span>
+      <textarea id="assign-device-reason" required minlength="3" maxlength="1000" rows="2" placeholder="e.g. Authorized customer workstation"></textarea>
+    </label>
+
+    <p id="assign-device-error" class="notice error" style="display:none;"></p>
+
+    <div class="dialog-buttons">
+      <button id="assign-device-cancel" type="button" class="secondary">Cancel</button>
+      <button id="assign-device-submit" type="submit" class="primary"><svg class="icon"><use href="#i-shield"/></svg>Authorize &amp; Assign</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="regenerate-key-dialog" class="action-modal" aria-labelledby="regenerate-key-dialog-title">
+  <form id="regenerate-key-form">
+    <div class="dialog-heading">
+      <div>
+        <p class="eyebrow">ACTIVATION RE-KEYING</p>
+        <h2 id="regenerate-key-dialog-title">Regenerate Activation Key</h2>
+      </div>
+      <button type="button" class="icon-button" aria-label="Cancel" onclick="document.getElementById('regenerate-key-cancel').click()"><svg class="icon"><use href="#i-close"/></svg></button>
+    </div>
+
+    <div class="key-warning" style="margin-top: 0;">
+      <svg class="icon"><use href="#i-alert"/></svg>
+      <div>
+        <strong>Key Replacement Warning</strong>
+        <p>Generating a new activation key replaces the previous key for new device activations. Already authorized devices remain active.</p>
+      </div>
+    </div>
+
+    <div class="issued-details-grid" style="margin: 16px 0;">
+      <div><span>License ID</span><span id="regenerate-key-license-id" class="mono">—</span></div>
+      <div><span>Customer</span><strong id="regenerate-key-customer-name">—</strong></div>
+    </div>
+
+    <label for="regenerate-key-reason">Reason for generating new key <span class="required">*</span>
+      <textarea id="regenerate-key-reason" required minlength="3" maxlength="1000" rows="2" placeholder="e.g. Customer requested key replacement for new computer"></textarea>
+    </label>
+
+    <label class="check-label">
+      <input id="regenerate-key-confirm" type="checkbox" required> Confirm generating a new activation key.
+    </label>
+
+    <p id="regenerate-key-error" class="notice error" style="display:none;"></p>
+
+    <div class="dialog-buttons">
+      <button id="regenerate-key-cancel" type="button" class="secondary">Cancel</button>
+      <button id="regenerate-key-submit" type="submit" class="primary"><svg class="icon"><use href="#i-renew"/></svg>Generate New Key</button>
+    </div>
+  </form>
+</dialog>
+
 <script type="module" src="/admin/assets/dashboard.js"></script>
 </body></html>
