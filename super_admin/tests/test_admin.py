@@ -823,4 +823,34 @@ def test_direct_device_authorization_from_super_admin(env):
     assert client.state["license"]["payload"]["license_id"] == license_id
 
 
+def test_device_deletion_terminates_offline_grace_and_locks_client(env):
+    """Verifies that when a device is deleted from Super Admin, the client immediately terminates offline grace and locks."""
+    license_id = env["license_id"]
+    headers = admin_login(env)
+
+    # 1. Device activates and has a valid offline envelope
+    store = MemoryStore()
+    client = LicenseClient(env["config"], store, clock=env["clock"], transport=env["transport"])
+    val = client.validate(activation_key=license_id)
+    assert val.allowed is True
+    assert val.status == "AUTHORIZED"
+    device_id = client.state["device_id"]
+
+    # 2. Admin deletes device from Super Admin
+    del_resp = env["api"].post(f"/admin/devices/{device_id}/delete", json={
+        "confirm": True,
+        "confirmed_device_id": device_id,
+        "reason": "De-commissioned computer"
+    }, headers=headers)
+    assert del_resp.status_code == 200
+
+    # 3. Client checks validation: server rejects credentials (401)
+    val_after = client.validate()
+    assert val_after.allowed is False
+    assert val_after.status == "AUTHENTICATION_ERROR"
+    assert client.state.get("license") is None
+    assert client.decision().allowed is False
+
+
+
 

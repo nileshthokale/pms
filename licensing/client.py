@@ -84,8 +84,10 @@ class LicenseClient:
         self.store.write(self.state)
         if not self.config.get("server_url") or not self.config.get("public_keys"):
             result = Decision(False, "NOT_CONFIGURED", "Licensing service is not configured. Contact support.", self.connectivity)
-        elif not envelope:
-            result = Decision(False, "VALIDATION_REQUIRED", "Connect to the internet and activate this installation to continue.", self.connectivity)
+        elif self.connectivity == "AUTHENTICATION_ERROR" or not envelope:
+            msg = "This computer's registration was removed or rejected in Super Admin. Please activate with an active license." if self.connectivity == "AUTHENTICATION_ERROR" else "Connect to the internet and activate this installation to continue."
+            status = "AUTHENTICATION_ERROR" if self.connectivity == "AUTHENTICATION_ERROR" else "VALIDATION_REQUIRED"
+            result = Decision(False, status, msg, self.connectivity)
         else:
             try:
                 payload = verify_license(envelope, self.config["public_keys"], self.state["device_id"])
@@ -134,7 +136,7 @@ class LicenseClient:
             if register:
                 body["activation_key"] = self.state.get("activation_key", "") or None
             try:
-                with httpx.Client(timeout=httpx.Timeout(5), verify=True, follow_redirects=False, transport=self.transport) as http:
+                with httpx.Client(timeout=httpx.Timeout(12), verify=True, follow_redirects=False, transport=self.transport) as http:
                     started = time.monotonic()
                     with http.stream("POST", url + endpoint, json=body) as response:
                         status_code = response.status_code
@@ -149,6 +151,12 @@ class LicenseClient:
                     self.connectivity = "SERVER_UNAVAILABLE"
                 elif status_code != 200:
                     self.connectivity = "AUTHENTICATION_ERROR" if status_code in (401, 403) else "PROTOCOL_ERROR"
+                    if status_code in (401, 403):
+                        # Explicit rejection from server (device deleted, unlinked, or unauthorized).
+                        # Invalidate cached license envelope immediately so offline grace is terminated.
+                        self.state["license"] = None
+                        self.state["registered"] = False
+                        self.store.write(self.state)
                 else:
                     envelope = json.loads(received)
                     payload = verify_license(envelope, self.config["public_keys"], self.state["device_id"], nonce)
