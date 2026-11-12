@@ -769,3 +769,28 @@ def test_license_regenerate_key_workflow(env):
         assert "misplaced original activation token" in audit_row.reason
 
 
+def test_direct_license_id_activation_in_desktop_client(env):
+    """Verifies that customers can activate by entering their License ID directly (e.g. 3db7dd0f-...) in any case."""
+    license_id = env["license_id"]
+
+    # 1. Desktop user copies License ID directly (uppercase, with hyphens) and pastes it
+    store1 = MemoryStore()
+    client1 = LicenseClient(env["config"], store1, clock=env["clock"], transport=env["transport"])
+    val1 = client1.validate(activation_key=license_id.upper())
+    assert val1.allowed is True
+    assert val1.status == "AUTHORIZED"
+    assert client1.state["license"]["payload"]["license_id"] == license_id
+
+    # 2. Another device activates with lowercase License ID
+    with env["app"].state.sessions() as session:
+        session.get(License, license_id).max_devices = 5
+        session.commit()
+
+    store2 = MemoryStore()
+    client2 = LicenseClient(env["config"], store2, clock=env["clock"], transport=env["transport"])
+    val2 = client2.validate(activation_key=license_id.lower())
+    assert val2.allowed is True
+    assert val2.status == "AUTHORIZED"
+    assert client2.state["license"]["payload"]["license_id"] == license_id
+
+

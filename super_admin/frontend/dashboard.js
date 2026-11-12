@@ -191,7 +191,24 @@ function renderDevices(data) {
 function renderLicenses(data) {
   const target = el('licenses'); target.replaceChildren();
   for (const l of data.licenses) {
-    const row = node('tr'), customer = node('td');customer.append(button(l.customer,() => showLicense(l),'text-button'),node('small',l.license_id));row.append(customer);
+    const row = node('tr'), customer = node('td');
+    const custBtn = button(l.customer, () => showLicense(l), 'text-button');
+    const idRow = node('div', null, 'id-copy-row');
+    const idSpan = node('span', l.license_id, 'mono small-id');
+    const copyBtn = button('Copy ID', async (e) => {
+      e.stopPropagation();
+      try {
+        await navigator.clipboard.writeText(l.license_id);
+        copyBtn.textContent = 'Copied!';
+        setTimeout(() => { if (copyBtn) copyBtn.textContent = 'Copy ID'; }, 2000);
+      } catch {
+        prompt('Copy this License ID:', l.license_id);
+      }
+    }, 'mini-copy-btn');
+    idRow.append(idSpan, copyBtn);
+    customer.append(custBtn, idRow);
+    row.append(customer);
+
     const status = node('td');status.append(badge(l.status));row.append(status,node('td',stamp(l.expires_at)));
     const usage = node('td',null,'capacity'), label = node('div',null,'capacity-label'); label.append(node('span',`${l.authorized_devices} / ${l.max_devices}`),node('span','authorized'));
     const track = node('div',null,'capacity-track'), fill = node('div',null,'capacity-fill');fill.style.width = `${Math.min(100,l.authorized_devices/l.max_devices*100)}%`;track.append(fill);usage.append(label,track);row.append(usage);
@@ -201,14 +218,10 @@ function renderLicenses(data) {
     actionBtns.append(
       button('Renew', () => openRenewDialog(l)),
       button('Edit', () => openEditLicenseDialog(l)),
-      button('Details', () => showLicense(l)),
       button(isInactive ? 'Reactivate' : 'Revoke', () => confirmAction('licenses', l.license_id, isInactive), isInactive ? 'secondary' : 'danger')
     );
     if (l.status !== 'ARCHIVED') {
-      actionBtns.append(
-        button('Archive', () => openArchiveDialog(l), 'danger'),
-        button('New Key', () => openRegenerateKeyDialog(l), 'secondary')
-      );
+      actionBtns.append(button('Archive', () => openArchiveDialog(l), 'danger'));
     }
     actionBtns.append(button('History', () => showLicenseHistory(l.license_id, l.customer)));
     actions.append(actionBtns);

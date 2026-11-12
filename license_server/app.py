@@ -223,13 +223,18 @@ def create_app(settings=None, *, engine=None, clock=utcnow):
         return device
 
     def associate(session, device, activation_key):
-        license = session.scalar(select(License).where(License.activation_hash == digest(activation_key, settings.pepper)).with_for_update())
-        if not license:
-            audit(session, "activation_failed", "device", device.id, "Invalid activation key")
+        key = (activation_key or "").strip()
+        if not key:
             return
-        if device.license_id and device.license_id != license.id:
-            return  # no self-service transfer between customer licenses
-        device.license_id = license.id
+        # 1. Accept License ID directly (case-insensitive UUID format)
+        clean_key = key.lower()
+        license = session.scalar(select(License).where(func.lower(License.id) == clean_key).with_for_update())
+        # 2. Or accept the cryptographic activation hash
+        if not license:
+            license = session.scalar(select(License).where(License.activation_hash == digest(key, settings.pepper)).with_for_update())
+        if not license:
+            audit(session, "activation_failed", "device", device.id, f"Invalid activation key or license ID: {key[:8]}...")
+            return
         if device.status == "REVOKED":
             return  # activation keys cannot override a developer revocation
         if license.status != "ACTIVE" or utc(license.expires_at) <= clock():
@@ -237,9 +242,11 @@ def create_app(settings=None, *, engine=None, clock=utcnow):
             return
         used = session.scalar(select(func.count()).select_from(Device).where(
             Device.license_id == license.id, Device.status == "AUTHORIZED", Device.id != device.id))
+        device.license_id = license.id
         device.status = "AUTHORIZED" if used < license.max_devices else "LIMIT_REACHED"
-        if device.status == "AUTHORIZED" and device.first_activation is None:
-            device.first_activation = clock()
+        if device.status == "AUTHORIZED":
+            if device.first_activation is None:
+                device.first_activation = clock()
             audit(session, "device_activated", "device", device.id, license.id)
 
     def result(session, device, body, event):

@@ -366,3 +366,29 @@ td.actions .action-cell-buttons {
   }
 }
 
+.id-copy-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+.small-id {
+  font-size: 11px;
+  color: var(--soft);
+}
+.mini-copy-btn {
+  font-size: 10px;
+  padding: 2px 6px;
+  min-height: auto;
+  border-radius: 4px;
+  background: #1c1c1c;
+  color: #aaa;
+  border: 1px solid #333;
+  cursor: pointer;
+}
+.mini-copy-btn:hover {
+  background: #2a2a2a;
+  color: #fff;
+  border-color: #555;
+}
+

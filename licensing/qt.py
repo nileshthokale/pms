@@ -46,17 +46,17 @@ class LicenseDialog(QDialog):
         copy_btn.clicked.connect(self._copy_device_id)
         layout.addWidget(copy_btn)
 
-        layout.addWidget(QLabel("Activation key (48-character key, not License UUID):"))
+        layout.addWidget(QLabel("License ID or Activation Key (from Super Admin):"))
         self.key = QLineEdit()
-        self.key.setPlaceholderText("Paste your activation key here (e.g. 48-character token)")
+        self.key.setPlaceholderText("Paste your License ID (e.g. 3db7dd0f-...) or key here")
         self.key.setEchoMode(QLineEdit.Normal)
         layout.addWidget(self.key)
 
-        hint = QLabel("Tip: You can also authorize this Device ID directly in Super Admin.")
-        hint.setStyleSheet("color: #888; font-size: 11px;")
+        hint = QLabel("Tip: Copy the License ID from the Super Admin dashboard and paste it here.")
+        hint.setStyleSheet("color: #666; font-size: 11px;")
         layout.addWidget(hint)
 
-        self.retry = QPushButton("Validate over internet")
+        self.retry = QPushButton("Activate & Open")
         self.retry.clicked.connect(self._retry)
         layout.addWidget(self.retry)
 
