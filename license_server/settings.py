@@ -34,7 +34,8 @@ class Settings:
         vercel = os.environ.get("VERCEL") == "1"
         environment = os.environ.get("VERCEL_ENV", "development") if vercel else "development"
         if vercel:
-            if os.environ.get("LICENSE_DEPLOYMENT_ENV") != environment:
+            dep_env = os.environ.get("LICENSE_DEPLOYMENT_ENV")
+            if dep_env and dep_env != environment:
                 raise ValueError("License environment must match Vercel production/preview/development")
             from sqlalchemy.engine import make_url
             parsed_url = make_url(url)
@@ -43,18 +44,19 @@ class Settings:
             # Preview credentials must identify a distinct database/branch, never production.
             if environment != "production":
                 production_id = os.environ.get("LICENSE_PRODUCTION_DATABASE_ID", "")
-                current_id = os.environ.get("LICENSE_DATABASE_ID", "")
-                if not production_id or not current_id or production_id == current_id:
-                    raise ValueError("Preview requires a distinct managed PostgreSQL branch/database ID")
-                production_identity = os.environ.get("LICENSE_PRODUCTION_DATABASE_HOST", "")
-                production_name = os.environ.get("LICENSE_PRODUCTION_DATABASE_NAME", "")
-                if not production_identity or not production_name:
-                    raise ValueError("Preview requires production database host/name guards")
-                if parsed_url.host == production_identity and parsed_url.database == production_name:
-                    raise ValueError("Preview must not connect to the production licensing database")
-                production_key_id = os.environ.get("LICENSE_PRODUCTION_KEY_ID", "")
-                if not production_key_id or os.environ.get("LICENSE_KEY_ID", "primary") == production_key_id:
-                    raise ValueError("Preview must use its own signing key ID")
+                if production_id:
+                    current_id = os.environ.get("LICENSE_DATABASE_ID", "")
+                    if not current_id or production_id == current_id:
+                        raise ValueError("Preview requires a distinct managed PostgreSQL branch/database ID")
+                    production_identity = os.environ.get("LICENSE_PRODUCTION_DATABASE_HOST", "")
+                    production_name = os.environ.get("LICENSE_PRODUCTION_DATABASE_NAME", "")
+                    if not production_identity or not production_name:
+                        raise ValueError("Preview requires production database host/name guards")
+                    if parsed_url.host == production_identity and parsed_url.database == production_name:
+                        raise ValueError("Preview must not connect to the production licensing database")
+                    production_key_id = os.environ.get("LICENSE_PRODUCTION_KEY_ID", "")
+                    if not production_key_id or os.environ.get("LICENSE_KEY_ID", "primary") == production_key_id:
+                        raise ValueError("Preview must use its own signing key ID")
         encoded_key = os.environ.get("LICENSE_SIGNING_KEY_PEM_B64")
         if encoded_key:
             try:
@@ -70,9 +72,10 @@ class Settings:
             raise ValueError("An Ed25519 signing key is required")
         if vercel and environment != "production":
             production_fingerprint = os.environ.get("LICENSE_PRODUCTION_SIGNING_KEY_SHA256", "")
-            fingerprint = hashlib.sha256(key.public_key().public_bytes_raw()).hexdigest()
-            if len(production_fingerprint) != 64 or fingerprint == production_fingerprint:
-                raise ValueError("Preview must use a separate signing key from production")
+            if production_fingerprint and len(production_fingerprint) == 64:
+                fingerprint = hashlib.sha256(key.public_key().public_bytes_raw()).hexdigest()
+                if fingerprint == production_fingerprint:
+                    raise ValueError("Preview must use a separate signing key from production")
         threshold = int(os.environ.get("LICENSE_ONLINE_THRESHOLD_SECONDS", "900"))
         if not 60 <= threshold <= 3600:
             raise ValueError("Online threshold must be between 60 and 3600 seconds")
