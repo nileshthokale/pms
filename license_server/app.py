@@ -2,7 +2,6 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import hmac
 import ipaddress
-import secrets
 import socket
 import sys
 import uuid
@@ -105,7 +104,12 @@ class Registration(DeviceRequest):
 
 
 def ensure_schema_compatibility(engine):
-    """Idempotently ensure database constraints allow ARCHIVED status."""
+    """Idempotently ensure database schema exists and constraints allow ARCHIVED status."""
+    try:
+        from license_server.models import Base
+        Base.metadata.create_all(engine)
+    except Exception:
+        pass
     if getattr(engine, "dialect", None) and engine.dialect.name == "postgresql":
         try:
             from sqlalchemy import text
@@ -158,7 +162,9 @@ def create_app(settings=None, *, engine=None, clock=utcnow):
 
     @app.middleware("http")
     async def secure_transport(request, call_next):
-        if request.url.scheme != "https":
+        is_loopback = request.url.hostname in ("127.0.0.1", "localhost", "testserver")
+        forwarded_proto = request.headers.get("x-forwarded-proto", "")
+        if request.url.scheme != "https" and forwarded_proto != "https" and not (is_loopback and not settings.vercel):
             return JSONResponse({"detail": "HTTPS is required"}, status_code=400)
         try:
             response = await call_next(request)

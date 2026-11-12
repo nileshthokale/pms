@@ -19,7 +19,6 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
-    QCompleter,
     QDateEdit,
     QDialog,
     QFileDialog,
@@ -40,7 +39,6 @@ from ui import components as ui
 from screens.sales_reports import paginate_sales_blocks
 from ui.crystal_report_viewer import (
     BlockKind,
-    CONTENT_WIDTH_LANDSCAPE,
     ReportBlock,
     ReportHeaderData,
     ReportPage,

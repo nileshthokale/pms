@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sqlite3
 from database.connection import get_connection
 from database.accounting_posting import (
     PostingError,

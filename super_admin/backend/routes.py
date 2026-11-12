@@ -254,7 +254,8 @@ def create_admin_router(settings, sessions, clock, audit, throttle, request_ip, 
                                  expires_at=clock() + timedelta(seconds=settings.session_seconds)))
         audit(session, "admin_login", user.username)
         session.commit()
-        response.set_cookie(settings.cookie_name, token, secure=True, httponly=True, samesite="strict", max_age=settings.session_seconds, path="/admin")
+        is_secure = settings.vercel or request.url.scheme == "https"
+        response.set_cookie(settings.cookie_name, token, secure=is_secure, httponly=True, samesite="strict" if is_secure else "lax", max_age=settings.session_seconds, path="/admin")
         return {"csrf_token": csrf}
 
     @router.get("/admin/me")
@@ -262,11 +263,12 @@ def create_admin_router(settings, sessions, clock, audit, throttle, request_ip, 
         return {"username": auth[0].username, "csrf_token": auth[1].csrf_value, "environment": settings.environment}
 
     @router.post("/admin/logout")
-    def logout(response: Response, auth=Depends(admin), session: Session = Depends(db)):
+    def logout(request: Request, response: Response, auth=Depends(admin), session: Session = Depends(db)):
         session.delete(auth[1])
         audit(session, "admin_logout", auth[0].username)
         session.commit()
-        response.delete_cookie(settings.cookie_name, path="/admin", secure=True, httponly=True, samesite="strict")
+        is_secure = settings.vercel or request.url.scheme == "https"
+        response.delete_cookie(settings.cookie_name, path="/admin", secure=is_secure, httponly=True, samesite="strict" if is_secure else "lax")
         return {"ok": True}
 
     def device_record(d, l, c, a, now):

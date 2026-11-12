@@ -14,7 +14,7 @@ or recalculating ledger postings or stock.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from database.connection import get_connection
 from database.purchase_dao import pack_factor
 from database.tax_structures import rate_percent

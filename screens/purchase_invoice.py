@@ -5,17 +5,15 @@ import re
 from datetime import datetime, date
 from decimal import Decimal, ROUND_HALF_UP
 
-from PySide6.QtCore import Qt, QDate, QEvent, QStringListModel, Signal, QModelIndex, QPoint
+from PySide6.QtCore import Qt, QDate, QEvent, Signal, QModelIndex, QPoint
 from PySide6.QtGui import QFont, QStandardItemModel, QStandardItem
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCalendarWidget,
-    QComboBox,
     QCompleter,
     QDateEdit,
     QDialog,
     QFileDialog,
-    QFormLayout,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -24,12 +22,10 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
-    QScrollArea,
     QSizePolicy,
     QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
-    QTextEdit,
     QToolButton,
     QVBoxLayout,
     QWidget,

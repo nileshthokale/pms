@@ -44,14 +44,12 @@ import re
 import sys
 from typing import Any
 
-from core.doc_formatter import format_document_number
 
-from PySide6.QtCore import QMarginsF, QPointF, QRectF, QSizeF, Qt
+from PySide6.QtCore import QMarginsF, QPointF, QRectF, Qt
 from PySide6.QtGui import (
     QColor,
     QFont,
     QFontMetricsF,
-    QImage,
     QPageLayout,
     QPageSize,
     QPainter,

@@ -138,7 +138,6 @@ class BalanceSheetPage(QWidget):
         root.addWidget(filter_bar)
 
         # ── Scrollable content area ──────────────────────────────
-        from PySide6.QtWidgets import QScrollArea
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setStyleSheet(

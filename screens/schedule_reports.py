@@ -21,21 +21,17 @@ Implements all 12 cascading schedule reports:
 
 from __future__ import annotations
 
-import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from PySide6.QtCore import QDate, QEvent, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QStandardItem
+from PySide6.QtGui import QStandardItem
 from PySide6.QtWidgets import (
-    QComboBox,
-    QCompleter,
     QDateEdit,
     QFileDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QMessageBox,
     QPushButton,
     QSplitter,
@@ -46,7 +42,6 @@ from PySide6.QtWidgets import (
 from core.doc_formatter import format_purchase_voucher_number, format_sales_bill_number
 from database.schedule_reports_dao import ScheduleReportsDAO
 from database import financial_year
-from ui import theme
 from ui.crystal_report_viewer import (
     BlockKind,
     CONTENT_WIDTH_LANDSCAPE,
@@ -56,7 +51,6 @@ from ui.crystal_report_viewer import (
     ReportBlock,
     ReportHeaderData,
     ReportPage,
-    fmt_amt,
     fmt_qty,
     print_or_export_report_pages,
 )

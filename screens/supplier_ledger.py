@@ -13,7 +13,6 @@ Displays detailed accounting transactions for a chosen supplier, including:
 from __future__ import annotations
 
 from datetime import date
-from typing import Optional
 
 from PySide6.QtCore import QDate, Qt
 from PySide6.QtWidgets import (
@@ -30,7 +29,6 @@ from PySide6.QtWidgets import (
 )
 
 from core.doc_formatter import format_document_number
-from database import financial_year
 from database.ledger_report_dao import LedgerReportDAO
 from screens.ledger_report_pages import (
     build_party_ledger_pages,
@@ -46,7 +44,7 @@ from screens.ledger_widgets import (
     table_style,
 )
 from ui.fy_view import view_year_bounds
-from ui.theme import palette, TYPE_PAGE_TITLE, TYPE_FORM_LABEL
+from ui.theme import palette, TYPE_PAGE_TITLE
 
 
 class SupplierLedgerPage(QWidget):

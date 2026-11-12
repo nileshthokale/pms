@@ -17,7 +17,6 @@ from sqlalchemy.orm import Session
 
 from license_server.app import digest
 from license_server.models import Administrator, Audit, Base, Customer, License
-from license_server.settings import Settings
 
 
 def _resolve_db_url(target="production"):

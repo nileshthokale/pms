@@ -9,18 +9,14 @@ Provides:
 
 from __future__ import annotations
 
-from typing import Any, Optional
 
-from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QAbstractItemView,
     QDateEdit,
-    QLineEdit,
     QWidget,
 )
 
-from ui.components import ConstrainedComboBox, SearchableComboBox
-from ui.theme import date_subcontrols, palette, TYPE_INPUT
+from ui.components import SearchableComboBox
+from ui.theme import date_subcontrols, palette
 
 
 def combo_style(p: dict | None = None) -> str:

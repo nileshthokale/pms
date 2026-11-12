@@ -11,8 +11,8 @@ Supports:
 from __future__ import annotations
 
 import calendar
-from datetime import date, datetime, timedelta
-from typing import Any, Dict, List, Optional
+from datetime import date, timedelta
+from typing import Any, List, Optional
 
 from database.connection import get_connection
 from database.expiry_report_dao import parse_expiry

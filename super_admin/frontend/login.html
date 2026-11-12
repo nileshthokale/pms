@@ -1,3 +1,125 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Sign in · Pharmacy Super Admin</title><link rel="stylesheet" href="/admin/assets/style.css"></head>
-<body class="login-page"><header class="site-header"><div class="header-inner"><a class="brand" href="/admin/sign-in"><span class="brand-mark"><svg class="icon" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-8 9-8 9s-8-4-8-9V6zM8 12l3 3 5-6"/></svg></span><span>Pharmacy<span class="brand-divider">/</span><small>Super Admin</small></span></a><span class="login-header-label">Administrator access</span></div></header><main class="login-shell"><section class="login-story"><div class="login-art" aria-hidden="true"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="login-shield"><svg viewBox="0 0 100 120"><path d="M50 6L90 22v35c0 28-40 53-40 53S10 85 10 57V22z"/><path d="M30 57l14 14 27-30"/></svg></div></div><p class="eyebrow">CLARITY. CONTROL. ACCOUNTABILITY.</p><h1>Your software.<br>Your command center.</h1><p>One secure workspace to monitor installations<br>and manage software access.</p><span class="login-scope">Licensing & device access only</span></section><section class="login panel"><p class="eyebrow">SECURE ADMINISTRATOR ACCESS</p><h2>Welcome back.</h2><p>Sign in to your command center.</p><form id="login"><label>Username<input id="username" autocomplete="username" required maxlength="100" placeholder="Your administrator username"></label><label>Password<input id="password" type="password" autocomplete="current-password" required maxlength="512" placeholder="Enter your password"></label><button type="submit">Sign in <span aria-hidden="true">→</span></button></form><p id="error" class="error" role="alert"></p><div class="login-note"><span class="tiny-dot"></span>Developer accounts only.<br>All access changes are audited.</div></section></main><script src="/admin/assets/login.js"></script></body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Sign in · Pharmacy Super Admin</title>
+  <link rel="stylesheet" href="/admin/assets/style.css">
+</head>
+<body class="login-page">
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="/admin/sign-in">
+        <span class="brand-mark">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-8 9-8 9s-8-4-8-9V6zM8 12l3 3 5-6"/></svg>
+        </span>
+        <span>Pharmacy<span class="brand-divider">/</span><small>Super Admin</small></span>
+      </a>
+      <span class="login-header-label">Administrator access</span>
+    </div>
+  </header>
+
+  <main class="login-shell">
+    <section class="login-story">
+      <div class="login-art" aria-hidden="true">
+        <div class="orbit orbit-one"></div>
+        <div class="orbit orbit-two"></div>
+        <div class="login-shield">
+          <svg viewBox="0 0 100 120">
+            <path d="M50 6L90 22v35c0 28-40 53-40 53S10 85 10 57V22z"/>
+            <path d="M30 57l14 14 27-30"/>
+          </svg>
+        </div>
+      </div>
+      <p class="eyebrow">CLARITY. CONTROL. ACCOUNTABILITY.</p>
+      <h1>Your software.<br>Your command center.</h1>
+      <p>One secure workspace to monitor installations<br class="desktop-break"> and manage software access.</p>
+      <span class="login-scope">Licensing &amp; device access only</span>
+    </section>
+
+    <section class="login panel">
+      <p class="eyebrow">SECURE ADMINISTRATOR ACCESS</p>
+      <h2>Welcome back.</h2>
+      <p>Sign in to your command center.</p>
+      <form id="login">
+        <label for="username">Username
+          <input id="username" autocomplete="username" required maxlength="100" placeholder="Your administrator username">
+        </label>
+        <label for="password">Password
+          <input id="password" type="password" autocomplete="current-password" required maxlength="512" placeholder="Enter your password">
+        </label>
+        <button type="submit">Sign in <span aria-hidden="true">&rarr;</span></button>
+      </form>
+      <p id="error" class="error" role="alert"></p>
+      <div class="login-note">
+        <span class="tiny-dot"></span>Developer accounts only.<br>All access changes are audited.
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer" role="contentinfo">
+    <div class="footer-inner">
+      <div class="footer-primary">
+        <div class="footer-brand-col">
+          <div class="footer-brand">
+            <span class="brand-mark">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-8 9-8 9s-8-4-8-9V6zM8 12l3 3 5-6"/></svg>
+            </span>
+            <span>Pharmacy<span class="brand-divider">/</span><strong>Super Admin</strong></span>
+          </div>
+          <p class="footer-tagline">Secure cryptographic license orchestration &amp; hardware validation gateway.</p>
+          <div class="footer-status-pill" role="status">
+            <span class="dot green"></span>
+            <span class="status-text">Authorization Gateway Online</span>
+            <span class="status-ver">v2.4.0</span>
+          </div>
+        </div>
+
+        <div class="footer-links-grid">
+          <div class="footer-col">
+            <span class="footer-heading">Access Portal</span>
+            <ul class="footer-nav">
+              <li><span class="footer-meta-item">Command Center Gateway</span></li>
+              <li><span class="footer-meta-item">Hardware Signature Node</span></li>
+              <li><span class="footer-meta-item">Revocation Controls</span></li>
+            </ul>
+          </div>
+
+          <div class="footer-col">
+            <span class="footer-heading">Compliance</span>
+            <ul class="footer-nav">
+              <li><span class="footer-meta-item">Hardware Bound Tokens</span></li>
+              <li><span class="footer-meta-item">Zero Trust Access Protocol</span></li>
+              <li><span class="footer-meta-item">Tamper-Proof Audit Logging</span></li>
+            </ul>
+          </div>
+
+          <div class="footer-col">
+            <span class="footer-heading">Support</span>
+            <ul class="footer-nav">
+              <li><span class="footer-meta-item">Security Operations Center</span></li>
+              <li><span class="footer-meta-item">Emergency Admin Hotline</span></li>
+              <li><a href="#login" class="back-to-top">Return to Sign-In &uarr;</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer-secondary">
+        <div class="footer-legal">
+          <p>&copy; 2026 Pharmacy Management System. Proprietary &amp; Confidential.</p>
+          <p class="footer-subtext">Restricted administrative access. Unauthorized attempts are monitored, blocked, and prosecuted.</p>
+        </div>
+        <div class="footer-badges">
+          <span class="badge neutral">FIPS 140-2</span>
+          <span class="badge neutral">TLS 1.3 Strict</span>
+          <span class="badge neutral">Super Admin v2.4.0</span>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/admin/assets/login.js"></script>
+</body>
+</html>

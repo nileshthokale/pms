@@ -29,7 +29,6 @@ from database.hold_bill_dao import (
     delete_hold,
     STATUS_ACTIVE,
     STATUS_RESUMED,
-    STATUS_DISCARDED,
 )
 from database import auth
 

@@ -78,7 +78,6 @@ from __future__ import annotations
 
 import sqlite3
 from contextlib import contextmanager
-from typing import Optional
 
 from database.connection import get_connection
 from database.account_roles import (

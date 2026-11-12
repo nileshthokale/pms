@@ -10,8 +10,6 @@ from PySide6.QtWidgets import (
     QDateEdit,
     QDialog,
     QFileDialog,
-    QGridLayout,
-    QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -27,12 +25,10 @@ from PySide6.QtWidgets import (
 )
 
 from database.debit_note_dao import DebitNoteDAO
-from database import auth
 from database import financial_year
 from database.document_printing import DocumentPrintError, generate_debit_note
 from database.item_dao import ItemDAO
 from database.purchase_dao import pack_factor
-from database.stock_dao import StockDAO
 from database.supplier_dao import SupplierDAO
 
 from ui.components import SearchableComboBox

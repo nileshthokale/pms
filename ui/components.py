@@ -19,6 +19,8 @@ Usage in a screen::
 
 from __future__ import annotations
 
+from typing import Any
+
 import re
 
 from PySide6.QtCore import (
@@ -26,7 +28,6 @@ from PySide6.QtCore import (
     QModelIndex,
     QPoint,
     QRect,
-    QStringListModel,
     QTimer,
     Qt,
     Signal,
@@ -47,7 +48,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
-    QSizePolicy,
     QTableWidget,
     QVBoxLayout,
     QWidget,
@@ -615,7 +615,6 @@ class SearchBar(FilterBar):
     def __init__(self, placeholder: str = "Search...",
                  parent: QWidget | None = None):
         super().__init__(parent)
-        from PySide6.QtWidgets import QLineEdit
 
         self.search_edit = QLineEdit()
         self.search_edit.setPlaceholderText(placeholder)
@@ -2234,7 +2233,6 @@ def refresh_generic_screen(root: QWidget) -> int:
     try:
         ss = root.styleSheet() if hasattr(root, "styleSheet") else ""
         if ss and "background-color:" in ss and "Q" not in ss.split("background-color:")[0][-20:]:
-            import re as _re2
             root.setStyleSheet(f"background-color: {p['bg']};")
             updated += 1
         elif root.objectName() in ("", None) and ss.strip().startswith("background-color"):
