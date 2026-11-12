@@ -67,6 +67,78 @@ class LicenseIssue(BaseModel):
         return value
 
 
+class LicenseRenew(BaseModel):
+    confirm: Literal[True]
+    confirmed_license_id: uuid.UUID
+    extension_days: int | None = Field(default=None, ge=1, le=3650)
+    expires_at: datetime | None = None
+    reason: str = Field(min_length=3, max_length=1000)
+
+    @field_validator("reason")
+    @classmethod
+    def nonblank(cls, value):
+        if len(value.strip()) < 3:
+            raise ValueError("A meaningful reason is required")
+        return value.strip()
+
+    @field_validator("expires_at")
+    @classmethod
+    def ensure_tz(cls, value: datetime | None):
+        if value is not None and value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value
+
+
+class LicenseEdit(BaseModel):
+    confirm: Literal[True]
+    confirmed_license_id: uuid.UUID
+    customer_name: str | None = Field(default=None, max_length=200)
+    max_devices: int | None = Field(default=None, ge=1, le=1000)
+    expires_at: datetime | None = None
+    notes: str | None = Field(default=None, max_length=1000)
+    reason: str = Field(min_length=3, max_length=1000)
+
+    @field_validator("reason")
+    @classmethod
+    def nonblank(cls, value):
+        if len(value.strip()) < 3:
+            raise ValueError("A meaningful reason is required")
+        return value.strip()
+
+    @field_validator("expires_at")
+    @classmethod
+    def ensure_tz(cls, value: datetime | None):
+        if value is not None and value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value
+
+
+class LicenseArchive(BaseModel):
+    confirm: Literal[True]
+    confirmed_license_id: uuid.UUID
+    reason: str = Field(min_length=3, max_length=1000)
+
+    @field_validator("reason")
+    @classmethod
+    def nonblank(cls, value):
+        if len(value.strip()) < 3:
+            raise ValueError("A meaningful reason is required")
+        return value.strip()
+
+
+class DeviceUnlink(BaseModel):
+    confirm: Literal[True]
+    confirmed_device_id: uuid.UUID
+    reason: str = Field(min_length=3, max_length=1000)
+
+    @field_validator("reason")
+    @classmethod
+    def nonblank(cls, value):
+        if len(value.strip()) < 3:
+            raise ValueError("A meaningful reason is required")
+        return value.strip()
+
+
 def create_admin_router(settings, sessions, clock, audit, throttle, request_ip, shutdown_registry=None):
     if shutdown_registry is None:
         from license_server.app import ShutdownRegistry
@@ -178,7 +250,7 @@ def create_admin_router(settings, sessions, clock, audit, throttle, request_ip, 
     def devices(offset: int = 0, limit: int = 100,
                 activity: Literal["all", "online", "recent", "recently_online", "offline"] = "all",
                 q: str = Query(default="", max_length=200),
-                status: Literal["all", "AUTHORIZED", "PENDING", "REVOKED", "EXPIRED", "LIMIT_REACHED", "NEW"] = "all",
+                status: Literal["all", "AUTHORIZED", "PENDING", "REVOKED", "EXPIRED", "LIMIT_REACHED", "NEW", "UNLINKED"] = "all",
                 license_id: uuid.UUID | None = None, auth=Depends(admin), session: Session = Depends(db)):
         if offset < 0 or not 1 <= limit <= 500:
             raise HTTPException(422, "Invalid pagination")
@@ -207,6 +279,8 @@ def create_admin_router(settings, sessions, clock, audit, throttle, request_ip, 
             query = query.where(Device.license_id == str(license_id))
         if status == "NEW":
             query = query.where(Alert.id.is_not(None), Alert.acknowledged_at.is_(None))
+        elif status == "UNLINKED":
+            query = query.where(Device.license_id.is_(None))
         elif status != "all":
             effective = case((or_(Device.status == "REVOKED", License.status == "DISABLED"), "REVOKED"),
                              (License.expires_at <= now, "EXPIRED"), else_=Device.status)
@@ -308,6 +382,27 @@ def create_admin_router(settings, sessions, clock, audit, throttle, request_ip, 
     def reactivate(device_id: uuid.UUID, body: DeviceAction, auth=Depends(admin), session: Session = Depends(db)):
         return action(device_id, body, auth, session, True)
 
+    @router.post("/admin/devices/{device_id}/unlink")
+    def unlink_device(device_id: uuid.UUID, body: DeviceUnlink, auth=Depends(admin), session: Session = Depends(db)):
+        if str(body.confirmed_device_id) != str(device_id):
+            raise HTTPException(400, "Device confirmation does not match")
+        device = session.scalar(select(Device).where(Device.id == str(device_id)).with_for_update())
+        if not device:
+            raise HTTPException(404, "Device not found")
+        if not device.license_id:
+            raise HTTPException(400, "Device is not linked to any license")
+        old_license_id = device.license_id
+        device.license_id = None
+        device.status = "PENDING"
+        device.revision += 1
+        audit(session, "device_unlinked", auth[0].username, device.id, reason=f"Unlinked from license {old_license_id}. Reason: {body.reason}")
+        session.commit()
+        return {
+            "device_id": device.id,
+            "status": device.status,
+            "message": "Device unlinked successfully. License capacity has been freed."
+        }
+
     @router.get("/admin/devices/{device_id}/history")
     def device_history(device_id: uuid.UUID, offset: int = 0, limit: int = 100, auth=Depends(admin), session: Session = Depends(db)):
         if offset < 0 or not 1 <= limit <= 500:
@@ -316,7 +411,7 @@ def create_admin_router(settings, sessions, clock, audit, throttle, request_ip, 
         if not device:
             raise HTTPException(404, "Device not found")
         # History uses existing licensing audit events only; no client business data is collected.
-        events = ("new_device_registered", "device_activated", "activation_failed", "device_revoked", "device_reactivated", "device_shutdown")
+        events = ("new_device_registered", "device_activated", "activation_failed", "device_revoked", "device_reactivated", "device_shutdown", "device_unlinked")
         condition = (Audit.device_id == device.id, Audit.event.in_(events))
         total = session.scalar(select(func.count()).select_from(Audit).where(*condition))
         rows = list(session.scalars(select(Audit).where(*condition).order_by(Audit.created_at.desc(), Audit.id).offset(offset).limit(limit)))
@@ -327,13 +422,15 @@ def create_admin_router(settings, sessions, clock, audit, throttle, request_ip, 
 
     @router.get("/admin/licenses")
     def licenses(offset: int = 0, limit: int = 100, q: str = Query(default="", max_length=200),
-                 status: Literal["all", "ACTIVE", "REVOKED", "EXPIRED"] = "all", auth=Depends(admin), session: Session = Depends(db)):
+                 status: Literal["all", "ACTIVE", "REVOKED", "EXPIRED", "ARCHIVED"] = "all", auth=Depends(admin), session: Session = Depends(db)):
         if offset < 0 or not 1 <= limit <= 500:
             raise HTTPException(422, "Invalid pagination")
         query = select(License, Customer).join(Customer, License.customer_id == Customer.id)
         if q.strip():
             query = query.where(or_(License.id.icontains(q.strip(), autoescape=True), Customer.name.icontains(q.strip(), autoescape=True)))
-        if status == "REVOKED":
+        if status == "ARCHIVED":
+            query = query.where(License.status == "ARCHIVED")
+        elif status == "REVOKED":
             query = query.where(License.status == "DISABLED")
         elif status == "ACTIVE":
             query = query.where(License.status == "ACTIVE", License.expires_at > clock())
@@ -344,7 +441,7 @@ def create_admin_router(settings, sessions, clock, audit, throttle, request_ip, 
         total = session.scalar(select(func.count()).select_from(query.with_only_columns(License.id).subquery()))
         record_view(session, auth[0], "admin_licenses_viewed")
         return {"total": total, "licenses": [{"license_id": l.id, "customer_id": c.id, "customer": c.name,
-                 "status": "REVOKED" if l.status == "DISABLED" else ("EXPIRED" if utc(l.expires_at) <= clock() else "ACTIVE"),
+                 "status": "ARCHIVED" if l.status == "ARCHIVED" else ("REVOKED" if l.status == "DISABLED" else ("EXPIRED" if utc(l.expires_at) <= clock() else "ACTIVE")),
                  "expires_at": utc(l.expires_at).isoformat(), "max_devices": l.max_devices,
                  "authorized_devices": usage.get(l.id, 0)} for l, c in rows]}
 
@@ -374,6 +471,122 @@ def create_admin_router(settings, sessions, clock, audit, throttle, request_ip, 
     @router.post("/admin/licenses/{license_id}/reactivate")
     def reactivate_license(license_id: uuid.UUID, body: LicenseAction, auth=Depends(admin), session: Session = Depends(db)):
         return license_action(license_id, body, auth, session, True)
+
+    @router.post("/admin/licenses/{license_id}/renew")
+    def renew_license(license_id: uuid.UUID, body: LicenseRenew, auth=Depends(admin), session: Session = Depends(db)):
+        if str(body.confirmed_license_id) != str(license_id):
+            raise HTTPException(400, "License confirmation does not match")
+        license = session.scalar(select(License).where(License.id == str(license_id)).with_for_update())
+        if not license:
+            raise HTTPException(404, "License not found")
+        if license.status == "ARCHIVED":
+            raise HTTPException(400, "Archived licenses cannot be renewed; reactivate or issue a new license")
+        now = clock()
+        if body.expires_at is not None:
+            new_expiry = body.expires_at
+            if new_expiry.tzinfo is None:
+                new_expiry = new_expiry.replace(tzinfo=timezone.utc)
+            if new_expiry <= now:
+                raise HTTPException(400, "License expiration date must be in the future")
+        elif body.extension_days is not None:
+            if utc(license.expires_at) > now:
+                new_expiry = utc(license.expires_at) + timedelta(days=body.extension_days)
+            else:
+                new_expiry = now + timedelta(days=body.extension_days)
+        else:
+            raise HTTPException(422, "Either extension_days or expires_at must be provided")
+
+        old_expiry = utc(license.expires_at).isoformat()
+        license.expires_at = new_expiry
+        if license.status != "ACTIVE":
+            license.status = "ACTIVE"
+        audit(session, "license_renewed", auth[0].username, reason=f"{license.id}: Extended from {old_expiry} to {utc(new_expiry).isoformat()}. Reason: {body.reason}")
+        session.commit()
+        return {
+            "license_id": license.id,
+            "status": license.status,
+            "expires_at": utc(license.expires_at).isoformat(),
+            "message": "License renewed successfully"
+        }
+
+    @router.post("/admin/licenses/{license_id}/edit")
+    def edit_license(license_id: uuid.UUID, body: LicenseEdit, auth=Depends(admin), session: Session = Depends(db)):
+        if str(body.confirmed_license_id) != str(license_id):
+            raise HTTPException(400, "License confirmation does not match")
+        license = session.scalar(select(License).where(License.id == str(license_id)).with_for_update())
+        if not license:
+            raise HTTPException(404, "License not found")
+        if body.max_devices is not None:
+            used = session.scalar(select(func.count()).select_from(Device).where(Device.license_id == license.id, Device.status == "AUTHORIZED"))
+            if body.max_devices < used:
+                raise HTTPException(409, f"Cannot reduce capacity to {body.max_devices}; {used} devices are currently authorized")
+            license.max_devices = body.max_devices
+        if body.expires_at is not None:
+            new_expiry = body.expires_at
+            if new_expiry.tzinfo is None:
+                new_expiry = new_expiry.replace(tzinfo=timezone.utc)
+            if new_expiry <= clock():
+                raise HTTPException(400, "License expiration date must be in the future")
+            license.expires_at = new_expiry
+        if body.customer_name is not None and body.customer_name.strip():
+            customer = session.get(Customer, license.customer_id)
+            if customer:
+                customer.name = body.customer_name.strip()
+        audit(session, "license_updated", auth[0].username, reason=f"{license.id}: Edited details. Reason: {body.reason}")
+        session.commit()
+        customer = session.get(Customer, license.customer_id)
+        effective_status = "ARCHIVED" if license.status == "ARCHIVED" else ("REVOKED" if license.status == "DISABLED" else ("EXPIRED" if utc(license.expires_at) <= clock() else "ACTIVE"))
+        return {
+            "license_id": license.id,
+            "customer_id": license.customer_id,
+            "customer": customer.name if customer else None,
+            "max_devices": license.max_devices,
+            "expires_at": utc(license.expires_at).isoformat(),
+            "status": effective_status,
+            "message": "License details updated successfully"
+        }
+
+    @router.post("/admin/licenses/{license_id}/archive")
+    def archive_license(license_id: uuid.UUID, body: LicenseArchive, auth=Depends(admin), session: Session = Depends(db)):
+        if str(body.confirmed_license_id) != str(license_id):
+            raise HTTPException(400, "License confirmation does not match")
+        license = session.scalar(select(License).where(License.id == str(license_id)).with_for_update())
+        if not license:
+            raise HTTPException(404, "License not found")
+        license.status = "ARCHIVED"
+        audit(session, "license_archived", auth[0].username, reason=f"{license.id}: License archived. Reason: {body.reason}")
+        session.commit()
+        return {
+            "license_id": license.id,
+            "status": "ARCHIVED",
+            "message": "License safely archived. Historical associations preserved."
+        }
+
+    @router.get("/admin/licenses/{license_id}/history")
+    def license_history(license_id: uuid.UUID, offset: int = 0, limit: int = 100, auth=Depends(admin), session: Session = Depends(db)):
+        if offset < 0 or not 1 <= limit <= 500:
+            raise HTTPException(422, "Invalid pagination")
+        license = session.get(License, str(license_id))
+        if not license:
+            raise HTTPException(404, "License not found")
+        condition = or_(Audit.reason.icontains(str(license_id)), Audit.device_id.in_(select(Device.id).where(Device.license_id == str(license_id))))
+        total = session.scalar(select(func.count()).select_from(Audit).where(condition))
+        rows = list(session.scalars(select(Audit).where(condition).order_by(Audit.created_at.desc(), Audit.id).offset(offset).limit(limit)))
+        record_view(session, auth[0], "admin_license_history_viewed")
+        return {
+            "license_id": license.id,
+            "total": total,
+            "events": [
+                {
+                    "event": a.event,
+                    "actor": a.actor,
+                    "device_id": a.device_id,
+                    "reason": a.reason,
+                    "created_at": utc(a.created_at).isoformat()
+                }
+                for a in rows
+            ]
+        }
 
     @router.post("/admin/licenses/issue")
     def issue_license(body: LicenseIssue, auth=Depends(admin), session: Session = Depends(db)):

@@ -1,39 +1,28 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""PyInstaller build for SINGLE-FILE executable (PharmacyManagementSystem.exe).
+"""PyInstaller build for SINGLE-FILE executable (PharmacyManagement.exe).
 
 Generates a single standalone executable (--onefile) containing:
 - Application source code and dependencies (PySide6, openpyxl, etc.)
-- Embedded seed database (_internal/seed/pharmacy_staging.db)
-- Qt platform and print plugins
-
-When launched, the single executable runs self-contained:
-- Extracts required runtimes to a secure temporary directory (_MEIPASS)
-- Automatically initializes runtime database on first launch
-- Requires zero installation or external folders
+- All screens, database, and UI submodules
+- Production licensing configuration
+- No bundled database (uses external/runtime user database)
 """
 
 from pathlib import Path
+from PyInstaller.utils.hooks import collect_submodules
 
 PROJECT_ROOT = Path(SPECPATH).resolve().parent.parent
-SEED_DB = PROJECT_ROOT / "staging" / "pharmacy_staging.db"
-VERSION_FILE = Path(SPECPATH) / "PharmacyManagementSystem_Test_version.txt"
-
-if not SEED_DB.is_file():
-    raise SystemExit(f"Seed database not found: {SEED_DB}")
-
-APP_NAME = "PharmacyManagementSystem"
+APP_NAME = "PharmacyManagement"
 block_cipher = None
 
 a = Analysis(
-    [str(PROJECT_ROOT / "release_test_main.py")],
+    [str(PROJECT_ROOT / "main.py")],
     pathex=[str(PROJECT_ROOT)],
     binaries=[],
     datas=[
-        (str(SEED_DB), "seed"),
         (str(PROJECT_ROOT / "licensing" / "config.json"), "licensing"),
     ],
     hiddenimports=[
-        "main",
         "PySide6.QtPrintSupport",
         "openpyxl",
         "openpyxl.cell",
@@ -49,7 +38,7 @@ a = Analysis(
         "licensing.qt",
         "httpx",
         "cryptography",
-    ],
+    ] + collect_submodules("screens") + collect_submodules("database") + collect_submodules("ui"),
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -89,5 +78,4 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=None,
-    version=str(VERSION_FILE) if VERSION_FILE.is_file() else None,
 )

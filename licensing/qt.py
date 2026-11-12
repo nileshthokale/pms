@@ -82,6 +82,17 @@ class LicenseController(QObject):
                 pass
 
     def startup(self):
+        try:
+            decision = self.client.decision()
+        except StorageError:
+            decision = None
+
+        if decision and decision.allowed:
+            self.decision = decision
+            self.gate.set_access(True, decision.message)
+            self.validate()
+            return True
+
         self.dialog = LicenseDialog()
         self.dialog.retry_requested.connect(self.validate)
         self.validate()

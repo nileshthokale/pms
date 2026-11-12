@@ -1,5 +1,5 @@
 from dataclasses import replace
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 import json
 import uuid
 
@@ -277,4 +277,391 @@ def test_issued_license_can_activate_desktop_client(env):
 
     assert validation.allowed is True
     assert validation.status == "AUTHORIZED"
+
+
+def test_license_renewal_active_and_expired(env):
+    headers = admin_login(env)
+    license_id = env["license_id"]
+
+    # Test 1: Active license renewal (License expires in 30 days)
+    with env["app"].state.sessions() as session:
+        lic = session.get(License, license_id)
+        old_expiry = lic.expires_at
+        if old_expiry.tzinfo is None:
+            old_expiry = old_expiry.replace(tzinfo=timezone.utc)
+
+    response = env["api"].post(
+        f"/admin/licenses/{license_id}/renew",
+        headers=headers,
+        json={
+            "confirm": True,
+            "confirmed_license_id": license_id,
+            "extension_days": 60,
+            "reason": "Customer requested 60-day extension",
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    expected_expiry = old_expiry + timedelta(days=60)
+    assert datetime.fromisoformat(data["expires_at"]) == expected_expiry
+
+    with env["app"].state.sessions() as session:
+        audit_row = session.scalar(
+            select(Audit).where(Audit.event == "license_renewed").order_by(Audit.created_at.desc())
+        )
+        assert audit_row is not None
+        assert audit_row.actor == "developer"
+        assert old_expiry.isoformat() in audit_row.reason
+        assert expected_expiry.isoformat() in audit_row.reason
+        assert "Customer requested 60-day extension" in audit_row.reason
+
+    # Test 2: Expired license renewal
+    past_time = env["clock"].now() - timedelta(days=10)
+    with env["app"].state.sessions() as session:
+        lic = session.get(License, license_id)
+        lic.expires_at = past_time
+        lic.status = "ACTIVE"
+        session.commit()
+
+    now = env["clock"].now()
+    response2 = env["api"].post(
+        f"/admin/licenses/{license_id}/renew",
+        headers=headers,
+        json={
+            "confirm": True,
+            "confirmed_license_id": license_id,
+            "extension_days": 30,
+            "reason": "Renewal after expiration",
+        },
+    )
+    assert response2.status_code == 200
+    data2 = response2.json()
+    expected_expiry2 = now + timedelta(days=30)
+    assert datetime.fromisoformat(data2["expires_at"]) == expected_expiry2
+    assert data2["status"] == "ACTIVE"
+
+    with env["app"].state.sessions() as session:
+        lic = session.get(License, license_id)
+        assert lic.status == "ACTIVE"
+        assert utc(lic.expires_at) == expected_expiry2
+
+
+def test_license_edit_supported_details(env):
+    headers = admin_login(env)
+    license_id = env["license_id"]
+
+    response = env["api"].post(
+        f"/admin/licenses/{license_id}/edit",
+        headers=headers,
+        json={
+            "confirm": True,
+            "confirmed_license_id": license_id,
+            "customer_name": "Apollo Pharmacy Updated",
+            "max_devices": 5,
+            "notes": "Updated contract terms",
+            "reason": "Contract adjustment",
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["customer"] == "Apollo Pharmacy Updated"
+    assert data["max_devices"] == 5
+
+    with env["app"].state.sessions() as session:
+        lic = session.get(License, license_id)
+        cust = session.get(Customer, lic.customer_id)
+        assert cust.name == "Apollo Pharmacy Updated"
+        assert lic.max_devices == 5
+
+    # Capacity check: add 3 authorized devices to this license
+    with env["app"].state.sessions() as session:
+        for _ in range(3):
+            session.add(
+                Device(
+                    id=str(uuid.uuid4()),
+                    secret_hash="fakehash",
+                    license_id=license_id,
+                    app_version="1.0.0",
+                    status="AUTHORIZED",
+                    first_seen=env["clock"].now(),
+                    last_seen=env["clock"].now(),
+                )
+            )
+        session.commit()
+
+    # Reducing max_devices below authorized device count (e.g. to 2 when 3 are authorized) returns 409
+    res_conflict = env["api"].post(
+        f"/admin/licenses/{license_id}/edit",
+        headers=headers,
+        json={
+            "confirm": True,
+            "confirmed_license_id": license_id,
+            "max_devices": 2,
+            "reason": "Attempting to reduce capacity below authorized count",
+        },
+    )
+    assert res_conflict.status_code == 409
+    assert "Cannot reduce capacity" in res_conflict.json()["detail"]
+
+
+def test_license_archive_safely_disables_activations(env):
+    headers = admin_login(env)
+    license_id = env["license_id"]
+
+    response = env["api"].post(
+        f"/admin/licenses/{license_id}/archive",
+        headers=headers,
+        json={
+            "confirm": True,
+            "confirmed_license_id": license_id,
+            "reason": "Contract terminated",
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "ARCHIVED"
+
+    with env["app"].state.sessions() as session:
+        lic = session.get(License, license_id)
+        assert lic.status == "ARCHIVED"
+
+        audit_row = session.scalar(
+            select(Audit).where(Audit.event == "license_archived").order_by(Audit.created_at.desc())
+        )
+        assert audit_row is not None
+        assert audit_row.actor == "developer"
+        assert license_id in audit_row.reason
+        assert "Contract terminated" in audit_row.reason
+
+    # Attempting to activate a new device with this license's activation key is rejected
+    store = MemoryStore()
+    client = LicenseClient(env["config"], store, clock=env["clock"], transport=env["transport"])
+    validation = client.validate(activation_key=env["activation"])
+    assert validation.allowed is False
+    assert validation.status in ("REVOKED", "PENDING")
+
+
+def test_device_unlink_frees_capacity(env):
+    headers = admin_login(env)
+    license_id = env["license_id"]
+
+    # Setup license with max_devices=1
+    with env["app"].state.sessions() as session:
+        lic = session.get(License, license_id)
+        lic.max_devices = 1
+        session.commit()
+
+    # Device 1 activates -> AUTHORIZED
+    store1 = MemoryStore()
+    client1 = LicenseClient(env["config"], store1, clock=env["clock"], transport=env["transport"])
+    val1 = client1.validate(activation_key=env["activation"])
+    assert val1.allowed is True
+    assert val1.status == "AUTHORIZED"
+    device1_id = client1.state["device_id"]
+
+    # Device 2 attempts activation -> fails / gets LIMIT_REACHED
+    store2 = MemoryStore()
+    client2 = LicenseClient(env["config"], store2, clock=env["clock"], transport=env["transport"])
+    val2 = client2.validate(activation_key=env["activation"])
+    assert val2.allowed is False
+    assert val2.status == "LIMIT_REACHED"
+    device2_id = client2.state["device_id"]
+
+    # Unlink Device 1
+    res_unlink = env["api"].post(
+        f"/admin/devices/{device1_id}/unlink",
+        headers=headers,
+        json={
+            "confirm": True,
+            "confirmed_device_id": device1_id,
+            "reason": "Decommissioning old workstation",
+        },
+    )
+    assert res_unlink.status_code == 200
+
+    # Verify Device 1 has license_id is None and status == "PENDING"
+    with env["app"].state.sessions() as session:
+        d1 = session.get(Device, device1_id)
+        assert d1.license_id is None
+        assert d1.status == "PENDING"
+
+        audit_row = session.scalar(
+            select(Audit).where(Audit.event == "device_unlinked").order_by(Audit.created_at.desc())
+        )
+        assert audit_row is not None
+        assert audit_row.actor == "developer"
+        assert audit_row.device_id == device1_id
+        assert "Decommissioning old workstation" in audit_row.reason
+
+    # Device 2 attempts activation again -> SUCCEEDS and becomes AUTHORIZED!
+    val2_retry = client2.validate(activation_key=env["activation"])
+    assert val2_retry.allowed is True
+    assert val2_retry.status == "AUTHORIZED"
+
+
+def test_license_history_endpoint(env):
+    headers = admin_login(env)
+    license_id = env["license_id"]
+
+    # Generate an audit event for this license
+    env["api"].post(
+        f"/admin/licenses/{license_id}/renew",
+        headers=headers,
+        json={
+            "confirm": True,
+            "confirmed_license_id": license_id,
+            "extension_days": 30,
+            "reason": "Audit history test renewal",
+        },
+    )
+
+    response = env["api"].get(f"/admin/licenses/{license_id}/history", headers=headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["license_id"] == license_id
+    assert data["total"] >= 1
+    assert isinstance(data["events"], list)
+    assert any(e["event"] == "license_renewed" for e in data["events"])
+
+
+def test_desktop_activation_after_valid_renewal(env):
+    license_id = env["license_id"]
+
+    # Initial activation while license is valid
+    val_init = env["client"].validate(activation_key=env["activation"])
+    assert val_init.allowed is True
+    assert val_init.status == "AUTHORIZED"
+
+    # Expire the license
+    past_time = env["clock"].now() - timedelta(days=5)
+    with env["app"].state.sessions() as session:
+        lic = session.get(License, license_id)
+        lic.expires_at = past_time
+        session.commit()
+
+    # Desktop client validation returns EXPIRED
+    val_expired = env["client"].validate(heartbeat=True)
+    assert val_expired.allowed is False
+    assert val_expired.status == "EXPIRED"
+
+    # Admin renews license via /admin/licenses/{license_id}/renew
+    headers = admin_login(env)
+    renew_res = env["api"].post(
+        f"/admin/licenses/{license_id}/renew",
+        headers=headers,
+        json={
+            "confirm": True,
+            "confirmed_license_id": license_id,
+            "extension_days": 90,
+            "reason": "Customer renewed subscription",
+        },
+    )
+    assert renew_res.status_code == 200
+    assert renew_res.json()["status"] == "ACTIVE"
+
+    # Desktop client validation now succeeds with AUTHORIZED!
+    val_after = env["client"].validate(heartbeat=True)
+    assert val_after.allowed is True
+    assert val_after.status == "AUTHORIZED"
+
+    # A new desktop client can also activate now
+    store_new = MemoryStore()
+    client_new = LicenseClient(env["config"], store_new, clock=env["clock"], transport=env["transport"])
+    val_new = client_new.validate(activation_key=env["activation"])
+    assert val_new.allowed is True
+    assert val_new.status == "AUTHORIZED"
+
+
+def test_security_and_validation_for_new_endpoints(env):
+    license_id = env["license_id"]
+
+    # Register a device linked to license for unlinking tests
+    device_id = str(uuid.uuid4())
+    with env["app"].state.sessions() as session:
+        session.add(
+            Device(
+                id=device_id,
+                secret_hash="fakehash",
+                license_id=license_id,
+                app_version="1.0.0",
+                status="AUTHORIZED",
+                first_seen=env["clock"].now(),
+                last_seen=env["clock"].now(),
+            )
+        )
+        session.commit()
+
+    endpoints = [
+        ("post", f"/admin/licenses/{license_id}/renew", {
+            "confirm": True, "confirmed_license_id": license_id, "extension_days": 30, "reason": "Valid reason for renewal"
+        }),
+        ("post", f"/admin/licenses/{license_id}/edit", {
+            "confirm": True, "confirmed_license_id": license_id, "notes": "Updated", "reason": "Valid reason for edit"
+        }),
+        ("post", f"/admin/licenses/{license_id}/archive", {
+            "confirm": True, "confirmed_license_id": license_id, "reason": "Valid reason for archive"
+        }),
+        ("post", f"/admin/devices/{device_id}/unlink", {
+            "confirm": True, "confirmed_device_id": device_id, "reason": "Valid reason for unlink"
+        }),
+        ("get", f"/admin/licenses/{license_id}/history", None),
+    ]
+
+    # 1. Unauthenticated requests return 401
+    for method, path, payload in endpoints:
+        if method == "post":
+            assert env["api"].post(path, json=payload).status_code == 401
+        else:
+            assert env["api"].get(path).status_code == 401
+
+    headers = admin_login(env)
+
+    # 2. Missing CSRF header returns 403 for POST endpoints
+    for method, path, payload in endpoints:
+        if method == "post":
+            assert env["api"].post(path, headers={}, json=payload).status_code == 403
+
+    # 3. Non-developer role returns 403
+    with env["app"].state.sessions() as session:
+        session.get(Administrator, "developer").role = "VIEWER"
+        session.commit()
+
+    for method, path, payload in endpoints:
+        if method == "post":
+            assert env["api"].post(path, headers=headers, json=payload).status_code == 403
+        else:
+            assert env["api"].get(path, headers=headers).status_code == 403
+
+    # Restore developer role
+    with env["app"].state.sessions() as session:
+        session.get(Administrator, "developer").role = "DEVELOPER"
+        session.commit()
+
+    # 4. Invalid or missing confirmation returns 400 or 422
+    # Missing / false confirmation -> 422
+    assert env["api"].post(f"/admin/licenses/{license_id}/renew", headers=headers,
+                           json={"confirm": False, "confirmed_license_id": license_id, "extension_days": 30, "reason": "Test"}).status_code == 422
+    assert env["api"].post(f"/admin/licenses/{license_id}/edit", headers=headers,
+                           json={"confirm": False, "confirmed_license_id": license_id, "reason": "Test"}).status_code == 422
+    assert env["api"].post(f"/admin/licenses/{license_id}/archive", headers=headers,
+                           json={"confirm": False, "confirmed_license_id": license_id, "reason": "Test"}).status_code == 422
+    assert env["api"].post(f"/admin/devices/{device_id}/unlink", headers=headers,
+                           json={"confirm": False, "confirmed_device_id": device_id, "reason": "Test"}).status_code == 422
+
+    # Mismatched confirmation ID -> 400
+    wrong_id = str(uuid.uuid4())
+    assert env["api"].post(f"/admin/licenses/{license_id}/renew", headers=headers,
+                           json={"confirm": True, "confirmed_license_id": wrong_id, "extension_days": 30, "reason": "Test"}).status_code == 400
+    assert env["api"].post(f"/admin/licenses/{license_id}/edit", headers=headers,
+                           json={"confirm": True, "confirmed_license_id": wrong_id, "reason": "Test"}).status_code == 400
+    assert env["api"].post(f"/admin/licenses/{license_id}/archive", headers=headers,
+                           json={"confirm": True, "confirmed_license_id": wrong_id, "reason": "Test"}).status_code == 400
+    assert env["api"].post(f"/admin/devices/{device_id}/unlink", headers=headers,
+                           json={"confirm": True, "confirmed_device_id": wrong_id, "reason": "Test"}).status_code == 400
+
+    # Blank reason -> 422
+    assert env["api"].post(f"/admin/licenses/{license_id}/renew", headers=headers,
+                           json={"confirm": True, "confirmed_license_id": license_id, "extension_days": 30, "reason": "   "}).status_code == 422
+    assert env["api"].post(f"/admin/devices/{device_id}/unlink", headers=headers,
+                           json={"confirm": True, "confirmed_device_id": device_id, "reason": "   "}).status_code == 422
+
 

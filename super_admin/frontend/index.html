@@ -18,6 +18,11 @@
   <symbol id="i-signal" viewBox="0 0 24 24"><path d="M3 13h4l3-7 4 12 3-5h4"/></symbol>
   <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
   <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+  <symbol id="i-renew" viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></symbol>
+  <symbol id="i-archive" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8M10 12h4"/></symbol>
+  <symbol id="i-unlink" viewBox="0 0 24 24"><path d="M18.84 12.25l1.41-1.41a3 3 0 0 0 0-4.24l-2.83-2.83a3 3 0 0 0-4.24 0l-1.41 1.41M5.16 11.75l-1.41 1.41a3 3 0 0 0 0 4.24l2.83 2.83a3 3 0 0 0 4.24 0l1.41-1.41M2 2l20 20"/></symbol>
+  <symbol id="i-history" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5"/></symbol>
 </defs></svg>
 <a class="skip-link" href="#overview">Skip to dashboard</a>
 <header class="site-header"><div class="header-inner">
@@ -49,8 +54,8 @@
       </section>
       <section id="alert-section" class="panel alert-panel" aria-labelledby="alert-title"><div class="panel-heading"><div><p class="eyebrow">REVIEW QUEUE</p><h2 id="alert-title">New installations</h2></div><span id="alert-count" class="badge NEW">—</span></div><p class="panel-subtitle">Review newly detected software installations.</p><div id="alerts" class="alert-list" aria-busy="true"><p class="empty">Loading installation alerts…</p></div><div class="panel-note"><svg class="icon"><use href="#i-shield"/></svg>Acknowledgement records your review. Device authorization is managed separately.</div></section>
     </div>
-    <section id="device-section" class="panel management" aria-labelledby="devices-title"><div class="panel-heading"><div><p class="eyebrow">INSTALLATION INVENTORY</p><h2 id="devices-title">Registered devices</h2></div><span class="section-meta" id="device-total">Loading records</span></div><div class="toolbar"><label class="search"><svg class="icon"><use href="#i-search"/></svg><input id="device-search" type="search" placeholder="Search device, customer or version" maxlength="200" aria-label="Search devices"></label><div class="filters"><label>Activity<select id="activity"><option value="all">All activity</option><option value="online">Online within threshold</option><option value="recent">Recently online</option><option value="offline">Offline</option></select></label><label>Authorization<select id="device-status"><option value="all">All statuses</option><option value="AUTHORIZED">Authorized</option><option value="PENDING">Pending</option><option value="REVOKED">Revoked</option><option value="EXPIRED">Expired</option><option value="LIMIT_REACHED">Limit reached</option><option value="NEW">New installations</option></select></label></div></div><div class="table-wrap"><table><thead><tr><th>Device / version</th><th>Customer / license</th><th>Detection</th><th>Authorization</th><th>Activity</th><th>Registration</th><th>Last seen</th><th>Actions</th></tr></thead><tbody id="devices"></tbody></table></div><div class="pagination"><p id="page" role="status">Loading records…</p><div><button id="previous" class="secondary" disabled>Previous</button><button id="next" class="secondary" disabled>Next</button></div></div></section>
-    <section id="license-section" class="panel management" aria-labelledby="licenses-title"><div class="panel-heading"><div><p class="eyebrow">SOFTWARE ACCESS</p><h2 id="licenses-title">License management</h2></div><div class="heading-controls"><button id="open-issue-license" class="primary" type="button"><svg class="icon"><use href="#i-plus"/></svg>+ Issue New License</button><span class="section-meta" id="license-total">Loading records</span></div></div><div class="toolbar"><label class="search"><svg class="icon"><use href="#i-search"/></svg><input id="license-search" type="search" placeholder="Search customer or license ID" maxlength="200" aria-label="Search licenses"></label><label class="filter-label">Status<select id="license-status"><option value="all">All licenses</option><option value="ACTIVE">Active</option><option value="REVOKED">Revoked</option><option value="EXPIRED">Expired</option></select></label></div><div class="table-wrap"><table><thead><tr><th>Customer / license</th><th>Status</th><th>Expires</th><th>Device capacity</th><th>Actions</th></tr></thead><tbody id="licenses"></tbody></table></div><div class="pagination"><p id="licenses-page" role="status">Loading records…</p><div><button id="licenses-previous" class="secondary" disabled>Previous</button><button id="licenses-next" class="secondary" disabled>Next</button></div></div></section>
+    <section id="device-section" class="panel management" aria-labelledby="devices-title"><div class="panel-heading"><div><p class="eyebrow">INSTALLATION INVENTORY</p><h2 id="devices-title">Registered devices</h2></div><span class="section-meta" id="device-total">Loading records</span></div><div class="toolbar"><label class="search"><svg class="icon"><use href="#i-search"/></svg><input id="device-search" type="search" placeholder="Search device, customer or version" maxlength="200" aria-label="Search devices"></label><div class="filters"><label>Activity<select id="activity"><option value="all">All activity</option><option value="online">Online within threshold</option><option value="recent">Recently online</option><option value="offline">Offline</option></select></label><label>Authorization<select id="device-status"><option value="all">All statuses</option><option value="AUTHORIZED">Authorized</option><option value="PENDING">Pending</option><option value="REVOKED">Revoked</option><option value="EXPIRED">Expired</option><option value="LIMIT_REACHED">Limit reached</option><option value="NEW">New installations</option><option value="UNLINKED">Unlinked</option></select></label></div></div><div class="table-wrap"><table><thead><tr><th>Device / version</th><th>Customer / license</th><th>Detection</th><th>Authorization</th><th>Activity</th><th>Registration</th><th>Last seen</th><th>Actions</th></tr></thead><tbody id="devices"></tbody></table></div><div class="pagination"><p id="page" role="status">Loading records…</p><div><button id="previous" class="secondary" disabled>Previous</button><button id="next" class="secondary" disabled>Next</button></div></div></section>
+    <section id="license-section" class="panel management" aria-labelledby="licenses-title"><div class="panel-heading"><div><p class="eyebrow">SOFTWARE ACCESS</p><h2 id="licenses-title">License management</h2></div><div class="heading-controls"><button id="open-issue-license" class="primary" type="button"><svg class="icon"><use href="#i-plus"/></svg>+ Issue New License</button><span class="section-meta" id="license-total">Loading records</span></div></div><div class="toolbar"><label class="search"><svg class="icon"><use href="#i-search"/></svg><input id="license-search" type="search" placeholder="Search customer or license ID" maxlength="200" aria-label="Search licenses"></label><label class="filter-label">Status<select id="license-status"><option value="all">All licenses</option><option value="ACTIVE">Active</option><option value="REVOKED">Revoked</option><option value="EXPIRED">Expired</option><option value="ARCHIVED">Archived</option></select></label></div><div class="table-wrap"><table><thead><tr><th>Customer / license</th><th>Status</th><th>Expires</th><th>Device capacity</th><th>Actions</th></tr></thead><tbody id="licenses"></tbody></table></div><div class="pagination"><p id="licenses-page" role="status">Loading records…</p><div><button id="licenses-previous" class="secondary" disabled>Previous</button><button id="licenses-next" class="secondary" disabled>Next</button></div></div></section>
     <section id="update-section" class="panel update-panel" aria-labelledby="update-title"><div class="panel-heading"><div><p class="eyebrow">RELEASE OPERATIONS</p><h2 id="update-title">Application updates</h2></div><span class="badge neutral">Not configured</span></div><div class="update-content"><div class="update-object" aria-hidden="true"><svg class="icon"><use href="#i-update"/></svg></div><div><h3>A space for your next release.</h3><p>Connect an update service to manage releases. No update API is configured for this installation.</p><div class="future-steps"><span><small>01</small>Upload & version</span><span><small>02</small>Release notes & publish</span><span><small>03</small>Device rollout status</span><span><small>04</small>History & rollback</span></div><button class="secondary" disabled>Update service required</button></div></div></section>
     <section id="audit-section" class="panel" aria-labelledby="audit-title"><div class="panel-heading"><div><p class="eyebrow">ADMINISTRATOR ACCOUNTABILITY</p><h2 id="audit-title">Audit trail</h2></div><span class="section-meta">Latest 200 events</span></div><div id="audit" class="audit-list" aria-busy="true"></div></section>
     <footer class="workspace-footer"><span>PHARMACY <strong>SUPER ADMIN</strong></span><span>Licenses & device access · Secure administration</span></footer>
@@ -135,6 +140,199 @@
   <div class="dialog-buttons single">
     <button id="success-done-btn" type="button">Done &amp; Close</button>
   </div>
+</dialog>
+
+<dialog id="renew-dialog" class="action-modal" aria-labelledby="renew-dialog-title">
+  <form id="renew-form">
+    <div class="dialog-heading">
+      <div>
+        <p class="eyebrow">LICENSE LIFECYCLE</p>
+        <h2 id="renew-dialog-title">Renew Customer License</h2>
+      </div>
+      <button type="button" class="icon-button" aria-label="Cancel" onclick="document.getElementById('renew-cancel').click()"><svg class="icon"><use href="#i-close"/></svg></button>
+    </div>
+
+    <div class="issued-details-grid" style="margin-bottom: 16px;">
+      <div><span>License ID</span><span id="renew-license-id" class="mono">—</span><span id="renew-license" class="mono" style="display:none;"></span></div>
+      <div><span>Customer Name</span><strong id="renew-customer-name">—</strong><strong id="renew-customer" style="display:none;"></strong></div>
+      <div style="grid-column: 1 / -1;"><span>Current Expiry Date</span><strong id="renew-current-expiry">—</strong><span id="renew-current-date" style="display:none;"></span></div>
+    </div>
+
+    <div class="extension-options" style="margin: 18px 0 14px;">
+      <label style="margin: 0 0 8px;">Extension Presets</label>
+      <div class="preset-buttons" style="display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap;">
+        <button type="button" class="secondary preset-btn" id="renew-preset-30" data-days="30">30 Days</button>
+        <button type="button" class="secondary preset-btn" id="renew-preset-90" data-days="90">90 Days</button>
+        <button type="button" class="secondary preset-btn" id="renew-preset-365" data-days="365">1 Year</button>
+      </div>
+      <label for="renew-custom-date" style="margin: 0;">Custom Expiry Date
+        <input id="renew-custom-date" type="date">
+      </label>
+    </div>
+
+    <div class="preview-card" style="padding: 12px 16px; border: 1px solid var(--line); border-radius: 6px; margin: 16px 0; background: #0d0d0d; font-size: 13px;">
+      <span style="color: var(--soft); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 4px;">Calculated Expiry</span>
+      <span id="renew-preview-text" class="mono" style="color: var(--green); font-weight: 500;">Select an extension option or custom date</span>
+    </div>
+
+    <label for="renew-reason">Reason for renewal <span class="required">*</span>
+      <textarea id="renew-reason" required minlength="3" maxlength="1000" rows="3" placeholder="Enter reason for license extension/renewal"></textarea>
+    </label>
+
+    <label class="check-label">
+      <input id="renew-confirm" type="checkbox" required> I confirm renewal for this license.
+    </label>
+
+    <p id="renew-error" class="notice error" style="display:none;"></p>
+
+    <div class="dialog-buttons">
+      <button id="renew-cancel" type="button" class="secondary">Cancel</button>
+      <button id="renew-submit" type="submit"><svg class="icon"><use href="#i-renew"/></svg>Renew License</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="edit-license-dialog" class="action-modal" aria-labelledby="edit-license-title">
+  <form id="edit-license-form">
+    <div class="dialog-heading">
+      <div>
+        <p class="eyebrow">LICENSE CONFIGURATION</p>
+        <h2 id="edit-license-title">Edit License Configuration</h2>
+      </div>
+      <button type="button" class="icon-button" aria-label="Cancel" onclick="document.getElementById('edit-license-cancel').click()"><svg class="icon"><use href="#i-close"/></svg></button>
+    </div>
+
+    <div class="issued-details-grid" style="margin-bottom: 16px;">
+      <div><span>License ID</span><span id="edit-license-id" class="mono">—</span></div>
+      <div><span>Current Status</span><span id="edit-license-status" class="badge neutral">—</span></div>
+    </div>
+
+    <label for="edit-customer-name">Customer Name <span class="required">*</span>
+      <input id="edit-customer-name" type="text" maxlength="200" required>
+    </label>
+
+    <div class="form-row">
+      <label for="edit-max-devices">Maximum Devices <span class="required">*</span>
+        <input id="edit-max-devices" type="number" min="1" max="1000" required>
+      </label>
+      <label for="edit-expiry-date">Expiry Date <span class="required">*</span>
+        <input id="edit-expiry-date" type="date" required>
+      </label>
+    </div>
+
+    <label for="edit-license-reason">Internal Notes / Reason <span class="required">*</span>
+      <textarea id="edit-license-reason" required minlength="3" maxlength="1000" rows="3" placeholder="Enter reason for modifying license parameters"></textarea>
+    </label>
+
+    <label class="check-label">
+      <input id="edit-license-confirm" type="checkbox" required> Confirm configuration change
+    </label>
+
+    <p id="edit-license-error" class="notice error" style="display:none;"></p>
+
+    <div class="dialog-buttons">
+      <button id="edit-license-cancel" type="button" class="secondary">Cancel</button>
+      <button id="edit-license-submit" type="submit"><svg class="icon"><use href="#i-edit"/></svg>Save Changes</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="archive-license-dialog" class="action-modal" aria-labelledby="archive-dialog-title">
+  <form id="archive-license-form">
+    <div class="dialog-heading">
+      <div>
+        <p class="eyebrow">DANGER ZONE</p>
+        <h2 id="archive-dialog-title">Archive License</h2>
+      </div>
+      <button type="button" class="icon-button" aria-label="Cancel" onclick="document.getElementById('archive-cancel').click()"><svg class="icon"><use href="#i-close"/></svg></button>
+    </div>
+
+    <div class="key-warning" style="margin-top: 0;">
+      <svg class="icon"><use href="#i-alert"/></svg>
+      <div>
+        <strong>Critical Archiving Warning</strong>
+        <p>Archived licenses cannot be used for new activations, but historical associations are retained.</p>
+      </div>
+    </div>
+
+    <div class="issued-details-grid" style="margin: 16px 0;">
+      <div><span>License ID</span><span id="archive-license-id" class="mono">—</span><span id="archive-license" class="mono" style="display:none;"></span></div>
+      <div><span>Customer</span><strong id="archive-customer-name">—</strong><strong id="archive-customer" style="display:none;"></strong></div>
+    </div>
+
+    <label for="archive-reason">Reason for archiving <span class="required">*</span>
+      <textarea id="archive-reason" required minlength="3" maxlength="1000" rows="3" placeholder="Reason for archiving this license"></textarea>
+    </label>
+
+    <label class="check-label">
+      <input id="archive-confirm" type="checkbox" required> I confirm archiving this license.
+    </label>
+
+    <p id="archive-error" class="notice error" style="display:none;"></p>
+
+    <div class="dialog-buttons">
+      <button id="archive-cancel" type="button" class="secondary">Cancel</button>
+      <button id="archive-submit" type="submit" class="danger"><svg class="icon"><use href="#i-archive"/></svg>Archive License</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="license-history-dialog" aria-labelledby="license-history-title">
+  <div class="dialog-heading">
+    <div>
+      <p class="eyebrow">LICENSE AUDIT TRAIL</p>
+      <h2 id="license-history-title">License Audit History</h2>
+    </div>
+    <button id="license-history-close" type="button" class="icon-button" aria-label="Close history"><svg class="icon"><use href="#i-close"/></svg></button>
+  </div>
+  <div class="history-header" style="margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--line);">
+    <strong id="license-history-customer" style="display: block; font-size: 15px; color: #fff;">—</strong>
+    <p id="license-history-id" class="mono" style="font-size: 12px; color: var(--soft); margin-top: 4px;">—</p>
+  </div>
+  <div id="license-history" class="audit-list"></div>
+  <div class="dialog-buttons" style="margin-top: 20px;">
+    <button type="button" class="secondary" onclick="document.getElementById('license-history-dialog').close()">Close</button>
+  </div>
+</dialog>
+
+<dialog id="unlink-device-dialog" class="action-modal" aria-labelledby="unlink-dialog-title">
+  <form id="unlink-device-form">
+    <div class="dialog-heading">
+      <div>
+        <p class="eyebrow">DEVICE AUTHORIZATION</p>
+        <h2 id="unlink-dialog-title">Unlink Device from License</h2>
+      </div>
+      <button type="button" class="icon-button" aria-label="Cancel" onclick="document.getElementById('unlink-cancel').click()"><svg class="icon"><use href="#i-close"/></svg></button>
+    </div>
+
+    <div class="key-warning" style="margin-top: 0;">
+      <svg class="icon"><use href="#i-alert"/></svg>
+      <div>
+        <strong>Device Unlink Warning</strong>
+        <p>Unlinking frees 1 device seat on the customer license and revokes current desktop access at next validation.</p>
+      </div>
+    </div>
+
+    <div class="issued-details-grid" style="margin: 16px 0;">
+      <div><span>Device ID</span><span id="unlink-device-id" class="mono">—</span><span id="unlink-device" class="mono" style="display:none;"></span></div>
+      <div><span>Customer / License</span><strong id="unlink-customer">—</strong><span id="unlink-license" class="mono" style="display:none;"></span></div>
+    </div>
+
+    <label for="unlink-reason">Reason for unlinking device <span class="required">*</span>
+      <textarea id="unlink-reason" required minlength="3" maxlength="1000" rows="3" placeholder="Reason for unlinking device"></textarea>
+    </label>
+
+    <label class="check-label">
+      <input id="unlink-confirm" type="checkbox" required> Confirm unlinking this device.
+    </label>
+
+    <p id="unlink-error" class="notice error" style="display:none;"></p>
+
+    <div class="dialog-buttons">
+      <button id="unlink-cancel" type="button" class="secondary">Cancel</button>
+      <button id="unlink-submit" type="submit" class="danger"><svg class="icon"><use href="#i-unlink"/></svg>Unlink Device</button>
+    </div>
+  </form>
 </dialog>
 
 <script type="module" src="/admin/assets/dashboard.js"></script>

@@ -17,7 +17,7 @@ class Customer(Base):
 
 class License(Base):
     __tablename__ = "licenses"
-    __table_args__ = (CheckConstraint("max_devices > 0"), CheckConstraint("status IN ('ACTIVE', 'DISABLED')"))
+    __table_args__ = (CheckConstraint("max_devices > 0"), CheckConstraint("status IN ('ACTIVE', 'DISABLED', 'ARCHIVED')"))
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     customer_id: Mapped[str] = mapped_column(ForeignKey("license_customers.id"), index=True)
     activation_hash: Mapped[str] = mapped_column(String(64), unique=True)

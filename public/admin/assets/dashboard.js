@@ -3,6 +3,9 @@ const el = id => document.getElementById(id);
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 const pageSize = 20, networkLimit = 24;
 let csrf = '', offset = 0, licenseOffset = 0, pending = null, historyDevice = '', historyOffset = 0;
+let pendingRenew = null, pendingEdit = null, pendingArchive = null, pendingUnlink = null;
+let renewTargetDate = null, renewExtensionDays = 30;
+const formatDateInput = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 let refreshVersion = 0, lastSync = null, scene, sceneLoading = false, sceneVisible = false;
 let networkDevices = [], selectedDevice = '', motionPaused = reducedMotion.matches, detailVersion = 0, usingFallback = false;
 const counters = new Map();
@@ -159,7 +162,13 @@ function renderDevices(data) {
 
     cell(stamp(d.first_seen),'Activated: ' + stamp(d.first_activation));
     cell(stampExact(d.last_seen), d.last_seen ? timeAgo(d.last_seen, refTime) : null);
-    cell(null,null,'actions').append(button('History', () => showHistory(d.device_id)),button(d.status === 'REVOKED' ? 'Reactivate' : 'Revoke',() => confirmAction('devices',d.device_id,d.status === 'REVOKED'),d.status === 'REVOKED' ? 'secondary' : 'danger'));
+    const actionBtns = node('div', null, 'action-cell-buttons');
+    actionBtns.append(button('History', () => showHistory(d.device_id)));
+    if (d.license_id) {
+      actionBtns.append(button('Unlink', () => openUnlinkDialog(d), 'danger'));
+    }
+    actionBtns.append(button(d.status === 'REVOKED' ? 'Reactivate' : 'Revoke', () => confirmAction('devices', d.device_id, d.status === 'REVOKED'), d.status === 'REVOKED' ? 'secondary' : 'danger'));
+    cell(null, null, 'actions').append(actionBtns);
     target.append(row);
   }
   if (!data.devices.length) emptyRow(target,8,'No devices match your search or filters.');
@@ -173,7 +182,22 @@ function renderLicenses(data) {
     const status = node('td');status.append(badge(l.status));row.append(status,node('td',stamp(l.expires_at)));
     const usage = node('td',null,'capacity'), label = node('div',null,'capacity-label'); label.append(node('span',`${l.authorized_devices} / ${l.max_devices}`),node('span','authorized'));
     const track = node('div',null,'capacity-track'), fill = node('div',null,'capacity-fill');fill.style.width = `${Math.min(100,l.authorized_devices/l.max_devices*100)}%`;track.append(fill);usage.append(label,track);row.append(usage);
-    const actions = node('td',null,'actions');actions.append(button('Details',() => showLicense(l)),button(l.status === 'REVOKED' ? 'Reactivate' : 'Revoke',() => confirmAction('licenses',l.license_id,l.status === 'REVOKED'),l.status === 'REVOKED' ? 'secondary' : 'danger'));row.append(actions);target.append(row);
+    const actions = node('td',null,'actions');
+    const actionBtns = node('div', null, 'action-cell-buttons');
+    const isInactive = l.status === 'REVOKED' || l.status === 'ARCHIVED';
+    actionBtns.append(
+      button('Renew', () => openRenewDialog(l)),
+      button('Edit', () => openEditLicenseDialog(l)),
+      button('Details', () => showLicense(l)),
+      button(isInactive ? 'Reactivate' : 'Revoke', () => confirmAction('licenses', l.license_id, isInactive), isInactive ? 'secondary' : 'danger')
+    );
+    if (l.status !== 'ARCHIVED') {
+      actionBtns.append(button('Archive', () => openArchiveDialog(l), 'danger'));
+    }
+    actionBtns.append(button('History', () => showLicenseHistory(l.license_id, l.customer)));
+    actions.append(actionBtns);
+    row.append(actions);
+    target.append(row);
   }
   if (!data.licenses.length) emptyRow(target,5,'No licenses match your search or filters.');
   pager('licenses-',licenseOffset,data.licenses.length,data.total);el('license-total').textContent = `${data.total.toLocaleString()} matching licenses`;
@@ -197,7 +221,7 @@ function renderAlerts(alerts, total) {
 }
 
 function auditRow(a) {
-  const row = node('div',null,'audit-row'), glyph=node('span',null,'audit-icon');glyph.append(icon(a.event.includes('revok') ? 'shield' : a.event.includes('device') ? 'device' : 'clock'));
+  const row = node('div',null,'audit-row'), glyph=node('span',null,'audit-icon');glyph.append(icon(a.event.includes('revok') || a.event.includes('license') ? 'shield' : a.event.includes('device') ? 'device' : 'clock'));
   const body = node('div');body.append(node('strong',friendly(a.event)),node('p',`${a.actor}${a.device_id ? ' · '+a.device_id : ''}${a.reason ? ' · '+a.reason : ''}`));row.append(glyph,body,node('time',stamp(a.created_at),'audit-time'));return row;
 }
 
@@ -452,10 +476,14 @@ async function showDevice(id) {
       ['Last seen', stampExact(d.last_seen) + (d.last_seen ? ` (${timeAgo(d.last_seen, refTime)})` : '')],
       ['Activity', `${act.status} (${act.detail})`]
     ]), node('p', 'Activity reports the last observed heartbeat. Licensing authorization is a separate status.', 'detail-note'));
-    el('detail-actions').append(
-      button('Activity history', () => { el('detail-dialog').close(); showHistory(id); }),
-      button(d.status === 'REVOKED' ? 'Reactivate device' : 'Revoke device', () => confirmAction('devices', id, d.status === 'REVOKED'), d.status === 'REVOKED' ? 'secondary' : 'danger')
-    );
+    const deviceDetailActions = [
+      button('Activity history', () => { el('detail-dialog').close(); showHistory(id); })
+    ];
+    if (d.license_id) {
+      deviceDetailActions.push(button('Unlink device', () => { el('detail-dialog').close(); openUnlinkDialog(d); }, 'danger'));
+    }
+    deviceDetailActions.push(button(d.status === 'REVOKED' ? 'Reactivate device' : 'Revoke device', () => confirmAction('devices', id, d.status === 'REVOKED'), d.status === 'REVOKED' ? 'secondary' : 'danger'));
+    el('detail-actions').replaceChildren(...deviceDetailActions);
   } catch (error) {
     if (version === detailVersion) el('detail-body').replaceChildren(node('p', error.message, 'error'));
   }
@@ -474,9 +502,17 @@ async function showLicense(l) {
     ['Authorized', `${l.authorized_devices} devices`],
     ['Device limit', l.max_devices]
   ]), associations);
-  el('detail-actions').append(
-    button(l.status === 'REVOKED' ? 'Reactivate license' : 'Revoke license', () => confirmAction('licenses', l.license_id, l.status === 'REVOKED'), l.status === 'REVOKED' ? 'secondary' : 'danger')
-  );
+  const isInactive = l.status === 'REVOKED' || l.status === 'ARCHIVED';
+  const licenseDetailActions = [
+    button('Renew license', () => { el('detail-dialog').close(); openRenewDialog(l); }),
+    button('Edit configuration', () => { el('detail-dialog').close(); openEditLicenseDialog(l); }),
+    button('License history', () => { el('detail-dialog').close(); showLicenseHistory(l.license_id, l.customer); }),
+    button(isInactive ? 'Reactivate license' : 'Revoke license', () => confirmAction('licenses', l.license_id, isInactive), isInactive ? 'secondary' : 'danger')
+  ];
+  if (l.status !== 'ARCHIVED') {
+    licenseDetailActions.push(button('Archive license', () => { el('detail-dialog').close(); openArchiveDialog(l); }, 'danger'));
+  }
+  el('detail-actions').replaceChildren(...licenseDetailActions);
   try {
     const data = await api('/devices?' + new URLSearchParams({license_id: l.license_id, limit: 20}));
     if (version !== detailVersion || !el('detail-dialog').open) return;
@@ -658,6 +694,306 @@ el('success-key-dialog').addEventListener('close', () => {
   el('generated-key-input').value = '';
   el('copy-feedback').textContent = '';
 });
+
+function applyRenewPreset(days) {
+  if (!pendingRenew) return;
+  const isExpired = pendingRenew.status === 'EXPIRED' || (pendingRenew.expires_at && new Date(pendingRenew.expires_at).getTime() <= Date.now());
+  const baseDate = isExpired || !pendingRenew.expires_at ? new Date() : new Date(pendingRenew.expires_at);
+  const newDate = new Date(baseDate.getTime() + days * 86400 * 1000);
+  el('renew-custom-date').value = formatDateInput(newDate);
+  ['30', '90', '365'].forEach(d => {
+    el('renew-preset-' + d)?.classList.toggle('active', parseInt(d, 10) === days);
+  });
+  renewTargetDate = newDate;
+  renewExtensionDays = days;
+  const currentStamp = stamp(pendingRenew.expires_at);
+  const newStamp = stamp(newDate);
+  el('renew-preview-text').textContent = `Current: ${currentStamp} → New: ${newStamp}`;
+}
+
+function openRenewDialog(license) {
+  pendingRenew = license;
+  const isExpired = license.status === 'EXPIRED' || (license.expires_at && new Date(license.expires_at).getTime() <= Date.now());
+  el('renew-license-id').textContent = license.license_id;
+  el('renew-customer-name').textContent = license.customer || 'Unknown';
+  el('renew-current-expiry').textContent = stamp(license.expires_at) + (isExpired ? ' (Expired)' : '');
+  el('renew-reason').value = '';
+  el('renew-confirm').checked = false;
+  el('renew-error').textContent = '';
+  el('renew-error').style.display = 'none';
+  el('renew-custom-date').min = formatDateInput(new Date());
+  applyRenewPreset(30);
+  el('renew-dialog').showModal();
+  el('renew-reason').focus();
+}
+
+for (const days of [30, 90, 365]) {
+  el('renew-preset-' + days).onclick = () => applyRenewPreset(days);
+}
+
+el('renew-custom-date').oninput = () => {
+  if (!pendingRenew) return;
+  ['30', '90', '365'].forEach(d => el('renew-preset-' + d)?.classList.remove('active'));
+  renewExtensionDays = null;
+  const val = el('renew-custom-date').value;
+  if (!val) {
+    el('renew-preview-text').textContent = 'Please select a valid date';
+    renewTargetDate = null;
+    return;
+  }
+  const newDate = new Date(val + 'T23:59:59Z');
+  renewTargetDate = newDate;
+  const currentStamp = stamp(pendingRenew.expires_at);
+  const newStamp = stamp(newDate);
+  el('renew-preview-text').textContent = `Current: ${currentStamp} → New: ${newStamp}`;
+};
+
+el('renew-cancel').onclick = () => el('renew-dialog').close();
+el('renew-dialog').addEventListener('cancel', event => { if (el('renew-submit').disabled) event.preventDefault(); });
+
+el('renew-form').onsubmit = async event => {
+  event.preventDefault();
+  if (!pendingRenew) return;
+  const reason = el('renew-reason').value.trim();
+  if (reason.length < 3) {
+    el('renew-error').textContent = 'Please provide a valid reason (at least 3 characters).';
+    el('renew-error').style.display = 'block';
+    return;
+  }
+  if (!el('renew-confirm').checked) {
+    el('renew-error').textContent = 'Please check the confirmation box.';
+    el('renew-error').style.display = 'block';
+    return;
+  }
+  if (!renewTargetDate || isNaN(renewTargetDate.getTime()) || renewTargetDate.getTime() <= Date.now()) {
+    el('renew-error').textContent = 'Renewal expiration date must be in the future.';
+    el('renew-error').style.display = 'block';
+    return;
+  }
+  el('renew-error').style.display = 'none';
+  el('renew-submit').disabled = true;
+  el('renew-cancel').disabled = true;
+  try {
+    const payload = {
+      confirm: true,
+      confirmed_license_id: pendingRenew.license_id,
+      expires_at: renewTargetDate.toISOString(),
+      reason
+    };
+    if (renewExtensionDays) {
+      payload.extension_days = renewExtensionDays;
+    }
+    const result = await api(`/licenses/${encodeURIComponent(pendingRenew.license_id)}/renew`, payload);
+    el('renew-dialog').close();
+    el('result').textContent = result.message || 'License renewed successfully.';
+    await refresh();
+  } catch (error) {
+    el('renew-error').textContent = error.message;
+    el('renew-error').style.display = 'block';
+  } finally {
+    el('renew-submit').disabled = false;
+    el('renew-cancel').disabled = false;
+  }
+};
+
+function openEditLicenseDialog(license) {
+  pendingEdit = license;
+  el('edit-license-id').textContent = license.license_id;
+  el('edit-license-status').textContent = friendly(license.status);
+  el('edit-license-status').className = 'badge ' + license.status;
+  el('edit-customer-name').value = license.customer || '';
+  el('edit-max-devices').value = license.max_devices;
+  el('edit-expiry-date').value = license.expires_at ? license.expires_at.slice(0, 10) : '';
+  el('edit-license-reason').value = '';
+  el('edit-license-confirm').checked = false;
+  el('edit-license-error').textContent = '';
+  el('edit-license-error').style.display = 'none';
+  el('edit-license-dialog').showModal();
+  el('edit-customer-name').focus();
+}
+
+el('edit-license-cancel').onclick = () => el('edit-license-dialog').close();
+el('edit-license-dialog').addEventListener('cancel', event => { if (el('edit-license-submit').disabled) event.preventDefault(); });
+
+el('edit-license-form').onsubmit = async event => {
+  event.preventDefault();
+  if (!pendingEdit) return;
+  const customer_name = el('edit-customer-name').value.trim();
+  if (!customer_name) {
+    el('edit-license-error').textContent = 'Customer name cannot be blank.';
+    el('edit-license-error').style.display = 'block';
+    return;
+  }
+  const max_devices = parseInt(el('edit-max-devices').value, 10);
+  if (isNaN(max_devices) || max_devices < 1) {
+    el('edit-license-error').textContent = 'Maximum devices must be at least 1.';
+    el('edit-license-error').style.display = 'block';
+    return;
+  }
+  const expiryVal = el('edit-expiry-date').value;
+  if (!expiryVal) {
+    el('edit-license-error').textContent = 'Expiration date is required.';
+    el('edit-license-error').style.display = 'block';
+    return;
+  }
+  const expiryDate = new Date(expiryVal + 'T23:59:59Z');
+  if (isNaN(expiryDate.getTime()) || expiryDate.getTime() <= Date.now()) {
+    el('edit-license-error').textContent = 'Expiration date must be in the future.';
+    el('edit-license-error').style.display = 'block';
+    return;
+  }
+  const reason = el('edit-license-reason').value.trim();
+  if (reason.length < 3) {
+    el('edit-license-error').textContent = 'Please provide a reason (at least 3 characters).';
+    el('edit-license-error').style.display = 'block';
+    return;
+  }
+  if (!el('edit-license-confirm').checked) {
+    el('edit-license-error').textContent = 'Please check the confirmation box.';
+    el('edit-license-error').style.display = 'block';
+    return;
+  }
+  el('edit-license-error').style.display = 'none';
+  el('edit-license-submit').disabled = true;
+  el('edit-license-cancel').disabled = true;
+  try {
+    const result = await api(`/licenses/${encodeURIComponent(pendingEdit.license_id)}/edit`, {
+      confirm: true,
+      confirmed_license_id: pendingEdit.license_id,
+      customer_name,
+      max_devices,
+      expires_at: expiryDate.toISOString(),
+      reason
+    });
+    el('edit-license-dialog').close();
+    el('result').textContent = result.message || 'License updated successfully.';
+    await refresh();
+  } catch (error) {
+    el('edit-license-error').textContent = error.message;
+    el('edit-license-error').style.display = 'block';
+  } finally {
+    el('edit-license-submit').disabled = false;
+    el('edit-license-cancel').disabled = false;
+  }
+};
+
+function openArchiveDialog(license) {
+  pendingArchive = license;
+  el('archive-license-id').textContent = license.license_id;
+  el('archive-customer-name').textContent = license.customer || 'Unknown';
+  el('archive-reason').value = '';
+  el('archive-confirm').checked = false;
+  el('archive-error').textContent = '';
+  el('archive-error').style.display = 'none';
+  el('archive-license-dialog').showModal();
+  el('archive-reason').focus();
+}
+
+el('archive-cancel').onclick = () => el('archive-license-dialog').close();
+el('archive-license-dialog').addEventListener('cancel', event => { if (el('archive-submit').disabled) event.preventDefault(); });
+
+el('archive-license-form').onsubmit = async event => {
+  event.preventDefault();
+  if (!pendingArchive) return;
+  const reason = el('archive-reason').value.trim();
+  if (reason.length < 3) {
+    el('archive-error').textContent = 'Please provide a reason (at least 3 characters).';
+    el('archive-error').style.display = 'block';
+    return;
+  }
+  if (!el('archive-confirm').checked) {
+    el('archive-error').textContent = 'Please confirm archiving this license.';
+    el('archive-error').style.display = 'block';
+    return;
+  }
+  el('archive-error').style.display = 'none';
+  el('archive-submit').disabled = true;
+  el('archive-cancel').disabled = true;
+  try {
+    const result = await api(`/licenses/${encodeURIComponent(pendingArchive.license_id)}/archive`, {
+      confirm: true,
+      confirmed_license_id: pendingArchive.license_id,
+      reason
+    });
+    el('archive-license-dialog').close();
+    el('result').textContent = result.message || 'License safely archived.';
+    await refresh();
+  } catch (error) {
+    el('archive-error').textContent = error.message;
+    el('archive-error').style.display = 'block';
+  } finally {
+    el('archive-submit').disabled = false;
+    el('archive-cancel').disabled = false;
+  }
+};
+
+async function showLicenseHistory(license_id, customerName) {
+  el('license-history-id').textContent = license_id;
+  el('license-history-customer').textContent = customerName ? `${customerName} · License Audit` : 'License Audit Timeline';
+  el('license-history').replaceChildren(node('p', 'Loading audit history…', 'empty'));
+  if (!el('license-history-dialog').open) el('license-history-dialog').showModal();
+  try {
+    const data = await api(`/licenses/${encodeURIComponent(license_id)}/history`);
+    const events = data.events || data;
+    el('license-history').replaceChildren(...events.map(auditRow));
+    if (!events.length) {
+      el('license-history').append(node('p', 'No audit events recorded for this license.', 'empty'));
+    }
+  } catch (error) {
+    el('license-history').replaceChildren(node('p', error.message, 'error'));
+  }
+}
+el('license-history-close').onclick = () => el('license-history-dialog').close();
+
+function openUnlinkDialog(device) {
+  pendingUnlink = device;
+  el('unlink-device-id').textContent = device.device_id;
+  el('unlink-customer').textContent = `${device.customer || 'Unassociated'} (License: ${device.license_id || 'None'})`;
+  el('unlink-reason').value = '';
+  el('unlink-confirm').checked = false;
+  el('unlink-error').textContent = '';
+  el('unlink-error').style.display = 'none';
+  el('unlink-device-dialog').showModal();
+  el('unlink-reason').focus();
+}
+
+el('unlink-cancel').onclick = () => el('unlink-device-dialog').close();
+el('unlink-device-dialog').addEventListener('cancel', event => { if (el('unlink-submit').disabled) event.preventDefault(); });
+
+el('unlink-device-form').onsubmit = async event => {
+  event.preventDefault();
+  if (!pendingUnlink) return;
+  const reason = el('unlink-reason').value.trim();
+  if (reason.length < 3) {
+    el('unlink-error').textContent = 'Please provide a reason (at least 3 characters).';
+    el('unlink-error').style.display = 'block';
+    return;
+  }
+  if (!el('unlink-confirm').checked) {
+    el('unlink-error').textContent = 'Please check the confirmation box.';
+    el('unlink-error').style.display = 'block';
+    return;
+  }
+  el('unlink-error').style.display = 'none';
+  el('unlink-submit').disabled = true;
+  el('unlink-cancel').disabled = true;
+  try {
+    const result = await api(`/devices/${encodeURIComponent(pendingUnlink.device_id)}/unlink`, {
+      confirm: true,
+      confirmed_device_id: pendingUnlink.device_id,
+      reason
+    });
+    el('unlink-device-dialog').close();
+    el('result').textContent = result.message || 'Device unlinked successfully.';
+    await refresh();
+  } catch (error) {
+    el('unlink-error').textContent = error.message;
+    el('unlink-error').style.display = 'block';
+  } finally {
+    el('unlink-submit').disabled = false;
+    el('unlink-cancel').disabled = false;
+  }
+};
 
 el('refresh').onclick = () => {
   retryCount = 0;
