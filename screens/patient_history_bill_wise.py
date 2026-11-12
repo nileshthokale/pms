@@ -6,8 +6,6 @@ with immediate itemized bill inspection and direct A6 bill reprint / PDF export.
 
 from __future__ import annotations
 
-import os
-from datetime import datetime
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -28,11 +26,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from database import financial_year
 from database.counter_sale_a6_bill import (
     CounterSaleBillA6PreviewDialog,
     generate_counter_sale_pdf,
-    print_counter_sale_bill,
 )
 from database.sales_dao import SalesDAO
 from screens.sales_history import (
@@ -45,13 +41,10 @@ from screens.sales_history import (
 from ui.components import FONT_FAMILY
 from ui.input_rules import attach_uppercase
 from ui.theme import (
-    TYPE_BUTTON,
     TYPE_FORM_LABEL,
     TYPE_HINT,
     TYPE_PAGE_TITLE,
     TYPE_SECTION_HEADER,
-    TYPE_TABLE_DATA,
-    TYPE_TABLE_HEADER,
     TYPE_VALUE,
     TYPE_VALUE_EMPHASIS,
     palette,

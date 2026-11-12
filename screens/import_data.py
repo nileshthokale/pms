@@ -1,18 +1,16 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QCursor, QFont
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QButtonGroup,
     QComboBox,
     QDialog,
     QFileDialog,
     QFrame,
-    QGridLayout,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -20,8 +18,6 @@ from PySide6.QtWidgets import (
     QPushButton,
     QRadioButton,
     QScrollArea,
-    QSizePolicy,
-    QSpacerItem,
     QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
@@ -32,7 +28,7 @@ from PySide6.QtWidgets import (
 
 from database import auth, import_service
 from ui import components as ui
-from ui.theme import FONT_FAMILY, FONT_NAME, palette
+from ui.theme import FONT_FAMILY, palette
 
 
 # ── Step Indicator Bar ────────────────────────────────────────────────────────

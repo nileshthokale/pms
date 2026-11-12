@@ -41,7 +41,6 @@ import argparse
 import json
 import os
 import re
-import shutil
 import sqlite3
 import sys
 import time
@@ -102,7 +101,6 @@ SOURCE_TARGETS: dict[str, str | None] = {
     "debitnotevhheader": "debit_notes",
     "debitnoteitemdetail": "debit_note_items",
     "debitnotevhdetail": "ledger_transactions",
-    "invoicedebitnote": "unsupported (no allocation table)",
     # receipts / payments
     "receiptvhheader": "customer_receipts",
     "receiptvhdetail": "ledger_transactions",

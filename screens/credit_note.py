@@ -10,8 +10,6 @@ from PySide6.QtWidgets import (
     QDateEdit,
     QDialog,
     QFileDialog,
-    QGridLayout,
-    QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -27,7 +25,6 @@ from PySide6.QtWidgets import (
 )
 
 from database.credit_note_dao import CreditNoteDAO
-from database import auth
 from database import financial_year
 from database.document_printing import DocumentPrintError, generate_credit_note
 from database.item_dao import ItemDAO

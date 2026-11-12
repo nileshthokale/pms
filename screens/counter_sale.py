@@ -23,7 +23,6 @@ from PySide6.QtWidgets import (
     QDateEdit,
     QDialog,
     QFileDialog,
-    QFormLayout,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -35,7 +34,6 @@ from PySide6.QtWidgets import (
     QRadioButton,
     QScrollArea,
     QSizePolicy,
-    QStackedWidget,
     QSplitter,
     QStyledItemDelegate,
     QTableWidget,
@@ -43,31 +41,22 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QPalette, QStandardItem, QStandardItemModel, QKeyEvent, QKeySequence
+from PySide6.QtGui import QColor, QFontMetrics, QPalette, QStandardItem, QStandardItemModel, QKeyEvent, QKeySequence
 
 from database.customer_dao import CustomerDAO, PatientOption
-from database.connection import get_connection
 from database.doctor_dao import DoctorDAO
 from database.item_dao import ItemDAO
 from database.sales_dao import SalesDAO
-from database.draft_stock import available_quantity, reserved_quantity
+from database.draft_stock import reserved_quantity
 from database import auth
 from database import financial_year
-from database.document_printing import (DocumentPrintError, a6_profile,
-                                        generate_counter_sale_bill,
-                                        print_pharmacy_a6_bill)
+from database.document_printing import (a6_profile)
 from database.counter_sale_a6_bill import (
     CounterSaleBillA6PreviewDialog,
     generate_counter_sale_pdf,
-    print_counter_sale_bill,
 )
 from database.hold_bill_dao import (
     create_hold,
-    ensure_hold_tables,
-    get_hold_items,
-    update_status,
-    STATUS_ACTIVE,
-    STATUS_RESUMED,
 )
 
 from screens.counter_sale_actions import (
@@ -8541,7 +8530,9 @@ class CounterSalePage(QWidget):
             output = generate_counter_sale_pdf(inv_id, path)
             QMessageBox.information(self, "PDF Saved", f"A6 Cash Memo PDF saved to:\n{output}")
             try:
+                import os
                 import subprocess
+                import sys
                 if sys.platform.startswith("win"):
                     os.startfile(output)
                 elif sys.platform.startswith("darwin"):

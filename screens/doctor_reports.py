@@ -19,24 +19,19 @@ Features:
 from __future__ import annotations
 
 import os
-from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
-from PySide6.QtCore import QDate, QRectF, Qt, Signal
+from PySide6.QtCore import QDate, Qt, Signal
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
-    QComboBox,
     QDateEdit,
     QFileDialog,
     QFrame,
     QHBoxLayout,
-    QHeaderView,
     QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
-    QScrollArea,
-    QSizePolicy,
     QSplitter,
     QTreeWidget,
     QTreeWidgetItem,
@@ -50,7 +45,6 @@ from ui import theme
 from ui.components import ReportFilterSearchCombo
 from ui.crystal_report_viewer import (
     BlockKind,
-    CONTENT_WIDTH,
     CrystalReportViewer,
     PAGE_HEIGHT,
     PAGE_WIDTH,

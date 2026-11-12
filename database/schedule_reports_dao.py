@@ -15,7 +15,6 @@ All queries are strictly read-only and filter by items.scheduled:
 
 from __future__ import annotations
 
-import sqlite3
 from typing import Any, Dict, List, Optional
 
 from database.connection import get_connection

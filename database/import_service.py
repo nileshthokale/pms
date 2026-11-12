@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
-from database.connection import get_connection, init_database
+from database.connection import get_connection
 
 try:  # Optional at runtime; CSV remains fully supported without it.
     import openpyxl

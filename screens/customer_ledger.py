@@ -13,7 +13,6 @@ Displays detailed accounting transactions for a chosen customer, including:
 from __future__ import annotations
 
 from datetime import date
-from typing import Optional
 
 from PySide6.QtCore import QDate, Qt
 from PySide6.QtWidgets import (
@@ -30,7 +29,6 @@ from PySide6.QtWidgets import (
 )
 
 from core.doc_formatter import format_document_number
-from database import financial_year
 from database.ledger_report_dao import LedgerReportDAO
 from screens.ledger_report_pages import (
     build_party_ledger_pages,

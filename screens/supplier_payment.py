@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional, List
+from typing import List
 
 from PySide6.QtCore import QDate, Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
-    QDateEdit,
     QDialog,
     QFileDialog,
     QGridLayout,
@@ -43,7 +42,7 @@ from screens.ledger_widgets import (
     table_header_style,
     table_style,
 )
-from ui.theme import date_subcontrols, palette, TYPE_FORM_LABEL, TYPE_INPUT, TYPE_PAGE_TITLE
+from ui.theme import palette, TYPE_PAGE_TITLE
 
 
 def _safe_float(text: str, default: float = 0.0) -> float:

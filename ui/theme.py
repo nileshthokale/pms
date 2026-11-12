@@ -31,7 +31,7 @@ import sys
 from pathlib import Path
 
 try:
-    from PySide6.QtCore import QObject, Signal
+    from PySide6.QtCore import QObject
     _HAS_QT = True
 except ImportError:  # headless (e.g. test environments)
     _HAS_QT = False

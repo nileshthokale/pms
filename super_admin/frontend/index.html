@@ -37,7 +37,16 @@
     <a class="nav-link" href="#audit-section"><svg class="icon"><use href="#i-clock"/></svg>Audit trail</a>
   </nav>
   <div class="header-actions"><span id="environment" class="badge neutral">Connecting</span><button id="logout" class="secondary" aria-label="Sign out"><span>Sign out</span><svg class="icon"><use href="#i-logout"/></svg></button></div>
-</div></header>
+</div>
+<nav class="mobile-tab-bar" aria-label="Quick section navigation">
+  <a class="mobile-tab-item active" href="#overview"><svg class="icon"><use href="#i-grid"/></svg><span>Overview</span></a>
+  <a class="mobile-tab-item" href="#device-section"><svg class="icon"><use href="#i-device"/></svg><span>Devices</span><span id="mob-nav-devices" class="tab-count">—</span></a>
+  <a class="mobile-tab-item" href="#license-section"><svg class="icon"><use href="#i-shield"/></svg><span>Licenses</span></a>
+  <a class="mobile-tab-item" href="#alert-section"><svg class="icon"><use href="#i-alert"/></svg><span>Alerts</span><span id="mob-nav-alerts" class="tab-count amber">—</span></a>
+  <a class="mobile-tab-item" href="#audit-section"><svg class="icon"><use href="#i-clock"/></svg><span>Audit</span></a>
+</nav>
+</header>
+<div id="nav-backdrop" class="nav-backdrop" aria-hidden="true"></div>
 <div class="workspace">
   <main id="overview" tabindex="-1">
     <header class="page-heading"><div class="hero-copy"><p class="eyebrow">SOFTWARE ACCESS, AT A GLANCE</p><h1>Command Center <span class="heading-shield" aria-hidden="true"><svg class="icon"><use href="#i-shield"/></svg></span></h1><p>Monitor devices, manage licenses,<br class="desktop-break"> and control application access.</p></div><div class="heading-actions"><div class="profile"><span class="avatar" aria-hidden="true">SA</span><div><strong id="user">Administrator</strong><small>Developer · Super Admin</small></div></div><span id="connection" class="connection pending" role="status"><i></i><span id="connection-label">Connecting to API</span></span><div class="sync-actions"><small id="last-sync">Waiting for first sync</small><button id="refresh"><svg class="icon"><use href="#i-refresh"/></svg>Refresh</button></div></div></header>
@@ -54,11 +63,69 @@
       </section>
       <section id="alert-section" class="panel alert-panel" aria-labelledby="alert-title"><div class="panel-heading"><div><p class="eyebrow">REVIEW QUEUE</p><h2 id="alert-title">New installations</h2></div><span id="alert-count" class="badge NEW">—</span></div><p class="panel-subtitle">Review newly detected software installations.</p><div id="alerts" class="alert-list" aria-busy="true"><p class="empty">Loading installation alerts…</p></div><div class="panel-note"><svg class="icon"><use href="#i-shield"/></svg>Acknowledgement records your review. Device authorization is managed separately.</div></section>
     </div>
-    <section id="device-section" class="panel management" aria-labelledby="devices-title"><div class="panel-heading"><div><p class="eyebrow">INSTALLATION INVENTORY</p><h2 id="devices-title">Registered devices</h2></div><div class="heading-controls"><button id="open-authorize-device" class="primary" type="button"><svg class="icon"><use href="#i-shield"/></svg>+ Authorize Device</button><span class="section-meta" id="device-total">Loading records</span></div></div><div class="toolbar"><label class="search"><svg class="icon"><use href="#i-search"/></svg><input id="device-search" type="search" placeholder="Search device, customer or version" maxlength="200" aria-label="Search devices"></label><div class="filters"><label>Activity<select id="activity"><option value="all">All activity</option><option value="online">Online within threshold</option><option value="recent">Recently online</option><option value="offline">Offline</option></select></label><label>Authorization<select id="device-status"><option value="all">All statuses</option><option value="AUTHORIZED">Authorized</option><option value="PENDING">Pending</option><option value="REVOKED">Revoked</option><option value="EXPIRED">Expired</option><option value="LIMIT_REACHED">Limit reached</option><option value="NEW">New installations</option><option value="UNLINKED">Unlinked</option></select></label></div></div><div class="table-wrap"><table><thead><tr><th>Device / version</th><th>Customer / license</th><th>Detection</th><th>Authorization</th><th>Activity</th><th>Registration</th><th>Last seen</th><th>Actions</th></tr></thead><tbody id="devices"></tbody></table></div><div class="pagination"><p id="page" role="status">Loading records…</p><div><button id="previous" class="secondary" disabled>Previous</button><button id="next" class="secondary" disabled>Next</button></div></div></section>
-    <section id="license-section" class="panel management" aria-labelledby="licenses-title"><div class="panel-heading"><div><p class="eyebrow">SOFTWARE ACCESS</p><h2 id="licenses-title">License management</h2></div><div class="heading-controls"><button id="open-issue-license" class="primary" type="button"><svg class="icon"><use href="#i-plus"/></svg>+ Issue New License</button><span class="section-meta" id="license-total">Loading records</span></div></div><div class="toolbar"><label class="search"><svg class="icon"><use href="#i-search"/></svg><input id="license-search" type="search" placeholder="Search customer or license ID" maxlength="200" aria-label="Search licenses"></label><label class="filter-label">Status<select id="license-status"><option value="all">All licenses</option><option value="ACTIVE">Active</option><option value="REVOKED">Revoked</option><option value="EXPIRED">Expired</option><option value="ARCHIVED">Archived</option></select></label></div><div class="table-wrap"><table><thead><tr><th>Customer / license</th><th>Status</th><th>Expires</th><th>Device capacity</th><th>Actions</th></tr></thead><tbody id="licenses"></tbody></table></div><div class="pagination"><p id="licenses-page" role="status">Loading records…</p><div><button id="licenses-previous" class="secondary" disabled>Previous</button><button id="licenses-next" class="secondary" disabled>Next</button></div></div></section>
+    <section id="device-section" class="panel management" aria-labelledby="devices-title"><div class="panel-heading"><div><p class="eyebrow">INSTALLATION INVENTORY</p><h2 id="devices-title">Registered devices</h2></div><div class="heading-controls"><button id="open-authorize-device" class="primary" type="button"><svg class="icon"><use href="#i-shield"/></svg>+ Authorize Device</button><span class="section-meta" id="device-total">Loading records</span></div></div><div class="toolbar"><label class="search"><svg class="icon"><use href="#i-search"/></svg><input id="device-search" type="search" placeholder="Search device, customer or version" maxlength="200" aria-label="Search devices"></label><div class="filters"><label>Activity<select id="activity"><option value="all">All activity</option><option value="online">Online within threshold</option><option value="recent">Recently online</option><option value="offline">Offline</option></select></label><label>Authorization<select id="device-status"><option value="all">All statuses</option><option value="AUTHORIZED">Authorized</option><option value="PENDING">Pending</option><option value="REVOKED">Revoked</option><option value="EXPIRED">Expired</option><option value="LIMIT_REACHED">Limit reached</option><option value="NEW">New installations</option><option value="UNLINKED">Unlinked</option></select></label></div></div><div class="table-scroll-hint" aria-hidden="true"><svg class="icon"><use href="#i-chevron"/></svg><span>Swipe horizontally to view full table details</span></div><div class="table-wrap"><table><thead><tr><th>Device / version</th><th>Customer / license</th><th>Detection</th><th>Authorization</th><th>Activity</th><th>Registration</th><th>Last seen</th><th>Actions</th></tr></thead><tbody id="devices"></tbody></table></div><div class="pagination"><p id="page" role="status">Loading records…</p><div><button id="previous" class="secondary" disabled>Previous</button><button id="next" class="secondary" disabled>Next</button></div></div></section>
+    <section id="license-section" class="panel management" aria-labelledby="licenses-title"><div class="panel-heading"><div><p class="eyebrow">SOFTWARE ACCESS</p><h2 id="licenses-title">License management</h2></div><div class="heading-controls"><button id="open-issue-license" class="primary" type="button"><svg class="icon"><use href="#i-plus"/></svg>+ Issue New License</button><span class="section-meta" id="license-total">Loading records</span></div></div><div class="toolbar"><label class="search"><svg class="icon"><use href="#i-search"/></svg><input id="license-search" type="search" placeholder="Search customer or license ID" maxlength="200" aria-label="Search licenses"></label><label class="filter-label">Status<select id="license-status"><option value="all">All licenses</option><option value="ACTIVE">Active</option><option value="REVOKED">Revoked</option><option value="EXPIRED">Expired</option><option value="ARCHIVED">Archived</option></select></label></div><div class="table-scroll-hint" aria-hidden="true"><svg class="icon"><use href="#i-chevron"/></svg><span>Swipe horizontally to view full table details</span></div><div class="table-wrap"><table><thead><tr><th>Customer / license</th><th>Status</th><th>Expires</th><th>Device capacity</th><th>Actions</th></tr></thead><tbody id="licenses"></tbody></table></div><div class="pagination"><p id="licenses-page" role="status">Loading records…</p><div><button id="licenses-previous" class="secondary" disabled>Previous</button><button id="licenses-next" class="secondary" disabled>Next</button></div></div></section>
     <section id="update-section" class="panel update-panel" aria-labelledby="update-title"><div class="panel-heading"><div><p class="eyebrow">RELEASE OPERATIONS</p><h2 id="update-title">Application updates</h2></div><span class="badge neutral">Not configured</span></div><div class="update-content"><div class="update-object" aria-hidden="true"><svg class="icon"><use href="#i-update"/></svg></div><div><h3>A space for your next release.</h3><p>Connect an update service to manage releases. No update API is configured for this installation.</p><div class="future-steps"><span><small>01</small>Upload & version</span><span><small>02</small>Release notes & publish</span><span><small>03</small>Device rollout status</span><span><small>04</small>History & rollback</span></div><button class="secondary" disabled>Update service required</button></div></div></section>
     <section id="audit-section" class="panel" aria-labelledby="audit-title"><div class="panel-heading"><div><p class="eyebrow">ADMINISTRATOR ACCOUNTABILITY</p><h2 id="audit-title">Audit trail</h2></div><span class="section-meta">Latest 200 events</span></div><div id="audit" class="audit-list" aria-busy="true"></div></section>
-    <footer class="workspace-footer"><span>PHARMACY <strong>SUPER ADMIN</strong></span><span>Licenses & device access · Secure administration</span></footer>
+    <footer class="site-footer" role="contentinfo">
+      <div class="footer-inner">
+        <div class="footer-primary">
+          <div class="footer-brand-col">
+            <div class="footer-brand">
+              <span class="brand-mark"><svg class="icon"><use href="#i-shield"/></svg></span>
+              <span>Pharmacy<span class="brand-divider">/</span><strong>Super Admin</strong></span>
+            </div>
+            <p class="footer-tagline">Cryptographic licensing, hardware binding &amp; workstation authorization control center.</p>
+            <div class="footer-status-pill" role="status">
+              <span class="dot green"></span>
+              <span class="status-text">Licensing API Operational</span>
+              <span class="status-ver">v2.4.0</span>
+            </div>
+          </div>
+          <div class="footer-links-grid">
+            <div class="footer-col">
+              <span class="footer-heading">Navigation</span>
+              <ul class="footer-nav">
+                <li><a href="#overview">Command Overview</a></li>
+                <li><a href="#device-section">Device Inventory</a></li>
+                <li><a href="#license-section">License Management</a></li>
+                <li><a href="#alert-section">Installation Alerts</a></li>
+                <li><a href="#audit-section">Audit Trail</a></li>
+              </ul>
+            </div>
+            <div class="footer-col">
+              <span class="footer-heading">Security Protocol</span>
+              <ul class="footer-nav">
+                <li><span class="footer-meta-item">Hardware Bound ID</span></li>
+                <li><span class="footer-meta-item">Ed25519 Cryptographic Keys</span></li>
+                <li><span class="footer-meta-item">AES-256 GCM Storage</span></li>
+                <li><span class="footer-meta-item">Immutable Security Audit</span></li>
+              </ul>
+            </div>
+            <div class="footer-col">
+              <span class="footer-heading">Support &amp; Operations</span>
+              <ul class="footer-nav">
+                <li><a href="#overview" class="footer-action-link" id="footer-sync-link">Trigger Health Sync</a></li>
+                <li><a href="#audit-section">Accountability Log</a></li>
+                <li><span class="footer-meta-item">Developer Ops Support</span></li>
+                <li><a href="#overview" class="back-to-top">Back to top &uarr;</a></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <div class="footer-secondary">
+          <div class="footer-legal">
+            <p>&copy; 2026 Pharmacy Management System. Proprietary &amp; Confidential.</p>
+            <p class="footer-subtext">Restricted to authorized Super Administrators. All access modifications are strictly audited.</p>
+          </div>
+          <div class="footer-badges">
+            <span class="badge neutral">FIPS 140-2</span>
+            <span class="badge neutral">TLS 1.3 Strict</span>
+            <span class="badge neutral">v2.4.0-enterprise</span>
+          </div>
+        </div>
+      </div>
+    </footer>
   </main>
 </div>
 <dialog id="confirmation" class="confirmation" aria-labelledby="action-title"><form id="action"><div class="dialog-heading"><span class="dialog-emblem"><svg class="icon"><use href="#i-shield"/></svg></span><button id="cancel" type="button" class="icon-button" aria-label="Cancel"><svg class="icon"><use href="#i-close"/></svg></button></div><p class="eyebrow">CONFIRM ACCESS CHANGE</p><h2 id="action-title"></h2><p id="action-device" class="mono"></p><p id="action-description"></p><label>Reason for this action<textarea id="reason" required minlength="3" maxlength="1000" rows="3" placeholder="Enter a clear reason for the audit trail"></textarea></label><label class="check-label"><input id="confirm" type="checkbox" required>I confirm this access change for the ID shown above.</label><p id="action-error" role="alert" class="error"></p><button id="apply" type="submit">Confirm access change</button></form></dialog>

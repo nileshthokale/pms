@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from PySide6.QtCore import QDate, QPoint, QRect, Qt, QTimer, Signal
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
@@ -26,11 +25,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from database import document_printing, financial_year
+from database import financial_year
 from database.counter_sale_a6_bill import (
     CounterSaleBillA6PreviewDialog,
     generate_counter_sale_pdf,
-    print_counter_sale_bill,
 )
 from database.sales_dao import SalesDAO
 from ui.components import FONT_FAMILY
@@ -45,7 +43,6 @@ from ui.crystal_report_viewer import (
     get_default_store_identity,
     print_or_export_report_pages,
 )
-from ui.fy_view import view_year_bounds
 from ui.input_rules import attach_uppercase
 from ui.theme import (
     TYPE_BUTTON,

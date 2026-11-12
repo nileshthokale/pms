@@ -8,13 +8,10 @@ Completely separate, print-only duplicate sales bills:
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
 from PySide6.QtCore import QDate, QTime, Qt, Signal
 import re
-from PySide6.QtCore import QRectF
-from PySide6.QtGui import QColor, QFont, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QScrollArea,
     QAbstractItemView,
@@ -33,7 +30,6 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
-    QSizePolicy,
     QTableWidget,
     QTableWidgetItem,
     QTextEdit,
@@ -47,8 +43,6 @@ from database import pharmacy_a6_receipt as a6
 from database import duplicate_a6_cash_memo as memo_a6
 from ui.crystal_report_viewer import (
     BlockKind,
-    CONTENT_WIDTH,
-    CrystalReportViewer,
     PAGE_HEIGHT,
     PAGE_WIDTH,
     ReportBlock,
@@ -57,14 +51,11 @@ from ui.crystal_report_viewer import (
     fmt_amt,
     fmt_qty,
     get_default_store_identity,
-    print_or_export_report_pages,
 )
 from ui.input_rules import attach_uppercase
 from ui.theme import (
     FONT_FAMILY,
     TYPE_FORM_LABEL,
-    TYPE_SECTION_HEADER,
-    TYPE_VALUE,
     palette,
 )
 

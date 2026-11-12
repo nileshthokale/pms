@@ -14,11 +14,10 @@ Matches the Pharma-WINNER Adjusted Stock List workflow:
 
 from __future__ import annotations
 
-from datetime import date
 from typing import Any, Optional
 
 from PySide6.QtCore import Qt, QDate
-from PySide6.QtGui import QColor, QFont
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -43,7 +42,6 @@ from ui.theme import (
     TYPE_FORM_LABEL,
     TYPE_HINT,
     TYPE_INPUT,
-    TYPE_PAGE_TITLE,
     palette,
 )
 

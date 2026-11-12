@@ -23,19 +23,14 @@ import os
 import shutil
 import tempfile
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from PySide6.QtCore import QDate, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import (
     QColor,
     QFont,
-    QFontMetrics,
-    QIcon,
     QPainter,
-    QPainterPath,
     QPen,
-    QPixmap,
 )
 from PySide6.QtWidgets import (
     QApplication,
@@ -50,10 +45,8 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
-    QSizePolicy,
     QSplitter,
     QTabBar,
-    QToolBar,
     QVBoxLayout,
     QWidget,
 )
@@ -1220,8 +1213,6 @@ def _print_with_image_provider(image_provider, page_count: int, parent, is_lands
 
 def _render_pdf_page(document, page_index: int):
     """Rasterize one PDF page at 300 DPI on its native A4 page size."""
-    from PySide6.QtCore import QSize
-
     point_size = document.pagePointSize(page_index)
     width = max(1, int(round(point_size.width() * RASTER_PRINT_DPI / 72.0)))
     height = max(1, int(round(point_size.height() * RASTER_PRINT_DPI / 72.0)))

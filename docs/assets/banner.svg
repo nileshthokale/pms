@@ -1,0 +1,190 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 340" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradients -->
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#070b14"/>
+      <stop offset="50%" stop-color="#0d1527"/>
+      <stop offset="100%" stop-color="#050811"/>
+    </linearGradient>
+
+    <!-- Medical Cyan-Emerald Gradients -->
+    <linearGradient id="titleGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="35%" stop-color="#00f2fe"/>
+      <stop offset="70%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#34d399"/>
+    </linearGradient>
+
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+
+    <linearGradient id="glowGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#10b981" stop-opacity="0.05"/>
+    </linearGradient>
+
+    <!-- Glow Filters -->
+    <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+
+    <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+
+    <!-- Grid Pattern -->
+    <pattern id="techGrid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.75" stroke-opacity="0.4"/>
+      <circle cx="40" cy="40" r="1" fill="#38bdf8" fill-opacity="0.3"/>
+    </pattern>
+
+    <style>
+      @keyframes radarPulse {
+        0% { r: 52px; opacity: 0.8; stroke-width: 2px; }
+        50% { opacity: 0.4; }
+        100% { r: 95px; opacity: 0; stroke-width: 0.5px; }
+      }
+      @keyframes radarPulse2 {
+        0% { r: 40px; opacity: 0; }
+        25% { opacity: 0.6; stroke-width: 1.8px; }
+        100% { r: 80px; opacity: 0; stroke-width: 0.5px; }
+      }
+      @keyframes floatShield {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-6px); }
+      }
+      @keyframes rotateRing {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      @keyframes liveStatusBlink {
+        0%, 100% { opacity: 1; fill: #10b981; filter: drop-shadow(0 0 6px #10b981); }
+        50% { opacity: 0.3; fill: #059669; filter: none; }
+      }
+      @keyframes textShimmer {
+        0% { stop-color: #38bdf8; }
+        50% { stop-color: #34d399; }
+        100% { stop-color: #38bdf8; }
+      }
+      .shield-group {
+        animation: floatShield 6s ease-in-out infinite;
+      }
+      .radar-wave-1 {
+        animation: radarPulse 3.5s cubic-bezier(0.2, 0.8, 0.4, 1) infinite;
+      }
+      .radar-wave-2 {
+        animation: radarPulse2 3.5s cubic-bezier(0.2, 0.8, 0.4, 1) infinite 1.4s;
+      }
+      .rotating-dash {
+        transform-origin: 155px 170px;
+        animation: rotateRing 25s linear infinite;
+      }
+      .live-dot {
+        animation: liveStatusBlink 2s ease-in-out infinite;
+      }
+    </style>
+  </defs>
+
+  <!-- Canvas Background -->
+  <rect width="1200" height="340" rx="16" fill="url(#bgGradient)"/>
+  <rect width="1200" height="340" rx="16" fill="url(#techGrid)"/>
+
+  <!-- Border Frame -->
+  <rect x="1.5" y="1.5" width="1197" height="337" rx="15" fill="none" stroke="#1e293b" stroke-width="1.5"/>
+  <rect x="1.5" y="1.5" width="1197" height="337" rx="15" fill="none" stroke="url(#glowGrad)" stroke-width="1.5"/>
+
+  <!-- Ambient Background Glows -->
+  <circle cx="155" cy="170" r="140" fill="#0284c7" fill-opacity="0.12" filter="url(#neonGlow)"/>
+  <circle cx="1020" cy="120" r="160" fill="#059669" fill-opacity="0.08" filter="url(#neonGlow)"/>
+
+  <!-- Left: Animated Futuristic Shield / Medical Core -->
+  <g class="shield-group">
+    <!-- Pulse Waves -->
+    <circle class="radar-wave-1" cx="155" cy="170" r="50" fill="none" stroke="#38bdf8"/>
+    <circle class="radar-wave-2" cx="155" cy="170" r="45" fill="none" stroke="#34d399"/>
+
+    <!-- Rotating Tech Ring -->
+    <circle class="rotating-dash" cx="155" cy="170" r="68" fill="none" stroke="#0ea5e9" stroke-width="1.5" stroke-dasharray="8 6 4 6" opacity="0.65"/>
+    <circle cx="155" cy="170" r="58" fill="none" stroke="#334155" stroke-width="1" stroke-opacity="0.5"/>
+
+    <!-- Shield Hex Base -->
+    <polygon points="155,115 200,138 200,192 155,225 110,192 110,138" fill="#091424" stroke="url(#shieldGrad)" stroke-width="2.5" filter="url(#softGlow)"/>
+    <polygon points="155,123 192,143 192,187 155,215 118,187 118,143" fill="#0b1a2f" fill-opacity="0.7"/>
+
+    <!-- Medical Cross Emblem -->
+    <path d="M 147 145 H 163 V 162 H 180 V 178 H 163 V 195 H 147 V 178 H 130 V 162 H 147 Z" fill="url(#titleGradient)" filter="url(#softGlow)"/>
+    <!-- Central Cyan Core Dot -->
+    <circle cx="155" cy="170" r="2.5" fill="#ffffff"/>
+  </g>
+
+  <!-- Center-Right: Title & Typography -->
+  <g transform="translate(265, 0)">
+    <!-- Status Pill -->
+    <g transform="translate(0, 48)">
+      <rect width="365" height="28" rx="14" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+      <circle class="live-dot" cx="16" cy="14" r="5"/>
+      <text x="32" y="18" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="700" letter-spacing="1.2">ENTERPRISE EDITION  •  v1.0.0 RELEASE</text>
+    </g>
+
+    <!-- Main Title -->
+    <text x="0" y="125" fill="url(#titleGradient)" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="44" font-weight="900" letter-spacing="-0.5" filter="url(#softGlow)">
+      PHARMACY MANAGEMENT SYSTEM
+    </text>
+
+    <!-- Subtitle / Architecture Statement -->
+    <text x="0" y="162" fill="#cbd5e1" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="16" font-weight="500" letter-spacing="0.2">
+      Offline-First Desktop ERP <tspan fill="#38bdf8">•</tspan> 54 Enterprise Screens <tspan fill="#38bdf8">•</tspan> Ed25519 Cryptographic Security <tspan fill="#38bdf8">•</tspan> Cloud Command Center
+    </text>
+
+    <!-- Spec Badges Row -->
+    <g transform="translate(0, 195)">
+      <!-- Pill 1: PySide6 + SQLite WAL -->
+      <g transform="translate(0, 0)">
+        <rect width="180" height="34" rx="8" fill="#0b172a" stroke="#0284c7" stroke-width="1" stroke-opacity="0.6"/>
+        <text x="14" y="22" fill="#38bdf8" font-family="monospace" font-size="12" font-weight="700">⚡ PySide6 / SQLite WAL</text>
+      </g>
+
+      <!-- Pill 2: 48h Offline Grace -->
+      <g transform="translate(192, 0)">
+        <rect width="185" height="34" rx="8" fill="#061f1a" stroke="#059669" stroke-width="1" stroke-opacity="0.7"/>
+        <text x="14" y="22" fill="#34d399" font-family="monospace" font-size="12" font-weight="700">🛡️ 48H Offline Grace</text>
+      </g>
+
+      <!-- Pill 3: Neon PostgreSQL -->
+      <g transform="translate(389, 0)">
+        <rect width="175" height="34" rx="8" fill="#0b172a" stroke="#6366f1" stroke-width="1" stroke-opacity="0.6"/>
+        <text x="14" y="22" fill="#a5b4fc" font-family="monospace" font-size="12" font-weight="700">☁️ Neon + FastAPI</text>
+      </g>
+
+      <!-- Pill 4: DPAPI Hardware Vault -->
+      <g transform="translate(576, 0)">
+        <rect width="170" height="34" rx="8" fill="#1e1528" stroke="#a855f7" stroke-width="1" stroke-opacity="0.6"/>
+        <text x="14" y="22" fill="#d8b4fe" font-family="monospace" font-size="12" font-weight="700">🔐 Windows DPAPI</text>
+      </g>
+    </g>
+
+    <!-- Key Feature Badges Row -->
+    <g transform="translate(0, 248)">
+      <text x="0" y="20" fill="#64748b" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12.5" font-weight="600">
+        CORE MODULES: <tspan fill="#94a3b8">A6 Thermal Billing</tspan>  |  <tspan fill="#94a3b8">H1 &amp; NRX Registers</tspan>  |  <tspan fill="#94a3b8">Full Double-Entry Ledgers</tspan>  |  <tspan fill="#94a3b8">Batch &amp; Expiry Control</tspan>  |  <tspan fill="#94a3b8">Remote Super Admin</tspan>
+      </text>
+    </g>
+  </g>
+
+  <!-- Right Decorative Element: Signal Status Grid -->
+  <g transform="translate(1105, 35)">
+    <circle cx="12" cy="12" r="3" fill="#10b981"/>
+    <circle cx="28" cy="12" r="3" fill="#10b981" fill-opacity="0.6"/>
+    <circle cx="44" cy="12" r="3" fill="#10b981" fill-opacity="0.3"/>
+    <circle cx="12" cy="28" r="3" fill="#0284c7"/>
+    <circle cx="28" cy="28" r="3" fill="#0284c7" fill-opacity="0.7"/>
+    <circle cx="44" cy="28" r="3" fill="#0284c7" fill-opacity="0.4"/>
+    <circle cx="12" cy="44" r="3" fill="#6366f1"/>
+    <circle cx="28" cy="44" r="3" fill="#6366f1" fill-opacity="0.5"/>
+    <circle cx="44" cy="44" r="3" fill="#6366f1" fill-opacity="0.2"/>
+  </g>
+</svg>

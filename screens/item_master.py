@@ -40,7 +40,6 @@ from database.tax_structures import (
     VALID_TAX_VALUES,
     is_gst_rate,
     legacy_display,
-    rate_percent,
     resolve_gst_rate,
     resolve_tax_display,
 )

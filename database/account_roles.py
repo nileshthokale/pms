@@ -255,7 +255,6 @@ def migrate_legacy_ledger_groups() -> dict:
          "skipped_unmapped": int,
          "already_migrated": int}
     """
-    from database.account_group_dao import AccountGroupDAO
 
     migrated = 0
     skipped = 0

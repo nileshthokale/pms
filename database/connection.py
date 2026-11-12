@@ -2,7 +2,6 @@ import os
 import sqlite3
 import sys
 from datetime import datetime
-from pathlib import Path
 
 APP_DATA_DIR_NAME = "PharmacyManagementSystem"
 APP_DB_FILE_NAME = "pharmacy.db"

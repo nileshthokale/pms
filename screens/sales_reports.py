@@ -19,15 +19,13 @@ Each report features:
 
 from __future__ import annotations
 
-import os
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
-from PySide6.QtCore import QDate, QEvent, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QKeySequence, QShortcut, QStandardItem
+from PySide6.QtCore import QDate, Qt, Signal
+from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QComboBox,
     QDateEdit,
     QDialog,
     QFileDialog,
@@ -35,11 +33,8 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
-    QLineEdit,
     QMessageBox,
     QPushButton,
-    QScrollArea,
-    QSizePolicy,
     QSplitter,
     QTableWidget,
     QTableWidgetItem,
@@ -48,13 +43,10 @@ from PySide6.QtWidgets import (
 )
 
 from core.doc_formatter import format_sales_bill_number
-from ui.components import ReportFilterSearchCombo, SearchableComboBox
+from ui.components import ReportFilterSearchCombo
 from database.sales_reports_dao import SalesReportsDAO
-from ui import theme
 from ui.crystal_report_viewer import (
     BlockKind,
-    CONTENT_WIDTH,
-    CONTENT_WIDTH_LANDSCAPE,
     CrystalReportViewer,
     PAGE_HEIGHT,
     PAGE_HEIGHT_LANDSCAPE,
@@ -63,14 +55,12 @@ from ui.crystal_report_viewer import (
     ReportBlock,
     ReportHeaderData,
     ReportPage,
-    fmt_amt,
     fmt_date_dash,
     fmt_qty,
     get_default_store_identity,
     print_or_export_report_pages,
 )
 from ui.fy_view import view_year_bounds
-from ui.searchable_filter import SearchableFilterEdit
 from ui.theme import palette
 
 MAX_PAGE_BODY_HEIGHT_PORTRAIT = 980.0

@@ -17,10 +17,10 @@ Each screen features:
 from __future__ import annotations
 
 import os
-from datetime import date, datetime
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import date
+from typing import Dict, List, Optional
 
-from PySide6.QtCore import QDate, Qt, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -29,11 +29,8 @@ from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QMessageBox,
     QPushButton,
-    QScrollArea,
-    QSizePolicy,
     QSpinBox,
     QSplitter,
     QVBoxLayout,
@@ -44,14 +41,10 @@ from database.stock_reports_dao import StockReportsDAO
 from ui import theme
 from ui.crystal_report_viewer import (
     BlockKind,
-    CONTENT_WIDTH,
     CrystalReportViewer,
-    PAGE_HEIGHT,
-    PAGE_WIDTH,
     ReportBlock,
     ReportHeaderData,
     ReportPage,
-    fmt_amt,
     fmt_qty,
     get_default_store_identity,
     print_or_export_report_pages,

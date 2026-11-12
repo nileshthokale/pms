@@ -17,18 +17,16 @@ Each page includes:
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from core.doc_formatter import format_document_number
 from database.purchase_reports_dao import PurchaseReportsDAO
 from ui.crystal_report_viewer import (
     BasePurchaseReportWindow,
     BlockKind,
-    CONTENT_WIDTH,
     ReportBlock,
     ReportHeaderData,
     ReportPage,
-    draw_report_page,
     fmt_amt,
     fmt_date_dash,
     fmt_date_slash,
