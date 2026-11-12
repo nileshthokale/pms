@@ -415,77 +415,6 @@ td.actions .action-cell-buttons {
   pointer-events: auto;
 }
 
-/* Mobile Quick Navigation Tab Bar */
-.mobile-tab-bar {
-  display: none;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  background: #000;
-  border-top: 1px solid var(--line);
-  padding: 8px 16px;
-  gap: 8px;
-  scrollbar-width: none;
-}
-.mobile-tab-bar::-webkit-scrollbar {
-  display: none;
-}
-.mobile-tab-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  min-height: 38px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--soft);
-  background: #0d0d0d;
-  border: 1px solid var(--line);
-  text-decoration: none;
-  white-space: nowrap;
-  flex-shrink: 0;
-  transition: background 0.18s, color 0.18s, border-color 0.18s;
-}
-.mobile-tab-item .icon {
-  width: 14px;
-  height: 14px;
-}
-.mobile-tab-item:hover,
-.mobile-tab-item:focus {
-  color: #fff;
-  border-color: #555;
-  background: #1a1a1a;
-}
-.mobile-tab-item.active {
-  color: #000;
-  background: #fff;
-  border-color: #fff;
-  font-weight: 600;
-}
-.mobile-tab-item.active .icon {
-  stroke: #000;
-}
-.tab-count {
-  font-family: Consolas, monospace;
-  font-size: 10px;
-  padding: 1px 6px;
-  border-radius: 10px;
-  background: #222;
-  color: var(--soft);
-}
-.mobile-tab-item.active .tab-count {
-  background: #dedede;
-  color: #000;
-}
-.tab-count.amber {
-  color: var(--amber);
-  background: #2a2216;
-}
-.mobile-tab-item.active .tab-count.amber {
-  background: var(--amber);
-  color: #000;
-}
-
 /* Table Horizontal Scroll Hint */
 .table-scroll-hint {
   display: none;
@@ -692,13 +621,6 @@ td.actions .action-cell-buttons {
   .header-inner {
     padding: 14px 18px;
     min-height: 70px;
-  }
-  .mobile-tab-bar {
-    display: flex;
-    position: sticky;
-    top: 70px;
-    z-index: 20;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.7);
   }
   .site-header nav {
     display: none;
@@ -1105,15 +1027,6 @@ td.actions .action-cell-buttons {
   .header-inner {
     padding: 12px 14px;
     min-height: 64px;
-  }
-  .mobile-tab-bar {
-    top: 64px;
-    padding: 6px 12px;
-  }
-  .mobile-tab-item {
-    padding: 5px 11px;
-    font-size: 11px;
-    min-height: 34px;
   }
   main {
     padding: 0 14px;

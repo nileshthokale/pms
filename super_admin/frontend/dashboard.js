@@ -156,8 +156,6 @@ function renderSummary(data) {
     c.frame = requestAnimationFrame(tick);
   }
   el('summary').setAttribute('aria-busy','false'); el('nav-devices').textContent = data.total; el('nav-alerts').textContent = data.new_alerts;
-  const mobDevices = el('mob-nav-devices'); if (mobDevices) mobDevices.textContent = data.total;
-  const mobAlerts = el('mob-nav-alerts'); if (mobAlerts) mobAlerts.textContent = data.new_alerts;
 }
 
 function renderDevices(data) {
@@ -1298,9 +1296,6 @@ function setActiveNav(hash) {
     if (isTarget) a.setAttribute('aria-current', 'location');
     else a.removeAttribute('aria-current');
   });
-  document.querySelectorAll('.mobile-tab-item').forEach(tab => {
-    tab.classList.toggle('active', tab.getAttribute('href') === hash);
-  });
 }
 
 for (const link of document.querySelectorAll('.nav-link')) {
@@ -1308,14 +1303,6 @@ for (const link of document.querySelectorAll('.nav-link')) {
     setActiveNav(link.hash);
     closeNavigation();
     const target = document.querySelector(link.hash);
-    if (target && !reducedMotion.matches) target.animate([{transform:'perspective(1400px) rotateX(.6deg)'}, {transform:'none'}], {duration:400, easing:'ease-out'});
-  });
-}
-
-for (const tab of document.querySelectorAll('.mobile-tab-item')) {
-  tab.addEventListener('click', () => {
-    setActiveNav(tab.getAttribute('href'));
-    const target = document.querySelector(tab.getAttribute('href'));
     if (target && !reducedMotion.matches) target.animate([{transform:'perspective(1400px) rotateX(.6deg)'}, {transform:'none'}], {duration:400, easing:'ease-out'});
   });
 }
