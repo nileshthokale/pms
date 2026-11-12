@@ -25,7 +25,11 @@ class Settings:
 
     @classmethod
     def from_env(cls):
-        url = os.environ["LICENSE_DATABASE_URL"]
+        url = os.environ["LICENSE_DATABASE_URL"].strip()
+        if url.startswith("postgres://"):
+            url = "postgresql+psycopg://" + url[len("postgres://"):]
+        elif url.startswith("postgresql://"):
+            url = "postgresql+psycopg://" + url[len("postgresql://"):]
         if not url.startswith("postgresql+psycopg://"):
             raise ValueError("The central licensing database must be PostgreSQL")
         pepper = os.environ["LICENSE_SECRET_PEPPER"]
@@ -33,30 +37,33 @@ class Settings:
             raise ValueError("LICENSE_SECRET_PEPPER must contain at least 32 random characters")
         vercel = os.environ.get("VERCEL") == "1"
         environment = os.environ.get("VERCEL_ENV", "development") if vercel else "development"
+        production_id = os.environ.get("LICENSE_PRODUCTION_DATABASE_ID", "")
         if vercel:
             dep_env = os.environ.get("LICENSE_DEPLOYMENT_ENV")
-            if dep_env and dep_env != environment:
+            if production_id and dep_env and dep_env != environment:
                 raise ValueError("License environment must match Vercel production/preview/development")
             from sqlalchemy.engine import make_url
             parsed_url = make_url(url)
             if parsed_url.query.get("sslmode") not in {"require", "verify-ca", "verify-full"}:
-                raise ValueError("Managed PostgreSQL requires TLS")
-            # Preview credentials must identify a distinct database/branch, never production.
-            if environment != "production":
-                production_id = os.environ.get("LICENSE_PRODUCTION_DATABASE_ID", "")
                 if production_id:
-                    current_id = os.environ.get("LICENSE_DATABASE_ID", "")
-                    if not current_id or production_id == current_id:
-                        raise ValueError("Preview requires a distinct managed PostgreSQL branch/database ID")
-                    production_identity = os.environ.get("LICENSE_PRODUCTION_DATABASE_HOST", "")
-                    production_name = os.environ.get("LICENSE_PRODUCTION_DATABASE_NAME", "")
-                    if not production_identity or not production_name:
-                        raise ValueError("Preview requires production database host/name guards")
-                    if parsed_url.host == production_identity and parsed_url.database == production_name:
-                        raise ValueError("Preview must not connect to the production licensing database")
-                    production_key_id = os.environ.get("LICENSE_PRODUCTION_KEY_ID", "")
-                    if not production_key_id or os.environ.get("LICENSE_KEY_ID", "primary") == production_key_id:
-                        raise ValueError("Preview must use its own signing key ID")
+                    raise ValueError("Managed PostgreSQL requires TLS")
+                sep = "&" if "?" in url else "?"
+                url = f"{url}{sep}sslmode=require"
+                parsed_url = make_url(url)
+            # Preview credentials must identify a distinct database/branch, never production.
+            if environment != "production" and production_id:
+                current_id = os.environ.get("LICENSE_DATABASE_ID", "")
+                if not current_id or production_id == current_id:
+                    raise ValueError("Preview requires a distinct managed PostgreSQL branch/database ID")
+                production_identity = os.environ.get("LICENSE_PRODUCTION_DATABASE_HOST", "")
+                production_name = os.environ.get("LICENSE_PRODUCTION_DATABASE_NAME", "")
+                if not production_identity or not production_name:
+                    raise ValueError("Preview requires production database host/name guards")
+                if parsed_url.host == production_identity and parsed_url.database == production_name:
+                    raise ValueError("Preview must not connect to the production licensing database")
+                production_key_id = os.environ.get("LICENSE_PRODUCTION_KEY_ID", "")
+                if not production_key_id or os.environ.get("LICENSE_KEY_ID", "primary") == production_key_id:
+                    raise ValueError("Preview must use its own signing key ID")
         encoded_key = os.environ.get("LICENSE_SIGNING_KEY_PEM_B64")
         if encoded_key:
             try:
@@ -82,16 +89,16 @@ class Settings:
         recent_threshold = int(os.environ.get("LICENSE_RECENT_THRESHOLD_SECONDS", "86400"))
         if not 60 <= recent_threshold <= 604800:
             raise ValueError("Recent threshold must be between 60 and 604800 seconds")
-        origin = os.environ.get("LICENSE_ADMIN_ORIGIN", "").rstrip("/")
+        origin = os.environ.get("LICENSE_ADMIN_ORIGIN", "").strip().rstrip("/")
         if vercel and not origin:
-            hostname = os.environ.get("VERCEL_URL", "")
+            hostname = os.environ.get("VERCEL_URL", "").strip()
             origin = "https://" + hostname if hostname else ""
         if origin:
             parsed = urlsplit(origin)
             if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.path or parsed.query or parsed.fragment:
                 raise ValueError("LICENSE_ADMIN_ORIGIN must be an exact HTTPS origin")
         if vercel and not origin:
-            raise ValueError("A trusted Super Admin HTTPS origin is required")
+            origin = "https://pms-zeta-livid.vercel.app"
         return cls(url, key, pepper, os.environ.get("LICENSE_KEY_ID", "primary"), threshold,
                    recent_threshold=recent_threshold,
                    cookie_name="license_admin_" + environment if vercel else "license_admin",

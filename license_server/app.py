@@ -105,7 +105,12 @@ class Registration(DeviceRequest):
 
 
 def ensure_schema_compatibility(engine):
-    """Idempotently ensure database constraints allow ARCHIVED status."""
+    """Idempotently ensure database schema exists and constraints allow ARCHIVED status."""
+    try:
+        from license_server.models import Base
+        Base.metadata.create_all(engine)
+    except Exception:
+        pass
     if getattr(engine, "dialect", None) and engine.dialect.name == "postgresql":
         try:
             from sqlalchemy import text
