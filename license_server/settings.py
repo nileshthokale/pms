@@ -25,17 +25,32 @@ class Settings:
 
     @classmethod
     def from_env(cls):
-        url = os.environ["LICENSE_DATABASE_URL"].strip()
+        vercel = os.environ.get("VERCEL") == "1"
+        if not vercel:
+            env_local = Path(__file__).resolve().parents[1] / ".env.local"
+            if env_local.exists():
+                for line in env_local.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if "=" in line and not line.startswith("#"):
+                        k, v = line.split("=", 1)
+                        k, v = k.strip(), v.strip().strip('"').strip("'")
+                        if k not in os.environ and v:
+                            os.environ[k] = v
+        url = (os.environ.get("LICENSE_DATABASE_URL") or os.environ.get("DATABASE_URL") or "").strip()
         if url.startswith("postgres://"):
             url = "postgresql+psycopg://" + url[len("postgres://"):]
         elif url.startswith("postgresql://"):
             url = "postgresql+psycopg://" + url[len("postgresql://"):]
         if not url.startswith("postgresql+psycopg://"):
             raise ValueError("The central licensing database must be PostgreSQL")
-        pepper = os.environ["LICENSE_SECRET_PEPPER"]
+        pepper = os.environ.get("LICENSE_SECRET_PEPPER", "")
+        if not pepper:
+            if not vercel:
+                pepper = "local-developer-secret-pepper-32-chars-long"
+            else:
+                raise ValueError("LICENSE_SECRET_PEPPER must contain at least 32 random characters")
         if len(pepper) < 32:
             raise ValueError("LICENSE_SECRET_PEPPER must contain at least 32 random characters")
-        vercel = os.environ.get("VERCEL") == "1"
         environment = os.environ.get("VERCEL_ENV", "development") if vercel else "development"
         production_id = os.environ.get("LICENSE_PRODUCTION_DATABASE_ID", "")
         if vercel:
@@ -71,7 +86,16 @@ class Settings:
             except ValueError as exc:
                 raise ValueError("Invalid server signing-key encoding") from exc
         elif not vercel:
-            material = Path(os.environ["LICENSE_SIGNING_KEY_FILE"]).read_bytes()
+            key_file = os.environ.get("LICENSE_SIGNING_KEY_FILE")
+            if key_file and Path(key_file).exists():
+                material = Path(key_file).read_bytes()
+            else:
+                dev_key_path = Path(__file__).resolve().parents[1] / "temp" / "local_dev_signing_key.pem"
+                if not dev_key_path.exists():
+                    dev_key_path.parent.mkdir(parents=True, exist_ok=True)
+                    gen_key = Ed25519PrivateKey.generate()
+                    dev_key_path.write_bytes(gen_key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
+                material = dev_key_path.read_bytes()
         else:
             raise ValueError("Vercel requires a server-side LICENSE_SIGNING_KEY_PEM_B64 secret")
         key = serialization.load_pem_private_key(material, password=None)
@@ -95,8 +119,9 @@ class Settings:
             origin = "https://" + hostname if hostname else ""
         if origin:
             parsed = urlsplit(origin)
-            if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.path or parsed.query or parsed.fragment:
-                raise ValueError("LICENSE_ADMIN_ORIGIN must be an exact HTTPS origin")
+            allowed_schemes = ("https",) if vercel else ("http", "https")
+            if parsed.scheme not in allowed_schemes or not parsed.hostname or parsed.username or parsed.password or parsed.path or parsed.query or parsed.fragment:
+                raise ValueError("LICENSE_ADMIN_ORIGIN must be an exact HTTPS origin" if vercel else "LICENSE_ADMIN_ORIGIN must be an exact HTTP/HTTPS origin")
         if vercel and not origin:
             origin = "https://pms-zeta-livid.vercel.app"
         return cls(url, key, pepper, os.environ.get("LICENSE_KEY_ID", "primary"), threshold,

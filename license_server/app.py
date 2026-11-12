@@ -163,7 +163,9 @@ def create_app(settings=None, *, engine=None, clock=utcnow):
 
     @app.middleware("http")
     async def secure_transport(request, call_next):
-        if request.url.scheme != "https":
+        is_loopback = request.url.hostname in ("127.0.0.1", "localhost", "testserver")
+        forwarded_proto = request.headers.get("x-forwarded-proto", "")
+        if request.url.scheme != "https" and forwarded_proto != "https" and not (is_loopback and not settings.vercel):
             return JSONResponse({"detail": "HTTPS is required"}, status_code=400)
         try:
             response = await call_next(request)
