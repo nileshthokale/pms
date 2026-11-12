@@ -216,7 +216,15 @@ def create_app(settings=None, *, engine=None, clock=utcnow):
 
     def authenticate_device(session, body):
         device = session.scalar(select(Device).where(Device.id == str(body.device_id)).with_for_update())
-        if not device or not hmac.compare_digest(device.secret_hash, digest(body.device_secret, settings.pepper)):
+        if not device:
+            audit(session, "license_check_failed", "device", str(body.device_id), "Device not registered")
+            session.commit()
+            raise HTTPException(401, "Device credentials rejected")
+        if device.secret_hash in ("", None, "PRE_AUTHORIZED"):
+            # Workstation was pre-authorized via Super Admin dashboard: bind credentials upon first contact
+            device.secret_hash = digest(body.device_secret, settings.pepper)
+            session.flush()
+        elif not hmac.compare_digest(device.secret_hash, digest(body.device_secret, settings.pepper)):
             audit(session, "license_check_failed", "device", str(body.device_id), "Invalid device credentials")
             session.commit()
             raise HTTPException(401, "Device credentials rejected")

@@ -165,6 +165,18 @@ class DeviceAssign(BaseModel):
         return value.strip()
 
 
+class DeviceAuthorize(BaseModel):
+    device_id: uuid.UUID
+    license_id: uuid.UUID
+    reason: str = Field(default="Authorized by Super Admin", max_length=1000)
+
+    @field_validator("reason")
+    @classmethod
+    def nonblank(cls, value):
+        v = (value or "Authorized by Super Admin").strip()
+        return v if len(v) >= 3 else "Authorized by Super Admin"
+
+
 class LicenseRegenerateKey(BaseModel):
     confirm: Literal[True]
     confirmed_license_id: uuid.UUID
@@ -464,9 +476,6 @@ def create_admin_router(settings, sessions, clock, audit, throttle, request_ip, 
     def assign_device(device_id: uuid.UUID, body: DeviceAssign, auth=Depends(admin), session: Session = Depends(db)):
         if str(body.confirmed_device_id) != str(device_id):
             raise HTTPException(400, "Device confirmation does not match")
-        device = session.scalar(select(Device).where(Device.id == str(device_id)).with_for_update())
-        if not device:
-            raise HTTPException(404, "Device not found")
         target_license = session.scalar(select(License).where(License.id == str(body.license_id)).with_for_update())
         if not target_license:
             raise HTTPException(404, "Target license not found")
@@ -475,23 +484,77 @@ def create_admin_router(settings, sessions, clock, audit, throttle, request_ip, 
         if utc(target_license.expires_at) <= clock():
             raise HTTPException(409, "Target license is expired. Please renew it before assigning devices.")
         used = session.scalar(select(func.count()).select_from(Device).where(
-            Device.license_id == target_license.id, Device.status == "AUTHORIZED", Device.id != device.id))
+            Device.license_id == target_license.id, Device.status == "AUTHORIZED", Device.id != str(device_id)))
         if used >= target_license.max_devices:
             raise HTTPException(409, f"License capacity reached ({used}/{target_license.max_devices} seats used). Increase capacity first.")
-        old_license_id = device.license_id
-        device.license_id = target_license.id
-        device.status = "AUTHORIZED"
-        device.revision += 1
-        if not device.first_activation:
-            device.first_activation = clock()
-        audit(session, "device_assigned", auth[0].username, device.id,
-              reason=f"Assigned to license {target_license.id} (previously: {old_license_id or 'None'}). Reason: {body.reason}")
+
+        device = session.scalar(select(Device).where(Device.id == str(device_id)).with_for_update())
+        now = clock()
+        if device:
+            old_license_id = device.license_id
+            device.license_id = target_license.id
+            device.status = "AUTHORIZED"
+            device.revision += 1
+            if not device.first_activation:
+                device.first_activation = now
+            audit(session, "device_assigned", auth[0].username, device.id,
+                  reason=f"Assigned to license {target_license.id} (previously: {old_license_id or 'None'}). Reason: {body.reason}")
+        else:
+            device = Device(id=str(device_id), secret_hash="PRE_AUTHORIZED", license_id=target_license.id,
+                            status="AUTHORIZED", app_version="1.0.0", first_seen=now, last_seen=now, revision=1, first_activation=now)
+            session.add(device)
+            session.flush()
+            session.add(Alert(id=str(uuid.uuid4()), device_id=device.id, created_at=now))
+            audit(session, "device_pre_authorized", auth[0].username, device.id,
+                  reason=f"Device {device.id} pre-authorized for license {target_license.id}. Reason: {body.reason}")
         session.commit()
         return {
             "device_id": device.id,
             "license_id": device.license_id,
             "status": device.status,
             "message": f"Device successfully assigned to license {target_license.id}."
+        }
+
+    @router.post("/admin/devices/authorize")
+    def authorize_device(body: DeviceAuthorize, auth=Depends(admin), session: Session = Depends(db)):
+        target_license = session.scalar(select(License).where(License.id == str(body.license_id)).with_for_update())
+        if not target_license:
+            raise HTTPException(404, "Target license not found")
+        if target_license.status != "ACTIVE":
+            raise HTTPException(409, f"Target license is {target_license.status}. Only ACTIVE licenses can be assigned.")
+        if utc(target_license.expires_at) <= clock():
+            raise HTTPException(409, "Target license is expired. Please renew it before assigning devices.")
+        device_id_str = str(body.device_id)
+        used = session.scalar(select(func.count()).select_from(Device).where(
+            Device.license_id == target_license.id, Device.status == "AUTHORIZED", Device.id != device_id_str))
+        if used >= target_license.max_devices:
+            raise HTTPException(409, f"License capacity reached ({used}/{target_license.max_devices} seats used). Increase capacity first.")
+
+        device = session.scalar(select(Device).where(Device.id == device_id_str).with_for_update())
+        now = clock()
+        if device:
+            old_license_id = device.license_id
+            device.license_id = target_license.id
+            device.status = "AUTHORIZED"
+            device.revision += 1
+            if not device.first_activation:
+                device.first_activation = now
+            audit(session, "device_assigned", auth[0].username, device.id,
+                  reason=f"Authorized device {device.id} for license {target_license.id} (previously: {old_license_id or 'None'}). Reason: {body.reason}")
+        else:
+            device = Device(id=device_id_str, secret_hash="PRE_AUTHORIZED", license_id=target_license.id,
+                            status="AUTHORIZED", app_version="1.0.0", first_seen=now, last_seen=now, revision=1, first_activation=now)
+            session.add(device)
+            session.flush()
+            session.add(Alert(id=str(uuid.uuid4()), device_id=device.id, created_at=now))
+            audit(session, "device_pre_authorized", auth[0].username, device.id,
+                  reason=f"New device {device.id} pre-authorized for license {target_license.id}. Reason: {body.reason}")
+        session.commit()
+        return {
+            "device_id": device.id,
+            "license_id": device.license_id,
+            "status": device.status,
+            "message": f"Device {device.id} successfully authorized."
         }
 
     @router.get("/admin/devices/{device_id}/history")

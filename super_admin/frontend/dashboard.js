@@ -89,15 +89,19 @@ async function api(path, body, signal) {
   }
   if (response.status === 401) {location.assign('/admin/sign-in'); throw new Error('Please sign in.');}
   const text = await response.text();
-  let data;
-  try {
-    data = JSON.parse(text);
-  } catch {
-    if (!response.ok) {
-      const clean = text.replace(/<[^>]*>/g, '').trim();
-      throw new Error(clean ? (clean.length > 150 ? clean.slice(0, 150) + '…' : clean) : `Server error (${response.status})`);
+  let data = null;
+  if (text && text.trim()) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      if (!response.ok) {
+        const clean = text.replace(/<[^>]*>/g, '').trim();
+        throw new Error(clean ? (clean.length > 150 ? clean.slice(0, 150) + '…' : clean) : `Server error (${response.status})`);
+      }
+      data = { message: text };
     }
-    throw new Error('The API returned an unreadable response. Refresh to check the status.');
+  } else {
+    data = { ok: response.ok };
   }
   if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'The action could not be completed.');
   return data;
@@ -1076,8 +1080,16 @@ el('delete-device-form').onsubmit = async event => {
 
 async function openAssignDeviceDialog(device) {
   pendingAssignDevice = device;
-  el('assign-device-id').textContent = device.device_id;
-  el('assign-device-status').textContent = device.effective_status || device.status || 'PENDING';
+  const idInput = el('assign-device-id-input');
+  if (device) {
+    if (idInput) idInput.value = device.device_id;
+    el('assign-device-id').textContent = device.device_id;
+    el('assign-device-status').textContent = device.effective_status || device.status || 'PENDING';
+  } else {
+    if (idInput) idInput.value = '';
+    el('assign-device-id').textContent = 'New Workstation';
+    el('assign-device-status').textContent = 'Direct Authorization';
+  }
   el('assign-device-reason').value = 'Authorized customer workstation';
   el('assign-device-error').textContent = '';
   el('assign-device-error').style.display = 'none';
@@ -1113,32 +1125,37 @@ async function openAssignDeviceDialog(device) {
 el('assign-device-cancel').onclick = () => el('assign-device-dialog').close();
 el('assign-device-dialog').addEventListener('cancel', event => { if (el('assign-device-submit').disabled) event.preventDefault(); });
 
+if (el('open-authorize-device')) {
+  el('open-authorize-device').onclick = () => openAssignDeviceDialog(null);
+}
+
 el('assign-device-form').onsubmit = async event => {
   event.preventDefault();
-  if (!pendingAssignDevice) return;
+  const idInput = el('assign-device-id-input');
+  const targetDeviceId = (idInput ? idInput.value : (pendingAssignDevice?.device_id || '')).trim();
+  if (!targetDeviceId) {
+    el('assign-device-error').textContent = 'Please enter or paste a valid Computer Device ID.';
+    el('assign-device-error').style.display = 'block';
+    return;
+  }
   const licenseId = el('assign-device-license-select').value;
   if (!licenseId) {
-    el('assign-device-error').textContent = 'Please select a license.';
+    el('assign-device-error').textContent = 'Please select a customer license.';
     el('assign-device-error').style.display = 'block';
     return;
   }
-  const reason = el('assign-device-reason').value.trim();
-  if (reason.length < 3) {
-    el('assign-device-error').textContent = 'Please provide a reason (at least 3 characters).';
-    el('assign-device-error').style.display = 'block';
-    return;
-  }
+  const reason = el('assign-device-reason').value.trim() || 'Authorized customer workstation';
   el('assign-device-error').style.display = 'none';
   el('assign-device-submit').disabled = true;
   el('assign-device-cancel').disabled = true;
   try {
-    const result = await api(`/devices/${encodeURIComponent(pendingAssignDevice.device_id)}/assign`, {
-      confirmed_device_id: pendingAssignDevice.device_id,
+    const result = await api('/devices/authorize', {
+      device_id: targetDeviceId,
       license_id: licenseId,
       reason
     });
     el('assign-device-dialog').close();
-    el('result').textContent = result.message || 'Device assigned and authorized successfully.';
+    el('result').textContent = result.message || 'Workstation authorized successfully.';
     await refresh();
   } catch (error) {
     el('assign-device-error').textContent = error.message;

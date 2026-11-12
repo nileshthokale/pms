@@ -1,6 +1,6 @@
 """UI integration only. Networking is off the Qt thread; locks never exit the app."""
 from PySide6.QtCore import QObject, QThread, QTimer, Signal, Qt
-from PySide6.QtWidgets import QDialog, QLabel, QLineEdit, QPushButton, QVBoxLayout
+from PySide6.QtWidgets import QApplication, QDialog, QHBoxLayout, QLabel, QLineEdit, QPushButton, QVBoxLayout
 
 from licensing.gate import OperationGate, install_gate
 from licensing.storage import StorageError
@@ -28,47 +28,71 @@ class LicenseDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("License validation required")
+        self.setWindowTitle("Pharmacy Management - License Activation")
         self.setWindowModality(Qt.ApplicationModal)
-        self.setMinimumWidth(520)
+        self.setMinimumWidth(540)
         layout = QVBoxLayout(self)
+
         self.message = QLabel()
         self.message.setWordWrap(True)
+        self.message.setStyleSheet("font-weight: bold; font-size: 13px; color: #111; margin-bottom: 4px;")
         layout.addWidget(self.message)
-        layout.addWidget(QLabel("Your pharmacy records and backups are preserved."))
+
+        notice = QLabel("Your pharmacy records and backups are completely safe and preserved.")
+        notice.setStyleSheet("color: #444; font-size: 11px;")
+        layout.addWidget(notice)
+
         self.connection = QLabel()
+        self.connection.setStyleSheet("font-size: 11px; color: #666; margin-bottom: 6px;")
         layout.addWidget(self.connection)
+
         self.device = QLabel()
         self.device.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.device.setStyleSheet("font-family: Consolas, monospace; font-size: 12px; background: #f4f4f4; padding: 6px 10px; border-radius: 4px; border: 1px solid #ddd;")
         layout.addWidget(self.device)
 
-        copy_btn = QPushButton("Copy Device ID")
-        copy_btn.clicked.connect(self._copy_device_id)
-        layout.addWidget(copy_btn)
+        self.copy_btn = QPushButton("📋 Copy Device ID")
+        self.copy_btn.clicked.connect(self._copy_device_id)
+        layout.addWidget(self.copy_btn)
 
-        layout.addWidget(QLabel("License ID or Activation Key (from Super Admin):"))
+        layout.addSpacing(10)
+        layout.addWidget(QLabel("License Key (from Super Admin):"))
         self.key = QLineEdit()
-        self.key.setPlaceholderText("Paste your License ID (e.g. 3db7dd0f-...) or key here")
-        self.key.setEchoMode(QLineEdit.Normal)
+        self.key.setPlaceholderText("Paste your License Key (e.g. 3db7dd0f-cecd-4b4e-a1a3-0de7d48d7755)")
+        self.key.setStyleSheet("padding: 8px; font-size: 13px; font-family: Consolas, monospace;")
         layout.addWidget(self.key)
 
-        hint = QLabel("Tip: Copy the License ID from the Super Admin dashboard and paste it here.")
-        hint.setStyleSheet("color: #666; font-size: 11px;")
+        hint = QLabel("How to activate:\n• Option 1: Paste your License Key above and click 'Activate & Open'.\n• Option 2: Click 'Copy Device ID', give it to Admin to authorize in Super Admin, then click 'Check Status'.")
+        hint.setStyleSheet("color: #555; font-size: 11px; margin-top: 4px; margin-bottom: 10px;")
         layout.addWidget(hint)
 
+        btn_row = QHBoxLayout()
         self.retry = QPushButton("Activate & Open")
+        self.retry.setStyleSheet("font-weight: bold; padding: 8px 16px; background-color: #2563eb; color: white;")
         self.retry.clicked.connect(self._retry)
-        layout.addWidget(self.retry)
+        btn_row.addWidget(self.retry)
+
+        self.check_status = QPushButton("Check Status")
+        self.check_status.setStyleSheet("padding: 8px 16px;")
+        self.check_status.clicked.connect(self._check_status)
+        btn_row.addWidget(self.check_status)
+        layout.addLayout(btn_row)
 
     def _copy_device_id(self):
         text = self.device.text().replace("Device ID: ", "").strip()
         if text:
             clipboard = QApplication.clipboard()
-            clipboard.setText(text)
+            if clipboard:
+                clipboard.setText(text)
+            self.copy_btn.setText("✓ Copied Device ID!")
+            QTimer.singleShot(2000, lambda: self.copy_btn.setText("📋 Copy Device ID"))
 
     def _retry(self):
         value = self.key.text().strip() or None
         self.retry_requested.emit(value)
+
+    def _check_status(self):
+        self.retry_requested.emit(None)
 
     def reject(self):
         # Closing the lock leaves the running pharmacy application safely restricted.

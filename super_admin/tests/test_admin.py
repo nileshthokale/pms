@@ -794,3 +794,33 @@ def test_direct_license_id_activation_in_desktop_client(env):
     assert client2.state["license"]["payload"]["license_id"] == license_id
 
 
+def test_direct_device_authorization_from_super_admin(env):
+    """Verifies that an admin can paste a Device ID directly in Super Admin to authorize it, and the client unlocks."""
+    license_id = env["license_id"]
+    with env["app"].state.sessions() as session:
+        session.get(License, license_id).max_devices = 5
+        session.commit()
+
+    headers = admin_login(env)
+
+    # 1. Direct authorization of a new device that hasn't connected yet
+    new_device_id = str(uuid.uuid4())
+    auth_resp = env["api"].post("/admin/devices/authorize", json={
+        "device_id": new_device_id,
+        "license_id": license_id,
+        "reason": "Direct authorization by Super Admin"
+    }, headers=headers)
+    assert auth_resp.status_code == 200, auth_resp.text
+    assert auth_resp.json()["status"] == "AUTHORIZED"
+
+    # Now this new workstation opens and connects (without needing to enter any key!)
+    store = MemoryStore()
+    client = LicenseClient(env["config"], store, clock=env["clock"], transport=env["transport"])
+    client.state["device_id"] = new_device_id
+    dec = client.validate()
+    assert dec.allowed is True
+    assert dec.status == "AUTHORIZED"
+    assert client.state["license"]["payload"]["license_id"] == license_id
+
+
+

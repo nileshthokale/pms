@@ -153,7 +153,7 @@ class LicenseClient:
                     envelope = json.loads(received)
                     payload = verify_license(envelope, self.config["public_keys"], self.state["device_id"], nonce)
                     previous = self.state.get("license")
-                    if previous and payload["revision"] <= previous["payload"]["revision"]:
+                    if not register and previous and previous.get("payload", {}).get("license_id") == payload.get("license_id") and payload["revision"] <= previous.get("payload", {}).get("revision", 0):
                         raise InvalidLicense("Stale license revision")
                     self.state.update(license=envelope, registered=True, validated_server=payload["issued_at"],
                                       validated_wall=self.clock.wall(), wall_high=self.clock.wall(),
