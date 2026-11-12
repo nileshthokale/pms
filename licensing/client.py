@@ -119,9 +119,9 @@ class LicenseClient:
 
     def validate(self, *, activation_key=None, heartbeat=False):
         with self._lock:
-            if activation_key is not None:
-                self.state["activation_key"] = activation_key.strip()
-                self.store.write(self.state)
+            explicit_key = activation_key.strip() if activation_key else None
+            # Do not persist activation keys locally: access requires explicit entry or server authorization
+            self.state.pop("activation_key", None)
             url = self.config.get("server_url", "").rstrip("/")
             parsed = urlsplit(url)
             if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
@@ -131,10 +131,14 @@ class LicenseClient:
             from version import APP_VERSION
             body = {"device_id": self.state["device_id"], "device_secret": self.state["device_secret"],
                     "app_version": APP_VERSION, "nonce": nonce}
-            register = not self.state["registered"] or activation_key is not None
-            endpoint = "/v1/devices/register" if register else ("/v1/devices/heartbeat" if heartbeat else "/v1/devices/validate")
+            register = explicit_key is not None
             if register:
-                body["activation_key"] = self.state.get("activation_key", "") or None
+                endpoint = "/v1/devices/register"
+                body["activation_key"] = explicit_key
+            elif heartbeat and self.state.get("registered"):
+                endpoint = "/v1/devices/heartbeat"
+            else:
+                endpoint = "/v1/devices/validate"
             try:
                 with httpx.Client(timeout=httpx.Timeout(12), verify=True, follow_redirects=False, transport=self.transport) as http:
                     started = time.monotonic()
@@ -156,6 +160,7 @@ class LicenseClient:
                         # Invalidate cached license envelope immediately so offline grace is terminated.
                         self.state["license"] = None
                         self.state["registered"] = False
+                        self.state.pop("activation_key", None)
                         self.store.write(self.state)
                 else:
                     envelope = json.loads(received)

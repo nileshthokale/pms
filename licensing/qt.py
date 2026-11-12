@@ -56,13 +56,13 @@ class LicenseDialog(QDialog):
         layout.addWidget(self.copy_btn)
 
         layout.addSpacing(10)
-        layout.addWidget(QLabel("License Key (from Super Admin):"))
+        layout.addWidget(QLabel("License Key / License ID (from Super Admin):"))
         self.key = QLineEdit()
-        self.key.setPlaceholderText("Paste your License Key (e.g. 3db7dd0f-cecd-4b4e-a1a3-0de7d48d7755)")
+        self.key.setPlaceholderText("Paste License ID (e.g. 2994c8a1-d281-4ffc-a9df-f63523c86726)")
         self.key.setStyleSheet("padding: 8px; font-size: 13px; font-family: Consolas, monospace;")
         layout.addWidget(self.key)
 
-        hint = QLabel("How to activate:\n• Option 1: Paste your License Key above and click 'Activate & Open'.\n• Option 2: Click 'Copy Device ID', give it to Admin to authorize in Super Admin, then click 'Check Status'.")
+        hint = QLabel("How to activate:\n• Option 1: Paste License ID from Super Admin above and click 'Activate & Open'.\n• Option 2: Click 'Copy Device ID', give it to Admin to authorize in Super Admin, then click 'Check Status'.")
         hint.setStyleSheet("color: #555; font-size: 11px; margin-top: 4px; margin-bottom: 10px;")
         layout.addWidget(hint)
 
@@ -153,7 +153,8 @@ class LicenseController(QObject):
             return
         if self.dialog:
             self.dialog.retry.setEnabled(False)
-            self.dialog.message.setText("Checking license securely over the internet…")
+            self.dialog.check_status.setEnabled(False)
+            self.dialog.message.setText("Connecting to licensing server over internet…")
         self.worker = ValidationThread(self.client, self.gate, activation_key, self)
         self.worker.checked.connect(self._checked)
         self.worker.finished.connect(self._worker_finished)
@@ -194,6 +195,7 @@ class LicenseController(QObject):
             self.dialog.connection.setText("Validation status: " + self.decision.connectivity.replace("_", " ").lower())
             self.dialog.device.setText("Device ID: " + self.client.state["device_id"])
             self.dialog.retry.setEnabled(True)
+            self.dialog.check_status.setEnabled(True)
             self.dialog.show()
             self.dialog.raise_()
 

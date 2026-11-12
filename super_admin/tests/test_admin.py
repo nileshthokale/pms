@@ -851,6 +851,20 @@ def test_device_deletion_terminates_offline_grace_and_locks_client(env):
     assert client.state.get("license") is None
     assert client.decision().allowed is False
 
+    # 4. Subsequent validation without explicit key stays locked, does NOT auto-reactivate, and creates NO ghost records
+    val_unauthorized = client.validate()
+    assert val_unauthorized.allowed is False
+    assert client.decision().allowed is False
+    with env["app"].state.sessions() as s:
+        ghost = s.scalar(select(Device).where(Device.id == device_id))
+        assert ghost is None
+
+    # 5. Workstation ONLY activates when user explicitly enters a valid license key
+    val_reactivated = client.validate(activation_key=license_id)
+    assert val_reactivated.allowed is True
+    assert val_reactivated.status == "AUTHORIZED"
+    assert client.decision().allowed is True
+
 
 
 
