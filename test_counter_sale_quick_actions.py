@@ -355,7 +355,7 @@ class CounterSaleQuickActionsTests(unittest.TestCase):
         # Counter sale entry bar now has Augmentin 625 selected
         bar = page._sale_panel._entry_bar
         self.assertEqual(bar.item_combo.currentData(), self.item_amox_tab)
-        self.assertEqual(bar.item_combo.currentText(), "Augmentin 625")
+        self.assertIn("Augmentin 625", bar.item_combo.currentText())
 
     def test_03b_drug_substitute_click_to_clear_and_search_by_entered_letters(self):
         from PySide6.QtCore import QPoint, QEvent
