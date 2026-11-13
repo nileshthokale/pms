@@ -15,6 +15,8 @@ import httpx
 
 from licensing.protocol import InvalidLicense, verify_license
 from licensing.storage import DPAPIStore, StorageError
+from licensing.fingerprint import collect_device_fingerprint
+from version import APP_VERSION
 
 log = logging.getLogger("pharmacy.licensing")
 
@@ -129,13 +131,18 @@ class LicenseClient:
             self.state.pop("activation_key", None)
             url = self.config.get("server_url", "").rstrip("/")
             parsed = urlsplit(url)
-            if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
+            is_loopback = parsed.hostname in ("127.0.0.1", "localhost")
+            allowed_schemes = ("https", "http") if is_loopback else ("https",)
+            if parsed.scheme not in allowed_schemes or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
                 self.connectivity = "CONFIGURATION_ERROR"
                 return self._decision()
             nonce = secrets.token_urlsafe(32)
-            from version import APP_VERSION
+            
+            # Collect device fingerprint for admin visibility (sent on register, validate, heartbeat)
+            device_info = collect_device_fingerprint(APP_VERSION)
+            
             body = {"device_id": self.state["device_id"], "device_secret": self.state["device_secret"],
-                    "app_version": APP_VERSION, "nonce": nonce}
+                    "app_version": APP_VERSION, "nonce": nonce, "device_info": device_info}
             register = explicit_key is not None
             if register:
                 endpoint = "/v1/devices/register"
@@ -196,23 +203,29 @@ class LicenseClient:
         with self._lock:
             url = self.config.get("server_url", "").rstrip("/")
             parsed = urlsplit(url)
+            is_loopback = parsed.hostname in ("127.0.0.1", "localhost")
+            allowed_schemes = ("https", "http") if is_loopback else ("https",)
             if (
-                parsed.scheme != "https"
+                parsed.scheme not in allowed_schemes
                 or not parsed.hostname
                 or parsed.username
                 or parsed.password
-                or parsed.path
+                or (parsed.path and parsed.path != "/")
                 or parsed.query
                 or parsed.fragment
             ):
                 return False
             nonce = secrets.token_urlsafe(32)
-            from version import APP_VERSION
+            
+            # Include device info on shutdown too
+            device_info = collect_device_fingerprint(APP_VERSION)
+            
             body = {
                 "device_id": self.state["device_id"],
                 "device_secret": self.state["device_secret"],
                 "app_version": APP_VERSION,
                 "nonce": nonce,
+                "device_info": device_info,
             }
             try:
                 with httpx.Client(

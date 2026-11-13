@@ -91,7 +91,7 @@ export function createNetwork(host, {onSelect,onState,onFailure,paused=false,red
     camera.fov=w/h<1.4?46:36;camera.updateProjectionMatrix();render();}
   function hit(event){const bounds=canvas.getBoundingClientRect();raycaster.setFromCamera(new THREE.Vector2((event.clientX-bounds.left)/bounds.width*2-1,-(event.clientY-bounds.top)/bounds.height*2+1),camera);const hits=raycaster.intersectObjects(hitMeshes,false);return hits[0]?.object.userData.deviceId;}
   function move(event){if(event.pointerType!=='mouse')return;const bounds=canvas.getBoundingClientRect();targetPointer.set((event.clientX-bounds.left)/bounds.width-.5,(event.clientY-bounds.top)/bounds.height-.5);const id=hit(event),d=records.find(d=>d.device_id===id);canvas.style.cursor=id?'pointer':'default';tooltip.hidden=!d;
-    if(d){const title=document.createElement('strong');title.textContent=d.customer || 'Unassociated installation';const summary=document.createElement('small');summary.textContent=`${d.device_id.slice(0,8)} · App ${d.app_version}`;const status=document.createElement('small');const isRecent=d.last_seen&&(Date.now()-new Date(d.last_seen).getTime()<86400000);status.textContent=`${d.online?'Online within threshold':isRecent?'Recently online':'Offline'} · ${d.effective_status.toLowerCase().replaceAll('_',' ')}`;tooltip.replaceChildren(title,summary,status);}
+    if(d){const title=document.createElement('strong');title.textContent=d.customer || 'Unassociated installation';const summary=document.createElement('small');summary.textContent=`${d.device_id.slice(0,8)} · App ${d.app_version}`;const status=document.createElement('small');const isRecent=d.last_seen&&(Date.now()-new Date(d.last_seen).getTime()<86400000);status.textContent=`${d.online?'Online within threshold':isRecent?'Recently online':'Offline'} · ${d.effective_status.toLowerCase().replaceAll('_',' ')}`;const ip=document.createElement('small');ip.textContent=`IP: ${d.ip_address || 'Not recorded'}`;tooltip.replaceChildren(title,summary,status,ip);}}
   }
   function leave(){targetPointer.set(0,0);tooltip.hidden=true;canvas.style.cursor='default';}
   function click(event){const id=hit(event);if(id){selection=id;applySelection();render();onSelect(id);}}
@@ -101,7 +101,7 @@ export function createNetwork(host, {onSelect,onState,onFailure,paused=false,red
   const visibility=()=>schedule();document.addEventListener('visibilitychange',visibility);
   resize();schedule();
   return {
-    update(data){records=data;const next=JSON.stringify(data.map(d=>[d.device_id,d.online,d.detection,d.effective_status,d.app_version,d.customer]));if(next!==signature){signature=next;rebuild(data);}schedule();},
+    update(data){records=data;const next=JSON.stringify(data.map(d=>[d.device_id,d.online,d.detection,d.effective_status,d.app_version,d.customer,d.ip_address]));if(next!==signature){signature=next;rebuild(data);}schedule();},
     select(id){selection=id;applySelection();render();},
     setVisible(value){visible=value;schedule();},
     setMotion(value,reduced){paused=value;reducedMotion=reduced;schedule();},

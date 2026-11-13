@@ -166,17 +166,126 @@ function renderDevices(data) {
 
   for (const d of data.devices) {
     const row = node('tr'); row.dataset.deviceId = d.device_id;
-    function cell(value, detail, cls) {const td = node('td',value,cls);if(detail)td.append(node('small',detail));row.append(td);return td;}
-    const identity = cell(null); identity.append(button(d.device_id, () => showDevice(d.device_id), 'text-button mono'),node('small','App ' + (d.app_version || 'Unknown')));
-    cell(d.customer || 'Unassociated',d.license_id || 'No license'); cell(null).append(badge(d.detection)); cell(null).append(badge(d.effective_status));
+    const info = d.device_info || {};
+    const os = info.os || {};
+    const hw = info.hardware || {};
+    const net = info.network || {};
+    const sec = info.security || {};
+    const sess = info.session || {};
 
+    // 1. Workstation & OS
+    const c1 = node('td', null, 'col-workstation');
+    const custTitle = node('strong', d.customer || 'Unassociated Workstation', 'workstation-cust-name');
+    const osName = os.product_name || (os.system ? `${os.system} ${os.release || ''}` : '');
+    const osLabel = node('div', osName ? `🪟 ${osName}` : `App v${d.app_version || '1.0.0'}`, 'workstation-os-label');
+    const idRow = node('div', null, 'id-copy-row');
+    const idSpan = node('span', d.device_id.slice(0, 8) + '…', 'mono small-id');
+    const copyBtn = button('Copy', async (e) => {
+      e.stopPropagation();
+      try {
+        await navigator.clipboard.writeText(d.device_id);
+        copyBtn.textContent = '✓';
+        setTimeout(() => { if (copyBtn) copyBtn.textContent = 'Copy'; }, 2000);
+      } catch {
+        prompt('Device ID:', d.device_id);
+      }
+    }, 'mini-copy-btn');
+    idRow.append(idSpan, copyBtn);
+    c1.append(custTitle, osLabel, idRow);
+    row.append(c1);
+
+    // 2. Customer & License
+    const c2 = node('td', null, 'col-license');
+    if (d.license_id) {
+      c2.append(
+        node('div', d.customer || 'Customer', 'license-cust-label'),
+        node('span', d.license_id.slice(0, 10) + '…', 'mono small-id')
+      );
+    } else {
+      c2.append(node('span', 'No License Assigned', 'badge neutral'));
+    }
+    row.append(c2);
+
+    // 3. Network & IP Address
+    const c3 = node('td', null, 'col-ip');
+    const ipStr = d.ip_address || net.primary_ipv4;
+    if (ipStr) {
+      const ipBadge = node('span', ipStr, 'badge ip-badge mono');
+      const hostLabel = node('small', net.hostname ? `Host: ${net.hostname}` : 'Primary Interface', 'sub-label');
+      c3.append(ipBadge, hostLabel);
+    } else {
+      c3.append(
+        node('span', 'No IP recorded', 'badge neutral mono'),
+        node('small', 'Pending heartbeat', 'sub-label muted')
+      );
+    }
+    row.append(c3);
+
+    // 4. Session / RDP
+    const c4 = node('td', null, 'col-session');
+    const sessType = sess.session_type || 'Console';
+    const isRdp = sessType === 'RDP';
+    const sessBadge = node('span', isRdp ? '⚠️ RDP Session' : '🖥️ Console', `badge ${isRdp ? 'rdp-badge' : 'console-badge'}`);
+    sessBadge.title = isRdp ? 'Active Remote Desktop Connection' : 'Local Physical Console';
+    const userName = sess.username ? `User: ${sess.username}` : 'Workstation User';
+    c4.append(sessBadge, node('small', userName, 'sub-label'));
+    row.append(c4);
+
+    // 5. Hardware Specs
+    const c5 = node('td', null, 'col-hardware');
+    if (hw.cpu?.logical_cores || hw.memory?.total_gb) {
+      const cpuTxt = hw.cpu?.logical_cores ? `${hw.cpu.logical_cores} vCPU` : 'CPU';
+      const ramTxt = hw.memory?.total_gb ? `${hw.memory.total_gb} GB RAM` : '';
+      const diskTxt = hw.disk?.free_gb ? `${hw.disk.free_gb} GB Free` : '';
+      c5.append(
+        node('div', `${cpuTxt}${ramTxt ? ' · ' + ramTxt : ''}`, 'hw-main-spec'),
+        node('small', diskTxt || 'Storage active', 'sub-label')
+      );
+    } else {
+      c5.append(
+        node('span', 'Specs pending', 'badge neutral'),
+        node('small', 'Run new EXE to report', 'sub-label muted')
+      );
+    }
+    row.append(c5);
+
+    // 6. Security Posture
+    const c6 = node('td', null, 'col-security');
+    const chipsWrap = node('div', null, 'table-security-chips');
+    if (sec.antivirus && sec.antivirus.length > 0) {
+      chipsWrap.append(node('span', `✓ ${sec.antivirus[0].name.replace('Windows ', '')}`, 'sec-mini-chip chip-ok'));
+    } else if (sec.antivirus !== undefined && sec.antivirus !== null) {
+      chipsWrap.append(node('span', 'No AV info', 'sec-mini-chip chip-neutral'));
+    }
+    if (sec.firewall_enabled === true) {
+      chipsWrap.append(node('span', '✓ Firewall', 'sec-mini-chip chip-firewall'));
+    }
+    if (sec.is_admin === true) {
+      chipsWrap.append(node('span', 'Admin', 'sec-mini-chip chip-admin'));
+    }
+    if (!chipsWrap.children.length) {
+      chipsWrap.append(node('span', 'Not reported', 'sec-mini-chip chip-neutral'));
+    }
+    c6.append(chipsWrap);
+    row.append(c6);
+
+    // 7. Status & Activity
+    const c7 = node('td', null, 'col-status');
     const act = getDeviceActivity(d, refTime, hbSec, rcSec);
-    const activity = node('span',null,'activity-state'); activity.append(node('i',null,'dot ' + act.dot),node('span',act.status));
-    cell(null,act.detail).append(activity);
+    const activity = node('div', null, 'activity-state');
+    activity.append(node('i', null, 'dot ' + act.dot), node('span', act.status, 'act-text'));
+    const lastSeenTxt = d.last_seen ? timeAgo(d.last_seen, refTime) : 'Never seen';
+    c7.append(badge(d.effective_status), activity, node('small', `Last: ${lastSeenTxt}`, 'sub-label'));
+    row.append(c7);
 
-    cell(stamp(d.first_seen),'Activated: ' + stamp(d.first_activation));
-    cell(stampExact(d.last_seen), d.last_seen ? timeAgo(d.last_seen, refTime) : null);
+    // 8. Actions
+    const c8 = node('td', null, 'actions');
     const actionBtns = node('div', null, 'action-cell-buttons');
+
+    // Primary INSPECT button to open the full drawer inspector
+    const inspectBtn = button('Inspect', () => showDevice(d.device_id), 'primary mini-inspect-btn');
+    actionBtns.append(inspectBtn);
+
     actionBtns.append(button('History', () => showHistory(d.device_id)));
     if (d.license_id) {
       actionBtns.append(button('Unlink', () => openUnlinkDialog(d), 'danger'));
@@ -185,11 +294,13 @@ function renderDevices(data) {
     }
     actionBtns.append(button(d.status === 'REVOKED' ? 'Reactivate' : 'Revoke', () => confirmAction('devices', d.device_id, d.status === 'REVOKED'), d.status === 'REVOKED' ? 'secondary' : 'danger'));
     actionBtns.append(button('Delete', () => openDeleteDeviceDialog(d), 'danger'));
-    cell(null, null, 'actions').append(actionBtns);
+    c8.append(actionBtns);
+    row.append(c8);
+
     target.append(row);
   }
-  if (!data.devices.length) emptyRow(target,8,'No devices match your search or filters.');
-  pager('',offset,data.devices.length,data.total); el('device-total').textContent = `${data.total.toLocaleString()} matching devices`;
+  if (!data.devices.length) emptyRow(target, 8, 'No devices match your search or filters.');
+  pager('', offset, data.devices.length, data.total); el('device-total').textContent = `${data.total.toLocaleString()} matching devices`;
 }
 
 function renderLicenses(data) {
@@ -213,7 +324,20 @@ function renderLicenses(data) {
     customer.append(custBtn, idRow);
     row.append(customer);
 
-    const status = node('td');status.append(badge(l.status));row.append(status,node('td',stamp(l.expires_at)));
+    const status = node('td');status.append(badge(l.status));
+    const expTd = node('td');
+    expTd.append(node('div', stamp(l.expires_at)));
+    if (l.expires_at) {
+      const daysLeft = Math.ceil((new Date(l.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      if (daysLeft < 0) {
+        expTd.append(node('span', 'Expired', 'badge danger-subtle'));
+      } else if (daysLeft <= 7) {
+        expTd.append(node('span', `${daysLeft}d remaining`, 'badge warning-subtle'));
+      } else {
+        expTd.append(node('span', `${daysLeft}d validity`, 'badge neutral-subtle'));
+      }
+    }
+    row.append(status, expTd);
     const usage = node('td',null,'capacity'), label = node('div',null,'capacity-label'); label.append(node('span',`${l.authorized_devices} / ${l.max_devices}`),node('span','authorized'));
     const track = node('div',null,'capacity-track'), fill = node('div',null,'capacity-fill');fill.style.width = `${Math.min(100,l.authorized_devices/l.max_devices*100)}%`;track.append(fill);usage.append(label,track);row.append(usage);
     const actions = node('td',null,'actions');
@@ -241,13 +365,26 @@ function renderAlerts(alerts, total) {
   if (!alerts.length) {const object = node('div',null,'empty-icon');object.append(icon('check'));const empty = node('p',null,'empty');empty.append(node('strong','All installations reviewed'),node('span','No unacknowledged installation alerts.'));target.append(object,empty);}
   for (const a of alerts) {
     const card = node('article',null,'alert'), top = node('div',null,'alert-top');top.append(button(a.customer || 'Unassociated installation',()=>showDevice(a.device_id),'text-button alert-title'),badge('NEW'));
-    const meta = node('div',null,'alert-meta');meta.append(node('div','License: ' + (a.license_id || 'Not associated'),'mono'),node('div','App version ' + (a.app_version || 'Unknown')),node('small','First seen ' + stamp(a.first_seen)));
-    const bottom = node('div',null,'alert-bottom'), ack = button('Acknowledge',async () => {
+    const meta = node('div',null,'alert-meta');
+    meta.append(node('div','License: ' + (a.license_id || 'Not associated'),'mono'));
+    if (a.ip_address) {
+      meta.append(node('div', `🌐 IP: ${a.ip_address}`, 'alert-ip-pill mono'));
+    }
+    const osTxt = a.device_info?.os?.product_name || `App v${a.app_version || '1.0.0'}`;
+    meta.append(node('div', `🪟 ${osTxt}`), node('small','First seen ' + stamp(a.first_seen)));
+    
+    const bottom = node('div',null,'alert-bottom');
+    const inspectBtn = button('Inspect', () => showDevice(a.device_id), 'mini-inspect-btn secondary');
+    const ack = button('Acknowledge',async () => {
       ack.disabled = true;
       try {await api(`/alerts/${encodeURIComponent(a.id)}/acknowledge`,{});el('result').textContent='Installation alert acknowledged.';await refresh();}
       catch(error){el('error').textContent=error.message;}finally{ack.disabled=false;}
     });
-    bottom.append(node('span','Awaiting review'),ack);card.append(top,node('p',a.device_id,'mono'),meta,bottom);target.append(card);
+    const actionsGroup = node('div', null, 'alert-btn-group');
+    actionsGroup.append(inspectBtn, ack);
+    bottom.append(node('span','Awaiting review'), actionsGroup);
+    card.append(top,node('p',a.device_id,'mono'),meta,bottom);
+    target.append(card);
   }
   if (total > alerts.length) target.append(node('p',`Showing the latest ${alerts.length} of ${total} outstanding alerts. Acknowledge reviewed alerts to reveal older records.`,'detail-note'));
   target.setAttribute('aria-busy','false');
@@ -396,8 +533,13 @@ function renderRoster() {
     const act = getDeviceActivity(d);
     const b = button(null, () => showDevice(d.device_id), '');
     b.dataset.deviceId = d.device_id;
-    b.setAttribute('aria-label', `${d.customer || 'Unassociated'} · ${d.device_id} · ${act.status} · ${friendly(d.effective_status)}`);
-    b.append(node('i', null, 'dot ' + deviceColor(d)), node('span', d.device_id.slice(0, 8)));
+    b.setAttribute('aria-label', `${d.customer || 'Unassociated'} · ${d.device_id} · ${act.status} · ${friendly(d.effective_status)} · IP: ${d.ip_address || 'Not recorded'}`);
+    const ipText = d.ip_address || 'No IP';
+    b.append(
+      node('i', null, 'dot ' + deviceColor(d)),
+      node('strong', d.customer || d.device_id.slice(0, 8)),
+      node('span', ipText, 'mono small-roster-ip')
+    );
     b.classList.toggle('selected', selectedDevice === d.device_id);
     return b;
   }));
@@ -420,7 +562,26 @@ function fallbackNetwork() {
   for (const d of networkDevices) {
     const act = getDeviceActivity(d);
     const b = button(null, () => showDevice(d.device_id), 'fallback-device');
-    b.append(icon('device'), node('span', d.customer || d.device_id.slice(0, 8)), node('span', act.status), badge(d.effective_status));
+    const headerRow = node('div', null, 'fallback-dev-header');
+    headerRow.append(
+      icon('device'),
+      node('strong', d.customer || d.device_id.slice(0, 8), 'fallback-cust-name'),
+      badge(d.effective_status)
+    );
+    
+    const ipPill = node('div', d.ip_address ? `🌐 ${d.ip_address}` : 'No IP recorded', `fallback-ip-pill mono ${d.ip_address ? 'has-ip' : ''}`);
+    
+    const osText = d.device_info?.os?.product_name || `App v${d.app_version || '1.0.0'}`;
+    const osRow = node('div', `🪟 ${osText}`, 'fallback-os-text');
+
+    const sessType = d.device_info?.session?.session_type || 'Console';
+    const isRdp = sessType === 'RDP';
+    const sessPill = node('span', isRdp ? '⚠️ RDP' : '🖥️ Console', `badge ${isRdp ? 'rdp-badge' : 'console-badge'}`);
+
+    const actRow = node('div', null, 'fallback-act-row');
+    actRow.append(node('i', null, 'dot ' + act.dot), node('span', act.status), sessPill);
+
+    b.append(headerRow, ipPill, osRow, actRow);
     map.append(b);
   }
   el('scene-loading')?.remove();
@@ -485,6 +646,303 @@ function openDetail(title, eyebrow) {
   if (!el('detail-dialog').open) el('detail-dialog').showModal();
 }
 
+function createSpecItem(label, value, valClass = '') {
+  const item = node('div', null, 'spec-item');
+  item.append(node('span', label, 'spec-label'));
+  const valNode = node('span', value ?? '—', `spec-val ${valClass}`);
+  item.append(valNode);
+  return item;
+}
+
+function createSecurityChip(iconChar, label, status, chipClass) {
+  const chip = node('div', null, `security-chip ${chipClass}`);
+  chip.append(node('span', iconChar, 'chip-icon'));
+  const textCol = node('div', null, 'chip-text-col');
+  textCol.append(node('span', label, 'chip-title'), node('strong', status, 'chip-status'));
+  chip.append(textCol);
+  return chip;
+}
+
+function renderDeviceInspector(d, refTime) {
+  const container = node('div', null, 'device-inspector');
+  const info = d.device_info || {};
+  const os = info.os || {};
+  const hw = info.hardware || {};
+  const net = info.network || {};
+  const sec = info.security || {};
+  const sess = info.session || {};
+  const rt = info.runtime || {};
+  const act = getDeviceActivity(d, refTime);
+
+  // 1. Hero Identity Header Card
+  const hero = node('div', null, 'device-hero-card');
+  const heroTop = node('div', null, 'device-hero-top');
+  const heroLeft = node('div', null, 'device-hero-left');
+  const iconWrap = node('div', null, 'device-avatar-icon');
+  iconWrap.append(icon('device'));
+  const titles = node('div', null, 'device-titles');
+  const titleH3 = node('h3', d.customer || 'Unassociated Workstation', 'device-title-text');
+  
+  const idRow = node('div', null, 'device-id-row');
+  const idSpan = node('span', d.device_id, 'mono device-id-text');
+  const copyIdBtn = button('Copy ID', async (e) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(d.device_id);
+      copyIdBtn.textContent = '✓ Copied';
+      setTimeout(() => { if (copyIdBtn) copyIdBtn.textContent = 'Copy ID'; }, 2000);
+    } catch {
+      prompt('Device ID:', d.device_id);
+    }
+  }, 'mini-copy-btn');
+  idRow.append(idSpan, copyIdBtn);
+  titles.append(titleH3, idRow);
+  heroLeft.append(iconWrap, titles);
+
+  const heroBadges = node('div', null, 'device-hero-badges');
+  heroBadges.append(badge(d.effective_status));
+  const actPill = node('span', null, `activity-badge dot-${act.dot}`);
+  actPill.append(node('i', null, 'dot ' + act.dot), node('span', act.status));
+  heroBadges.append(actPill);
+  heroTop.append(heroLeft, heroBadges);
+  hero.append(heroTop);
+
+  // Quick 3-card metric strip
+  const metricStrip = node('div', null, 'telemetry-stat-grid');
+  
+  // Card 1: IP Address
+  const mIp = node('div', null, 'telemetry-stat-card');
+  mIp.append(
+    node('span', 'PRIMARY IP ADDRESS', 'stat-tag'),
+    node('strong', d.ip_address || net.primary_ipv4 || 'Not recorded', 'stat-main-text mono'),
+    node('span', net.hostname ? `Host: ${net.hostname}` : 'Workstation Network', 'stat-sub-text')
+  );
+
+  // Card 2: Operating System
+  const osName = os.product_name || (os.system ? `${os.system} ${os.release || ''}` : 'Windows');
+  const mOs = node('div', null, 'telemetry-stat-card');
+  mOs.append(
+    node('span', 'OPERATING SYSTEM', 'stat-tag'),
+    node('strong', osName, 'stat-main-text'),
+    node('span', os.build_number ? `Build ${os.build_number} · ${os.machine || '64-bit'}` : (d.app_version ? `App v${d.app_version}` : 'System OS'), 'stat-sub-text')
+  );
+
+  // Card 3: User & Session
+  const userName = sess.username && sess.username !== 'unknown' ? sess.username : (d.customer || 'Workstation User');
+  const sessType = sess.session_type && sess.session_type !== 'unknown' ? sess.session_type : 'Local Console';
+  const mUser = node('div', null, 'telemetry-stat-card');
+  mUser.append(
+    node('span', 'WORKSTATION USER', 'stat-tag'),
+    node('strong', userName, 'stat-main-text'),
+    node('span', `${sessType} Session`, 'stat-sub-text')
+  );
+
+  metricStrip.append(mIp, mOs, mUser);
+  hero.append(metricStrip);
+  container.append(hero);
+
+  const hasTelemetry = Boolean(d.device_info && Object.keys(d.device_info).length > 0);
+
+  // Card 1: 🖥️ System & Hardware Telemetry
+  const hwCard = node('section', null, 'spec-card');
+  const hwHeader = node('div', null, 'spec-card-header');
+  hwHeader.append(icon('device'), node('h4', 'System & Hardware Telemetry'));
+  hwCard.append(hwHeader);
+
+  if (hasTelemetry) {
+    const hwGrid = node('div', null, 'spec-grid-2col');
+    
+    // CPU
+    const cpuVal = hw.cpu ? `${hw.cpu.logical_cores || '—'} vCPU (${hw.cpu.physical_cores || '—'} Cores)${hw.cpu.frequency_mhz ? ` @ ${hw.cpu.frequency_mhz} MHz` : ''}` : 'Detected';
+    hwGrid.append(createSpecItem('Processor (CPU)', cpuVal));
+    
+    // Memory
+    const ramVal = hw.memory ? `${hw.memory.total_gb || '—'} GB Total${hw.memory.available_gb ? ` (${hw.memory.available_gb} GB Free)` : ''}` : 'Detected';
+    hwGrid.append(createSpecItem('System Memory (RAM)', ramVal));
+
+    // Storage
+    const diskVal = hw.disk ? `${hw.disk.total_gb || '—'} GB Total${hw.disk.free_gb ? ` (${hw.disk.free_gb} GB Free · ${hw.disk.percent_used || 0}% used)` : ''}` : 'Detected';
+    hwGrid.append(createSpecItem('Disk Storage', diskVal));
+
+    // Hostname
+    hwGrid.append(createSpecItem('Computer Hostname', net.hostname || '—', 'mono'));
+
+    // OS Details
+    const fullOs = [os.product_name, os.display_version ? `ver ${os.display_version}` : null, os.build_number ? `(Build ${os.build_number})` : null].filter(Boolean).join(' ') || os.platform || 'Windows';
+    hwGrid.append(createSpecItem('OS Version & Build', fullOs));
+
+    // Machine ID
+    hwGrid.append(createSpecItem('Machine GUID', hw.machine_id ? hw.machine_id.slice(0, 24) + '...' : '—', 'mono'));
+
+    hwCard.append(hwGrid);
+  } else {
+    const pendingNotice = node('div', null, 'telemetry-pending-box');
+    pendingNotice.append(
+      node('strong', 'Telemetry Pending (Legacy Client)'),
+      node('p', 'This device registered from an older version. Hardware and system specs will automatically populate on the next heartbeat from the new release.')
+    );
+    hwCard.append(pendingNotice);
+  }
+  container.append(hwCard);
+
+  // Card 2: 🛡️ Security & Integrity Posture
+  const secCard = node('section', null, 'spec-card');
+  const secHeader = node('div', null, 'spec-card-header');
+  secHeader.append(icon('shield'), node('h4', 'Security & Integrity Posture'));
+  secCard.append(secHeader);
+
+  if (hasTelemetry) {
+    const secGrid = node('div', null, 'spec-pill-grid');
+    
+    // Antivirus
+    const avList = sec.antivirus || [];
+    const avName = avList.length > 0 ? avList.map(a => a.name).join(', ') : 'Defender / Active';
+    secGrid.append(createSecurityChip('🛡️', 'Antivirus Protection', avName, 'chip-ok'));
+
+    // Firewall
+    const fwOk = sec.firewall_enabled !== false;
+    secGrid.append(createSecurityChip('🔥', 'Windows Firewall', fwOk ? 'Active & Protecting' : 'Disabled', fwOk ? 'chip-ok' : 'chip-warn'));
+
+    // Admin Privilege
+    const isAdmin = sec.is_admin === true;
+    secGrid.append(createSecurityChip(isAdmin ? '🛡️' : '👤', 'User Privilege', isAdmin ? 'Administrator' : 'Standard User', 'chip-neutral'));
+
+    // Disk Encryption
+    const enc = sec.disk_encryption || 'Standard User';
+    secGrid.append(createSecurityChip('🔒', 'Disk Encryption', enc, 'chip-neutral'));
+
+    // Auto-lock
+    const autoLock = sec.auto_lock_enabled ? `Active (${Math.round((sec.screen_saver_timeout_sec || 600) / 60)}m)` : 'Disabled';
+    secGrid.append(createSecurityChip('⏱️', 'Auto-Lock Screen', autoLock, 'chip-neutral'));
+
+    // Session Type
+    secGrid.append(createSecurityChip('🖥️', 'Console Type', sessType === 'RDP' ? 'Remote Desktop (RDP)' : 'Local Console', 'chip-neutral'));
+
+    secCard.append(secGrid);
+  } else {
+    const pendingNotice = node('div', null, 'telemetry-pending-box');
+    pendingNotice.append(
+      node('strong', 'Security Telemetry Pending'),
+      node('p', 'Antivirus, firewall, and administrative posture telemetry will be reported on the next client heartbeat.')
+    );
+    secCard.append(pendingNotice);
+  }
+  container.append(secCard);
+
+  // Card 3: 📜 License & Authorization Details (Notice: includes .detail-grid for compatibility with tests)
+  const licCard = node('section', null, 'spec-card');
+  const licHeader = node('div', null, 'spec-card-header');
+  licHeader.append(icon('shield'), node('h4', 'License & Authorization'));
+  licCard.append(licHeader);
+
+  const licGrid = node('dl', null, 'detail-grid spec-grid-2col');
+  
+  function addRow(term, val, isMono = false) {
+    const row = node('div');
+    row.append(node('dt', term), node('dd', val ?? '—', isMono ? 'mono' : ''));
+    licGrid.append(row);
+  }
+
+  addRow('Device status', friendly(d.status));
+  addRow('Effective access', friendly(d.effective_status));
+  addRow('Detection', d.detection === 'NEW' ? 'Awaiting review' : 'Reviewed / seen');
+  addRow('License status', d.license_status === 'DISABLED' ? 'Revoked' : (d.license_status || 'Unlinked'));
+  addRow('License expiry', stamp(d.license_expires_at));
+  addRow('Application', 'v' + (d.app_version || '1.0.0') + (rt.pid ? ` (PID ${rt.pid})` : ''));
+  addRow('Registered', stamp(d.first_seen));
+  addRow('First activation', stamp(d.first_activation));
+  addRow('Last seen', stampExact(d.last_seen) + (d.last_seen ? ` (${timeAgo(d.last_seen, refTime)})` : ''));
+  addRow('Activity', `${act.status} (${act.detail})`);
+  addRow('IP Address', d.ip_address || 'Not recorded', true);
+
+  // Full-width license key with copy button
+  const licKeyRow = node('div', null, 'full-width-item');
+  licKeyRow.append(node('dt', 'License ID'));
+  const licKeyDd = node('dd', null, 'id-copy-row');
+  licKeyDd.append(node('span', d.license_id || 'Not assigned', 'mono'));
+  if (d.license_id) {
+    const copyLicBtn = button('Copy Key', async (e) => {
+      e.stopPropagation();
+      try {
+        await navigator.clipboard.writeText(d.license_id);
+        copyLicBtn.textContent = '✓ Copied';
+        setTimeout(() => { if (copyLicBtn) copyLicBtn.textContent = 'Copy Key'; }, 2000);
+      } catch {
+        prompt('Copy License Key:', d.license_id);
+      }
+    }, 'mini-copy-btn');
+    licKeyDd.append(copyLicBtn);
+  }
+  licKeyRow.append(licKeyDd);
+  licGrid.append(licKeyRow);
+
+  licCard.append(licGrid);
+  container.append(licCard);
+
+  // Card 4: 🌐 Network & Interfaces
+  const netCard = node('section', null, 'spec-card');
+  const netHeader = node('div', null, 'spec-card-header');
+  netHeader.append(icon('signal'), node('h4', 'Network & Runtime Environment'));
+  netCard.append(netHeader);
+
+  const netGrid = node('div', null, 'spec-grid-2col');
+  netGrid.append(createSpecItem('Primary IPv4 Address', d.ip_address || net.primary_ipv4 || 'Not recorded', 'mono'));
+  netGrid.append(createSpecItem('Local Hostname', net.hostname || '—', 'mono'));
+  
+  if (net.mac_addresses && net.mac_addresses.length) {
+    netGrid.append(createSpecItem('Hardware MAC Address', net.mac_addresses[0], 'mono'));
+  }
+  
+  if (sess.uptime_seconds) {
+    const hours = Math.floor(sess.uptime_seconds / 3600);
+    const mins = Math.floor((sess.uptime_seconds % 3600) / 60);
+    netGrid.append(createSpecItem('System Uptime', `${hours}h ${mins}m (Boot: ${sess.boot_time ? new Date(sess.boot_time * 1000).toLocaleTimeString() : '—'})`));
+  }
+  
+  if (rt.timezone) {
+    netGrid.append(createSpecItem('System Timezone', rt.timezone));
+  }
+  if (rt.cwd) {
+    netGrid.append(createSpecItem('Executable Directory', rt.cwd, 'mono'));
+  }
+
+  netCard.append(netGrid);
+  container.append(netCard);
+
+  // Card 5: 🔍 Advanced Diagnostic Telemetry Payload (Collapsible Accordion)
+  if (hasTelemetry) {
+    const rawDetails = node('details', null, 'raw-diag-details');
+    const rawSummary = node('summary', null, 'raw-diag-summary');
+    rawSummary.append(
+      node('span', '⚙️ Raw Diagnostic Telemetry Payload (JSON)'),
+      node('span', `${Object.keys(d.device_info).length} categories · Click to view`, 'raw-diag-tag')
+    );
+    rawDetails.append(rawSummary);
+
+    const rawBody = node('div', null, 'raw-diag-body');
+    const copyJsonBtn = button('📋 Copy Raw Payload', async (e) => {
+      e.stopPropagation();
+      try {
+        await navigator.clipboard.writeText(JSON.stringify(d.device_info, null, 2));
+        copyJsonBtn.textContent = '✓ Copied to Clipboard!';
+        setTimeout(() => { if (copyJsonBtn) copyJsonBtn.textContent = '📋 Copy Raw Payload'; }, 2000);
+      } catch {
+        prompt('Raw Payload JSON:', JSON.stringify(d.device_info));
+      }
+    }, 'mini-copy-btn');
+    
+    const pre = node('pre', null, 'raw-json-block');
+    const code = node('code', JSON.stringify(d.device_info, null, 2));
+    pre.append(code);
+    rawBody.append(copyJsonBtn, pre);
+    rawDetails.append(rawBody);
+    container.append(rawDetails);
+  }
+
+  container.append(node('p', 'Activity reports the last observed heartbeat. Licensing authorization is a separate status.', 'detail-note'));
+  return container;
+}
+
 async function showDevice(id) {
   selectDevice(id);
   const version = ++detailVersion;
@@ -493,22 +951,9 @@ async function showDevice(id) {
     const d = await api(`/devices/${encodeURIComponent(id)}`);
     if (version !== detailVersion || !el('detail-dialog').open) return;
     const refTime = lastServerTime ? new Date(lastServerTime) : new Date();
-    const act = getDeviceActivity(d, refTime);
-    const identity = node('div', null, 'detail-identity');
-    identity.append(icon('device'), node('h3', d.customer || 'Unassociated installation'), badge(d.effective_status), node('p', d.device_id, 'mono'));
-    el('detail-body').replaceChildren(identity, detailFields([
-      ['Device status', friendly(d.status)],
-      ['Effective access', friendly(d.effective_status)],
-      ['Detection', d.detection === 'NEW' ? 'Awaiting review' : 'Reviewed / seen'],
-      ['License', d.license_id],
-      ['License status', d.license_status === 'DISABLED' ? 'Revoked' : d.license_status],
-      ['License expiry', stamp(d.license_expires_at)],
-      ['Application', d.app_version],
-      ['Registered', stamp(d.first_seen)],
-      ['First activation', stamp(d.first_activation)],
-      ['Last seen', stampExact(d.last_seen) + (d.last_seen ? ` (${timeAgo(d.last_seen, refTime)})` : '')],
-      ['Activity', `${act.status} (${act.detail})`]
-    ]), node('p', 'Activity reports the last observed heartbeat. Licensing authorization is a separate status.', 'detail-note'));
+    
+    el('detail-body').replaceChildren(renderDeviceInspector(d, refTime));
+    
     const deviceDetailActions = [
       button('Activity history', () => { el('detail-dialog').close(); showHistory(id); })
     ];
@@ -1085,10 +1530,12 @@ async function openAssignDeviceDialog(device) {
     if (idInput) idInput.value = device.device_id;
     el('assign-device-id').textContent = device.device_id;
     el('assign-device-status').textContent = device.effective_status || device.status || 'PENDING';
+    el('assign-device-ip').textContent = device.ip_address || 'Not recorded';
   } else {
     if (idInput) idInput.value = '';
     el('assign-device-id').textContent = 'New Workstation';
     el('assign-device-status').textContent = 'Direct Authorization';
+    el('assign-device-ip').textContent = '—';
   }
   el('assign-device-reason').value = 'Authorized customer workstation';
   el('assign-device-error').textContent = '';

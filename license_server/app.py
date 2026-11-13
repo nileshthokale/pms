@@ -97,6 +97,7 @@ class DeviceRequest(BaseModel):
     device_secret: str = Field(min_length=40, max_length=100)
     app_version: str = Field(min_length=1, max_length=80)
     nonce: str = Field(min_length=32, max_length=100)
+    device_info: dict | None = None
 
 
 class Registration(DeviceRequest):
@@ -127,6 +128,8 @@ def ensure_schema_compatibility(engine):
                         NULL;
                     END $$;
                 """))
+                conn.execute(text("ALTER TABLE devices ADD COLUMN IF NOT EXISTS ip_address VARCHAR(45);"))
+                conn.execute(text("ALTER TABLE devices ADD COLUMN IF NOT EXISTS device_info JSONB;"))
         except Exception:
             pass
 
@@ -220,7 +223,7 @@ def create_app(settings=None, *, engine=None, clock=utcnow):
                 pass
         return request.client.host if request.client else "unknown"
 
-    def authenticate_device(session, body):
+    def authenticate_device(session, body, client_ip: str | None = None):
         device = session.scalar(select(Device).where(Device.id == str(body.device_id)).with_for_update())
         if not device:
             audit(session, "license_check_failed", "device", str(body.device_id), "Device not registered")
@@ -234,6 +237,12 @@ def create_app(settings=None, *, engine=None, clock=utcnow):
             audit(session, "license_check_failed", "device", str(body.device_id), "Invalid device credentials")
             session.commit()
             raise HTTPException(401, "Device credentials rejected")
+        # Update IP address if provided and different
+        if client_ip and device.ip_address != client_ip:
+            device.ip_address = client_ip
+        # Update device_info if provided
+        if body.device_info:
+            device.device_info = body.device_info
         return device
 
     def associate(session, device, activation_key):
@@ -291,6 +300,10 @@ def create_app(settings=None, *, engine=None, clock=utcnow):
     def health():
         return {"status": "ok", "activation_mode": "ALERT", "offline_grace_hours": 48}
 
+    @app.get("/v1/models")
+    def models():
+        return {"object": "list", "data": []}
+
     @app.get("/health/ready")
     def readiness(session: Session = Depends(db)):
         try:
@@ -306,17 +319,19 @@ def create_app(settings=None, *, engine=None, clock=utcnow):
     @app.post("/v1/devices/register")
     def register(body: Registration, request: Request, session: Session = Depends(db)):
         throttle(session, "register:" + request_ip(request), 30)
+        client_ip = request_ip(request)
         if engine.dialect.name == "postgresql":
             from sqlalchemy import text
             session.execute(text("SELECT pg_advisory_xact_lock(:key)"),
                             {"key": int.from_bytes(hashlib.sha256(str(body.device_id).encode()).digest()[:8], "big", signed=True)})
         device = session.scalar(select(Device).where(Device.id == str(body.device_id)).with_for_update())
         if device:
-            device = authenticate_device(session, body)
+            device = authenticate_device(session, body, client_ip)
         else:
             now = clock()
             device = Device(id=str(body.device_id), secret_hash=digest(body.device_secret, settings.pepper),
-                            app_version=body.app_version, status="PENDING", first_seen=now, last_seen=now, revision=0)
+                            app_version=body.app_version, status="PENDING", first_seen=now, last_seen=now, revision=0,
+                            ip_address=client_ip, device_info=body.device_info)
             session.add(device)
             session.flush()
             session.add(Alert(id=str(uuid.uuid4()), device_id=device.id, created_at=now))
@@ -327,7 +342,8 @@ def create_app(settings=None, *, engine=None, clock=utcnow):
 
     def check(body, request, session, event):
         throttle(session, "check:" + request_ip(request), 120)
-        device = authenticate_device(session, body)
+        client_ip = request_ip(request)
+        device = authenticate_device(session, body, client_ip)
         return result(session, device, body, event)
 
     @app.post("/v1/devices/validate")
@@ -346,7 +362,8 @@ def create_app(settings=None, *, engine=None, clock=utcnow):
     @app.post("/v1/devices/shutdown")
     def offline(body: DeviceRequest, request: Request, session: Session = Depends(db)):
         throttle(session, "offline:" + request_ip(request), 60)
-        device = authenticate_device(session, body)
+        client_ip = request_ip(request)
+        device = authenticate_device(session, body, client_ip)
         now = clock()
         device.last_seen = now
         shutdown_registry.mark_offline(device.id, now)

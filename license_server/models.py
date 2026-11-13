@@ -3,6 +3,7 @@ from datetime import datetime
 
 from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.dialects.postgresql import JSONB
 
 
 class Base(DeclarativeBase):
@@ -38,6 +39,8 @@ class Device(Base):
     first_activation: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     revision: Mapped[int] = mapped_column(Integer, default=0)
+    ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    device_info: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
 
 class Alert(Base):
