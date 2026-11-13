@@ -168,8 +168,9 @@ class ItemDAO:
                 LEFT JOIN companies c ON i.company_id = c.id
                 LEFT JOIN categories cat ON i.category_id = cat.id
                 WHERE TRIM(i.item_name) = ? COLLATE NOCASE
-                ORDER BY i.id ASC LIMIT 1""",
-                (clean_name,),
+                   OR (TRIM(i.item_name) || ' (' || TRIM(COALESCE(u.unit_name, '')) || ')') = ? COLLATE NOCASE
+                ORDER BY ((TRIM(i.item_name) || ' (' || TRIM(COALESCE(u.unit_name, '')) || ')') = ? COLLATE NOCASE) DESC, i.id ASC LIMIT 1""",
+                (clean_name, clean_name, clean_name),
             ).fetchone()
             return dict(row) if row else None
         finally:

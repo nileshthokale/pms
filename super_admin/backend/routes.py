@@ -291,7 +291,7 @@ def create_admin_router(settings, sessions, clock, audit, throttle, request_ip, 
                 "last_seen": utc(d.last_seen).isoformat(), "app_version": d.app_version,
                 "customer": c.name if c else None, "license_id": d.license_id,
                 "license_status": l.status if l else None, "license_expires_at": utc(l.expires_at).isoformat() if l else None,
-                "max_devices": l.max_devices if l else None}
+                "max_devices": l.max_devices if l else None, "ip_address": d.ip_address, "device_info": d.device_info}
 
     def device_query():
         return (select(Device, License, Customer, Alert)

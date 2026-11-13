@@ -1,10 +1,32 @@
 from __future__ import annotations
 
-from PySide6.QtWidgets import QCheckBox, QComboBox, QDialog, QFormLayout, QHBoxLayout, QLineEdit, QMessageBox, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
+import datetime
+
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtWidgets import (
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QFormLayout,
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
 from database import auth
 from ui import components as ui
 from ui.input_rules import set_uppercase
+from ui.theme import palette
+from licensing.qt import get_active_controller, get_license_info
 
 _ID_ROLE = 32
 _ACTIVE_ROLE = 33
@@ -146,6 +168,330 @@ class ChangePasswordDialog(QDialog):
             QMessageBox.warning(self, "Change Password", str(exc))
 
 
+class _ActivateLicenseDialog(QDialog):
+    """Modal dialog allowing Administrator to enter or renew a License ID."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Activate or Renew License")
+        self.setMinimumWidth(480)
+        p = palette()
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+
+        heading = QLabel("Enter License ID / Activation Key")
+        heading.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {p['text']};")
+        layout.addWidget(heading)
+
+        desc = QLabel(
+            "Paste the License ID issued from Super Admin to renew your subscription\n"
+            "or expand device capacity for this pharmacy installation."
+        )
+        desc.setStyleSheet(f"font-size: 12px; color: {p['text_dim']};")
+        layout.addWidget(desc)
+
+        self.key_field = QLineEdit()
+        self.key_field.setPlaceholderText("e.g. 2994c8a1-d281-4ffc-a9df-f63523c86726")
+        self.key_field.setStyleSheet(
+            f"padding: 8px; font-family: Consolas, monospace; font-size: 13px; "
+            f"border: 1px solid {p['border']}; border-radius: 4px; background: {p['bg']};"
+        )
+        set_uppercase(self.key_field, False)
+        layout.addWidget(self.key_field)
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        cancel = ui.ActionButton("Cancel", "secondary")
+        cancel.clicked.connect(self.reject)
+        btn_row.addWidget(cancel)
+
+        activate = ui.ActionButton("Activate & Verify", "primary")
+        activate.clicked.connect(self.accept)
+        btn_row.addWidget(activate)
+        layout.addLayout(btn_row)
+
+
+class LicenseValidityPanel(QWidget):
+    """ADMIN dashboard panel displaying software license validity, remaining days, and renewal tools."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("LicenseValidityPanel")
+        self._init_ui()
+        self.refresh_details()
+
+        ctrl = get_active_controller()
+        if ctrl is not None and hasattr(ctrl, "validation_updated"):
+            try:
+                ctrl.validation_updated.connect(lambda _dec: self.refresh_details())
+            except Exception:
+                pass
+
+    def _init_ui(self):
+        p = palette()
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 8, 0, 0)
+        layout.setSpacing(6)
+
+        # Header Strip with Title and Status Pill
+        header = ui.PageHeader("Software License & Subscription Validity")
+        self._badge = QLabel("Checking validity...")
+        self._badge.setStyleSheet(
+            "padding: 3px 10px; border-radius: 10px; font-size: 11px; font-weight: bold;"
+        )
+        header.add_action(self._badge)
+        layout.addWidget(header)
+
+        # Card container
+        self._container = QFrame()
+        self._container.setObjectName("LicenseContainer")
+        self._container.setStyleSheet(
+            f"#LicenseContainer {{"
+            f"  background-color: {p['surface_alt']};"
+            f"  border: 1px solid {p['border']};"
+            f"  border-radius: 4px;"
+            f"}}"
+        )
+        cont_layout = QVBoxLayout(self._container)
+        cont_layout.setContentsMargins(14, 12, 14, 12)
+        cont_layout.setSpacing(10)
+
+        # Hero Banner Card
+        self._card = QFrame()
+        self._card.setObjectName("LicenseHeroCard")
+        card_layout = QHBoxLayout(self._card)
+        card_layout.setContentsMargins(16, 12, 16, 12)
+        card_layout.setSpacing(16)
+
+        left_col = QVBoxLayout()
+        left_col.setContentsMargins(0, 0, 0, 0)
+        left_col.setSpacing(3)
+
+        self._days_label = QLabel("0 Days Remaining")
+        self._days_label.setStyleSheet("font-size: 22px; font-weight: 800;")
+        left_col.addWidget(self._days_label)
+
+        self._expires_label = QLabel("Valid until: ...")
+        self._expires_label.setStyleSheet(f"font-size: 12px; color: {p['text_dim']};")
+        left_col.addWidget(self._expires_label)
+        card_layout.addLayout(left_col, 2)
+
+        right_col = QVBoxLayout()
+        right_col.setContentsMargins(0, 0, 0, 0)
+        right_col.setSpacing(4)
+        right_col.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
+        self._status_text = QLabel("Status: AUTHORIZED")
+        self._status_text.setStyleSheet("font-size: 12px; font-weight: 600;")
+        right_col.addWidget(self._status_text)
+
+        self._conn_text = QLabel("Network: Online")
+        self._conn_text.setStyleSheet(f"font-size: 11px; color: {p['text_dim']};")
+        right_col.addWidget(self._conn_text)
+        card_layout.addLayout(right_col, 1)
+
+        cont_layout.addWidget(self._card)
+
+        # Details Grid
+        grid = QGridLayout()
+        grid.setContentsMargins(4, 2, 4, 2)
+        grid.setHorizontalSpacing(16)
+        grid.setVerticalSpacing(8)
+
+        # Row 0: License ID
+        lbl_lic = QLabel("License ID:")
+        lbl_lic.setStyleSheet(f"font-weight: 600; font-size: 12px; color: {p['text']};")
+        grid.addWidget(lbl_lic, 0, 0)
+
+        lic_box = QHBoxLayout()
+        lic_box.setSpacing(6)
+        self._license_id = QLabel("—")
+        self._license_id.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self._license_id.setStyleSheet("font-family: Consolas, monospace; font-size: 12px;")
+        lic_box.addWidget(self._license_id)
+
+        self._copy_lic_btn = QPushButton("📋 Copy")
+        self._copy_lic_btn.setFixedSize(60, 24)
+        self._copy_lic_btn.setStyleSheet("font-size: 11px; padding: 2px;")
+        self._copy_lic_btn.clicked.connect(self._copy_license_id)
+        lic_box.addWidget(self._copy_lic_btn)
+        lic_box.addStretch()
+        grid.addLayout(lic_box, 0, 1)
+
+        # Row 0: Device ID
+        lbl_dev = QLabel("Registered Device ID:")
+        lbl_dev.setStyleSheet(f"font-weight: 600; font-size: 12px; color: {p['text']};")
+        grid.addWidget(lbl_dev, 0, 2)
+
+        dev_box = QHBoxLayout()
+        dev_box.setSpacing(6)
+        self._device_id = QLabel("—")
+        self._device_id.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self._device_id.setStyleSheet("font-family: Consolas, monospace; font-size: 12px;")
+        dev_box.addWidget(self._device_id)
+
+        self._copy_dev_btn = QPushButton("📋 Copy")
+        self._copy_dev_btn.setFixedSize(60, 24)
+        self._copy_dev_btn.setStyleSheet("font-size: 11px; padding: 2px;")
+        self._copy_dev_btn.clicked.connect(self._copy_device_id)
+        dev_box.addWidget(self._copy_dev_btn)
+        dev_box.addStretch()
+        grid.addLayout(dev_box, 0, 3)
+
+        # Row 1: Customer Account
+        lbl_cust = QLabel("Customer Account:")
+        lbl_cust.setStyleSheet(f"font-weight: 600; font-size: 12px; color: {p['text']};")
+        grid.addWidget(lbl_cust, 1, 0)
+        self._cust_id = QLabel("—")
+        self._cust_id.setStyleSheet("font-size: 12px;")
+        grid.addWidget(self._cust_id, 1, 1)
+
+        # Row 1: Offline Grace
+        lbl_off = QLabel("Offline Grace Lease:")
+        lbl_off.setStyleSheet(f"font-weight: 600; font-size: 12px; color: {p['text']};")
+        grid.addWidget(lbl_off, 1, 2)
+        self._offline_lease = QLabel("48 Hours Allowance")
+        self._offline_lease.setStyleSheet("font-size: 12px;")
+        grid.addWidget(self._offline_lease, 1, 3)
+
+        cont_layout.addLayout(grid)
+
+        # Action Buttons Row
+        btn_row = QHBoxLayout()
+        btn_row.setContentsMargins(0, 4, 0, 0)
+        btn_row.setSpacing(10)
+
+        self._refresh_btn = ui.ActionButton("Check / Verify Validity", "secondary")
+        self._refresh_btn.clicked.connect(self._on_check_validity)
+        btn_row.addWidget(self._refresh_btn)
+
+        self._activate_btn = ui.ActionButton("Activate / Renew License", "primary")
+        self._activate_btn.clicked.connect(self._on_activate_dialog)
+        btn_row.addWidget(self._activate_btn)
+
+        self._sync_status = QLabel("")
+        self._sync_status.setStyleSheet(f"font-size: 11px; color: {p['text_dim']};")
+        btn_row.addWidget(self._sync_status)
+
+        btn_row.addStretch()
+        cont_layout.addLayout(btn_row)
+
+        layout.addWidget(self._container)
+
+    def _copy_license_id(self):
+        text = self._license_id.text().strip()
+        if text and text != "—":
+            clipboard = QApplication.clipboard()
+            if clipboard:
+                clipboard.setText(text)
+            self._copy_lic_btn.setText("✓ Copied")
+            QTimer.singleShot(2000, lambda: self._copy_lic_btn.setText("📋 Copy"))
+
+    def _copy_device_id(self):
+        text = self._device_id.text().strip()
+        if text and text != "—":
+            clipboard = QApplication.clipboard()
+            if clipboard:
+                clipboard.setText(text)
+            self._copy_dev_btn.setText("✓ Copied")
+            QTimer.singleShot(2000, lambda: self._copy_dev_btn.setText("📋 Copy"))
+
+    def _on_check_validity(self):
+        self._refresh_btn.setEnabled(False)
+        self._sync_status.setText("Checking validity with licensing server…")
+        ctrl = get_active_controller()
+        if ctrl is not None:
+            ctrl.validate()
+            QTimer.singleShot(1500, self._finish_manual_check)
+        else:
+            try:
+                from licensing.client import desktop_client
+                c = desktop_client()
+                c.validate()
+            except Exception:
+                pass
+            self.refresh_details()
+            self._refresh_btn.setEnabled(True)
+
+    def _finish_manual_check(self):
+        self.refresh_details()
+        self._refresh_btn.setEnabled(True)
+
+    def _on_activate_dialog(self):
+        dialog = _ActivateLicenseDialog(self)
+        if dialog.exec() == QDialog.Accepted:
+            key = dialog.key_field.text().strip()
+            if key:
+                self._sync_status.setText("Activating license…")
+                ctrl = get_active_controller()
+                if ctrl is not None:
+                    ctrl.validate(activation_key=key)
+                else:
+                    try:
+                        from licensing.client import desktop_client
+                        c = desktop_client()
+                        c.validate(activation_key=key)
+                    except Exception:
+                        pass
+                QTimer.singleShot(1000, self.refresh_details)
+
+    def refresh_details(self):
+        info = get_license_info()
+        p = palette()
+
+        days = info.get("days_remaining", 0)
+        status = info.get("status", "UNKNOWN")
+        level = info.get("alert_level", "danger")
+
+        self._days_label.setText(info.get("days_label", f"{days} Days Remaining"))
+        self._expires_label.setText(f"Valid until: {info.get('expires_at_formatted', 'Unknown')}")
+
+        if level == "success":
+            card_bg = "#f0fdf4" if p["bg"] == "#ffffff" else "#0f291e"
+            card_border = "#86efac" if p["bg"] == "#ffffff" else "#1b4d3e"
+            accent_color = "#15803d" if p["bg"] == "#ffffff" else "#4ade80"
+            badge_text = f"🟢 ACTIVE · {days} DAYS"
+        elif level == "warning":
+            card_bg = "#fffbeb" if p["bg"] == "#ffffff" else "#2a2216"
+            card_border = "#fde68a" if p["bg"] == "#ffffff" else "#4a3b20"
+            accent_color = "#b45309" if p["bg"] == "#ffffff" else "#fbbf24"
+            badge_text = f"⚠️ EXPIRING SOON · {days} DAYS"
+        else:
+            card_bg = "#fef2f2" if p["bg"] == "#ffffff" else "#2e1212"
+            card_border = "#fca5a5" if p["bg"] == "#ffffff" else "#5c2424"
+            accent_color = "#b91c1c" if p["bg"] == "#ffffff" else "#f87171"
+            badge_text = "❌ EXPIRED / INACTIVE"
+
+        self._card.setStyleSheet(
+            f"#LicenseHeroCard {{"
+            f"  background-color: {card_bg};"
+            f"  border: 1px solid {card_border};"
+            f"  border-radius: 4px;"
+            f"}}"
+        )
+        self._days_label.setStyleSheet(f"font-size: 22px; font-weight: 800; color: {accent_color};")
+        self._badge.setText(badge_text)
+        self._badge.setStyleSheet(
+            f"background-color: {card_bg}; color: {accent_color}; border: 1px solid {card_border}; "
+            f"padding: 3px 10px; border-radius: 10px; font-size: 11px; font-weight: bold;"
+        )
+
+        self._status_text.setText(f"Status: {status}")
+        conn = info.get("connectivity", "NOT_CHECKED").replace("_", " ").title()
+        self._conn_text.setText(f"Network: {conn}")
+
+        self._license_id.setText(str(info.get("license_id") or "—"))
+        self._device_id.setText(str(info.get("device_id") or "—"))
+        self._cust_id.setText(str(info.get("customer_id") or "—"))
+        self._offline_lease.setText(info.get("offline_until_formatted") or "48 Hours Allowance")
+
+        import datetime
+        now_str = datetime.datetime.now().strftime("%d-%b-%Y %I:%M %p")
+        self._sync_status.setText(f"Last updated: {now_str}")
+
+
 class UserManagementPage(QWidget):
     """ADMIN-only account administration with the two supported roles."""
 
@@ -180,6 +526,11 @@ class UserManagementPage(QWidget):
         layout.addWidget(actions)
         ui.style_data_table(self._table, stretch_columns=(0, 4), resize_to_contents=(1, 2, 3))
         layout.addWidget(self._table, 1)
+
+        # Lower half: License Validity & Remaining Days
+        self._license_panel = LicenseValidityPanel(self)
+        layout.addWidget(self._license_panel, 1)
+
         self._table.selectionModel().selectionChanged.connect(self._sync_action_button)
         self._refresh()
 
@@ -212,6 +563,8 @@ class UserManagementPage(QWidget):
         if restored:
             self._table.selectRow(restored)
         self._sync_action_button()
+        if hasattr(self, "_license_panel"):
+            self._license_panel.refresh_details()
 
     def _selected_row(self):
         rows = self._table.selectionModel().selectedRows()

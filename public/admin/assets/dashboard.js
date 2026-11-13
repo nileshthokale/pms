@@ -166,17 +166,205 @@ function renderDevices(data) {
 
   for (const d of data.devices) {
     const row = node('tr'); row.dataset.deviceId = d.device_id;
-    function cell(value, detail, cls) {const td = node('td',value,cls);if(detail)td.append(node('small',detail));row.append(td);return td;}
-    const identity = cell(null); identity.append(button(d.device_id, () => showDevice(d.device_id), 'text-button mono'),node('small','App ' + (d.app_version || 'Unknown')));
-    cell(d.customer || 'Unassociated',d.license_id || 'No license'); cell(null).append(badge(d.detection)); cell(null).append(badge(d.effective_status));
+    const info = d.device_info || {};
+    const os = info.os || {};
+    const hw = info.hardware || {};
+    const net = info.network || {};
+    const sec = info.security || {};
+    const sess = info.session || {};
+    const pos = info.pos_peripherals || {};
+    const integrity = info.integrity || {};
+    const db = info.database || {};
+    const diag = info.diagnostics || {};
+    const store = info.store_activity || {};
 
+    // 1. Workstation & OS
+    const c1 = node('td', null, 'col-workstation');
+    const custTitle = node('strong', d.customer || 'Unassociated Workstation', 'workstation-cust-name');
+    const osName = os.product_name || (os.system ? `${os.system} ${os.release || ''}` : '');
+    const osLabel = node('div', osName ? `🪟 ${osName}` : `App v${d.app_version || '1.0.0'}`, 'workstation-os-label');
+    const idRow = node('div', null, 'id-copy-row');
+    const idSpan = node('span', d.device_id.slice(0, 8) + '…', 'mono small-id');
+    const copyBtn = button('Copy', async (e) => {
+      e.stopPropagation();
+      try {
+        await navigator.clipboard.writeText(d.device_id);
+        copyBtn.textContent = '✓';
+        setTimeout(() => { if (copyBtn) copyBtn.textContent = 'Copy'; }, 2000);
+      } catch {
+        prompt('Device ID:', d.device_id);
+      }
+    }, 'mini-copy-btn');
+    idRow.append(idSpan, copyBtn);
+    c1.append(custTitle, osLabel, idRow);
+
+    // Anti-Piracy & Integrity Indicator in Workstation cell
+    if (integrity.is_vm != null || integrity.clock_rollback_detected) {
+      const antiPiracyRow = node('div', null, 'table-telemetry-row');
+      if (integrity.is_vm) {
+        const vmChip = node('span', `⚠️ VM: ${integrity.vm_hypervisor || 'Virtual'}`, 'table-pill pill-warn');
+        vmChip.title = 'Workstation detected running inside a Virtual Machine';
+        antiPiracyRow.append(vmChip);
+      } else if (integrity.is_vm === false) {
+        const pcChip = node('span', '🖥️ Physical', 'table-pill pill-subtle');
+        pcChip.title = 'Verified physical bare-metal hardware';
+        antiPiracyRow.append(pcChip);
+      }
+      if (integrity.clock_rollback_detected) {
+        const clkChip = node('span', '⚠️ Clock Alert', 'table-pill pill-danger');
+        clkChip.title = `Clock rollback or delta of ${integrity.clock_delta_seconds}s detected!`;
+        antiPiracyRow.append(clkChip);
+      }
+      c1.append(antiPiracyRow);
+    }
+    row.append(c1);
+
+    // 2. Customer & License
+    const c2 = node('td', null, 'col-license');
+    if (d.license_id) {
+      c2.append(
+        node('div', d.customer || 'Customer', 'license-cust-label'),
+        node('span', d.license_id.slice(0, 10) + '…', 'mono small-id')
+      );
+    } else {
+      c2.append(node('span', 'No License Assigned', 'badge neutral'));
+    }
+    row.append(c2);
+
+    // 3. Network & IP Address
+    const c3 = node('td', null, 'col-ip');
+    const ipStr = d.ip_address || net.primary_ipv4;
+    if (ipStr) {
+      const ipBadge = node('span', ipStr, 'badge ip-badge mono');
+      const hostLabel = node('small', net.hostname ? `Host: ${net.hostname}` : 'Primary Interface', 'sub-label');
+      c3.append(ipBadge, hostLabel);
+    } else {
+      c3.append(
+        node('span', 'No IP recorded', 'badge neutral mono'),
+        node('small', 'Pending heartbeat', 'sub-label muted')
+      );
+    }
+    row.append(c3);
+
+    // 4. Session / RDP
+    const c4 = node('td', null, 'col-session');
+    const sessType = sess.session_type || 'Console';
+    const isRdp = sessType === 'RDP';
+    const sessBadge = node('span', isRdp ? '⚠️ RDP Session' : '🖥️ Console', `badge ${isRdp ? 'rdp-badge' : 'console-badge'}`);
+    sessBadge.title = isRdp ? 'Active Remote Desktop Connection' : 'Local Physical Console';
+    const userName = sess.username ? `User: ${sess.username}` : 'Workstation User';
+    c4.append(sessBadge, node('small', userName, 'sub-label'));
+    if (diag.pending_reboot) {
+      const rebChip = node('span', '⚠️ Reboot Req', 'table-pill pill-warn');
+      rebChip.title = `Windows restart pending: ${(diag.pending_reboot_reasons || []).join(', ') || 'Pending updates'}`;
+      c4.append(rebChip);
+    }
+    row.append(c4);
+
+    // 5. Hardware Specs
+    const c5 = node('td', null, 'col-hardware');
+    if (hw.cpu?.logical_cores || hw.memory?.total_gb) {
+      const cpuTxt = hw.cpu?.logical_cores ? `${hw.cpu.logical_cores} vCPU` : 'CPU';
+      const ramTxt = hw.memory?.total_gb ? `${hw.memory.total_gb} GB RAM` : '';
+      const diskTxt = hw.disk?.free_gb ? `${hw.disk.free_gb} GB Free` : '';
+      c5.append(
+        node('div', `${cpuTxt}${ramTxt ? ' · ' + ramTxt : ''}`, 'hw-main-spec'),
+        node('small', diskTxt || 'Storage active', 'sub-label')
+      );
+    } else {
+      c5.append(
+        node('span', 'Specs pending', 'badge neutral'),
+        node('small', 'Run new EXE to report', 'sub-label muted')
+      );
+    }
+
+    // Telemetry pills: DB size, Low disk, POS printer
+    const hwTelemetryRow = node('div', null, 'table-telemetry-row');
+    if (db.db_size_mb != null) {
+      const dbPill = node('span', `💾 ${Math.round(db.db_size_mb)} MB DB`, 'table-pill pill-db');
+      dbPill.title = `Local SQLite Database size: ${db.db_size_mb} MB (${db.db_path || 'pharmacy.db'})`;
+      hwTelemetryRow.append(dbPill);
+    }
+    const isLowDisk = db.low_disk_warning === true || (db.disk_free_gb != null && db.disk_free_gb < 2) || (hw.disk?.free_gb != null && hw.disk.free_gb < 2);
+    if (isLowDisk) {
+      const diskWarn = node('span', '⚠️ Low Disk (<2GB)', 'table-pill pill-danger');
+      diskWarn.title = `Free disk space critical: ${db.disk_free_gb ?? hw.disk?.free_gb} GB remaining (<2 GB threshold)`;
+      hwTelemetryRow.append(diskWarn);
+    }
+    if (pos.has_receipt_printer) {
+      const printerChip = node('span', '🧾 POS Printer', 'table-pill pill-pos');
+      printerChip.title = `Receipt / POS printer detected: ${(pos.thermal_receipt_printers || []).join(', ') || pos.default_printer || 'Connected'}`;
+      hwTelemetryRow.append(printerChip);
+    }
+    if (hwTelemetryRow.children.length) {
+      c5.append(hwTelemetryRow);
+    }
+    row.append(c5);
+
+    // 6. Security Posture
+    const c6 = node('td', null, 'col-security');
+    const chipsWrap = node('div', null, 'table-security-chips');
+    if (sec.antivirus && sec.antivirus.length > 0) {
+      chipsWrap.append(node('span', `✓ ${sec.antivirus[0].name.replace('Windows ', '')}`, 'sec-mini-chip chip-ok'));
+    } else if (sec.antivirus !== undefined && sec.antivirus !== null) {
+      chipsWrap.append(node('span', 'No AV info', 'sec-mini-chip chip-neutral'));
+    }
+    if (sec.firewall_enabled === true) {
+      chipsWrap.append(node('span', '✓ Firewall', 'sec-mini-chip chip-firewall'));
+    }
+    if (sec.is_admin === true) {
+      chipsWrap.append(node('span', 'Admin', 'sec-mini-chip chip-admin'));
+    }
+    if (integrity.is_vm) {
+      chipsWrap.append(node('span', `⚠️ ${integrity.vm_hypervisor || 'VM'}`, 'sec-mini-chip chip-warn'));
+    } else if (integrity.is_vm === false) {
+      chipsWrap.append(node('span', '✓ Physical', 'sec-mini-chip chip-ok'));
+    }
+    if (integrity.clock_rollback_detected) {
+      chipsWrap.append(node('span', '⚠️ Clock Alert', 'sec-mini-chip chip-danger'));
+    }
+    if (!chipsWrap.children.length) {
+      chipsWrap.append(node('span', 'Not reported', 'sec-mini-chip chip-neutral'));
+    }
+    c6.append(chipsWrap);
+    row.append(c6);
+
+    // 7. Status & Activity
+    const c7 = node('td', null, 'col-status');
     const act = getDeviceActivity(d, refTime, hbSec, rcSec);
-    const activity = node('span',null,'activity-state'); activity.append(node('i',null,'dot ' + act.dot),node('span',act.status));
-    cell(null,act.detail).append(activity);
+    const activity = node('div', null, 'activity-state');
+    activity.append(node('i', null, 'dot ' + act.dot), node('span', act.status, 'act-text'));
+    const lastSeenTxt = d.last_seen ? timeAgo(d.last_seen, refTime) : 'Never seen';
+    c7.append(badge(d.effective_status), activity, node('small', `Last: ${lastSeenTxt}`, 'sub-label'));
 
-    cell(stamp(d.first_seen),'Activated: ' + stamp(d.first_activation));
-    cell(stampExact(d.last_seen), d.last_seen ? timeAgo(d.last_seen, refTime) : null);
+    // Diagnostics RAM & Today's Store Activity
+    const statusTelemetryRow = node('div', null, 'table-telemetry-row');
+    if (diag.process_ram_mb != null) {
+      const ramPill = node('span', `⚡ ${Math.round(diag.process_ram_mb)} MB RAM`, 'table-pill pill-diag');
+      ramPill.title = `Process RAM (RSS): ${diag.process_ram_mb} MB (Uptime: ${diag.process_uptime_formatted || '—'})`;
+      statusTelemetryRow.append(ramPill);
+    }
+    if (store.invoices_today != null && store.invoices_today > 0) {
+      const invPill = node('span', `🧾 ${store.invoices_today} inv today`, 'table-pill pill-activity');
+      invPill.title = `Today's store sales: ${store.invoices_today} invoices generated (${store.active_store_hours || 'Active today'})`;
+      statusTelemetryRow.append(invPill);
+    }
+    if (statusTelemetryRow.children.length) {
+      c7.append(statusTelemetryRow);
+    }
+    if (store.active_store_hours) {
+      c7.append(node('small', `Store: ${store.active_store_hours}`, 'sub-label store-hours-label'));
+    }
+    row.append(c7);
+
+    // 8. Actions
+    const c8 = node('td', null, 'actions');
     const actionBtns = node('div', null, 'action-cell-buttons');
+
+    // Primary INSPECT button to open the full drawer inspector
+    const inspectBtn = button('Inspect', () => showDevice(d.device_id), 'primary mini-inspect-btn');
+    actionBtns.append(inspectBtn);
+
     actionBtns.append(button('History', () => showHistory(d.device_id)));
     if (d.license_id) {
       actionBtns.append(button('Unlink', () => openUnlinkDialog(d), 'danger'));
@@ -185,11 +373,13 @@ function renderDevices(data) {
     }
     actionBtns.append(button(d.status === 'REVOKED' ? 'Reactivate' : 'Revoke', () => confirmAction('devices', d.device_id, d.status === 'REVOKED'), d.status === 'REVOKED' ? 'secondary' : 'danger'));
     actionBtns.append(button('Delete', () => openDeleteDeviceDialog(d), 'danger'));
-    cell(null, null, 'actions').append(actionBtns);
+    c8.append(actionBtns);
+    row.append(c8);
+
     target.append(row);
   }
-  if (!data.devices.length) emptyRow(target,8,'No devices match your search or filters.');
-  pager('',offset,data.devices.length,data.total); el('device-total').textContent = `${data.total.toLocaleString()} matching devices`;
+  if (!data.devices.length) emptyRow(target, 8, 'No devices match your search or filters.');
+  pager('', offset, data.devices.length, data.total); el('device-total').textContent = `${data.total.toLocaleString()} matching devices`;
 }
 
 function renderLicenses(data) {
@@ -213,7 +403,20 @@ function renderLicenses(data) {
     customer.append(custBtn, idRow);
     row.append(customer);
 
-    const status = node('td');status.append(badge(l.status));row.append(status,node('td',stamp(l.expires_at)));
+    const status = node('td');status.append(badge(l.status));
+    const expTd = node('td');
+    expTd.append(node('div', stamp(l.expires_at)));
+    if (l.expires_at) {
+      const daysLeft = Math.ceil((new Date(l.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      if (daysLeft < 0) {
+        expTd.append(node('span', 'Expired', 'badge danger-subtle'));
+      } else if (daysLeft <= 7) {
+        expTd.append(node('span', `${daysLeft}d remaining`, 'badge warning-subtle'));
+      } else {
+        expTd.append(node('span', `${daysLeft}d validity`, 'badge neutral-subtle'));
+      }
+    }
+    row.append(status, expTd);
     const usage = node('td',null,'capacity'), label = node('div',null,'capacity-label'); label.append(node('span',`${l.authorized_devices} / ${l.max_devices}`),node('span','authorized'));
     const track = node('div',null,'capacity-track'), fill = node('div',null,'capacity-fill');fill.style.width = `${Math.min(100,l.authorized_devices/l.max_devices*100)}%`;track.append(fill);usage.append(label,track);row.append(usage);
     const actions = node('td',null,'actions');
@@ -241,13 +444,30 @@ function renderAlerts(alerts, total) {
   if (!alerts.length) {const object = node('div',null,'empty-icon');object.append(icon('check'));const empty = node('p',null,'empty');empty.append(node('strong','All installations reviewed'),node('span','No unacknowledged installation alerts.'));target.append(object,empty);}
   for (const a of alerts) {
     const card = node('article',null,'alert'), top = node('div',null,'alert-top');top.append(button(a.customer || 'Unassociated installation',()=>showDevice(a.device_id),'text-button alert-title'),badge('NEW'));
-    const meta = node('div',null,'alert-meta');meta.append(node('div','License: ' + (a.license_id || 'Not associated'),'mono'),node('div','App version ' + (a.app_version || 'Unknown')),node('small','First seen ' + stamp(a.first_seen)));
-    const bottom = node('div',null,'alert-bottom'), ack = button('Acknowledge',async () => {
+    const meta = node('div',null,'alert-meta');
+    meta.append(node('div','License: ' + (a.license_id || 'Not associated'),'mono'));
+    if (a.ip_address) {
+      meta.append(node('div', `🌐 IP: ${a.ip_address}`, 'alert-ip-pill mono'));
+    }
+    const osTxt = a.device_info?.os?.product_name || `App v${a.app_version || '1.0.0'}`;
+    meta.append(node('div', `🪟 ${osTxt}`));
+    if (a.device_info?.integrity?.is_vm) {
+      meta.append(node('div', `⚠️ VM: ${a.device_info.integrity.vm_hypervisor || 'Virtual Machine'}`, 'alert-vm-pill'));
+    }
+    meta.append(node('small','First seen ' + stamp(a.first_seen)));
+    
+    const bottom = node('div',null,'alert-bottom');
+    const inspectBtn = button('Inspect', () => showDevice(a.device_id), 'mini-inspect-btn secondary');
+    const ack = button('Acknowledge',async () => {
       ack.disabled = true;
       try {await api(`/alerts/${encodeURIComponent(a.id)}/acknowledge`,{});el('result').textContent='Installation alert acknowledged.';await refresh();}
       catch(error){el('error').textContent=error.message;}finally{ack.disabled=false;}
     });
-    bottom.append(node('span','Awaiting review'),ack);card.append(top,node('p',a.device_id,'mono'),meta,bottom);target.append(card);
+    const actionsGroup = node('div', null, 'alert-btn-group');
+    actionsGroup.append(inspectBtn, ack);
+    bottom.append(node('span','Awaiting review'), actionsGroup);
+    card.append(top,node('p',a.device_id,'mono'),meta,bottom);
+    target.append(card);
   }
   if (total > alerts.length) target.append(node('p',`Showing the latest ${alerts.length} of ${total} outstanding alerts. Acknowledge reviewed alerts to reveal older records.`,'detail-note'));
   target.setAttribute('aria-busy','false');
@@ -396,8 +616,13 @@ function renderRoster() {
     const act = getDeviceActivity(d);
     const b = button(null, () => showDevice(d.device_id), '');
     b.dataset.deviceId = d.device_id;
-    b.setAttribute('aria-label', `${d.customer || 'Unassociated'} · ${d.device_id} · ${act.status} · ${friendly(d.effective_status)}`);
-    b.append(node('i', null, 'dot ' + deviceColor(d)), node('span', d.device_id.slice(0, 8)));
+    b.setAttribute('aria-label', `${d.customer || 'Unassociated'} · ${d.device_id} · ${act.status} · ${friendly(d.effective_status)} · IP: ${d.ip_address || 'Not recorded'}`);
+    const ipText = d.ip_address || 'No IP';
+    b.append(
+      node('i', null, 'dot ' + deviceColor(d)),
+      node('strong', d.customer || d.device_id.slice(0, 8)),
+      node('span', ipText, 'mono small-roster-ip')
+    );
     b.classList.toggle('selected', selectedDevice === d.device_id);
     return b;
   }));
@@ -420,7 +645,26 @@ function fallbackNetwork() {
   for (const d of networkDevices) {
     const act = getDeviceActivity(d);
     const b = button(null, () => showDevice(d.device_id), 'fallback-device');
-    b.append(icon('device'), node('span', d.customer || d.device_id.slice(0, 8)), node('span', act.status), badge(d.effective_status));
+    const headerRow = node('div', null, 'fallback-dev-header');
+    headerRow.append(
+      icon('device'),
+      node('strong', d.customer || d.device_id.slice(0, 8), 'fallback-cust-name'),
+      badge(d.effective_status)
+    );
+    
+    const ipPill = node('div', d.ip_address ? `🌐 ${d.ip_address}` : 'No IP recorded', `fallback-ip-pill mono ${d.ip_address ? 'has-ip' : ''}`);
+    
+    const osText = d.device_info?.os?.product_name || `App v${d.app_version || '1.0.0'}`;
+    const osRow = node('div', `🪟 ${osText}`, 'fallback-os-text');
+
+    const sessType = d.device_info?.session?.session_type || 'Console';
+    const isRdp = sessType === 'RDP';
+    const sessPill = node('span', isRdp ? '⚠️ RDP' : '🖥️ Console', `badge ${isRdp ? 'rdp-badge' : 'console-badge'}`);
+
+    const actRow = node('div', null, 'fallback-act-row');
+    actRow.append(node('i', null, 'dot ' + act.dot), node('span', act.status), sessPill);
+
+    b.append(headerRow, ipPill, osRow, actRow);
     map.append(b);
   }
   el('scene-loading')?.remove();
@@ -485,6 +729,635 @@ function openDetail(title, eyebrow) {
   if (!el('detail-dialog').open) el('detail-dialog').showModal();
 }
 
+function createSpecItem(label, value, valClass = '') {
+  const item = node('div', null, 'spec-item');
+  item.append(node('span', label, 'spec-label'));
+  const valNode = node('span', value ?? '—', `spec-val ${valClass}`);
+  item.append(valNode);
+  return item;
+}
+
+function createSecurityChip(iconChar, label, status, chipClass) {
+  const chip = node('div', null, `security-chip ${chipClass}`);
+  chip.append(node('span', iconChar, 'chip-icon'));
+  const textCol = node('div', null, 'chip-text-col');
+  textCol.append(node('span', label, 'chip-title'), node('strong', status, 'chip-status'));
+  chip.append(textCol);
+  return chip;
+}
+
+function createPendingBox(title, message) {
+  const pendingNotice = node('div', null, 'telemetry-pending-box');
+  pendingNotice.append(
+    node('strong', title),
+    node('p', message)
+  );
+  return pendingNotice;
+}
+
+function renderDeviceInspector(d, refTime) {
+  const container = node('div', null, 'device-inspector');
+  const info = d.device_info || {};
+  const os = info.os || {};
+  const hw = info.hardware || {};
+  const net = info.network || {};
+  const sec = info.security || {};
+  const sess = info.session || {};
+  const rt = info.runtime || {};
+  const pos = info.pos_peripherals || {};
+  const integrity = info.integrity || {};
+  const db = info.database || {};
+  const diag = info.diagnostics || {};
+  const store = info.store_activity || {};
+  const act = getDeviceActivity(d, refTime);
+
+  const hasTelemetry = Boolean(d.device_info && Object.keys(d.device_info).length > 0);
+  const isLowDisk = db.low_disk_warning === true || (db.disk_free_gb != null && db.disk_free_gb < 2) || (hw.disk?.free_gb != null && hw.disk.free_gb < 2);
+  const diskFreeGb = db.disk_free_gb != null ? db.disk_free_gb : hw.disk?.free_gb;
+
+  // 1. Hero Identity Header Card
+  const hero = node('div', null, 'device-hero-card');
+  const heroTop = node('div', null, 'device-hero-top');
+  const heroLeft = node('div', null, 'device-hero-left');
+  const iconWrap = node('div', null, 'device-avatar-icon');
+  iconWrap.append(icon('device'));
+  const titles = node('div', null, 'device-titles');
+  const titleH3 = node('h3', d.customer || 'Unassociated Workstation', 'device-title-text');
+  
+  const idRow = node('div', null, 'device-id-row');
+  const idSpan = node('span', d.device_id, 'mono device-id-text');
+  const copyIdBtn = button('Copy ID', async (e) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(d.device_id);
+      copyIdBtn.textContent = '✓ Copied';
+      setTimeout(() => { if (copyIdBtn) copyIdBtn.textContent = 'Copy ID'; }, 2000);
+    } catch {
+      prompt('Device ID:', d.device_id);
+    }
+  }, 'mini-copy-btn');
+  idRow.append(idSpan, copyIdBtn);
+  titles.append(titleH3, idRow);
+  heroLeft.append(iconWrap, titles);
+
+  const heroBadges = node('div', null, 'device-hero-badges');
+  heroBadges.append(badge(d.effective_status));
+  const actPill = node('span', null, `activity-badge dot-${act.dot}`);
+  actPill.append(node('i', null, 'dot ' + act.dot), node('span', act.status));
+  heroBadges.append(actPill);
+
+  if (hasTelemetry) {
+    if (integrity.is_vm) {
+      const vmPill = node('span', `⚠️ VM: ${integrity.vm_hypervisor || 'Virtual Machine'}`, 'badge vm-badge-warn');
+      vmPill.title = 'Workstation is running inside a Virtual Machine';
+      heroBadges.append(vmPill);
+    } else if (integrity.is_vm === false) {
+      const pcPill = node('span', '🛡️ Physical PC', 'badge vm-badge-ok');
+      pcPill.title = 'Verified physical bare-metal hardware';
+      heroBadges.append(pcPill);
+    }
+    if (integrity.clock_rollback_detected) {
+      const clkPill = node('span', '⚠️ Clock Tamper', 'badge clock-tamper-badge');
+      clkPill.title = `Clock rollback or delta of ${integrity.clock_delta_seconds}s detected!`;
+      heroBadges.append(clkPill);
+    }
+    if (isLowDisk) {
+      const diskPill = node('span', '⚠️ Low Disk Space', 'badge low-disk-badge');
+      diskPill.title = `Less than 2 GB remaining on root drive (${diskFreeGb != null ? diskFreeGb.toFixed(1) : '<2'} GB)`;
+      heroBadges.append(diskPill);
+    }
+  }
+
+  heroTop.append(heroLeft, heroBadges);
+  hero.append(heroTop);
+
+  // Quick 5-card metric strip
+  const metricStrip = node('div', null, 'telemetry-stat-grid');
+  
+  // Card 1: IP Address
+  const mIp = node('div', null, 'telemetry-stat-card');
+  mIp.append(
+    node('span', 'PRIMARY IP ADDRESS', 'stat-tag'),
+    node('strong', d.ip_address || net.primary_ipv4 || 'Not recorded', 'stat-main-text mono'),
+    node('span', net.hostname ? `Host: ${net.hostname}` : 'Workstation Network', 'stat-sub-text')
+  );
+
+  // Card 2: Operating System
+  const osName = os.product_name || (os.system ? `${os.system} ${os.release || ''}` : 'Windows');
+  const mOs = node('div', null, 'telemetry-stat-card');
+  mOs.append(
+    node('span', 'OPERATING SYSTEM', 'stat-tag'),
+    node('strong', osName, 'stat-main-text'),
+    node('span', os.build_number ? `Build ${os.build_number} · ${os.machine || '64-bit'}` : (d.app_version ? `App v${d.app_version}` : 'System OS'), 'stat-sub-text')
+  );
+
+  // Card 3: User & Session
+  const userName = sess.username && sess.username !== 'unknown' ? sess.username : (d.customer || 'Workstation User');
+  const sessType = sess.session_type && sess.session_type !== 'unknown' ? sess.session_type : 'Local Console';
+  const mUser = node('div', null, 'telemetry-stat-card');
+  mUser.append(
+    node('span', 'WORKSTATION USER', 'stat-tag'),
+    node('strong', userName, 'stat-main-text'),
+    node('span', `${sessType} Session`, 'stat-sub-text')
+  );
+
+  // Card 4: Local Database
+  const mDb = node('div', null, 'telemetry-stat-card');
+  const dbSizeTxt = db.db_size_mb != null ? `${db.db_size_mb.toFixed(1)} MB` : 'Not Found';
+  mDb.append(
+    node('span', 'LOCAL DATABASE', 'stat-tag'),
+    node('strong', dbSizeTxt, 'stat-main-text'),
+    node('span', db.db_found ? 'pharmacy.db · SQLite' : 'No local store DB', 'stat-sub-text')
+  );
+
+  // Card 5: App RAM & Diagnostics
+  const mRam = node('div', null, 'telemetry-stat-card');
+  const ramTxt = diag.process_ram_mb != null ? `${diag.process_ram_mb.toFixed(1)} MB RAM` : (hw.memory?.total_gb ? `${hw.memory.total_gb} GB RAM` : '—');
+  const procUptime = diag.process_uptime_formatted || (sess.uptime_seconds ? `${Math.floor(sess.uptime_seconds/3600)}h uptime` : 'Diagnostics');
+  mRam.append(
+    node('span', 'APP PROCESS RAM', 'stat-tag'),
+    node('strong', ramTxt, 'stat-main-text'),
+    node('span', procUptime, 'stat-sub-text')
+  );
+
+  metricStrip.append(mIp, mOs, mUser, mDb, mRam);
+  hero.append(metricStrip);
+  container.append(hero);
+
+  // Critical Security / System Warning Banners
+  if (integrity.clock_rollback_detected) {
+    const alertBanner = node('div', null, 'telemetry-alert-banner danger');
+    alertBanner.append(
+      node('span', '⚠️', 'alert-banner-icon'),
+      node('div', null, 'alert-banner-text')
+    );
+    alertBanner.lastChild.append(
+      node('strong', 'System Clock Tampering Detected!'),
+      node('p', `System clock rollback or skew of ${Math.round(integrity.clock_delta_seconds || 0)}s was recorded. Potential trial grace or anti-licensing bypass attempt.`)
+    );
+    container.append(alertBanner);
+  }
+  if (isLowDisk) {
+    const diskBanner = node('div', null, 'telemetry-alert-banner warn');
+    diskBanner.append(
+      node('span', '⚠️', 'alert-banner-icon'),
+      node('div', null, 'alert-banner-text')
+    );
+    diskBanner.lastChild.append(
+      node('strong', 'Critical Low Disk Space Warning (< 2 GB Free)!'),
+      node('p', `The workstation disk has only ${diskFreeGb != null ? diskFreeGb.toFixed(1) : '<2'} GB free. Immediate cleanup required to prevent SQLite database corruption.`)
+    );
+    container.append(diskBanner);
+  }
+  if (diag.pending_reboot) {
+    const rebootBanner = node('div', null, 'telemetry-alert-banner info');
+    rebootBanner.append(
+      node('span', 'ℹ️', 'alert-banner-icon'),
+      node('div', null, 'alert-banner-text')
+    );
+    const reasons = (diag.pending_reboot_reasons || []).join(', ') || 'Pending Windows updates';
+    rebootBanner.lastChild.append(
+      node('strong', 'Windows Restart Pending'),
+      node('p', `A system restart is pending to finalize file operations or updates (${reasons}).`)
+    );
+    container.append(rebootBanner);
+  }
+
+  // Section 1: 🖨️ POS Peripherals & Display Hardware
+  const posCard = node('section', null, 'spec-card');
+  const posHeader = node('div', null, 'spec-card-header');
+  posHeader.append(icon('printer'), node('h4', 'POS Peripherals & Display Hardware'));
+  posCard.append(posHeader);
+
+  if (hasTelemetry) {
+    const posBody = node('div', null, 'pos-section-body');
+
+    // Printers sub-block
+    const printerSection = node('div', null, 'pos-block');
+    const printerHeading = node('div', null, 'pos-subhead');
+    printerHeading.append(
+      node('span', 'CONNECTED PRINTERS & RECEIPT HARDWARE', 'spec-label'),
+      pos.has_receipt_printer 
+        ? node('span', '🧾 Receipt/POS Printer Detected', 'table-pill pill-pos')
+        : node('span', 'Standard Printers', 'table-pill pill-subtle')
+    );
+    printerSection.append(printerHeading);
+
+    const printersList = pos.printers || [];
+    if (printersList.length > 0) {
+      const pGrid = node('div', null, 'printers-grid');
+      for (const p of printersList) {
+        const pItem = node('div', null, `printer-card ${p.is_pos_printer ? 'is-pos' : ''}`);
+        const pTop = node('div', null, 'printer-card-top');
+        const pTitle = node('div', null, 'printer-card-title');
+        pTitle.append(
+          node('span', p.is_pos_printer ? '🧾' : '🖨️', 'printer-icon'),
+          node('strong', p.name, 'printer-name')
+        );
+        pTop.append(pTitle);
+
+        const pBadges = node('div', null, 'printer-badges');
+        if (p.is_default) pBadges.append(node('span', 'Default', 'printer-badge default'));
+        if (p.is_pos_printer) pBadges.append(node('span', 'POS / Thermal', 'printer-badge pos'));
+        pTop.append(pBadges);
+
+        const pMeta = node('div', null, 'printer-meta');
+        if (p.port) pMeta.append(node('span', `Port: ${p.port}`, 'mono'));
+        if (p.driver) pMeta.append(node('span', `Driver: ${p.driver}`));
+
+        pItem.append(pTop, pMeta);
+        pGrid.append(pItem);
+      }
+      printerSection.append(pGrid);
+    } else {
+      printerSection.append(node('p', 'No printers detected or reported on this workstation.', 'muted-note'));
+    }
+    posBody.append(printerSection);
+
+    // Grid for Screen, Barcode Scanner, BIOS Serial
+    const posGrid = node('div', null, 'spec-grid-2col');
+    
+    // Screen Resolution & DPI Scaling
+    const screenObj = pos.screen || hw.screen || {};
+    const screenRes = screenObj.resolution || (screenObj.width ? `${screenObj.width}x${screenObj.height}` : 'Unknown');
+    const screenDpi = screenObj.dpi_scaling_percent ? `${screenRes} @ ${screenObj.dpi_scaling_percent}% DPI (${screenObj.dpi || 96} DPI)` : screenRes;
+    posGrid.append(createSpecItem('Screen Resolution & DPI', screenDpi));
+
+    // Barcode Scanner
+    const scanners = pos.barcode_scanners || [];
+    const scannerVal = scanners.length > 0 
+      ? scanners.map(s => s.name || 'Scanner').join(', ') 
+      : (pos.has_barcode_scanner ? 'Detected (Generic HID)' : 'No dedicated barcode scanner detected');
+    posGrid.append(createSpecItem('Barcode Scanner', scannerVal));
+
+    // Hardware BIOS Serial
+    const biosVal = pos.bios_serial || hw.bios_serial || '—';
+    posGrid.append(createSpecItem('BIOS Serial (Anti-Cloning)', biosVal, 'mono'));
+
+    // Thermal Receipt Printers List
+    const receipts = pos.thermal_receipt_printers || [];
+    posGrid.append(createSpecItem('Receipt Thermal Printers', receipts.length > 0 ? receipts.join(', ') : (pos.has_receipt_printer ? 'POS Receipt Printer Connected' : 'None detected')));
+
+    posBody.append(posGrid);
+    posCard.append(posBody);
+  } else {
+    posCard.append(createPendingBox('POS Peripherals Pending', 'Connected receipt printers, barcode scanners, and screen resolution will report on the next heartbeat.'));
+  }
+  container.append(posCard);
+
+  // Section 2: 🛡️ Anti-Piracy & Workstation Integrity
+  const secCard = node('section', null, 'spec-card');
+  const secHeader = node('div', null, 'spec-card-header');
+  secHeader.append(icon('shield'), node('h4', 'Anti-Piracy & Workstation Integrity'));
+  secCard.append(secHeader);
+
+  if (hasTelemetry) {
+    const secGrid = node('div', null, 'spec-pill-grid');
+
+    // 1. VM Indicator: Physical PC vs Virtual Machine ⚠️
+    if (integrity.is_vm) {
+      const vmText = `Virtual Machine (${integrity.vm_hypervisor || 'Detected'})`;
+      secGrid.append(createSecurityChip('⚠️', 'Virtualization / VM', vmText, 'chip-warn'));
+    } else {
+      secGrid.append(createSecurityChip('🛡️', 'Platform Environment', 'Physical PC (Bare Metal)', 'chip-ok'));
+    }
+
+    // 2. Clock Tamper / Rollback Alert
+    if (integrity.clock_rollback_detected) {
+      const deltaText = `Rollback (${Math.round(integrity.clock_delta_seconds || 0)}s delta)`;
+      secGrid.append(createSecurityChip('⚠️', 'Clock Tamper / Skew', deltaText, 'chip-danger'));
+    } else {
+      secGrid.append(createSecurityChip('⏱️', 'System Clock Integrity', 'Verified & Synchronized', 'chip-ok'));
+    }
+
+    // 3. Concurrent App Instances
+    const instances = integrity.concurrent_instances || 1;
+    if (instances > 1) {
+      secGrid.append(createSecurityChip('⚠️', 'Concurrent Processes', `${instances} Active (Multi-Instance)`, 'chip-warn'));
+    } else {
+      secGrid.append(createSecurityChip('💻', 'Concurrent Processes', 'Single Instance (Normal)', 'chip-ok'));
+    }
+
+    // 4. Windows Firewall
+    const fwOk = sec.firewall_enabled !== false;
+    secGrid.append(createSecurityChip('🔥', 'Windows Firewall', fwOk ? 'Active & Protecting' : 'Disabled', fwOk ? 'chip-ok' : 'chip-warn'));
+
+    // 5. Antivirus Protection
+    const avList = sec.antivirus || [];
+    const avName = avList.length > 0 ? avList.map(a => a.name).join(', ') : 'Defender / Active';
+    secGrid.append(createSecurityChip('🛡️', 'Antivirus Protection', avName, 'chip-ok'));
+
+    // 6. User Privilege
+    const isAdmin = sec.is_admin === true;
+    secGrid.append(createSecurityChip(isAdmin ? '🛡️' : '👤', 'User Privilege', isAdmin ? 'Administrator' : 'Standard User', 'chip-neutral'));
+
+    secCard.append(secGrid);
+
+    // VM indicators detail list if VM detected
+    if (integrity.is_vm && integrity.vm_indicators && integrity.vm_indicators.length > 0) {
+      const vmNote = node('div', null, 'vm-indicator-details');
+      vmNote.append(
+        node('strong', 'Detected VM Signatures: '),
+        node('span', integrity.vm_indicators.join(' · '))
+      );
+      secCard.append(vmNote);
+    }
+  } else {
+    secCard.append(createPendingBox('Security & Integrity Pending', 'Virtualization checks, clock tampering checks, and security posture will report on the next heartbeat.'));
+  }
+  container.append(secCard);
+
+  // Section 3: 💾 Database & Storage Health
+  const dbCard = node('section', null, 'spec-card');
+  const dbHeader = node('div', null, 'spec-card-header');
+  dbHeader.append(icon('database'), node('h4', 'Database & Storage Health'));
+  dbCard.append(dbHeader);
+
+  if (hasTelemetry) {
+    const dbGrid = node('div', null, 'spec-grid-2col');
+
+    // Local DB Size Pill (e.g. '85 MB Database')
+    const dbSize = db.db_size_mb != null ? `${db.db_size_mb.toFixed(1)} MB` : 'Not Found';
+    const dbPillItem = node('div', null, 'spec-item');
+    dbPillItem.append(node('span', 'Local Database Size', 'spec-label'));
+    const pillWrap = node('div', null, 'pill-wrap');
+    if (db.db_size_mb != null) {
+      pillWrap.append(node('span', `💾 ${dbSize} Database`, 'table-pill pill-db size-pill-large'));
+    } else {
+      pillWrap.append(node('span', 'No local pharmacy.db found', 'table-pill pill-subtle size-pill-large'));
+    }
+    dbPillItem.append(pillWrap);
+    dbGrid.append(dbPillItem);
+
+    // Low Disk Warning Chip
+    const diskItem = node('div', null, 'spec-item');
+    diskItem.append(node('span', 'Root Drive Available Space', 'spec-label'));
+    const diskWrap = node('div', null, 'pill-wrap');
+    if (isLowDisk) {
+      diskWrap.append(
+        node('span', `⚠️ Low Disk Warning (${diskFreeGb != null ? diskFreeGb.toFixed(1) : '<2'} GB Free)`, 'table-pill pill-danger size-pill-large'),
+        node('small', 'Less than 2 GB remaining on system partition', 'sub-label danger-text')
+      );
+    } else {
+      diskWrap.append(
+        node('span', `✓ Healthy Storage (${diskFreeGb != null ? diskFreeGb.toFixed(1) + ' GB Free' : 'Adequate'})`, 'table-pill pill-activity size-pill-large'),
+        node('small', `Total: ${hw.disk?.total_gb || '—'} GB`, 'sub-label')
+      );
+    }
+    diskItem.append(diskWrap);
+    dbGrid.append(diskItem);
+
+    // Database Path
+    dbGrid.append(createSpecItem('SQLite Database Path', db.db_path || 'data/pharmacy.db', 'mono'));
+
+    // Database Status
+    dbGrid.append(createSpecItem('Database File Status', db.db_found ? '✓ Online & Accessible (Read-Only Stat)' : 'Database Not Found'));
+
+    dbCard.append(dbGrid);
+  } else {
+    dbCard.append(createPendingBox('Database Health Pending', 'Local SQLite database size and disk space statistics will report on next heartbeat.'));
+  }
+  container.append(dbCard);
+
+  // Section 4: ⚡ Technical Diagnostics & Process Runtime
+  const diagCard = node('section', null, 'spec-card');
+  const diagHeader = node('div', null, 'spec-card-header');
+  diagHeader.append(icon('zap'), node('h4', 'Technical Diagnostics & Process Runtime'));
+  diagCard.append(diagHeader);
+
+  if (hasTelemetry) {
+    const diagGrid = node('div', null, 'spec-grid-2col');
+
+    // App RAM Usage (e.g. '120 MB RAM')
+    const ramVal = diag.process_ram_mb != null ? `${diag.process_ram_mb.toFixed(1)} MB` : '—';
+    const ramItem = node('div', null, 'spec-item');
+    ramItem.append(node('span', 'Application RAM Usage', 'spec-label'));
+    const ramWrap = node('div', null, 'pill-wrap');
+    if (diag.process_ram_mb != null) {
+      ramWrap.append(node('span', `⚡ ${ramVal} RAM`, 'table-pill pill-diag size-pill-large'));
+    } else {
+      ramWrap.append(node('span', '—', 'spec-val'));
+    }
+    ramItem.append(ramWrap);
+    diagGrid.append(ramItem);
+
+    // Process Uptime
+    const uptimeStr = diag.process_uptime_formatted || (diag.process_uptime_seconds ? `${diag.process_uptime_seconds}s` : '—');
+    diagGrid.append(createSpecItem('App Process Uptime', uptimeStr));
+
+    // Startup Speed
+    const startupStr = diag.startup_seconds != null ? `${diag.startup_seconds.toFixed(2)}s` : '—';
+    diagGrid.append(createSpecItem('Application Startup Speed', startupStr));
+
+    // Windows Pending Reboot
+    const rebootStr = diag.pending_reboot 
+      ? `⚠️ Pending Restart (${(diag.pending_reboot_reasons || []).join(', ') || 'Updates pending'})` 
+      : '✓ No Pending Reboot';
+    diagGrid.append(createSpecItem('Windows Reboot Flag', rebootStr, diag.pending_reboot ? 'warn-text' : 'ok-text'));
+
+    // Process PID & Host Uptime
+    diagGrid.append(createSpecItem('Process PID', rt.process_id || rt.pid || '—', 'mono'));
+    if (sess.uptime_seconds) {
+      const h = Math.floor(sess.uptime_seconds / 3600);
+      const m = Math.floor((sess.uptime_seconds % 3600) / 60);
+      diagGrid.append(createSpecItem('Host Machine Uptime', `${h}h ${m}m`));
+    }
+
+    diagCard.append(diagGrid);
+  } else {
+    diagCard.append(createPendingBox('Diagnostics Pending', 'Process RAM usage, uptime, startup speed, and pending reboot status will report on next heartbeat.'));
+  }
+  container.append(diagCard);
+
+  // Section 5: 📊 Today's Store & Sales Activity
+  const storeCard = node('section', null, 'spec-card');
+  const storeHeader = node('div', null, 'spec-card-header');
+  storeHeader.append(icon('clock'), node('h4', "Today's Store & Sales Activity"));
+  storeCard.append(storeHeader);
+
+  if (hasTelemetry) {
+    const storeGrid = node('div', null, 'spec-grid-2col');
+
+    // Invoices Today
+    const invCount = store.invoices_today != null ? store.invoices_today : 0;
+    const invItem = node('div', null, 'spec-item');
+    invItem.append(node('span', "Today's Invoices Count", 'spec-label'));
+    const invWrap = node('div', null, 'pill-wrap');
+    invWrap.append(node('span', `🧾 ${invCount} Invoices Today`, invCount > 0 ? 'table-pill pill-activity size-pill-large' : 'table-pill pill-subtle size-pill-large'));
+    invItem.append(invWrap);
+    storeGrid.append(invItem);
+
+    // Active Store Hours
+    const storeHours = store.active_store_hours || (store.earliest_invoice_today && store.latest_invoice_today ? `${store.earliest_invoice_today} – ${store.latest_invoice_today}` : (invCount === 0 ? 'No active sales today' : '—'));
+    storeGrid.append(createSpecItem("Today's Active Store Hours", storeHours));
+
+    // Earliest & Latest Invoices
+    storeGrid.append(createSpecItem('Earliest Invoice Today', store.earliest_invoice_today || '—'));
+    storeGrid.append(createSpecItem('Latest Invoice Today', store.latest_invoice_today || '—'));
+
+    // Historical Record
+    const lastSale = store.last_invoice_date ? `${store.last_invoice_date} ${store.last_invoice_time || ''}` : 'No previous sales';
+    const totalAllTime = store.total_invoices_all_time != null ? store.total_invoices_all_time.toLocaleString() : '—';
+    storeGrid.append(createSpecItem('Last Recorded Sale', lastSale));
+    storeGrid.append(createSpecItem('All-Time Total Invoices', totalAllTime));
+
+    storeCard.append(storeGrid);
+  } else {
+    storeCard.append(createPendingBox('Store Activity Pending', 'Invoice counters and daily store operating hours will report on next heartbeat.'));
+  }
+  container.append(storeCard);
+
+  // Section 6: 🖥️ System & Hardware Telemetry
+  const hwCard = node('section', null, 'spec-card');
+  const hwHeader = node('div', null, 'spec-card-header');
+  hwHeader.append(icon('device'), node('h4', 'System & Hardware Telemetry'));
+  hwCard.append(hwHeader);
+
+  if (hasTelemetry) {
+    const hwGrid = node('div', null, 'spec-grid-2col');
+    
+    // CPU
+    const cpuVal = hw.cpu ? `${hw.cpu.logical_cores || '—'} vCPU (${hw.cpu.physical_cores || '—'} Cores)${hw.cpu.frequency_mhz ? ` @ ${hw.cpu.frequency_mhz} MHz` : ''}` : 'Detected';
+    hwGrid.append(createSpecItem('Processor (CPU)', cpuVal));
+    
+    // Memory
+    const ramVal = hw.memory ? `${hw.memory.total_gb || '—'} GB Total${hw.memory.available_gb ? ` (${hw.memory.available_gb} GB Free)` : ''}` : 'Detected';
+    hwGrid.append(createSpecItem('System Memory (RAM)', ramVal));
+
+    // Storage
+    const diskVal = hw.disk ? `${hw.disk.total_gb || '—'} GB Total${hw.disk.free_gb ? ` (${hw.disk.free_gb} GB Free · ${hw.disk.percent_used || 0}% used)` : ''}` : 'Detected';
+    hwGrid.append(createSpecItem('Disk Storage', diskVal));
+
+    // Hostname
+    hwGrid.append(createSpecItem('Computer Hostname', net.hostname || '—', 'mono'));
+
+    // OS Details
+    const fullOs = [os.product_name, os.display_version ? `ver ${os.display_version}` : null, os.build_number ? `(Build ${os.build_number})` : null].filter(Boolean).join(' ') || os.platform || 'Windows';
+    hwGrid.append(createSpecItem('OS Version & Build', fullOs));
+
+    // Machine ID
+    hwGrid.append(createSpecItem('Machine GUID', hw.machine_id ? hw.machine_id.slice(0, 24) + '...' : '—', 'mono'));
+
+    hwCard.append(hwGrid);
+  } else {
+    hwCard.append(createPendingBox('Telemetry Pending (Legacy Client)', 'This device registered from an older version. Hardware and system specs will automatically populate on the next heartbeat from the new release.'));
+  }
+  container.append(hwCard);
+
+  // Section 7: 📜 License & Authorization Details (Includes .detail-grid for compatibility)
+  const licCard = node('section', null, 'spec-card');
+  const licHeader = node('div', null, 'spec-card-header');
+  licHeader.append(icon('shield'), node('h4', 'License & Authorization'));
+  licCard.append(licHeader);
+
+  const licGrid = node('dl', null, 'detail-grid spec-grid-2col');
+  
+  function addRow(term, val, isMono = false) {
+    const row = node('div');
+    row.append(node('dt', term), node('dd', val ?? '—', isMono ? 'mono' : ''));
+    licGrid.append(row);
+  }
+
+  addRow('Device status', friendly(d.status));
+  addRow('Effective access', friendly(d.effective_status));
+  addRow('Detection', d.detection === 'NEW' ? 'Awaiting review' : 'Reviewed / seen');
+  addRow('License status', d.license_status === 'DISABLED' ? 'Revoked' : (d.license_status || 'Unlinked'));
+  addRow('License expiry', stamp(d.license_expires_at));
+  addRow('Application', 'v' + (d.app_version || '1.0.0') + (rt.pid ? ` (PID ${rt.pid})` : ''));
+  addRow('Registered', stamp(d.first_seen));
+  addRow('First activation', stamp(d.first_activation));
+  addRow('Last seen', stampExact(d.last_seen) + (d.last_seen ? ` (${timeAgo(d.last_seen, refTime)})` : ''));
+  addRow('Activity', `${act.status} (${act.detail})`);
+  addRow('IP Address', d.ip_address || 'Not recorded', true);
+
+  // Full-width license key with copy button
+  const licKeyRow = node('div', null, 'full-width-item');
+  licKeyRow.append(node('dt', 'License ID'));
+  const licKeyDd = node('dd', null, 'id-copy-row');
+  licKeyDd.append(node('span', d.license_id || 'Not assigned', 'mono'));
+  if (d.license_id) {
+    const copyLicBtn = button('Copy Key', async (e) => {
+      e.stopPropagation();
+      try {
+        await navigator.clipboard.writeText(d.license_id);
+        copyLicBtn.textContent = '✓ Copied';
+        setTimeout(() => { if (copyLicBtn) copyLicBtn.textContent = 'Copy Key'; }, 2000);
+      } catch {
+        prompt('Copy License Key:', d.license_id);
+      }
+    }, 'mini-copy-btn');
+    licKeyDd.append(copyLicBtn);
+  }
+  licKeyRow.append(licKeyDd);
+  licGrid.append(licKeyRow);
+
+  licCard.append(licGrid);
+  container.append(licCard);
+
+  // Section 8: 🌐 Network & Interfaces
+  const netCard = node('section', null, 'spec-card');
+  const netHeader = node('div', null, 'spec-card-header');
+  netHeader.append(icon('signal'), node('h4', 'Network & Runtime Environment'));
+  netCard.append(netHeader);
+
+  const netGrid = node('div', null, 'spec-grid-2col');
+  netGrid.append(createSpecItem('Primary IPv4 Address', d.ip_address || net.primary_ipv4 || 'Not recorded', 'mono'));
+  netGrid.append(createSpecItem('Local Hostname', net.hostname || '—', 'mono'));
+  
+  if (net.mac_addresses && net.mac_addresses.length) {
+    netGrid.append(createSpecItem('Hardware MAC Address', net.mac_addresses[0], 'mono'));
+  }
+  
+  if (sess.uptime_seconds) {
+    const hours = Math.floor(sess.uptime_seconds / 3600);
+    const mins = Math.floor((sess.uptime_seconds % 3600) / 60);
+    netGrid.append(createSpecItem('System Host Uptime', `${hours}h ${mins}m (Boot: ${sess.boot_time ? new Date(sess.boot_time * 1000).toLocaleTimeString() : '—'})`));
+  }
+  
+  if (rt.timezone) {
+    netGrid.append(createSpecItem('System Timezone', rt.timezone));
+  }
+  if (rt.cwd) {
+    netGrid.append(createSpecItem('Executable Directory', rt.cwd, 'mono'));
+  }
+
+  netCard.append(netGrid);
+  container.append(netCard);
+
+  // Section 9: 🔍 Advanced Diagnostic Telemetry Payload (Collapsible Accordion)
+  if (hasTelemetry) {
+    const rawDetails = node('details', null, 'raw-diag-details');
+    const rawSummary = node('summary', null, 'raw-diag-summary');
+    rawSummary.append(
+      node('span', '⚙️ Raw Diagnostic Telemetry Payload (JSON)'),
+      node('span', `${Object.keys(d.device_info).length} categories · Click to view`, 'raw-diag-tag')
+    );
+    rawDetails.append(rawSummary);
+
+    const rawBody = node('div', null, 'raw-diag-body');
+    const copyJsonBtn = button('📋 Copy Raw Payload', async (e) => {
+      e.stopPropagation();
+      try {
+        await navigator.clipboard.writeText(JSON.stringify(d.device_info, null, 2));
+        copyJsonBtn.textContent = '✓ Copied to Clipboard!';
+        setTimeout(() => { if (copyJsonBtn) copyJsonBtn.textContent = '📋 Copy Raw Payload'; }, 2000);
+      } catch {
+        prompt('Raw Payload JSON:', JSON.stringify(d.device_info));
+      }
+    }, 'mini-copy-btn');
+    
+    const pre = node('pre', null, 'raw-json-block');
+    const code = node('code', JSON.stringify(d.device_info, null, 2));
+    pre.append(code);
+    rawBody.append(copyJsonBtn, pre);
+    rawDetails.append(rawBody);
+    container.append(rawDetails);
+  }
+
+  container.append(node('p', 'Activity reports the last observed heartbeat. Licensing authorization is a separate status.', 'detail-note'));
+  return container;
+}
+
 async function showDevice(id) {
   selectDevice(id);
   const version = ++detailVersion;
@@ -493,22 +1366,9 @@ async function showDevice(id) {
     const d = await api(`/devices/${encodeURIComponent(id)}`);
     if (version !== detailVersion || !el('detail-dialog').open) return;
     const refTime = lastServerTime ? new Date(lastServerTime) : new Date();
-    const act = getDeviceActivity(d, refTime);
-    const identity = node('div', null, 'detail-identity');
-    identity.append(icon('device'), node('h3', d.customer || 'Unassociated installation'), badge(d.effective_status), node('p', d.device_id, 'mono'));
-    el('detail-body').replaceChildren(identity, detailFields([
-      ['Device status', friendly(d.status)],
-      ['Effective access', friendly(d.effective_status)],
-      ['Detection', d.detection === 'NEW' ? 'Awaiting review' : 'Reviewed / seen'],
-      ['License', d.license_id],
-      ['License status', d.license_status === 'DISABLED' ? 'Revoked' : d.license_status],
-      ['License expiry', stamp(d.license_expires_at)],
-      ['Application', d.app_version],
-      ['Registered', stamp(d.first_seen)],
-      ['First activation', stamp(d.first_activation)],
-      ['Last seen', stampExact(d.last_seen) + (d.last_seen ? ` (${timeAgo(d.last_seen, refTime)})` : '')],
-      ['Activity', `${act.status} (${act.detail})`]
-    ]), node('p', 'Activity reports the last observed heartbeat. Licensing authorization is a separate status.', 'detail-note'));
+    
+    el('detail-body').replaceChildren(renderDeviceInspector(d, refTime));
+    
     const deviceDetailActions = [
       button('Activity history', () => { el('detail-dialog').close(); showHistory(id); })
     ];
@@ -1085,10 +1945,12 @@ async function openAssignDeviceDialog(device) {
     if (idInput) idInput.value = device.device_id;
     el('assign-device-id').textContent = device.device_id;
     el('assign-device-status').textContent = device.effective_status || device.status || 'PENDING';
+    el('assign-device-ip').textContent = device.ip_address || 'Not recorded';
   } else {
     if (idInput) idInput.value = '';
     el('assign-device-id').textContent = 'New Workstation';
     el('assign-device-status').textContent = 'Direct Authorization';
+    el('assign-device-ip').textContent = '—';
   }
   el('assign-device-reason').value = 'Authorized customer workstation';
   el('assign-device-error').textContent = '';

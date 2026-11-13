@@ -503,6 +503,7 @@ class SalesReportsDAO:
         try:
             query = """
                 SELECT
+                    si.sale_date,
                     sii.item_id,
                     i.item_name,
                     COALESCE(c.company_name, '') AS company_name,
@@ -537,6 +538,7 @@ class SalesReportsDAO:
             # Also check sales returns (credit notes) in this date range
             cn_query = """
                 SELECT
+                    cn.voucher_date,
                     cni.item_id,
                     COALESCE(cni.batch_no, '') AS batch_no,
                     SUM(COALESCE(cni.return_qty, 0.0)) AS return_qty,
@@ -549,20 +551,28 @@ class SalesReportsDAO:
             if item_id:
                 cn_query += " AND cni.item_id = ?"
                 cn_params.append(item_id)
-            cn_query += " GROUP BY cni.item_id, cni.batch_no"
+            cn_query += " GROUP BY cn.voucher_date, cni.item_id, cni.batch_no"
             cn_cur = conn.execute(cn_query, tuple(cn_params))
             returns_map: Dict[Tuple[int, str], Dict[str, float]] = {}
+            returns_by_date_map: Dict[Tuple[str, int, str], Dict[str, float]] = {}
             for r in cn_cur.fetchall():
                 key = (r["item_id"], r["batch_no"])
-                returns_map[key] = {
-                    "return_qty": float(r["return_qty"] or 0.0),
-                    "return_amount": float(r["return_amount"] or 0.0),
-                }
+                r_qty = float(r["return_qty"] or 0.0)
+                r_amt = float(r["return_amount"] or 0.0)
+                if key not in returns_map:
+                    returns_map[key] = {"return_qty": 0.0, "return_amount": 0.0}
+                returns_map[key]["return_qty"] += r_qty
+                returns_map[key]["return_amount"] += r_amt
 
-            # Group sales by (item_id, batch_no)
+                d_key = (str(r["voucher_date"]), r["item_id"], r["batch_no"])
+                returns_by_date_map[d_key] = {"return_qty": r_qty, "return_amount": r_amt}
+
+            # Group sales by (item_id, batch_no) and by (sale_date, item_id, batch_no)
             grouped: Dict[Tuple[int, str], Dict[str, Any]] = {}
+            day_grouped: Dict[str, Dict[Tuple[int, str], Dict[str, float]]] = {}
             for r in sales_rows:
                 key = (r["item_id"], r["batch_no"])
+                s_date = str(r["sale_date"])
                 if key not in grouped:
                     grouped[key] = {
                         "item_id": r["item_id"],
@@ -578,17 +588,33 @@ class SalesReportsDAO:
                         "sale_qty": 0.0,
                         "sales_amount": 0.0,
                     }
-                grouped[key]["sale_qty"] += float(r.get("sale_qty") or 0.0)
-                grouped[key]["sales_amount"] += float(r.get("sales_amount") or 0.0)
+                s_qty = float(r.get("sale_qty") or 0.0)
+                s_amt = float(r.get("sales_amount") or 0.0)
+                grouped[key]["sale_qty"] += s_qty
+                grouped[key]["sales_amount"] += s_amt
 
-            # Deduct returns if any
+                if s_date not in day_grouped:
+                    day_grouped[s_date] = {}
+                if key not in day_grouped[s_date]:
+                    day_grouped[s_date][key] = {"sale_qty": 0.0, "sales_amount": 0.0}
+                day_grouped[s_date][key]["sale_qty"] += s_qty
+                day_grouped[s_date][key]["sales_amount"] += s_amt
+
+            # Deduct returns from grouped and day_grouped
             for key, ret in returns_map.items():
                 if key in grouped:
                     grouped[key]["sale_qty"] = max(0.0, grouped[key]["sale_qty"] - ret["return_qty"])
                     grouped[key]["sales_amount"] = max(0.0, grouped[key]["sales_amount"] - ret["return_amount"])
 
+            for (d, item_id_val, batch_no_val), ret in returns_by_date_map.items():
+                key = (item_id_val, batch_no_val)
+                if d in day_grouped and key in day_grouped[d]:
+                    day_grouped[d][key]["sale_qty"] = max(0.0, day_grouped[d][key]["sale_qty"] - ret["return_qty"])
+                    day_grouped[d][key]["sales_amount"] = max(0.0, day_grouped[d][key]["sales_amount"] - ret["return_amount"])
+
             # Compute purchase cost and profit for each group
             rows: List[Dict[str, Any]] = []
+            cost_map: Dict[Tuple[int, str], float] = {}
             sr_no = 1
             for key in sorted(grouped.keys(), key=lambda k: (grouped[k]["item_name"].upper(), grouped[k]["batch_no"].upper())):
                 g = grouped[key]
@@ -696,6 +722,7 @@ class SalesReportsDAO:
                     purch_discount = 0.0
                     free_quantity = 0.0
 
+                cost_map[key] = actual_cost_per_tablet
                 total_purch_cost = round(sold_qty * actual_cost_per_tablet, 2)
                 profit = round(net_sales - total_purch_cost, 2)
 
@@ -718,6 +745,26 @@ class SalesReportsDAO:
                 })
                 sr_no += 1
 
+            # Build day-wise breakdown for multi-day queries
+            daily_rows: List[Dict[str, Any]] = []
+            for d in sorted(day_grouped.keys()):
+                d_net_sales = 0.0
+                d_purchase_cost = 0.0
+                for d_key, d_vals in day_grouped[d].items():
+                    s_qty = d_vals["sale_qty"]
+                    s_amt = d_vals["sales_amount"]
+                    c_tab = cost_map.get(d_key, 0.0)
+                    p_cost = s_qty * c_tab
+                    d_net_sales += s_amt
+                    d_purchase_cost += p_cost
+                if d_net_sales > 0 or d_purchase_cost > 0:
+                    daily_rows.append({
+                        "date": d,
+                        "total_net_sales": round(d_net_sales, 2),
+                        "total_purchase_cost": round(d_purchase_cost, 2),
+                        "total_profit": round(d_net_sales - d_purchase_cost, 2),
+                    })
+
             summary = {
                 "total_records": len(rows),
                 "total_sold_qty": round(sum(r["total_sold_qty"] for r in rows), 2),
@@ -725,7 +772,7 @@ class SalesReportsDAO:
                 "total_purchase_cost": round(sum(r["total_purchase_cost"] for r in rows), 2),
                 "total_profit": round(sum(r["total_profit"] for r in rows), 2),
             }
-            return {"rows": rows, "summary": summary}
+            return {"rows": rows, "summary": summary, "daily_rows": daily_rows}
         finally:
             conn.close()
 

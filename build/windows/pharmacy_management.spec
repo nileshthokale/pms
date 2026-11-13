@@ -52,6 +52,8 @@ a = Analysis(
         "licensing.protocol",
         "licensing.storage",
         "licensing.qt",
+        "licensing.fingerprint",
+        "psutil",
         "httpx",
         "cryptography",
     ] + collect_submodules("screens") + collect_submodules("database") + collect_submodules("ui"),

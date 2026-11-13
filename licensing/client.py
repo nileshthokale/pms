@@ -15,6 +15,8 @@ import httpx
 
 from licensing.protocol import InvalidLicense, verify_license
 from licensing.storage import DPAPIStore, StorageError
+from licensing.fingerprint import collect_device_fingerprint
+from version import APP_VERSION
 
 log = logging.getLogger("pharmacy.licensing")
 
@@ -109,8 +111,13 @@ class LicenseClient:
                     result = Decision(False, "OFFLINE_EXPIRED", "48-hour offline allowance ended. Internet license validation is required.", self.connectivity)
                 else:
                     online = self.connectivity == "ONLINE"
-                    result = Decision(True, "AUTHORIZED" if online else "OFFLINE_GRACE",
-                                      "License validated." if online else "Operating with a verified offline license (up to 48 hours).", self.connectivity)
+                    expires_ts = payload.get("license_expires_at", 0)
+                    diff = expires_ts - now
+                    import math
+                    days = max(0, int(math.ceil(diff / 86400))) if diff > 0 else 0
+                    day_msg = f" ({days} day{'s' if days != 1 else ''} remaining)" if days > 0 else ""
+                    msg = ("License validated" + day_msg + ".") if online else ("Operating with a verified offline license" + day_msg + " (up to 48 hours).")
+                    result = Decision(True, "AUTHORIZED" if online else "OFFLINE_GRACE", msg, self.connectivity)
         transition = (result.status, result.connectivity)
         if transition != self.last_transition:
             log.info("license_transition status=%s connectivity=%s", *transition)
@@ -124,13 +131,18 @@ class LicenseClient:
             self.state.pop("activation_key", None)
             url = self.config.get("server_url", "").rstrip("/")
             parsed = urlsplit(url)
-            if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
+            is_loopback = parsed.hostname in ("127.0.0.1", "localhost")
+            allowed_schemes = ("https", "http") if is_loopback else ("https",)
+            if parsed.scheme not in allowed_schemes or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
                 self.connectivity = "CONFIGURATION_ERROR"
                 return self._decision()
             nonce = secrets.token_urlsafe(32)
-            from version import APP_VERSION
+            
+            # Collect device fingerprint for admin visibility (sent on register, validate, heartbeat)
+            device_info = collect_device_fingerprint(APP_VERSION)
+            
             body = {"device_id": self.state["device_id"], "device_secret": self.state["device_secret"],
-                    "app_version": APP_VERSION, "nonce": nonce}
+                    "app_version": APP_VERSION, "nonce": nonce, "device_info": device_info}
             register = explicit_key is not None
             if register:
                 endpoint = "/v1/devices/register"
@@ -191,23 +203,29 @@ class LicenseClient:
         with self._lock:
             url = self.config.get("server_url", "").rstrip("/")
             parsed = urlsplit(url)
+            is_loopback = parsed.hostname in ("127.0.0.1", "localhost")
+            allowed_schemes = ("https", "http") if is_loopback else ("https",)
             if (
-                parsed.scheme != "https"
+                parsed.scheme not in allowed_schemes
                 or not parsed.hostname
                 or parsed.username
                 or parsed.password
-                or parsed.path
+                or (parsed.path and parsed.path != "/")
                 or parsed.query
                 or parsed.fragment
             ):
                 return False
             nonce = secrets.token_urlsafe(32)
-            from version import APP_VERSION
+            
+            # Include device info on shutdown too
+            device_info = collect_device_fingerprint(APP_VERSION)
+            
             body = {
                 "device_id": self.state["device_id"],
                 "device_secret": self.state["device_secret"],
                 "app_version": APP_VERSION,
                 "nonce": nonce,
+                "device_info": device_info,
             }
             try:
                 with httpx.Client(
@@ -224,6 +242,95 @@ class LicenseClient:
             except Exception as exc:
                 log.debug("notify_offline failed: %s", exc)
             return False
+
+    def get_license_details(self) -> dict:
+        """Return structured, human-readable licensing validity information."""
+        with self._lock:
+            envelope = self.state.get("license")
+            device_id = self.state.get("device_id", "Unknown")
+            registered = bool(self.state.get("registered", False))
+            connectivity = self.connectivity
+            now = self._effective_time()
+
+            if not envelope or not isinstance(envelope, dict):
+                return {
+                    "has_license": False,
+                    "status": "UNREGISTERED",
+                    "device_id": device_id,
+                    "days_remaining": 0,
+                    "days_label": "0 Days Remaining",
+                    "expires_at": None,
+                    "expires_at_formatted": "Not Activated",
+                    "license_id": None,
+                    "customer_id": None,
+                    "connectivity": connectivity,
+                    "is_online": connectivity == "ONLINE",
+                    "offline_until_formatted": None,
+                    "alert_level": "danger",
+                    "message": "No active license installed on this device.",
+                }
+
+            payload = envelope.get("payload", {})
+            status = payload.get("status", "UNKNOWN")
+            expires_at_ts = payload.get("license_expires_at")
+            offline_until_ts = payload.get("offline_until")
+
+            import datetime
+            import math
+
+            days_remaining = 0
+            expires_dt = None
+            expires_at_formatted = "Unknown"
+            if expires_at_ts:
+                try:
+                    expires_dt = datetime.datetime.fromtimestamp(expires_at_ts, tz=datetime.timezone.utc)
+                    expires_at_formatted = expires_dt.strftime("%d-%b-%Y %I:%M %p UTC")
+                    diff = expires_at_ts - now
+                    days_remaining = max(0, int(math.ceil(diff / 86400))) if diff > 0 else 0
+                except Exception:
+                    pass
+
+            offline_until_formatted = None
+            if offline_until_ts:
+                try:
+                    offline_dt = datetime.datetime.fromtimestamp(offline_until_ts, tz=datetime.timezone.utc)
+                    offline_until_formatted = offline_dt.strftime("%d-%b-%Y %I:%M %p UTC")
+                except Exception:
+                    pass
+
+            if days_remaining > 1:
+                days_label = f"{days_remaining} Days Remaining"
+            elif days_remaining == 1:
+                days_label = "1 Day Remaining"
+            else:
+                days_label = "License Expired"
+
+            if status != "AUTHORIZED" or days_remaining <= 0:
+                alert_level = "danger"
+            elif days_remaining <= 30:
+                alert_level = "warning"
+            else:
+                alert_level = "success"
+
+            return {
+                "has_license": True,
+                "status": status,
+                "device_id": device_id,
+                "days_remaining": days_remaining,
+                "days_label": days_label,
+                "expires_at": expires_dt,
+                "expires_at_timestamp": expires_at_ts,
+                "expires_at_formatted": expires_at_formatted,
+                "license_id": payload.get("license_id"),
+                "customer_id": payload.get("customer_id"),
+                "connectivity": connectivity,
+                "is_online": connectivity == "ONLINE",
+                "offline_until": offline_until_ts,
+                "offline_until_formatted": offline_until_formatted,
+                "registered": registered,
+                "alert_level": alert_level,
+                "message": f"{days_label} (Valid until {expires_at_formatted})",
+            }
 
     def close(self) -> bool:
         return self.notify_offline()

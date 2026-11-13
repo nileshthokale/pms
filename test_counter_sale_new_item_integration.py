@@ -199,7 +199,7 @@ class TestCounterSaleNewItemIntegration(unittest.TestCase):
 
         # Verify automatically selected in Counter Sale
         self.assertEqual(bar.item_combo.currentData(), saved_item["id"])
-        self.assertEqual(bar.item_combo.currentText(), "METFORMIN 500MG")
+        self.assertIn("METFORMIN 500MG", bar.item_combo.currentText())
 
     def test_05_tab_on_existing_item_selects_without_popup(self):
         """Entering an existing item and pressing Tab does not open the popup."""

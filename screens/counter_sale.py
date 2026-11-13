@@ -1300,7 +1300,43 @@ class _KeyboardCombo(QComboBox):
         # edit, or on the completion popup.
         self.installEventFilter(self)
         completer.popup().installEventFilter(self)
+        completer.activated[QModelIndex].connect(self._on_activated_index)
         completer.activated[str].connect(self._on_activated)
+
+    def findText(self, text: str, flags: Qt.MatchFlag = Qt.MatchExactly) -> int:
+        idx = super().findText(text, flags)
+        if idx >= 0:
+            return idx
+        clean = (text or "").strip().casefold()
+        if not clean:
+            return -1
+        for i in range(self.count()):
+            t = self.itemText(i).strip().casefold()
+            if t == clean:
+                return i
+            if "(" in t:
+                base = t.split("(")[0].strip()
+                if base == clean:
+                    return i
+        return -1
+
+    def _on_activated_index(self, index: QModelIndex):
+        if index.isValid():
+            user_data = index.data(Qt.UserRole)
+            if user_data is not None:
+                data_idx = self.findData(user_data)
+                if data_idx >= 0:
+                    self.setCurrentIndex(data_idx)
+                    self.completionAccepted.emit()
+                    try:
+                        self.completer().popup().hide()
+                        self._restore_owner_activation()
+                    except Exception:
+                        pass
+                    return
+        display = index.data(Qt.DisplayRole)
+        if display is not None:
+            self._on_activated(str(display))
 
     def set_completion_model(self, model, role=Qt.DisplayRole, filter_mode=None):
         self.completer().setModel(model)
@@ -1372,7 +1408,8 @@ class _KeyboardCombo(QComboBox):
                 for idx in range(self.count()):
                     item_text = self.itemText(idx)
                     b_no = item_text.split(" | ")[0].strip()
-                    if text.upper() == b_no.upper() or text.upper() == item_text.upper():
+                    base = item_text.split("(")[0].strip()
+                    if text.upper() in (b_no.upper(), item_text.upper(), base.upper()):
                         self.setCurrentIndex(idx)
                         break
             if self.currentData() is not None:
@@ -1527,7 +1564,14 @@ class _KeyboardCombo(QComboBox):
             accepted = index.isValid()
         if accepted:
             display = index.data(Qt.DisplayRole)
-            if display is not None:
+            user_data = index.data(Qt.UserRole)
+            if user_data is not None:
+                data_idx = self.findData(user_data)
+                if data_idx >= 0:
+                    self.setCurrentIndex(data_idx)
+                elif display is not None:
+                    self._accept_text(str(display))
+            elif display is not None:
                 self._accept_text(str(display))
         popup.hide()
         self._restore_owner_activation()
@@ -2418,19 +2462,24 @@ class _ItemEntryBar(QWidget):
         items = ItemDAO.get_all()
         for it in items:
             item_name = (it["item_name"] or "").strip()
-            self.item_combo.addItem(item_name, it["id"])
+            unit_name = (it.get("unit_name") or "").strip()
+            display_name = f"{item_name} ({unit_name})" if unit_name else item_name
+            self.item_combo.addItem(display_name, it["id"])
             self._items_by_id[it["id"]] = it
             idx = self.item_combo.count() - 1
             is_sched = is_schedule_h1_or_nrx(it.get("scheduled"))
             sched_color = QColor(Qt.red) if is_sched else QColor(Qt.black)
             self.item_combo.setItemData(idx, sched_color, Qt.ForegroundRole)
 
-            completion_item = QStandardItem(item_name)
+            completion_item = QStandardItem(display_name)
             completion_item.setData(it["id"], Qt.UserRole)
-            completion_item.setData(item_name, Qt.UserRole + 1)
+            completion_item.setData(display_name, Qt.UserRole + 1)
             completion_item.setForeground(sched_color)
             self._item_completion_model.appendRow(completion_item)
             self._item_search_values.append(item_name.casefold())
+            if unit_name:
+                self._item_search_values.append(display_name.casefold())
+                self._item_search_values.append(f"{item_name} {unit_name}".casefold())
         self.item_combo.blockSignals(False)
 
         try:
@@ -2534,7 +2583,9 @@ class _ItemEntryBar(QWidget):
         curr_id = self.item_combo.currentData()
         if curr_id is not None:
             curr_text = self.item_combo.currentText().strip()
-            if curr_text.casefold() == text.casefold():
+            item = self._items_by_id.get(curr_id, {})
+            expected_name = (item.get("item_name") or "").strip()
+            if text.casefold() in (curr_text.casefold(), expected_name.casefold()):
                 return _commit_existing(curr_id)
 
         # 3. Check if text matches an existing item in item_combo
@@ -2554,6 +2605,8 @@ class _ItemEntryBar(QWidget):
         matches = [
             it for it in self._items_by_id.values()
             if text.casefold() in (it.get("item_name") or "").strip().casefold()
+            or text.casefold() in f"{(it.get('item_name') or '').strip()} ({(it.get('unit_name') or '').strip()})".casefold()
+            or text.casefold() in f"{(it.get('item_name') or '').strip()} {(it.get('unit_name') or '').strip()}".casefold()
         ]
         if len(matches) == 1:
             return _commit_existing(matches[0]["id"])
@@ -2568,8 +2621,9 @@ class _ItemEntryBar(QWidget):
     def _open_new_item_popup(self, item_name: str) -> None:
         self._opening_new_item = True
         try:
+            base_name = item_name.split("(")[0].strip()
             parent_window = self.window() if self.window() is not None else self
-            dlg = _ItemDialog(parent_window, initial_name=item_name)
+            dlg = _ItemDialog(parent_window, initial_name=base_name)
             self._last_new_item_dialog = dlg
             dlg.exec()
 
@@ -2621,11 +2675,16 @@ class _ItemEntryBar(QWidget):
         if item_id is not None and hasattr(self, "_items_by_id") and item_id in self._items_by_id:
             item = self._items_by_id[item_id]
             expected_name = (item.get("item_name") or "").strip()
-            if text.casefold() == expected_name.casefold():
+            unit_name = (item.get("unit_name") or "").strip()
+            disp_name = f"{expected_name} ({unit_name})" if unit_name else expected_name
+            if text.casefold() in (expected_name.casefold(), disp_name.casefold()):
                 return item
         if hasattr(self, "_items_by_id"):
             for it in self._items_by_id.values():
-                if text.casefold() == (it.get("item_name") or "").strip().casefold():
+                name = (it.get("item_name") or "").strip()
+                unit = (it.get("unit_name") or "").strip()
+                disp = f"{name} ({unit})" if unit else name
+                if text.casefold() in (name.casefold(), disp.casefold()):
                     return it
         return None
 
@@ -2973,7 +3032,7 @@ class _ItemEntryBar(QWidget):
             return None
         return {
             "item_id": item_id,
-            "item_name": item.get("item_name") or self.item_combo.currentText(),
+            "item_name": item.get("item_name") or self.item_combo.currentText().split("(")[0].strip(),
             "scheduled": item.get("scheduled", ""),
             "stock_batch_id": batch_id,
             "pack_size": batch.get("pack_size", ""),
@@ -4842,6 +4901,10 @@ class _SalePanel(QWidget):
                 name_item.setFont(f)
             else:
                 name_item.setForeground(QColor(Qt.black))
+            if hasattr(self, "_entry_bar") and hasattr(self._entry_bar, "_items_by_id"):
+                unit_str = self._entry_bar._items_by_id.get(r.item_id, {}).get("unit_name", "")
+                if unit_str:
+                    name_item.setToolTip(f"{r.item_name} ({unit_str})")
             self._table.setItem(i, 1, name_item)
 
             pack_item = QTableWidgetItem(r.pack_size)
