@@ -1808,4 +1808,584 @@ td.actions .action-cell-buttons {
   margin-left: 6px;
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   5 Telemetry Categories & Inspection Enhancements
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Alert Banners (Clock Tamper, Low Disk, Pending Reboot) */
+.telemetry-alert-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 14px;
+}
+
+.telemetry-alert-banner .alert-banner-icon {
+  font-size: 20px;
+  line-height: 1.2;
+  flex-shrink: 0;
+}
+
+.telemetry-alert-banner .alert-banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.telemetry-alert-banner .alert-banner-text strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.telemetry-alert-banner .alert-banner-text p {
+  font-size: 12px;
+  margin: 0;
+  line-height: 1.4;
+  opacity: 0.9;
+}
+
+.telemetry-alert-banner.danger {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  color: #fca5a5;
+}
+
+.telemetry-alert-banner.danger strong {
+  color: #ef4444;
+}
+
+.telemetry-alert-banner.warn {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.5);
+  color: #fcd34d;
+}
+
+.telemetry-alert-banner.warn strong {
+  color: #f59e0b;
+}
+
+.telemetry-alert-banner.info {
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  color: #93c5fd;
+}
+
+.telemetry-alert-banner.info strong {
+  color: #60a5fa;
+}
+
+/* Security Chip Dangerous State */
+.security-chip.chip-danger {
+  border-color: #5a1e1e;
+  background: #200a0a;
+}
+
+.security-chip.chip-danger .chip-status {
+  color: #f87171;
+}
+
+/* Hero Badges for VM & Integrity */
+.vm-badge-warn {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.5);
+  color: #fbbf24;
+}
+
+.vm-badge-ok {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.5);
+  color: #34d399;
+}
+
+.clock-tamper-badge {
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.6);
+  color: #f87171;
+  animation: pulse-border 2s infinite;
+}
+
+.low-disk-badge {
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.6);
+  color: #f87171;
+}
+
+@keyframes pulse-border {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+
+/* Table and Inspector Pills */
+.table-telemetry-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.table-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 4px;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.table-pill.size-pill-large {
+  font-size: 11.5px;
+  padding: 4px 10px;
+  border-radius: 5px;
+}
+
+.table-pill.pill-pos {
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  color: #60a5fa;
+}
+
+.table-pill.pill-db {
+  background: rgba(168, 85, 247, 0.15);
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  color: #c084fc;
+}
+
+.table-pill.pill-diag {
+  background: rgba(14, 165, 233, 0.15);
+  border: 1px solid rgba(14, 165, 233, 0.4);
+  color: #38bdf8;
+}
+
+.table-pill.pill-activity {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #34d399;
+}
+
+.table-pill.pill-warn {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: #fbbf24;
+}
+
+.table-pill.pill-danger {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #f87171;
+}
+
+.table-pill.pill-subtle {
+  background: #18181b;
+  border: 1px solid #27272a;
+  color: #a1a1aa;
+}
+
+/* POS Peripherals Styles */
+.pos-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pos-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pos-subhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.printers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.printer-card {
+  background: #111111;
+  border: 1px solid #262626;
+  border-radius: 6px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.printer-card.is-pos {
+  border-color: rgba(59, 130, 246, 0.5);
+  background: rgba(59, 130, 246, 0.04);
+}
+
+.printer-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.printer-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.printer-card-title .printer-icon {
+  font-size: 16px;
+}
+
+.printer-card-title .printer-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #f4f4f5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.printer-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.printer-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.printer-badge.default {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #34d399;
+}
+
+.printer-badge.pos {
+  background: rgba(59, 130, 246, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.5);
+  color: #60a5fa;
+}
+
+.printer-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 11px;
+  color: #71717a;
+}
+
+.pill-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.vm-indicator-details {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  font-size: 11.5px;
+  color: #fcd34d;
+}
+
+.vm-indicator-details strong {
+  color: #fbbf24;
+}
+
+.warn-text {
+  color: var(--amber) !important;
+}
+
+.danger-text {
+  color: var(--red) !important;
+}
+
+.ok-text {
+  color: var(--green) !important;
+}
+
+.store-hours-label {
+  color: #34d399 !important;
+  font-size: 10.5px !important;
+}
+
+.alert-vm-pill {
+  font-size: 11px;
+  color: #fbbf24;
+  font-weight: 600;
+  margin: 2px 0;
+}
+
+/* ==========================================================================
+   Comprehensive Responsive Overrides (Desktop, Tablet & Mobile)
+   ========================================================================== */
+
+/* Universal Table Responsiveness */
+.table-wrap {
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+#device-table {
+  min-width: 980px !important;
+  width: 100%;
+}
+
+#license-section .table-wrap table {
+  min-width: 720px !important;
+  width: 100%;
+}
+
+/* Sticky First Column for Smooth Horizontal Scrolling */
+.table-wrap th:first-child,
+.table-wrap td:first-child {
+  position: sticky !important;
+  left: 0 !important;
+  background: #000 !important;
+  z-index: 2 !important;
+  border-right: 1px solid var(--line) !important;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.4);
+}
+
+.table-wrap th:first-child {
+  z-index: 3 !important;
+}
+
+.table-wrap tbody tr:hover td:first-child {
+  background: #181818 !important;
+}
+
+/* Flexible Telemetry Text in Metric Cards */
+.stat-main-text {
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+  white-space: normal !important;
+  line-height: 1.3 !important;
+}
+
+.stat-sub-text {
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+  white-space: normal !important;
+  line-height: 1.3 !important;
+}
+
+/* Inspector Hero Layout & Badges Wrapping */
+.device-hero-top {
+  flex-wrap: wrap !important;
+  gap: 12px !important;
+}
+
+.device-hero-left {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.device-hero-badges {
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 6px !important;
+}
+
+/* Tablet Breakpoint (<= 1024px) */
+@media (max-width: 1024px) {
+  .detail-drawer {
+    width: 600px;
+    max-width: 90vw;
+  }
+}
+
+/* Mobile & Small Tablet Breakpoint (<= 768px) */
+@media (max-width: 768px) {
+  /* Full Screen Drawer on Mobile */
+  .detail-drawer {
+    position: fixed !important;
+    inset: 0 0 0 0 !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+    border: 0 !important;
+    padding: 16px 14px 40px !important;
+    margin: 0 !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    z-index: 100 !important;
+  }
+
+  .detail-drawer .dialog-heading {
+    position: sticky !important;
+    top: -16px !important;
+    background: #000 !important;
+    padding: 14px 0 12px !important;
+    margin: -16px 0 16px !important;
+    border-bottom: 1px solid var(--line) !important;
+    z-index: 10 !important;
+  }
+
+  /* 5-Card Metric Strip in 2 Columns on Mobile */
+  .telemetry-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  .telemetry-stat-card:last-child {
+    grid-column: span 2 !important;
+  }
+
+  .device-hero-card {
+    padding: 16px !important;
+  }
+
+  .spec-card {
+    padding: 14px 16px !important;
+  }
+
+  /* Management Toolbar Full-Width Stacking */
+  .toolbar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+
+  .search {
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  .filters {
+    width: 100% !important;
+    flex-wrap: wrap !important;
+    justify-content: space-between !important;
+    gap: 10px !important;
+  }
+
+  .filters select {
+    flex: 1 !important;
+    min-width: 130px !important;
+    max-width: none !important;
+  }
+}
+
+/* Mobile Phones Breakpoint (<= 600px) */
+@media (max-width: 600px) {
+  /* Collapse 2-Column Specs into Single Column on Mobile Phones */
+  .spec-grid-2col {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  /* Single Column Security Chips for Maximum Readability */
+  .spec-pill-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  .security-chip {
+    padding: 10px 12px !important;
+  }
+
+  .detail-grid div {
+    grid-template-columns: 1fr !important;
+    gap: 4px !important;
+    padding: 10px 0 !important;
+  }
+
+  .detail-grid .full-width-item {
+    grid-template-columns: 1fr !important;
+    gap: 4px !important;
+  }
+
+  /* Printers Grid Single Column on Mobile */
+  .printers-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  .printer-card {
+    padding: 10px 12px !important;
+  }
+
+  .printer-card-top {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 6px !important;
+  }
+
+  .printer-badges {
+    align-self: flex-start !important;
+  }
+
+  /* Raw JSON Diagnostics Box */
+  .raw-json-block {
+    font-size: 10px !important;
+    padding: 8px !important;
+    max-height: 200px !important;
+    white-space: pre-wrap !important;
+    word-break: break-all !important;
+  }
+
+  /* Dialog Actions Full Width */
+  .dialog-buttons {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+
+  .dialog-buttons button {
+    width: 100% !important;
+  }
+
+  /* Fallback Network Cards */
+  .fallback-map {
+    grid-template-columns: 1fr !important;
+    padding: 8px !important;
+  }
+}
+
+/* Extra-Small Mobile Breakpoint (<= 380px) */
+@media (max-width: 380px) {
+  .telemetry-stat-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .telemetry-stat-card:last-child {
+    grid-column: span 1 !important;
+  }
+
+  .stat-value {
+    font-size: 32px !important;
+  }
+
+  .device-title-text {
+    font-size: 18px !important;
+  }
+}
+
+
+
 
