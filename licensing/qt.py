@@ -100,9 +100,47 @@ class LicenseDialog(QDialog):
             super().reject()
 
 
+_active_controller = None
+
+
+def get_active_controller() -> "LicenseController | None":
+    """Return the globally active LicenseController instance, if running."""
+    return _active_controller
+
+
+def get_license_info() -> dict:
+    """Retrieve structured license validity details from the active controller or local client."""
+    ctrl = get_active_controller()
+    if ctrl is not None and hasattr(ctrl, "client") and hasattr(ctrl.client, "get_license_details"):
+        return ctrl.client.get_license_details()
+    try:
+        from licensing.client import desktop_client
+        return desktop_client().get_license_details()
+    except Exception:
+        return {
+            "has_license": False,
+            "status": "UNAVAILABLE",
+            "device_id": "Unknown",
+            "days_remaining": 0,
+            "days_label": "0 Days Remaining",
+            "expires_at_formatted": "Unavailable",
+            "license_id": None,
+            "customer_id": None,
+            "connectivity": "UNKNOWN",
+            "is_online": False,
+            "offline_until_formatted": None,
+            "alert_level": "danger",
+            "message": "Licensing service is currently unavailable.",
+        }
+
+
 class LicenseController(QObject):
+    validation_updated = Signal(object)
+
     def __init__(self, client, parent=None):
         super().__init__(parent)
+        global _active_controller
+        _active_controller = self
         self.client = client
         self.gate = OperationGate()
         install_gate(self.gate)
@@ -170,6 +208,10 @@ class LicenseController(QObject):
         self.decision = decision
         self.gate.set_access(decision.allowed, decision.message)
         self._present()
+        try:
+            self.validation_updated.emit(decision)
+        except Exception:
+            pass
 
     def _present(self):
         if not self.decision:
