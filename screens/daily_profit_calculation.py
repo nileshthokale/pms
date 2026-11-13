@@ -144,15 +144,6 @@ class DailyProfitCostReportWidget(QWidget):
         self.table = QTableWidget()
         headers = [
             "Sr. No.",
-            "Medicine Name",
-            "Company Name",
-            "Batch Number",
-            "Total Quantity Sold",
-            "Actual Selling Rate",
-            "Purchase Rate",
-            "Free Quantity",
-            "Purchase Discount",
-            "Actual Net Purchase Cost Per Tablet",
             "Total Net Sales",
             "Total Purchase Cost of Sold Quantity",
             "Total Profit",
@@ -232,119 +223,64 @@ class DailyProfitCostReportWidget(QWidget):
             # 1. Sr. No.
             sr_item = QTableWidgetItem(str(r["sr_no"]))
             sr_item.setTextAlignment(Qt.AlignCenter)
+            item_name = r.get("item_name", "")
+            comp_name = r.get("company_name", "")
+            batch_no = r.get("batch_no", "")
+            sr_item.setToolTip(f"{item_name} ({comp_name}) - Batch: {batch_no}".strip())
             self.table.setItem(i, 0, sr_item)
 
-            # 2. Medicine Name
-            med_item = QTableWidgetItem(str(r["item_name"]))
-            med_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-            gst_p = float(r.get("gst_percent") or 0.0)
-            if gst_p > 0:
-                med_item.setToolTip(f"Item Master GST: {gst_p:.1f}%")
-            self.table.setItem(i, 1, med_item)
-
-            # 3. Company Name
-            comp_item = QTableWidgetItem(str(r["company_name"]))
-            comp_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-            self.table.setItem(i, 2, comp_item)
-
-            # 4. Batch Number
-            batch_item = QTableWidgetItem(str(r["batch_no"]))
-            batch_item.setTextAlignment(Qt.AlignCenter)
-            self.table.setItem(i, 3, batch_item)
-
-            # 5. Total Quantity Sold
-            qty_item = QTableWidgetItem(f"{float(r['total_sold_qty']):,.2f}")
-            qty_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self.table.setItem(i, 4, qty_item)
-
-            # 6. Actual Selling Rate
-            sr_rate = QTableWidgetItem(f"{float(r['actual_selling_rate']):,.2f}")
-            sr_rate.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self.table.setItem(i, 5, sr_rate)
-
-            # 7. Purchase Rate
-            pr_rate = QTableWidgetItem(f"{float(r['purchase_rate']):,.2f}")
-            pr_rate.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self.table.setItem(i, 6, pr_rate)
-
-            # 8. Free Quantity
-            free_item = QTableWidgetItem(f"{float(r['free_qty']):,.2f}")
-            free_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self.table.setItem(i, 7, free_item)
-
-            # 9. Purchase Discount
-            disc_item = QTableWidgetItem(f"{float(r['purchase_discount']):,.2f}%")
-            disc_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self.table.setItem(i, 8, disc_item)
-
-            # 10. Actual Net Purchase Cost Per Tablet
-            cost_item = QTableWidgetItem(f"{float(r['actual_cost_per_tablet']):,.2f}")
-            cost_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            if gst_p > 0:
-                cost_item.setToolTip(f"Includes Item Master GST @ {gst_p:.1f}%")
-            self.table.setItem(i, 9, cost_item)
-
-            # 11. Total Net Sales
+            # 2. Total Net Sales
             sales_item = QTableWidgetItem(f"{float(r['total_net_sales']):,.2f}")
             sales_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self.table.setItem(i, 10, sales_item)
+            self.table.setItem(i, 1, sales_item)
 
-            # 12. Total Purchase Cost of Sold Quantity
+            # 3. Total Purchase Cost of Sold Quantity
             cost_tot_item = QTableWidgetItem(f"{float(r['total_purchase_cost']):,.2f}")
             cost_tot_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self.table.setItem(i, 11, cost_tot_item)
+            self.table.setItem(i, 2, cost_tot_item)
 
-            # 13. Total Profit
+            # 4. Total Profit
             prof_item = QTableWidgetItem(f"{float(r['total_profit']):,.2f}")
             prof_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self.table.setItem(i, 12, prof_item)
+            self.table.setItem(i, 3, prof_item)
 
         # Bottom Totals row
         if rows:
             tot_row_idx = len(rows)
-            t_label = QTableWidgetItem("Total :")
-            t_label.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            t_label.setFont(QFont("Segoe UI", 9, QFont.Bold))
-            self.table.setItem(tot_row_idx, 0, t_label)
+            date_str = (
+                fmt_date_dash(from_iso)
+                if from_iso == to_iso
+                else f"{fmt_date_dash(from_iso)} to {fmt_date_dash(to_iso)}"
+            )
+            d_item = QTableWidgetItem(date_str)
+            d_item.setTextAlignment(Qt.AlignCenter)
+            d_item.setFont(QFont("Segoe UI", 9, QFont.Bold))
+            d_item.setToolTip(f"Report Date: {date_str}")
+            self.table.setItem(tot_row_idx, 0, d_item)
 
-            # Empty for cols 1-3
-            for c in range(1, 4):
-                self.table.setItem(tot_row_idx, c, QTableWidgetItem(""))
-
-            # Total Quantity Sold (Col 4)
-            tot_qty = QTableWidgetItem(f"{float(totals.get('total_sold_qty', 0.0)):,.2f}")
-            tot_qty.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            tot_qty.setFont(QFont("Segoe UI", 9, QFont.Bold))
-            self.table.setItem(tot_row_idx, 4, tot_qty)
-
-            # Empty for cols 5-9
-            for c in range(5, 10):
-                self.table.setItem(tot_row_idx, c, QTableWidgetItem(""))
-
-            # Total Net Sales (Col 10)
+            # Total Net Sales (Col 1)
             tot_sales = QTableWidgetItem(f"{float(totals.get('total_net_sales', 0.0)):,.2f}")
             tot_sales.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             tot_sales.setFont(QFont("Segoe UI", 9, QFont.Bold))
-            self.table.setItem(tot_row_idx, 10, tot_sales)
+            self.table.setItem(tot_row_idx, 1, tot_sales)
 
-            # Total Purchase Cost of Sold Quantity (Col 11)
+            # Total Purchase Cost of Sold Quantity (Col 2)
             tot_cost = QTableWidgetItem(f"{float(totals.get('total_purchase_cost', 0.0)):,.2f}")
             tot_cost.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             tot_cost.setFont(QFont("Segoe UI", 9, QFont.Bold))
-            self.table.setItem(tot_row_idx, 11, tot_cost)
+            self.table.setItem(tot_row_idx, 2, tot_cost)
 
-            # Total Profit (Col 12)
+            # Total Profit (Col 3)
             tot_prof = QTableWidgetItem(f"{float(totals.get('total_profit', 0.0)):,.2f}")
             tot_prof.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             tot_prof.setFont(QFont("Segoe UI", 9, QFont.Bold))
-            self.table.setItem(tot_row_idx, 12, tot_prof)
+            self.table.setItem(tot_row_idx, 3, tot_prof)
 
         self.table.resizeColumnsToContents()
         self._pages = self._build_report_pages(rows, totals, from_iso, to_iso)
         self.btn_print.setEnabled(bool(rows))
         self.lbl_summary.setText(
             f"Records: {len(rows)}  |  "
-            f"Total Quantity Sold: {totals.get('total_sold_qty', 0.0):,.2f}  |  "
             f"Total Net Sales: ₹{totals.get('total_net_sales', 0.0):,.2f}  |  "
             f"Total Purchase Cost: ₹{totals.get('total_purchase_cost', 0.0):,.2f}  |  "
             f"Total Profit: ₹{totals.get('total_profit', 0.0):,.2f}"
@@ -373,27 +309,14 @@ class DailyProfitCostReportWidget(QWidget):
         )
 
         cols = [
-            "Sr",
-            "Medicine Name",
-            "Company Name",
-            "Batch",
-            "Qty Sold",
-            "Selling Rate",
-            "Pur. Rate",
-            "Free Qty",
-            "Pur. Disc",
-            "Cost/Tab",
-            "Net Sales",
-            "Pur. Cost",
-            "Profit",
+            "Sr. No.",
+            "Total Net Sales",
+            "Total Purchase Cost of Sold Quantity",
+            "Total Profit",
         ]
         # Sums to CONTENT_WIDTH_LANDSCAPE (1053.0)
-        widths = [36.0, 160.0, 135.0, 72.0, 60.0, 70.0, 65.0, 55.0, 55.0, 75.0, 85.0, 85.0, 100.0]
-        aligns = [
-            "center", "left", "left", "center",
-            "right", "right", "right", "right",
-            "right", "right", "right", "right", "right"
-        ]
+        widths = [153.0, 300.0, 300.0, 300.0]
+        aligns = ["center", "right", "right", "right"]
 
         table_header_block = ReportBlock(
             kind=BlockKind.TABLE_HEADER,
@@ -414,15 +337,6 @@ class DailyProfitCostReportWidget(QWidget):
             for r in rows:
                 cells = [
                     str(r.get("sr_no", "")),
-                    str(r.get("item_name", "")),
-                    str(r.get("company_name", "")),
-                    str(r.get("batch_no", "")),
-                    f"{float(r.get('total_sold_qty') or 0.0):,.2f}",
-                    f"{float(r.get('actual_selling_rate') or 0.0):,.2f}",
-                    f"{float(r.get('purchase_rate') or 0.0):,.2f}",
-                    f"{float(r.get('free_qty') or 0.0):,.2f}",
-                    f"{float(r.get('purchase_discount') or 0.0):,.2f}%",
-                    f"{float(r.get('actual_cost_per_tablet') or 0.0):,.2f}",
                     f"{float(r.get('total_net_sales') or 0.0):,.2f}",
                     f"{float(r.get('total_purchase_cost') or 0.0):,.2f}",
                     f"{float(r.get('total_profit') or 0.0):,.2f}",
@@ -436,20 +350,16 @@ class DailyProfitCostReportWidget(QWidget):
                 )
 
             # Total row
+            date_str = (
+                fmt_date_dash(from_iso)
+                if from_iso == to_iso
+                else f"{fmt_date_dash(from_iso)} to {fmt_date_dash(to_iso)}"
+            )
             custom_cells = [
-                {"width": widths[0], "text": "Total :", "align": "right", "is_bold": True},
-                {"width": widths[1], "text": "", "align": "left", "is_bold": False},
-                {"width": widths[2], "text": "", "align": "left", "is_bold": False},
-                {"width": widths[3], "text": "", "align": "center", "is_bold": False},
-                {"width": widths[4], "text": f"{float(totals.get('total_sold_qty', 0.0)):,.2f}", "align": "right", "is_bold": True},
-                {"width": widths[5], "text": "", "align": "right", "is_bold": False},
-                {"width": widths[6], "text": "", "align": "right", "is_bold": False},
-                {"width": widths[7], "text": "", "align": "right", "is_bold": False},
-                {"width": widths[8], "text": "", "align": "right", "is_bold": False},
-                {"width": widths[9], "text": "", "align": "right", "is_bold": False},
-                {"width": widths[10], "text": f"{float(totals.get('total_net_sales', 0.0)):,.2f}", "align": "right", "is_bold": True},
-                {"width": widths[11], "text": f"{float(totals.get('total_purchase_cost', 0.0)):,.2f}", "align": "right", "is_bold": True},
-                {"width": widths[12], "text": f"{float(totals.get('total_profit', 0.0)):,.2f}", "align": "right", "is_bold": True},
+                {"width": widths[0], "text": date_str, "align": "center", "is_bold": True},
+                {"width": widths[1], "text": f"{float(totals.get('total_net_sales', 0.0)):,.2f}", "align": "right", "is_bold": True},
+                {"width": widths[2], "text": f"{float(totals.get('total_purchase_cost', 0.0)):,.2f}", "align": "right", "is_bold": True},
+                {"width": widths[3], "text": f"{float(totals.get('total_profit', 0.0)):,.2f}", "align": "right", "is_bold": True},
             ]
             blocks.append(
                 ReportBlock(

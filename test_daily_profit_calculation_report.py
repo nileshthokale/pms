@@ -15,19 +15,10 @@ Verifies:
    - Net Sales = 120, Purchase Cost = 75, Profit = 45
 4. Report table columns:
    1. Sr. No.
-   2. Medicine Name
-   3. Company Name
-   4. Batch Number
-   5. Total Quantity Sold
-   6. Actual Selling Rate
-   7. Purchase Rate
-   8. Free Quantity
-   9. Purchase Discount
-   10. Actual Net Purchase Cost Per Tablet
-   11. Total Net Sales
-   12. Total Purchase Cost of Sold Quantity
-   13. Total Profit
-5. Totals row at bottom for net sales, purchase cost, profit, sold qty.
+   2. Total Net Sales
+   3. Total Purchase Cost of Sold Quantity
+   4. Total Profit
+5. Totals row at bottom showing the date in the Sr. No. column and totals under specific columns.
 6. Filters: From Date, To Date, Medicine filter, Company filter.
 7. Actions: Search, Clear, Refresh, Print, Export CSV.
 8. Printable A4 landscape report page generation.
@@ -354,26 +345,17 @@ class TestDailyProfitCalculationReport(unittest.TestCase):
         self.assertEqual(summary["total_profit"], 70.0)
 
     def test_04_report_columns_displayed_in_table(self):
-        """Verifies all 13 columns and values match on-screen table layout."""
+        """Verifies exactly 4 columns (Sr. No. + last 3 columns) and totals under specific columns with date in last row."""
         page = DailyProfitCalculationReportPage()
         page.widget.from_date_edit.setDate(QDate(2026, 10, 10))
         page.widget.to_date_edit.setDate(QDate(2026, 10, 15))
         page.widget.load_data()
 
         table = page.widget.table
-        self.assertEqual(table.columnCount(), 13)
+        self.assertEqual(table.columnCount(), 4)
 
         expected_headers = [
             "Sr. No.",
-            "Medicine Name",
-            "Company Name",
-            "Batch Number",
-            "Total Quantity Sold",
-            "Actual Selling Rate",
-            "Purchase Rate",
-            "Free Quantity",
-            "Purchase Discount",
-            "Actual Net Purchase Cost Per Tablet",
             "Total Net Sales",
             "Total Purchase Cost of Sold Quantity",
             "Total Profit",
@@ -384,30 +366,33 @@ class TestDailyProfitCalculationReport(unittest.TestCase):
         # 2 data rows + 1 total row = 3 rows
         self.assertEqual(table.rowCount(), 3)
 
-        # Find row for PARACETAMOL
-        para_row = 0 if table.item(0, 1).text() == "PARACETAMOL" else 1
-        self.assertEqual(table.item(para_row, 1).text(), "PARACETAMOL")
-        self.assertEqual(table.item(para_row, 2).text(), "Alpha Pharma")
-        self.assertEqual(table.item(para_row, 3).text(), "PARA-B1")
-        self.assertEqual(table.item(para_row, 4).text(), "10.00")
-        self.assertEqual(table.item(para_row, 5).text(), "12.00")
-        self.assertEqual(table.item(para_row, 6).text(), "10.00")
-        self.assertEqual(table.item(para_row, 7).text(), "20.00")
-        self.assertEqual(table.item(para_row, 8).text(), "10.00%")
-        self.assertEqual(table.item(para_row, 9).text(), "7.50")
-        self.assertEqual(table.item(para_row, 10).text(), "120.00")
-        self.assertEqual(table.item(para_row, 11).text(), "75.00")
-        self.assertEqual(table.item(para_row, 12).text(), "45.00")
+        # Row 0: AMOXICILLIN (Alphabetical order)
+        self.assertEqual(table.item(0, 0).text(), "1")
+        self.assertEqual(table.item(0, 1).text(), "120.00")
+        self.assertEqual(table.item(0, 2).text(), "95.00")
+        self.assertEqual(table.item(0, 3).text(), "25.00")
 
-        # Total Row (Row 2)
-        self.assertEqual(table.item(2, 0).text(), "Total :")
-        self.assertEqual(table.item(2, 4).text(), "15.00")
-        self.assertEqual(table.item(2, 10).text(), "240.00")
-        self.assertEqual(table.item(2, 11).text(), "170.00")
-        self.assertEqual(table.item(2, 12).text(), "70.00")
+        # Row 1: PARACETAMOL
+        self.assertEqual(table.item(1, 0).text(), "2")
+        self.assertEqual(table.item(1, 1).text(), "120.00")
+        self.assertEqual(table.item(1, 2).text(), "75.00")
+        self.assertEqual(table.item(1, 3).text(), "45.00")
+
+        # Total Row (Row 2): Under Sr. No. is the date, under specific columns are the totals
+        self.assertEqual(table.item(2, 0).text(), "10-10-2026 to 15-10-2026")
+        self.assertEqual(table.item(2, 1).text(), "240.00")
+        self.assertEqual(table.item(2, 2).text(), "170.00")
+        self.assertEqual(table.item(2, 3).text(), "70.00")
+
+        # Test single-day report shows exact date in last row
+        page.widget.from_date_edit.setDate(QDate(2026, 10, 12))
+        page.widget.to_date_edit.setDate(QDate(2026, 10, 12))
+        page.widget.load_data()
+        self.assertEqual(page.widget.table.rowCount(), 3)
+        self.assertEqual(page.widget.table.item(2, 0).text(), "12-10-2026")
 
     def test_05_filters_medicine_and_company(self):
-        """Verifies filtering by Medicine and Company."""
+        """Verifies filtering by Medicine and Company with 4-column layout."""
         page = DailyProfitCalculationReportPage()
         page.widget.from_date_edit.setDate(QDate(2026, 10, 10))
         page.widget.to_date_edit.setDate(QDate(2026, 10, 15))
@@ -420,7 +405,14 @@ class TestDailyProfitCalculationReport(unittest.TestCase):
 
         # 1 data row + 1 total row = 2 rows
         self.assertEqual(page.widget.table.rowCount(), 2)
-        self.assertEqual(page.widget.table.item(0, 1).text(), "PARACETAMOL")
+        self.assertEqual(page.widget.table.item(0, 0).text(), "1")
+        self.assertEqual(page.widget.table.item(0, 1).text(), "120.00")
+        self.assertEqual(page.widget.table.item(0, 2).text(), "75.00")
+        self.assertEqual(page.widget.table.item(0, 3).text(), "45.00")
+        self.assertEqual(page.widget.table.item(1, 0).text(), "10-10-2026 to 15-10-2026")
+        self.assertEqual(page.widget.table.item(1, 1).text(), "120.00")
+        self.assertEqual(page.widget.table.item(1, 2).text(), "75.00")
+        self.assertEqual(page.widget.table.item(1, 3).text(), "45.00")
 
         # Clear filters
         page.widget.clear_filters()
@@ -437,7 +429,11 @@ class TestDailyProfitCalculationReport(unittest.TestCase):
         page.widget.load_data()
 
         self.assertEqual(page.widget.table.rowCount(), 2)
-        self.assertEqual(page.widget.table.item(0, 1).text(), "AMOXICILLIN")
+        self.assertEqual(page.widget.table.item(0, 0).text(), "1")
+        self.assertEqual(page.widget.table.item(0, 1).text(), "120.00")
+        self.assertEqual(page.widget.table.item(0, 2).text(), "95.00")
+        self.assertEqual(page.widget.table.item(0, 3).text(), "25.00")
+        self.assertEqual(page.widget.table.item(1, 0).text(), "10-10-2026 to 15-10-2026")
 
     def test_06_printing_generates_pages(self):
         """Verifies printable report pages are generated in landscape with headers and totals."""

@@ -513,6 +513,74 @@ class TestCounterSaleBatchIntegrity(unittest.TestCase):
         finally:
             os.environ.pop("PHARMACY_STAGING_MODE", None)
 
+    def test_11_same_named_items_different_units_batch_isolation(self):
+        """Verifies that items with the same name but different units (e.g. Tablet vs Gel)
+        display their unit next to the item name and maintain strict batch isolation."""
+        conn = get_connection()
+        try:
+            gel_unit_id = UnitDAO.insert("GEL")
+            tab_unit_id = UnitDAO.insert("TABLET")
+            volini_tab_id = ItemDAO.insert(
+                item_name="VOLINI", unit_id=tab_unit_id,
+                company_id=self.company_id, pack_size="10", mrp=55.0
+            )
+            volini_gel_id = ItemDAO.insert(
+                item_name="VOLINI", unit_id=gel_unit_id,
+                company_id=self.company_id, pack_size="1", mrp=120.0
+            )
+
+            conn.execute(
+                """
+                INSERT INTO stock_batches (id, item_id, batch_no, expiry, pack_size, mrp, purchase_rate, net_rate, stock_qty)
+                VALUES (8801, ?, 'VTAB-101', '2028-10-31', '10', 55.0, 35.0, 40.0, 20.0)
+                """,
+                (volini_tab_id,)
+            )
+            conn.execute(
+                """
+                INSERT INTO stock_batches (id, item_id, batch_no, expiry, pack_size, mrp, purchase_rate, net_rate, stock_qty)
+                VALUES (8802, ?, 'VGEL-202', '2028-11-30', '1', 120.0, 80.0, 90.0, 15.0)
+                """,
+                (volini_gel_id,)
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        page = CounterSalePage()
+        page.show()
+        self.app.processEvents()
+        self.addCleanup(lambda: (page.hide(), page.deleteLater()))
+
+        bar = page._sale_panel._entry_bar
+        bar.load_items()
+
+        # 1. Verify that both items display their unit in the item combo
+        tab_idx = bar.item_combo.findData(volini_tab_id)
+        gel_idx = bar.item_combo.findData(volini_gel_id)
+        self.assertGreaterEqual(tab_idx, 0)
+        self.assertGreaterEqual(gel_idx, 0)
+        self.assertNotEqual(tab_idx, gel_idx)
+
+        self.assertIn("TABLET", bar.item_combo.itemText(tab_idx))
+        self.assertIn("GEL", bar.item_combo.itemText(gel_idx))
+
+        # 2. Select VOLINI (TABLET) -> only tablet batch VTAB-101 is loaded
+        bar.item_combo.setCurrentIndex(tab_idx)
+        self.app.processEvents()
+        tab_batches = [bar.batch_combo.itemText(i) for i in range(bar.batch_combo.count())]
+        self.assertEqual(len(tab_batches), 1)
+        self.assertIn("VTAB-101", tab_batches[0])
+        self.assertNotIn("VGEL-202", tab_batches[0])
+
+        # 3. Select VOLINI (GEL) -> only gel batch VGEL-202 is loaded (never tablet batch)
+        bar.item_combo.setCurrentIndex(gel_idx)
+        self.app.processEvents()
+        gel_batches = [bar.batch_combo.itemText(i) for i in range(bar.batch_combo.count())]
+        self.assertEqual(len(gel_batches), 1)
+        self.assertIn("VGEL-202", gel_batches[0])
+        self.assertNotIn("VTAB-101", gel_batches[0])
+
 
 if __name__ == "__main__":
     unittest.main()
