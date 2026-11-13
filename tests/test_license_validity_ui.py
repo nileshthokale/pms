@@ -103,3 +103,9 @@ class LicenseValidityUITests(unittest.TestCase):
         # Test activation dialog instantiation
         dlg = _ActivateLicenseDialog(panel)
         self.assertIsNotNone(dlg.key_field)
+
+    @classmethod
+    def tearDownClass(cls):
+        from licensing.gate import install_gate
+        install_gate(None)
+
