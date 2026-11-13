@@ -345,7 +345,7 @@ class TestDailyProfitCalculationReport(unittest.TestCase):
         self.assertEqual(summary["total_profit"], 70.0)
 
     def test_04_report_columns_displayed_in_table(self):
-        """Verifies exactly 4 columns (Sr. No. + last 3 columns) and totals under specific columns with date in last row."""
+        """Verifies multi-day shows daily rows with Total in last row, and single-day shows single total row."""
         page = DailyProfitCalculationReportPage()
         page.widget.from_date_edit.setDate(QDate(2026, 10, 10))
         page.widget.to_date_edit.setDate(QDate(2026, 10, 15))
@@ -355,7 +355,7 @@ class TestDailyProfitCalculationReport(unittest.TestCase):
         self.assertEqual(table.columnCount(), 4)
 
         expected_headers = [
-            "Sr. No.",
+            "Date",
             "Total Net Sales",
             "Total Purchase Cost of Sold Quantity",
             "Total Profit",
@@ -363,36 +363,31 @@ class TestDailyProfitCalculationReport(unittest.TestCase):
         for c, h in enumerate(expected_headers):
             self.assertEqual(table.horizontalHeaderItem(c).text(), h)
 
-        # 2 data rows + 1 total row = 3 rows
-        self.assertEqual(table.rowCount(), 3)
+        # Multi-day with 1 day of sales (2026-10-12) + 1 total row = 2 rows
+        self.assertEqual(table.rowCount(), 2)
+        # Row 0: Day data for 12-10-2026
+        self.assertEqual(table.item(0, 0).text(), "12-10-2026")
+        self.assertEqual(table.item(0, 1).text(), "240.00")
+        self.assertEqual(table.item(0, 2).text(), "170.00")
+        self.assertEqual(table.item(0, 3).text(), "70.00")
+        # Row 1: Last row total of all days
+        self.assertEqual(table.item(1, 0).text(), "Total :")
+        self.assertEqual(table.item(1, 1).text(), "240.00")
+        self.assertEqual(table.item(1, 2).text(), "170.00")
+        self.assertEqual(table.item(1, 3).text(), "70.00")
 
-        # Row 0: AMOXICILLIN (Alphabetical order)
-        self.assertEqual(table.item(0, 0).text(), "1")
-        self.assertEqual(table.item(0, 1).text(), "120.00")
-        self.assertEqual(table.item(0, 2).text(), "95.00")
-        self.assertEqual(table.item(0, 3).text(), "25.00")
-
-        # Row 1: PARACETAMOL
-        self.assertEqual(table.item(1, 0).text(), "2")
-        self.assertEqual(table.item(1, 1).text(), "120.00")
-        self.assertEqual(table.item(1, 2).text(), "75.00")
-        self.assertEqual(table.item(1, 3).text(), "45.00")
-
-        # Total Row (Row 2): Under Sr. No. is the date, under specific columns are the totals
-        self.assertEqual(table.item(2, 0).text(), "10-10-2026 to 15-10-2026")
-        self.assertEqual(table.item(2, 1).text(), "240.00")
-        self.assertEqual(table.item(2, 2).text(), "170.00")
-        self.assertEqual(table.item(2, 3).text(), "70.00")
-
-        # Test single-day report shows exact date in last row
+        # Test single-day report shows 1 row with exact date
         page.widget.from_date_edit.setDate(QDate(2026, 10, 12))
         page.widget.to_date_edit.setDate(QDate(2026, 10, 12))
         page.widget.load_data()
-        self.assertEqual(page.widget.table.rowCount(), 3)
-        self.assertEqual(page.widget.table.item(2, 0).text(), "12-10-2026")
+        self.assertEqual(page.widget.table.rowCount(), 1)
+        self.assertEqual(page.widget.table.item(0, 0).text(), "12-10-2026")
+        self.assertEqual(page.widget.table.item(0, 1).text(), "240.00")
+        self.assertEqual(page.widget.table.item(0, 2).text(), "170.00")
+        self.assertEqual(page.widget.table.item(0, 3).text(), "70.00")
 
     def test_05_filters_medicine_and_company(self):
-        """Verifies filtering by Medicine and Company with 4-column layout."""
+        """Verifies filtering by Medicine and Company with multi-day layout."""
         page = DailyProfitCalculationReportPage()
         page.widget.from_date_edit.setDate(QDate(2026, 10, 10))
         page.widget.to_date_edit.setDate(QDate(2026, 10, 15))
@@ -403,13 +398,13 @@ class TestDailyProfitCalculationReport(unittest.TestCase):
         page.widget.item_combo.setCurrentIndex(idx)
         page.widget.load_data()
 
-        # 1 data row + 1 total row = 2 rows
+        # Multi-day: 1 day row + 1 total row = 2 rows
         self.assertEqual(page.widget.table.rowCount(), 2)
-        self.assertEqual(page.widget.table.item(0, 0).text(), "1")
+        self.assertEqual(page.widget.table.item(0, 0).text(), "12-10-2026")
         self.assertEqual(page.widget.table.item(0, 1).text(), "120.00")
         self.assertEqual(page.widget.table.item(0, 2).text(), "75.00")
         self.assertEqual(page.widget.table.item(0, 3).text(), "45.00")
-        self.assertEqual(page.widget.table.item(1, 0).text(), "10-10-2026 to 15-10-2026")
+        self.assertEqual(page.widget.table.item(1, 0).text(), "Total :")
         self.assertEqual(page.widget.table.item(1, 1).text(), "120.00")
         self.assertEqual(page.widget.table.item(1, 2).text(), "75.00")
         self.assertEqual(page.widget.table.item(1, 3).text(), "45.00")
@@ -420,7 +415,7 @@ class TestDailyProfitCalculationReport(unittest.TestCase):
         self.assertEqual(page.widget.item_combo.currentIndex(), 0)
         self.assertEqual(page.widget.company_combo.currentIndex(), 0)
 
-        # Filter by Beta Labs company only
+        # Filter by Beta Labs company only (AMOXICILLIN)
         c_idx = page.widget.company_combo.findData(self.cid2)
         self.assertGreater(c_idx, 0)
         page.widget.company_combo.setCurrentIndex(c_idx)
@@ -429,11 +424,14 @@ class TestDailyProfitCalculationReport(unittest.TestCase):
         page.widget.load_data()
 
         self.assertEqual(page.widget.table.rowCount(), 2)
-        self.assertEqual(page.widget.table.item(0, 0).text(), "1")
+        self.assertEqual(page.widget.table.item(0, 0).text(), "12-10-2026")
         self.assertEqual(page.widget.table.item(0, 1).text(), "120.00")
         self.assertEqual(page.widget.table.item(0, 2).text(), "95.00")
         self.assertEqual(page.widget.table.item(0, 3).text(), "25.00")
-        self.assertEqual(page.widget.table.item(1, 0).text(), "10-10-2026 to 15-10-2026")
+        self.assertEqual(page.widget.table.item(1, 0).text(), "Total :")
+        self.assertEqual(page.widget.table.item(1, 1).text(), "120.00")
+        self.assertEqual(page.widget.table.item(1, 2).text(), "95.00")
+        self.assertEqual(page.widget.table.item(1, 3).text(), "25.00")
 
     def test_06_printing_generates_pages(self):
         """Verifies printable report pages are generated in landscape with headers and totals."""

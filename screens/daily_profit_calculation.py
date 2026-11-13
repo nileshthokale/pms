@@ -143,15 +143,14 @@ class DailyProfitCostReportWidget(QWidget):
         # ── 2. Table Widget ──────────────────────────────────────────
         self.table = QTableWidget()
         headers = [
-            "Sr. No.",
+            "Date",
             "Total Net Sales",
             "Total Purchase Cost of Sold Quantity",
             "Total Profit",
         ]
         self.table.setColumnCount(len(headers))
         self.table.setHorizontalHeaderLabels(headers)
-        self.table.horizontalHeader().setStretchLastSection(True)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
         root.addWidget(self.table, 1)
@@ -215,76 +214,106 @@ class DailyProfitCostReportWidget(QWidget):
         )
         rows = data.get("rows", [])
         totals = data.get("summary", {})
+        daily_rows = data.get("daily_rows", [])
 
-        row_count = len(rows) + (1 if rows else 0)
-        self.table.setRowCount(row_count)
+        if not rows:
+            self.table.setRowCount(0)
+            self.lbl_summary.setText("No sales records found for the selected period.")
+            self._pages = []
+            self.btn_print.setEnabled(False)
+            return
 
-        for i, r in enumerate(rows):
-            # 1. Sr. No.
-            sr_item = QTableWidgetItem(str(r["sr_no"]))
-            sr_item.setTextAlignment(Qt.AlignCenter)
-            item_name = r.get("item_name", "")
-            comp_name = r.get("company_name", "")
-            batch_no = r.get("batch_no", "")
-            sr_item.setToolTip(f"{item_name} ({comp_name}) - Batch: {batch_no}".strip())
-            self.table.setItem(i, 0, sr_item)
+        is_multi_day = from_iso != to_iso
 
-            # 2. Total Net Sales
-            sales_item = QTableWidgetItem(f"{float(r['total_net_sales']):,.2f}")
-            sales_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self.table.setItem(i, 1, sales_item)
+        if is_multi_day:
+            # Multi-day selected: show every day's data row-wise, and total in the last row
+            row_count = len(daily_rows) + 1
+            self.table.setRowCount(row_count)
 
-            # 3. Total Purchase Cost of Sold Quantity
-            cost_tot_item = QTableWidgetItem(f"{float(r['total_purchase_cost']):,.2f}")
-            cost_tot_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self.table.setItem(i, 2, cost_tot_item)
+            for i, day in enumerate(daily_rows):
+                d_item = QTableWidgetItem(fmt_date_dash(day["date"]))
+                d_item.setTextAlignment(Qt.AlignCenter)
+                self.table.setItem(i, 0, d_item)
 
-            # 4. Total Profit
-            prof_item = QTableWidgetItem(f"{float(r['total_profit']):,.2f}")
-            prof_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self.table.setItem(i, 3, prof_item)
+                s_item = QTableWidgetItem(f"{float(day['total_net_sales']):,.2f}")
+                s_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self.table.setItem(i, 1, s_item)
 
-        # Bottom Totals row
-        if rows:
-            tot_row_idx = len(rows)
-            date_str = (
-                fmt_date_dash(from_iso)
-                if from_iso == to_iso
-                else f"{fmt_date_dash(from_iso)} to {fmt_date_dash(to_iso)}"
-            )
-            d_item = QTableWidgetItem(date_str)
-            d_item.setTextAlignment(Qt.AlignCenter)
-            d_item.setFont(QFont("Segoe UI", 9, QFont.Bold))
-            d_item.setToolTip(f"Report Date: {date_str}")
-            self.table.setItem(tot_row_idx, 0, d_item)
+                c_item = QTableWidgetItem(f"{float(day['total_purchase_cost']):,.2f}")
+                c_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self.table.setItem(i, 2, c_item)
 
-            # Total Net Sales (Col 1)
+                p_item = QTableWidgetItem(f"{float(day['total_profit']):,.2f}")
+                p_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self.table.setItem(i, 3, p_item)
+
+            # Last Row: Total of all days
+            tot_row_idx = len(daily_rows)
+            t_label = QTableWidgetItem("Total :")
+            t_label.setTextAlignment(Qt.AlignCenter)
+            t_label.setFont(QFont("Segoe UI", 10, QFont.Bold))
+            self.table.setItem(tot_row_idx, 0, t_label)
+
             tot_sales = QTableWidgetItem(f"{float(totals.get('total_net_sales', 0.0)):,.2f}")
             tot_sales.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            tot_sales.setFont(QFont("Segoe UI", 9, QFont.Bold))
+            tot_sales.setFont(QFont("Segoe UI", 10, QFont.Bold))
             self.table.setItem(tot_row_idx, 1, tot_sales)
 
-            # Total Purchase Cost of Sold Quantity (Col 2)
             tot_cost = QTableWidgetItem(f"{float(totals.get('total_purchase_cost', 0.0)):,.2f}")
             tot_cost.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            tot_cost.setFont(QFont("Segoe UI", 9, QFont.Bold))
+            tot_cost.setFont(QFont("Segoe UI", 10, QFont.Bold))
             self.table.setItem(tot_row_idx, 2, tot_cost)
 
-            # Total Profit (Col 3)
             tot_prof = QTableWidgetItem(f"{float(totals.get('total_profit', 0.0)):,.2f}")
             tot_prof.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            tot_prof.setFont(QFont("Segoe UI", 9, QFont.Bold))
+            tot_prof.setFont(QFont("Segoe UI", 10, QFont.Bold))
             self.table.setItem(tot_row_idx, 3, tot_prof)
+            self.table.setRowHeight(tot_row_idx, 32)
 
-        self.table.resizeColumnsToContents()
-        self._pages = self._build_report_pages(rows, totals, from_iso, to_iso)
+            self.lbl_summary.setText(
+                f"Days: {len(daily_rows)}  |  "
+                f"Records: {len(rows)}  |  "
+                f"Total Net Sales: ₹{totals.get('total_net_sales', 0.0):,.2f}  |  "
+                f"Total Purchase Cost: ₹{totals.get('total_purchase_cost', 0.0):,.2f}  |  "
+                f"Total Profit: ₹{totals.get('total_profit', 0.0):,.2f}"
+            )
+        else:
+            # Single day entered: show total row for that day
+            self.table.setRowCount(1)
+            date_str = fmt_date_dash(from_iso)
+
+            d_item = QTableWidgetItem(date_str)
+            d_item.setTextAlignment(Qt.AlignCenter)
+            d_item.setFont(QFont("Segoe UI", 10, QFont.Bold))
+            d_item.setToolTip(f"Consolidated total for {date_str} ({len(rows)} items sold)")
+            self.table.setItem(0, 0, d_item)
+
+            tot_sales = QTableWidgetItem(f"{float(totals.get('total_net_sales', 0.0)):,.2f}")
+            tot_sales.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            tot_sales.setFont(QFont("Segoe UI", 10, QFont.Bold))
+            self.table.setItem(0, 1, tot_sales)
+
+            tot_cost = QTableWidgetItem(f"{float(totals.get('total_purchase_cost', 0.0)):,.2f}")
+            tot_cost.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            tot_cost.setFont(QFont("Segoe UI", 10, QFont.Bold))
+            self.table.setItem(0, 2, tot_cost)
+
+            tot_prof = QTableWidgetItem(f"{float(totals.get('total_profit', 0.0)):,.2f}")
+            tot_prof.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            tot_prof.setFont(QFont("Segoe UI", 10, QFont.Bold))
+            self.table.setItem(0, 3, tot_prof)
+            self.table.setRowHeight(0, 36)
+
+            self.lbl_summary.setText(
+                f"Date: {date_str}  |  "
+                f"Records: {len(rows)}  |  "
+                f"Total Net Sales: ₹{totals.get('total_net_sales', 0.0):,.2f}  |  "
+                f"Total Purchase Cost: ₹{totals.get('total_purchase_cost', 0.0):,.2f}  |  "
+                f"Total Profit: ₹{totals.get('total_profit', 0.0):,.2f}"
+            )
+
+        self._pages = self._build_report_pages(rows, totals, from_iso, to_iso, daily_rows)
         self.btn_print.setEnabled(bool(rows))
-        self.lbl_summary.setText(
-            f"Records: {len(rows)}  |  "
-            f"Total Net Sales: ₹{totals.get('total_net_sales', 0.0):,.2f}  |  "
-            f"Total Purchase Cost: ₹{totals.get('total_purchase_cost', 0.0):,.2f}  |  "
-            f"Total Profit: ₹{totals.get('total_profit', 0.0):,.2f}"
-        )
 
     def print_report(self):
         if not self._pages:
@@ -292,15 +321,26 @@ class DailyProfitCostReportWidget(QWidget):
         print_or_export_report_pages(self._pages, parent=self)
 
     def _build_report_pages(
-        self, rows: List[dict], totals: dict, from_iso: str, to_iso: str
+        self,
+        rows: List[dict],
+        totals: dict,
+        from_iso: str,
+        to_iso: str,
+        daily_rows: Optional[List[dict]] = None,
     ) -> List[ReportPage]:
-        """Build A4 landscape printable report pages matching on-screen data."""
+        """Build printable report pages matching on-screen multi-day or single-day view."""
         store_name, store_address = get_default_store_identity()
+        is_multi_day = from_iso != to_iso
+        date_str = (
+            f"From: {fmt_date_dash(from_iso)} To: {fmt_date_dash(to_iso)}"
+            if is_multi_day
+            else f"Date: {fmt_date_dash(from_iso)}"
+        )
         header = ReportHeaderData(
             store_name=store_name,
             store_address=store_address,
             header_line_1="DAILY PROFIT CALCULATION",
-            header_line_2=f"From: {fmt_date_dash(from_iso)} To: {fmt_date_dash(to_iso)}",
+            header_line_2=date_str,
             header_line_3=(
                 f"Total Net Sales: ₹{float(totals.get('total_net_sales', 0.0) or 0.0):,.2f}  |  "
                 f"Total Purchase Cost: ₹{float(totals.get('total_purchase_cost', 0.0) or 0.0):,.2f}  |  "
@@ -309,13 +349,13 @@ class DailyProfitCostReportWidget(QWidget):
         )
 
         cols = [
-            "Sr. No.",
+            "Date",
             "Total Net Sales",
             "Total Purchase Cost of Sold Quantity",
             "Total Profit",
         ]
         # Sums to CONTENT_WIDTH_LANDSCAPE (1053.0)
-        widths = [153.0, 300.0, 300.0, 300.0]
+        widths = [200.0, 284.0, 284.0, 285.0]
         aligns = ["center", "right", "right", "right"]
 
         table_header_block = ReportBlock(
@@ -333,13 +373,13 @@ class DailyProfitCostReportWidget(QWidget):
                     data={"message": "No sales records found for the selected period and criteria."},
                 )
             )
-        else:
-            for r in rows:
+        elif is_multi_day and daily_rows:
+            for day in daily_rows:
                 cells = [
-                    str(r.get("sr_no", "")),
-                    f"{float(r.get('total_net_sales') or 0.0):,.2f}",
-                    f"{float(r.get('total_purchase_cost') or 0.0):,.2f}",
-                    f"{float(r.get('total_profit') or 0.0):,.2f}",
+                    fmt_date_dash(day["date"]),
+                    f"{float(day['total_net_sales']):,.2f}",
+                    f"{float(day['total_purchase_cost']):,.2f}",
+                    f"{float(day['total_profit']):,.2f}",
                 ]
                 blocks.append(
                     ReportBlock(
@@ -349,14 +389,8 @@ class DailyProfitCostReportWidget(QWidget):
                     )
                 )
 
-            # Total row
-            date_str = (
-                fmt_date_dash(from_iso)
-                if from_iso == to_iso
-                else f"{fmt_date_dash(from_iso)} to {fmt_date_dash(to_iso)}"
-            )
             custom_cells = [
-                {"width": widths[0], "text": date_str, "align": "center", "is_bold": True},
+                {"width": widths[0], "text": "Total :", "align": "center", "is_bold": True},
                 {"width": widths[1], "text": f"{float(totals.get('total_net_sales', 0.0)):,.2f}", "align": "right", "is_bold": True},
                 {"width": widths[2], "text": f"{float(totals.get('total_purchase_cost', 0.0)):,.2f}", "align": "right", "is_bold": True},
                 {"width": widths[3], "text": f"{float(totals.get('total_profit', 0.0)):,.2f}", "align": "right", "is_bold": True},
@@ -364,7 +398,21 @@ class DailyProfitCostReportWidget(QWidget):
             blocks.append(
                 ReportBlock(
                     kind=BlockKind.GRAND_TOTAL,
-                    height=22.0,
+                    height=24.0,
+                    data={"custom_cells": custom_cells},
+                )
+            )
+        else:
+            custom_cells = [
+                {"width": widths[0], "text": fmt_date_dash(from_iso), "align": "center", "is_bold": True},
+                {"width": widths[1], "text": f"{float(totals.get('total_net_sales', 0.0)):,.2f}", "align": "right", "is_bold": True},
+                {"width": widths[2], "text": f"{float(totals.get('total_purchase_cost', 0.0)):,.2f}", "align": "right", "is_bold": True},
+                {"width": widths[3], "text": f"{float(totals.get('total_profit', 0.0)):,.2f}", "align": "right", "is_bold": True},
+            ]
+            blocks.append(
+                ReportBlock(
+                    kind=BlockKind.GRAND_TOTAL,
+                    height=24.0,
                     data={"custom_cells": custom_cells},
                 )
             )
