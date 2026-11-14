@@ -2033,19 +2033,29 @@ class _ItemEntryBar(QWidget):
         if self.item_combo.lineEdit() is not None:
             self.item_combo.lineEdit().installEventFilter(self)
         # Stretch weights: Item leads because it is the primary search field, but it
-        # only takes a share of the spare width â€” Batch and the read-outs widen
+        # only takes a share of the spare width — Batch and the read-outs widen
         # too, so a wide monitor fills the bar evenly instead of turning Item
         # into a banner.  A trailing stretch keeps "+ Add" flush right once
         # every field has hit its maximum.
         layout.addWidget(self.item_combo, 3)
 
-        # Adjusted button — opens Stock Adjustment dialog for selected medicine/batch (or any medicine)
-        self.adjusted_btn = QPushButton("Adjusted")
-        self.adjusted_btn.setStyleSheet(_btn_style(_p["accent"], padding="3px 6px", radius="3px"))
-        self.adjusted_btn.setToolTip("Stock Adjustment (Ctrl+A)")
-        self.adjusted_btn.setFixedWidth(66)
-        self.adjusted_btn.setFixedHeight(_ENTRY_BAR_HEIGHT - 8)
-        self.adjusted_btn.setCursor(Qt.PointingHandCursor)
+        # Hist. button — opens purchase history dialog for selected item matching Pharma-WINNER
+        self.hist_btn = QPushButton("Hist.")
+        self.hist_btn.setFixedSize(38, _ENTRY_BAR_HEIGHT - 8)
+        self.hist_btn.setToolTip("View item purchase history")
+        self.hist_btn.setFocusPolicy(Qt.NoFocus)
+        self.hist_btn.setCursor(Qt.PointingHandCursor)
+        self.hist_btn.setStyleSheet(
+            "QPushButton {"
+            "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #4f86c6, stop:1 #2563eb);"
+            "  border: 1px solid #1d4ed8; border-radius: 2px;"
+            "  color: #ffffff; font-size: 11px; font-weight: bold; padding: 1px 2px;"
+            "}"
+            "QPushButton:hover { background: #3b82f6; }"
+            "QPushButton:pressed { background: #1d4ed8; }"
+        )
+        self.hist_btn.clicked.connect(self._on_item_hist)
+        layout.addWidget(self.hist_btn, 0, Qt.AlignVCenter)
 
         # Batch â€” medium width: long batch numbers stay readable and the
         # light completion popup has room to show useful batch text.
@@ -2268,7 +2278,7 @@ class _ItemEntryBar(QWidget):
                 total += spacer.sizeHint().width()
                 continue
             widget = item.widget()
-            if widget is None or widget in flexible:
+            if widget is None or widget in flexible or not widget.isVisible():
                 continue
             total += widget.minimumWidth()
         return total
@@ -2379,8 +2389,8 @@ class _ItemEntryBar(QWidget):
         single straight row.
         """
         widgets = (
-            self.cno_label, self.item_combo, self.batch_combo,
-            self.pack_edit, self.location_edit, self.expiry_edit,
+            self.cno_label, self.item_combo, self.hist_btn,
+            self.batch_combo, self.pack_edit, self.location_edit, self.expiry_edit,
             self.mrp_edit, self.stock_edit, self.qty_edit,
             self.discount_edit, self.amount_edit, self.add_btn,
         )
@@ -2958,6 +2968,31 @@ class _ItemEntryBar(QWidget):
             if idx >= 0:
                 self.batch_combo.setCurrentIndex(idx)
 
+    def _on_item_hist(self):
+        """Open Item Purchase History dialog for selected medicine, matching Pharma-WINNER."""
+        item = self.get_selected_item()
+        if not item:
+            QMessageBox.information(self, "Item History", "Please select an item first.")
+            return
+
+        iid = item.get("id")
+        item_text = item.get("item_name") or self.item_combo.currentText().strip()
+
+        from screens.purchase_invoice import _ItemPurchaseHistoryDialog
+        parent_window = self.window() if self.window() is not None else self
+        dlg = _ItemPurchaseHistoryDialog(parent_window, item_id=iid, item_name=item_text)
+        if dlg.exec():
+            if getattr(dlg, "selected_batch", None):
+                bno = (dlg.selected_batch.get("batch_no") or "").strip()
+                if bno and hasattr(self, "batch_combo"):
+                    for idx in range(self.batch_combo.count()):
+                        text = self.batch_combo.itemText(idx)
+                        if text.startswith(bno) or bno in text:
+                            self.batch_combo.setCurrentIndex(idx)
+                            if hasattr(self, "_on_batch_changed"):
+                                self._on_batch_changed(idx)
+                            break
+
     def set_cno(self, text: str):
         """Display preview for unsaved bills, number for saved viewing.
 
@@ -3414,8 +3449,6 @@ class _SalePanel(QWidget):
 
         # Wire add button
         self._entry_bar.add_btn.clicked.connect(self._on_add_item)
-        if hasattr(self._entry_bar, "adjusted_btn"):
-            self._entry_bar.adjusted_btn.clicked.connect(self.open_stock_adjustment)
 
         # CNo display mirrors the current bill number (display only).
         self.bill_no_edit.textChanged.connect(self._entry_bar.set_cno)
@@ -3998,6 +4031,8 @@ class _SalePanel(QWidget):
                 spent += spacer.sizeHint().width()
                 continue
             widget = item.widget()
+            if widget is None or not widget.isVisible():
+                continue
             if widget is bar.cno_label:
                 # Compact measured slot (not the label's wide sizeHint).
                 try:
@@ -4007,6 +4042,8 @@ class _SalePanel(QWidget):
             elif isinstance(widget, QLabel):
                 spent += widget.sizeHint().width()
                 captions += 1
+            elif isinstance(widget, QPushButton) and widget is not bar.add_btn:
+                spent += widget.sizeHint().width()
 
         # Comfortable size per field: (attribute, preferred width).
         # Item/Batch lead with wider targets now that CNo is compact and
@@ -7194,6 +7231,13 @@ class CounterSalePage(QWidget):
         QShortcut(QKeySequence("Alt+S"), self).activated.connect(self._on_alt_s_pressed)
         QShortcut(QKeySequence("Ctrl+B"), self).activated.connect(self._on_ctrl_b_pressed)
         QShortcut(QKeySequence("Ctrl+H"), self).activated.connect(self._open_challan)
+        QShortcut(QKeySequence("Ctrl+I"), self).activated.connect(self._open_pur_invoice)
+        QShortcut(QKeySequence("Ctrl+A"), self).activated.connect(self._on_ctrl_a_pressed)
+        QShortcut(QKeySequence("Ctrl+O"), self).activated.connect(self._open_debit_note)
+
+    def _on_ctrl_a_pressed(self) -> None:
+        if hasattr(self, "_sale_panel"):
+            self._sale_panel.open_stock_adjustment()
 
     def _on_alt_s_pressed(self) -> None:
         if hasattr(self, "_sale_panel"):

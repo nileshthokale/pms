@@ -1059,8 +1059,11 @@ class _ItemPurchaseHistoryDialog(QDialog):
         self._on_ok_clicked()
 
     def keyPressEvent(self, event):
-        if event.key() in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Escape):
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter):
             self._on_ok_clicked()
+            return
+        elif event.key() == Qt.Key_Escape:
+            self.reject()
             return
         super().keyPressEvent(event)
 
