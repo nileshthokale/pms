@@ -405,7 +405,10 @@ class SalesDAO:
                        discount: float, paid_amount: float,
                        total_amount: float, round_off: float,
                        net_amount: float, remarks: str,
-                       items: list[dict]) -> int:
+                       items: list[dict],
+                       cn_amount: float = 0.0,
+                       dr_amount: float = 0.0,
+                       settlements: list[dict] | None = None) -> int:
         """Insert sales invoice + items + stock deduction in a single transaction.
 
         Each dict in *items* must contain:
@@ -465,13 +468,15 @@ class SalesDAO:
                     bill_no, sale_date, sale_time, sale_type,
                     customer_id, patient_name, doctor_id,
                     discount, paid_amount, total_amount, round_off,
+                    cn_amount, dr_amount,
                     net_amount, remarks
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     bill_no, sale_date, sale_time, sale_type,
                     customer_id, patient_name, doctor_id,
                     discount, paid_amount, total_amount, round_off,
+                    cn_amount, dr_amount,
                     net_amount, remarks,
                 ),
             )
@@ -533,6 +538,14 @@ class SalesDAO:
                     (item["sale_qty"], item["stock_batch_id"]),
                 )
 
+            # Apply any credit note adjustments inside this transaction
+            if settlements:
+                from database.credit_note_dao import CreditNoteDAO
+                CreditNoteDAO.settle_credit_notes(
+                    settlements, invoice_id, cur=cur,
+                    settlement_date=sale_date, settlement_time=sale_time
+                )
+
             # Accounting posting joins THIS transaction (atomic with save).
             posting_engine.post_counter_sale(invoice_id, cur=cur)
 
@@ -551,7 +564,10 @@ class SalesDAO:
                        doctor_id: int | None, discount: float,
                        paid_amount: float, total_amount: float,
                        round_off: float, net_amount: float, remarks: str,
-                       items: list[dict]) -> None:
+                       items: list[dict],
+                       cn_amount: float = 0.0,
+                       dr_amount: float = 0.0,
+                       settlements: list[dict] | None = None) -> None:
         """Update sale header/items, adjust stock, and repost accounting.
 
         Runs in ONE transaction:
@@ -606,16 +622,27 @@ class SalesDAO:
                     bill_no = ?, sale_date = ?, sale_time = ?, sale_type = ?,
                     customer_id = ?, patient_name = ?, doctor_id = ?,
                     discount = ?, paid_amount = ?, total_amount = ?,
-                    round_off = ?, net_amount = ?, remarks = ?
+                    round_off = ?, cn_amount = ?, dr_amount = ?,
+                    net_amount = ?, remarks = ?
                 WHERE id = ?
                 """,
                 (
                     bill_no, sale_date, sale_time, sale_type,
                     customer_id, patient_name, doctor_id,
                     discount, paid_amount, total_amount, round_off,
+                    cn_amount, dr_amount,
                     net_amount, remarks, invoice_id,
                 ),
             )
+
+            # Reverse and re-apply credit note settlements
+            from database.credit_note_dao import CreditNoteDAO
+            CreditNoteDAO.reverse_settlements_for_invoice(invoice_id, cur=cur)
+            if settlements:
+                CreditNoteDAO.settle_credit_notes(
+                    settlements, invoice_id, cur=cur,
+                    settlement_date=sale_date, settlement_time=sale_time
+                )
 
             # Require valid medicine items before saving
             if not items:
@@ -699,6 +726,10 @@ class SalesDAO:
                     "UPDATE stock_batches SET stock_qty = stock_qty + ? WHERE id = ?",
                     (old["sale_qty"], old["stock_batch_id"]),
                 )
+
+            # Reverse credit note settlements linked to this invoice
+            from database.credit_note_dao import CreditNoteDAO
+            CreditNoteDAO.reverse_settlements_for_invoice(invoice_id, cur=cur)
 
             # Reverse the accounting posting inside THIS transaction so no
             # active accounting effect survives the deletion (no-op for

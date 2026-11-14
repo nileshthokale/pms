@@ -73,7 +73,9 @@ class CreditNoteDAO:
                        c.cn_date, c.cn_type, c.customer_id,
                        cu.customer_name AS customer_name,
                        c.total_amount, c.ledger_amount, c.remarks,
-                       COALESCE(c.added_to_ledger, 'N') AS added_to_ledger
+                       COALESCE(c.added_to_ledger, 'N') AS added_to_ledger,
+                       COALESCE(c.settled_amount, 0.0) AS settled_amount,
+                       COALESCE(c.settlement_status, 'UNSETTLED') AS settlement_status
                 FROM credit_notes c
                 LEFT JOIN customers cu ON cu.id = c.customer_id
                 ORDER BY c.id DESC
@@ -93,7 +95,9 @@ class CreditNoteDAO:
                        c.cn_date, c.cn_type, c.customer_id,
                        cu.customer_name AS customer_name,
                        c.total_amount, c.ledger_amount, c.remarks,
-                       COALESCE(c.added_to_ledger, 'N') AS added_to_ledger
+                       COALESCE(c.added_to_ledger, 'N') AS added_to_ledger,
+                       COALESCE(c.settled_amount, 0.0) AS settled_amount,
+                       COALESCE(c.settlement_status, 'UNSETTLED') AS settlement_status
                 FROM credit_notes c
                 LEFT JOIN customers cu ON cu.id = c.customer_id
                 WHERE c.id = ?
@@ -163,7 +167,9 @@ class CreditNoteDAO:
                        c.cn_date, c.cn_type, c.customer_id,
                        cu.customer_name AS customer_name,
                        c.total_amount, c.ledger_amount, c.remarks,
-                       COALESCE(c.added_to_ledger, 'N') AS added_to_ledger
+                       COALESCE(c.added_to_ledger, 'N') AS added_to_ledger,
+                       COALESCE(c.settled_amount, 0.0) AS settled_amount,
+                       COALESCE(c.settlement_status, 'UNSETTLED') AS settlement_status
                 FROM credit_notes c
                 LEFT JOIN customers cu ON cu.id = c.customer_id
                 {where}
@@ -271,7 +277,7 @@ class CreditNoteDAO:
                         float(item.get("less_amount", 0.0)),
                         round(float(item.get("amount", 0.0)), 2),
                         item.get("return_reason", "Sales Return"),
-                        float(item.get("price_factor", 1.0)),
+                        float(item["price_factor_num"]) if "price_factor_num" in item and str(item["price_factor_num"]).replace(".", "", 1).isdigit() else (float(item["price_factor"]) if str(item.get("price_factor", "")).replace(".", "", 1).isdigit() else 1.0),
                     ),
                 )
 
@@ -403,7 +409,7 @@ class CreditNoteDAO:
                         float(item.get("less_amount", 0.0)),
                         round(float(item.get("amount", 0.0)), 2),
                         item.get("return_reason", "Sales Return"),
-                        float(item.get("price_factor", 1.0)),
+                        float(item["price_factor_num"]) if "price_factor_num" in item and str(item["price_factor_num"]).replace(".", "", 1).isdigit() else (float(item["price_factor"]) if str(item.get("price_factor", "")).replace(".", "", 1).isdigit() else 1.0),
                     ),
                 )
 
@@ -473,5 +479,202 @@ class CreditNoteDAO:
         except Exception:
             conn.rollback()
             raise
+        finally:
+            conn.close()
+
+    # ── settlements & adjustments ──────────────────────────────────────
+    @staticmethod
+    def get_unsettled_by_customer(
+        customer_id: int | None = None,
+        customer_name: str | None = None,
+    ) -> list[dict]:
+        """Fetch unsettled or partially settled credit notes for a customer.
+
+        If customer is Walk-in (or customer_id is None/0), matches walk-in
+        records. Excludes notes already posted to ledger, since those are
+        already accounted for in the customer's ledger balance.
+        """
+        conn = get_connection()
+        try:
+            clauses = [
+                "(c.total_amount - COALESCE(c.settled_amount, 0.0)) > 0.001",
+                "COALESCE(c.added_to_ledger, 'N') != 'Y'",
+            ]
+            params: list = []
+
+            is_walkin = False
+            if customer_name and customer_name.strip().upper() in ("WALKIN", "WALK-IN", "WALK IN"):
+                is_walkin = True
+
+            if customer_id and not is_walkin:
+                clauses.append("c.customer_id = ?")
+                params.append(customer_id)
+            else:
+                # Walk-in: match by customer_id or customer name
+                clauses.append(
+                    "(cu.customer_name LIKE '%WALK%' OR c.customer_id IS NULL OR c.customer_id = 0)"
+                )
+
+            where_str = " AND ".join(clauses)
+            sql = f"""
+                SELECT c.id, c.voucher_no, c.voucher_date, c.voucher_time,
+                       c.total_amount,
+                       COALESCE(c.settled_amount, 0.0) AS settled_amount,
+                       ROUND(c.total_amount - COALESCE(c.settled_amount, 0.0), 2) AS unsettled_amount,
+                       COALESCE(c.settlement_status, 'UNSETTLED') AS settlement_status,
+                       cu.customer_name
+                FROM credit_notes c
+                LEFT JOIN customers cu ON cu.id = c.customer_id
+                WHERE {where_str}
+                ORDER BY c.voucher_date ASC, c.id ASC
+            """
+            rows = conn.execute(sql, params).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    @staticmethod
+    def settle_credit_notes(
+        settlements: list[dict],
+        sales_invoice_id: int,
+        cur: sqlite3.Cursor | None = None,
+        settlement_date: str | None = None,
+        settlement_time: str | None = None,
+    ) -> None:
+        """Apply credit note settlements against a sales invoice.
+
+        Can run inside an existing cursor/transaction (from SalesDAO).
+        """
+        from datetime import datetime
+        now = datetime.now()
+        s_date = settlement_date or now.strftime("%Y-%m-%d")
+        s_time = settlement_time or now.strftime("%H:%M:%S")
+
+        should_commit = False
+        conn = None
+        if cur is None:
+            conn = get_connection()
+            cur = conn.cursor()
+            cur.execute("BEGIN")
+            should_commit = True
+
+        try:
+            for s in settlements:
+                cn_id = int(s["credit_note_id"])
+                credit_amt = round(float(s.get("credit_amount", 0.0)), 2)
+                disc_amt = round(float(s.get("discount_amount", 0.0)), 2)
+
+                if credit_amt <= 0:
+                    continue
+
+                # 1. Record settlement row
+                cur.execute(
+                    """
+                    INSERT INTO credit_note_settlements
+                        (credit_note_id, sales_invoice_id, settled_amount,
+                         discount_amount, settlement_date, settlement_time)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (cn_id, sales_invoice_id, credit_amt, disc_amt, s_date, s_time),
+                )
+
+                # 2. Update credit note settled balance and status
+                cur.execute(
+                    """
+                    UPDATE credit_notes
+                    SET settled_amount = ROUND(COALESCE(settled_amount, 0.0) + ?, 2),
+                        settlement_status = CASE
+                            WHEN ROUND(COALESCE(settled_amount, 0.0) + ?, 2) >= total_amount - 0.01
+                            THEN 'SETTLED'
+                            ELSE 'PARTIAL'
+                        END
+                    WHERE id = ?
+                    """,
+                    (credit_amt, credit_amt, cn_id),
+                )
+
+            if should_commit and conn:
+                conn.commit()
+        except Exception:
+            if should_commit and conn:
+                conn.rollback()
+            raise
+        finally:
+            if should_commit and conn:
+                conn.close()
+
+    @staticmethod
+    def reverse_settlements_for_invoice(
+        sales_invoice_id: int,
+        cur: sqlite3.Cursor | None = None,
+    ) -> None:
+        """Reverse all credit note settlements linked to a sales invoice."""
+        should_commit = False
+        conn = None
+        if cur is None:
+            conn = get_connection()
+            cur = conn.cursor()
+            cur.execute("BEGIN")
+            should_commit = True
+
+        try:
+            rows = cur.execute(
+                """
+                SELECT credit_note_id, settled_amount
+                FROM credit_note_settlements
+                WHERE sales_invoice_id = ?
+                """,
+                (sales_invoice_id,),
+            ).fetchall()
+
+            for r in rows:
+                cn_id = r["credit_note_id"]
+                s_amt = r["settled_amount"]
+                cur.execute(
+                    """
+                    UPDATE credit_notes
+                    SET settled_amount = ROUND(MAX(0.0, COALESCE(settled_amount, 0.0) - ?), 2),
+                        settlement_status = CASE
+                            WHEN ROUND(MAX(0.0, COALESCE(settled_amount, 0.0) - ?), 2) <= 0.001
+                            THEN 'UNSETTLED'
+                            ELSE 'PARTIAL'
+                        END
+                    WHERE id = ?
+                    """,
+                    (s_amt, s_amt, cn_id),
+                )
+
+            cur.execute(
+                "DELETE FROM credit_note_settlements WHERE sales_invoice_id = ?",
+                (sales_invoice_id,),
+            )
+
+            if should_commit and conn:
+                conn.commit()
+        except Exception:
+            if should_commit and conn:
+                conn.rollback()
+            raise
+        finally:
+            if should_commit and conn:
+                conn.close()
+
+    @staticmethod
+    def get_settlements_for_invoice(sales_invoice_id: int) -> list[dict]:
+        """Fetch all credit note settlements applied to a sales invoice."""
+        conn = get_connection()
+        try:
+            sql = """
+                SELECT cns.id, cns.credit_note_id, cns.sales_invoice_id,
+                       cns.settled_amount, cns.discount_amount,
+                       cns.settlement_date, cns.settlement_time,
+                       cn.voucher_no, cn.total_amount
+                FROM credit_note_settlements cns
+                JOIN credit_notes cn ON cn.id = cns.credit_note_id
+                WHERE cns.sales_invoice_id = ?
+                ORDER BY cns.id ASC
+            """
+            rows = conn.execute(sql, (sales_invoice_id,)).fetchall()
+            return [dict(r) for r in rows]
         finally:
             conn.close()

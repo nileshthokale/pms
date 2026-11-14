@@ -380,6 +380,8 @@ def init_database():
                 paid_amount     REAL    DEFAULT 0.0,
                 total_amount    REAL    DEFAULT 0.0,
                 round_off       REAL    DEFAULT 0.0,
+                cn_amount       REAL    DEFAULT 0.0,
+                dr_amount       REAL    DEFAULT 0.0,
                 net_amount      REAL    DEFAULT 0.0,
                 remarks         TEXT    DEFAULT ''
             )
@@ -415,6 +417,8 @@ def init_database():
                 customer_id     INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
                 total_amount    REAL    DEFAULT 0.0,
                 ledger_amount   REAL    DEFAULT 0.0,
+                settled_amount  REAL    DEFAULT 0.0,
+                settlement_status TEXT  DEFAULT 'UNSETTLED',
                 remarks         TEXT    DEFAULT '',
                 added_to_ledger TEXT    DEFAULT 'N'
             )
@@ -453,6 +457,8 @@ def init_database():
                 supplier_id     INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
                 total_amount    REAL    DEFAULT 0.0,
                 ledger_amount   REAL    DEFAULT 0.0,
+                settled_amount  REAL    DEFAULT 0.0,
+                settlement_status TEXT  DEFAULT 'UNSETTLED',
                 remarks         TEXT    DEFAULT '',
                 added_to_ledger TEXT    DEFAULT 'N'
             )
@@ -862,6 +868,44 @@ def init_database():
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_stock_adjustments_date "
             "ON stock_adjustments(adjustment_date)"
+        )
+
+        # ── Credit Note Settlements & Sales Invoice Extensions ──
+        cur.execute("PRAGMA table_info(credit_notes)")
+        cn_cols = {row[1] for row in cur.fetchall()}
+        if "settled_amount" not in cn_cols:
+            cur.execute("ALTER TABLE credit_notes ADD COLUMN settled_amount REAL DEFAULT 0.0")
+        if "settlement_status" not in cn_cols:
+            cur.execute("ALTER TABLE credit_notes ADD COLUMN settlement_status TEXT DEFAULT 'UNSETTLED'")
+
+        cur.execute("PRAGMA table_info(sales_invoices)")
+        si_cols = {row[1] for row in cur.fetchall()}
+        if "cn_amount" not in si_cols:
+            cur.execute("ALTER TABLE sales_invoices ADD COLUMN cn_amount REAL DEFAULT 0.0")
+        if "dr_amount" not in si_cols:
+            cur.execute("ALTER TABLE sales_invoices ADD COLUMN dr_amount REAL DEFAULT 0.0")
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS credit_note_settlements (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                credit_note_id      INTEGER NOT NULL REFERENCES credit_notes(id) ON DELETE CASCADE,
+                sales_invoice_id    INTEGER NOT NULL REFERENCES sales_invoices(id) ON DELETE CASCADE,
+                settled_amount      REAL NOT NULL DEFAULT 0.0,
+                discount_amount     REAL NOT NULL DEFAULT 0.0,
+                settlement_date     TEXT NOT NULL,
+                settlement_time     TEXT DEFAULT '',
+                created_at          TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_cn_settlements_cn "
+            "ON credit_note_settlements(credit_note_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_cn_settlements_si "
+            "ON credit_note_settlements(sales_invoice_id)"
         )
 
         conn.commit()

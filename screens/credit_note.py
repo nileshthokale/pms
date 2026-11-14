@@ -1156,3 +1156,226 @@ class CreditNotePage(QWidget):
             QMessageBox.warning(self, "Print Error", str(e))
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to generate PDF:\n{e}")
+
+
+# ======================================================================
+# Pending Credit Notes Selection Dialog (Pharma-WINNER Screenshot 3)
+# ======================================================================
+
+class PendingCreditNotesDialog(QDialog):
+    """Dialog allowing selection and partial/full adjustment of pending credit notes."""
+
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        *,
+        customer_id: int | None = None,
+        customer_name: str | None = None,
+        max_adjustment_needed: float = 0.0,
+        already_applied_settlements: list[dict] | None = None,
+    ):
+        super().__init__(parent)
+        self._customer_id = customer_id
+        self._customer_name = (customer_name or "WALKIN").strip()
+        self._max_needed = max_adjustment_needed
+        self._already_applied = {s["credit_note_id"]: s for s in (already_applied_settlements or [])}
+        self._settlements_result: list[dict] = []
+        self._row_edits: list[dict] = []
+
+        self.setWindowTitle(f"Pending Credit Note(s) For {self._customer_name}")
+        self.setMinimumWidth(720)
+        self.setMinimumHeight(420)
+        self.setModal(True)
+
+        p = _get_palette()
+        self.setStyleSheet(
+            f"QDialog {{ background-color: {p['surface']}; color: {p['text']}; }}"
+            f"QTableWidget {{ background-color: {p['surface']}; color: {p['text']}; "
+            f"gridline-color: {p['border']}; border: 1px solid {p['border']}; }}"
+            f"QHeaderView::section {{ background-color: {p['accent']}; color: white; font-weight: bold; padding: 4px; border: none; }}"
+            f"QLineEdit {{ background-color: #000; color: #fff; border: 1px solid {p['border']}; padding: 3px; font-weight: bold; }}"
+            f"QLineEdit:focus {{ border: 1px solid {p['accent']}; }}"
+        )
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(10)
+
+        # Table
+        self.table = QTableWidget()
+        self.table.setColumnCount(7)
+        self.table.setHorizontalHeaderLabels([
+            "VhType", "VhNo", "VhDate", "VhAmount", "UnSettled", "CreditAmt", "DiscAmt"
+        ])
+        self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.table.verticalHeader().setVisible(False)
+        layout.addWidget(self.table, 1)
+
+        # Bottom buttons row
+        btn_row = QHBoxLayout()
+        btn_row.setContentsMargins(0, 0, 0, 0)
+        btn_row.setSpacing(10)
+
+        self.new_cn_btn = QPushButton("New Credit Note")
+        self.new_cn_btn.setStyleSheet(
+            f"QPushButton {{ background-color: {p['accent']}; color: white; font-weight: bold; padding: 6px 14px; border-radius: 3px; }}"
+            f"QPushButton:hover {{ background-color: {p['accent_hover']}; }}"
+        )
+        self.new_cn_btn.clicked.connect(self._on_new_credit_note)
+        btn_row.addWidget(self.new_cn_btn)
+
+        btn_row.addStretch()
+
+        self.done_btn = QPushButton("Done")
+        self.done_btn.setStyleSheet(
+            f"QPushButton {{ background-color: {p['accent']}; color: white; font-weight: bold; padding: 6px 20px; border-radius: 3px; }}"
+            f"QPushButton:hover {{ background-color: {p['accent_hover']}; }}"
+        )
+        self.done_btn.clicked.connect(self._on_done)
+        btn_row.addWidget(self.done_btn)
+
+        self.close_btn = QPushButton("Close")
+        self.close_btn.setStyleSheet(
+            f"QPushButton {{ background-color: transparent; color: {p['text']}; border: 1px solid {p['border']}; padding: 6px 20px; border-radius: 3px; }}"
+            f"QPushButton:hover {{ background-color: {p['border']}; }}"
+        )
+        self.close_btn.clicked.connect(self.reject)
+        btn_row.addWidget(self.close_btn)
+
+        layout.addLayout(btn_row)
+
+        self._load_pending_notes()
+
+    def _load_pending_notes(self):
+        notes = CreditNoteDAO.get_unsettled_by_customer(
+            self._customer_id, self._customer_name
+        )
+        self.table.setRowCount(len(notes))
+        self._row_edits = []
+
+        remaining_needed = self._max_needed
+
+        for row, n in enumerate(notes):
+            cn_id = n["id"]
+            vh_no = str(n.get("voucher_no", ""))
+            vh_date = str(n.get("voucher_date", ""))
+            vh_amt = float(n.get("total_amount", 0.0))
+            unsettled = float(n.get("unsettled_amount", 0.0))
+
+            # Prior adjustment if already opened
+            prior_credit = 0.0
+            prior_disc = 0.0
+            if cn_id in self._already_applied:
+                prior_credit = float(self._already_applied[cn_id].get("credit_amount", 0.0))
+                prior_disc = float(self._already_applied[cn_id].get("discount_amount", 0.0))
+
+            # If opening fresh and needed > 0, we can auto-fill up to remaining needed
+            if prior_credit <= 0 and remaining_needed > 0 and unsettled > 0:
+                suggested = min(unsettled, remaining_needed)
+                prior_credit = suggested
+                remaining_needed -= suggested
+
+            item_type = QTableWidgetItem("Credit Note")
+            item_type.setFlags(item_type.flags() & ~Qt.ItemIsEditable)
+
+            item_no = QTableWidgetItem(vh_no)
+            item_no.setFlags(item_no.flags() & ~Qt.ItemIsEditable)
+
+            item_date = QTableWidgetItem(vh_date)
+            item_date.setFlags(item_date.flags() & ~Qt.ItemIsEditable)
+
+            item_amt = QTableWidgetItem(f"{vh_amt:.2f}")
+            item_amt.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            item_amt.setFlags(item_amt.flags() & ~Qt.ItemIsEditable)
+
+            item_unsettled = QTableWidgetItem(f"{unsettled:.2f}")
+            item_unsettled.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            item_unsettled.setFlags(item_unsettled.flags() & ~Qt.ItemIsEditable)
+
+            credit_edit = QLineEdit(f"{prior_credit:.2f}" if prior_credit > 0 else "0.0")
+            credit_edit.setAlignment(Qt.AlignRight)
+
+            disc_edit = QLineEdit(f"{prior_disc:.2f}" if prior_disc > 0 else "0.0")
+            disc_edit.setAlignment(Qt.AlignRight)
+
+            self.table.setItem(row, 0, item_type)
+            self.table.setItem(row, 1, item_no)
+            self.table.setItem(row, 2, item_date)
+            self.table.setItem(row, 3, item_amt)
+            self.table.setItem(row, 4, item_unsettled)
+            self.table.setCellWidget(row, 5, credit_edit)
+            self.table.setCellWidget(row, 6, disc_edit)
+
+            self._row_edits.append({
+                "credit_note_id": cn_id,
+                "voucher_no": vh_no,
+                "voucher_date": vh_date,
+                "total_amount": vh_amt,
+                "unsettled": unsettled,
+                "credit_edit": credit_edit,
+                "disc_edit": disc_edit,
+            })
+
+        self.table.setColumnWidth(0, 95)
+        self.table.setColumnWidth(1, 80)
+        self.table.setColumnWidth(2, 95)
+        self.table.setColumnWidth(3, 90)
+        self.table.setColumnWidth(4, 90)
+        self.table.setColumnWidth(5, 110)
+        self.table.setColumnWidth(6, 90)
+
+    def _on_new_credit_note(self):
+        dlg = _CreditNoteEntryDialog(self)
+        if self._customer_id and hasattr(dlg, "customer_combo"):
+            if hasattr(dlg.customer_combo, "set_selected_id"):
+                dlg.customer_combo.set_selected_id(self._customer_id)
+            elif hasattr(dlg.customer_combo, "findData"):
+                idx = dlg.customer_combo.findData(self._customer_id)
+                if idx >= 0:
+                    dlg.customer_combo.setCurrentIndex(idx)
+        if (dlg.exec() if hasattr(dlg, "exec") else dlg.exec_()) == QDialog.Accepted or dlg._saved:
+            self._load_pending_notes()
+
+    def _on_done(self):
+        settlements = []
+        for r in self._row_edits:
+            try:
+                credit_amt = round(float(r["credit_edit"].text() or 0.0), 2)
+            except ValueError:
+                credit_amt = 0.0
+            try:
+                disc_amt = round(float(r["disc_edit"].text() or 0.0), 2)
+            except ValueError:
+                disc_amt = 0.0
+
+            if credit_amt > r["unsettled"] + 0.001:
+                QMessageBox.warning(
+                    self,
+                    "Invalid Amount",
+                    f"Credit amount ({credit_amt:.2f}) for Voucher #{r['voucher_no']} "
+                    f"cannot exceed unsettled amount ({r['unsettled']:.2f})."
+                )
+                return
+
+            if credit_amt < 0 or disc_amt < 0:
+                QMessageBox.warning(self, "Invalid Amount", "Credit and Discount amounts cannot be negative.")
+                return
+
+            if credit_amt > 0:
+                settlements.append({
+                    "credit_note_id": r["credit_note_id"],
+                    "voucher_no": r["voucher_no"],
+                    "credit_amount": credit_amt,
+                    "discount_amount": disc_amt,
+                })
+
+        self._settlements_result = settlements
+        self.accept()
+
+    def get_settlements(self) -> list[dict]:
+        return self._settlements_result
+
+    def get_total_credit_applied(self) -> float:
+        return round(sum(s["credit_amount"] for s in self._settlements_result), 2)

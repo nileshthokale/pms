@@ -38,6 +38,7 @@ from PySide6.QtWidgets import (
     QStyledItemDelegate,
     QTableWidget,
     QTableWidgetItem,
+    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -3355,6 +3356,9 @@ class _SalePanel(QWidget):
         self._auto_filled_address_text: str | None = None
         self._user_edited_address: bool = False
         self._last_lookup_patient: str | None = None
+        self._cn_amount: float = 0.0
+        self._dr_amount: float = 0.0
+        self._applied_cn_settlements: list[dict] = []
 
         self.setObjectName("SalePanel")
         self.setStyleSheet(
@@ -3457,6 +3461,9 @@ class _SalePanel(QWidget):
         self._saved = False
         self._held = False
         self._commit_locked = False
+        self._cn_amount = 0.0
+        self._dr_amount = 0.0
+        self._applied_cn_settlements = []
         self._item_rows.clear()
         self._original_batch_qty.clear()
         self._refresh_table()
@@ -4201,7 +4208,11 @@ class _SalePanel(QWidget):
         stored remarks stay empty exactly as before.
         """
         box = getattr(self, "remarks_edit", None)
-        return box.text().strip() if box is not None else ""
+        if box is None:
+            return ""
+        if hasattr(box, "toPlainText"):
+            return box.toPlainText().strip()
+        return box.text().strip()
 
 
     def _build_compact_sale_metadata(self):
@@ -5232,7 +5243,9 @@ class _SalePanel(QWidget):
         self.total_amount_label.setText(f"{total:.2f}")
 
         bill_disc = _safe_float(self.bill_disc_edit.text())
-        unrounded_net = _round2(total - bill_disc)
+        cn_amount = getattr(self, "_cn_amount", 0.0)
+        dr_amount = getattr(self, "_dr_amount", 0.0)
+        unrounded_net = _round2(total - bill_disc - cn_amount + dr_amount)
         round_off, net = _compute_bill_round_off(unrounded_net)
 
         if round_off > 0:
@@ -5453,6 +5466,13 @@ class _SalePanel(QWidget):
 
         self.bill_disc_edit.setText(str(inv.get("discount", 0.0)))
         self.paid_edit.setText(str(inv.get("paid_amount", 0.0)))
+        self._cn_amount = float(inv.get("cn_amount") or 0.0)
+        self._dr_amount = float(inv.get("dr_amount") or 0.0)
+        try:
+            from database.credit_note_dao import CreditNoteDAO
+            self._applied_cn_settlements = CreditNoteDAO.get_settlements_for_invoice(inv["id"])
+        except Exception:
+            self._applied_cn_settlements = []
 
         self._recalc_totals()
         self._refresh_draft_availability()
@@ -5753,7 +5773,10 @@ class _SalePanel(QWidget):
             total_amount = _round2(float(_d(sum(r.amount for r in self._item_rows))))
             bill_discount = _safe_float(self.bill_disc_edit.text())
             paid = _safe_float(self.paid_edit.text())
-            unrounded_net = _round2(total_amount - bill_discount)
+            cn_amount = getattr(self, "_cn_amount", 0.0)
+            dr_amount = getattr(self, "_dr_amount", 0.0)
+            settlements = getattr(self, "_applied_cn_settlements", None)
+            unrounded_net = _round2(total_amount - bill_discount - cn_amount + dr_amount)
             round_off, net_amount = _compute_bill_round_off(unrounded_net)
             sale_date = self.sale_date.date().toString("yyyy-MM-dd")
             sale_time = self.sale_time_edit.text().strip()
@@ -5805,7 +5828,7 @@ class _SalePanel(QWidget):
             items_data = [r.to_dict() for r in self._item_rows]
 
             if self._invoice:
-                # Edit: update in place â€” stock is adjusted and the
+                # Edit: update in place — stock is adjusted and the
                 # accounting posting is reversed + re-posted atomically.
                 SalesDAO.update_invoice(
                     invoice_id=self._invoice["id"],
@@ -5816,6 +5839,8 @@ class _SalePanel(QWidget):
                     paid_amount=paid, total_amount=total_amount,
                     round_off=round_off, net_amount=net_amount,
                     remarks=remarks, items=items_data,
+                    cn_amount=cn_amount, dr_amount=dr_amount,
+                    settlements=settlements,
                 )
             else:
                 SalesDAO.insert_invoice(
@@ -5826,6 +5851,8 @@ class _SalePanel(QWidget):
                     total_amount=total_amount, round_off=round_off,
                     net_amount=net_amount, remarks=remarks,
                     items=items_data,
+                    cn_amount=cn_amount, dr_amount=dr_amount,
+                    settlements=settlements,
                 )
             addr_text = self.address_edit.text().strip() if hasattr(self, "address_edit") else ""
             mobile_digits = self.mobile_edit.get_digits() if hasattr(self, "mobile_edit") else ""
@@ -5870,6 +5897,9 @@ class _SalePanel(QWidget):
             "doctor_id": self.doctor_combo.currentData(),
             "bill_discount": self.bill_disc_edit.text(),
             "paid_amount": self.paid_edit.text(),
+            "cn_amount": getattr(self, "_cn_amount", 0.0),
+            "dr_amount": getattr(self, "_dr_amount", 0.0),
+            "applied_cn_settlements": list(getattr(self, "_applied_cn_settlements", []) or []),
             "invoice": self._invoice,
             "hold_bill_id": self._hold_bill_id,
             "original_batch_qty": dict(self._original_batch_qty),
@@ -5903,6 +5933,9 @@ class _SalePanel(QWidget):
         self._commit_locked = False
         self._saved = False
         self._held = False
+        self._cn_amount = float(state.get("cn_amount") or 0.0)
+        self._dr_amount = float(state.get("dr_amount") or 0.0)
+        self._applied_cn_settlements = list(state.get("applied_cn_settlements") or [])
         self._provisional_bill_no = bool(state.get("provisional_bill_no", False))
         raw_bno = state.get("bill_no", "")
         self._full_bill_no = raw_bno
@@ -6463,13 +6496,12 @@ class SalesBillReviewDialog(QDialog):
         row.addLayout(box)
 
     def _build_actions(self) -> QWidget:
-        """Single compact totals/remarks footer + Save/Close.
+        """Single compact totals/remarks footer matching Pharma-WINNER reference + Save/Close.
 
-        One totals row (each total shown exactly once) plus one
-        remarks + Save/Close row.  The old three-row layout repeated
-        Total Amount / Round Off / Net Amount in both the panel's upper
-        summary and this lower area; the upper panel summary is now
-        hidden (see __init__), so every total appears only here.
+        Left side: Total Items count and multiline Remarks.
+        Right side: 'Net Receivable' block with Total Amount, Less CN Amt + Credit Note button,
+        Round off, Less Bill Discount, Add Dr Amt, and Net Amount.
+        Bottom: Save and Close buttons.
         """
         bar = QWidget()
         bar.setObjectName("SalesBillActions")
@@ -6479,120 +6511,264 @@ class SalesBillReviewDialog(QDialog):
             f"  border-top: 1px solid {_BORDER}; }}"
         )
         main_layout = QVBoxLayout(bar)
-        # Reduced vertical padding vs the old 12,8 layout.
         main_layout.setContentsMargins(12, 4, 12, 4)
         main_layout.setSpacing(4)
 
-        # ---- Single horizontal totals row (wraps via small widths) ----
-        totals_row = QHBoxLayout()
-        totals_row.setSpacing(6)
-        totals_row.setContentsMargins(0, 0, 0, 0)
-        self._compact_footer_block(totals_row, "Total Items", "_total_items_label",
-                                   str(len(self._panel._item_rows)), 74)
-        self._compact_footer_block(totals_row, "Total Amount", "_footer_total_amount",
-                                   self._panel.total_amount_label.text(), 90)
-        self._compact_footer_block(totals_row, "Bill Discount", "_footer_bill_discount",
-                                   f"{_safe_float(self._panel.bill_disc_edit.text()):.2f}", 88)
-        self._compact_footer_block(totals_row, "Customer Saving", "_footer_customer_saving",
-                                   self._panel.customer_saving_label.text() if hasattr(self._panel, 'customer_saving_label') else "0.00", 100)
-        self._compact_footer_block(totals_row, "Yours", "_footer_yours",
-                                   self._panel.yours_label.text() if hasattr(self._panel, 'yours_label') else "0.00", 80)
-        self._compact_footer_block(totals_row, "CN Amount", "_footer_cn_amount",
-                                   "0.00", 72)
-        self._compact_footer_block(totals_row, "Dr Amount", "_footer_dr_amount",
-                                   "0.00", 72)
-        self._compact_footer_block(totals_row, "Credit Note", "_footer_credit_note",
-                                   "0.00", 80)
-        self._compact_footer_block(totals_row, "Round Off", "_footer_round_off",
-                                   self._panel.round_off_label.text(), 76)
-        self._compact_footer_block(totals_row, "Net Amount", "_footer_net_amount",
-                                   self._panel.net_amt_label.text(), 110, net=True)
-        totals_row.addStretch(1)
-        main_layout.addLayout(totals_row)
+        # Upper row: Left side (Total Items + Remarks) and Right side (Net Receivable group)
+        content_row = QHBoxLayout()
+        content_row.setContentsMargins(0, 0, 0, 0)
+        content_row.setSpacing(16)
 
-        # ---- Remarks + Save/Close (bottom-right aligned) ----
-        bottom_row = QHBoxLayout()
-        bottom_row.setSpacing(8)
-        bottom_row.setContentsMargins(0, 0, 0, 0)
-        remarks_caption = QLabel("Remarks")
-        remarks_caption.setStyleSheet(
-            f"color: {_TEXT}; font-size: {TYPE_FORM_LABEL}px;"
-            f"font-weight: bold; background: transparent;"
-            f"font-family: {FONT_FAMILY};"
+        # ---- Left: Total Items and Remarks ----
+        left_box = QVBoxLayout()
+        left_box.setSpacing(4)
+        left_box.setContentsMargins(0, 0, 0, 0)
+
+        # Total Items
+        items_row = QHBoxLayout()
+        items_row.setSpacing(6)
+        lbl_ti = QLabel("Total Items")
+        lbl_ti.setStyleSheet(
+            f"color: {_TEXT}; font-size: {TYPE_FORM_LABEL}px; font-weight: bold;"
+            f"background: transparent; font-family: {FONT_FAMILY};"
         )
-        bottom_row.addWidget(remarks_caption)
-        self.remarks_edit = _make_edit()
-        self.remarks_edit.setMinimumWidth(120)
-        self.remarks_edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        bottom_row.addWidget(self.remarks_edit, 1)
+        items_row.addWidget(lbl_ti)
+
+        self._total_items_label = QLabel(str(len(self._panel._item_rows)))
+        self._total_items_label.setAlignment(Qt.AlignCenter)
+        self._total_items_label.setFixedWidth(50)
+        self._total_items_label.setFixedHeight(24)
+        self._total_items_label.setStyleSheet(
+            f"color: {_TEXT}; font-size: {TYPE_VALUE}px; font-weight: bold;"
+            f"background-color: {_SURFACE}; border: 1px solid {_BORDER}; font-family: {FONT_FAMILY};"
+        )
+        items_row.addWidget(self._total_items_label)
+        items_row.addStretch(1)
+        left_box.addLayout(items_row)
+
+        # Remarks
+        rem_row = QHBoxLayout()
+        rem_row.setSpacing(6)
+        lbl_rem = QLabel("Remarks")
+        lbl_rem.setStyleSheet(
+            f"color: {_TEXT}; font-size: {TYPE_FORM_LABEL}px; font-weight: bold;"
+            f"background: transparent; font-family: {FONT_FAMILY};"
+        )
+        rem_row.addWidget(lbl_rem, 0, Qt.AlignTop)
+
+        self.remarks_edit = QTextEdit()
+        self.remarks_edit.setStyleSheet(_EDIT_STYLE)
+        self.remarks_edit.setMinimumWidth(180)
+        self.remarks_edit.setMaximumWidth(280)
+        self.remarks_edit.setFixedHeight(46)
+        rem_row.addWidget(self.remarks_edit, 1)
+        left_box.addLayout(rem_row)
+
+        content_row.addLayout(left_box, 0)
+        content_row.addStretch(1)
+
+        # ---- Right: Net Receivable group (Matching Screenshot 2) ----
+        nr_group = QGroupBox("Net Receivable")
+        nr_group.setStyleSheet(
+            f"QGroupBox {{ font-size: 11px; font-weight: bold; color: {_TEXT}; "
+            f"border: 1px solid {_BORDER}; border-radius: 4px; margin-top: 6px; padding-top: 6px; }}"
+            f"QGroupBox::title {{ subcontrol-origin: margin; left: 8px; padding: 0 4px; color: #0284c7; }}"
+        )
+        nr_grid = QGridLayout(nr_group)
+        nr_grid.setContentsMargins(10, 6, 10, 6)
+        nr_grid.setHorizontalSpacing(10)
+        nr_grid.setVerticalSpacing(4)
+
+        def _cap_lbl(text: str) -> QLabel:
+            lbl = QLabel(text)
+            lbl.setStyleSheet(
+                f"color: {_TEXT}; font-size: {TYPE_FORM_LABEL}px; font-weight: bold;"
+                f"background: transparent; font-family: {FONT_FAMILY};"
+            )
+            lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            return lbl
+
+        def _val_box(initial: str, width: int = 80, net: bool = False) -> QLabel:
+            lbl = QLabel(initial)
+            lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            lbl.setFixedWidth(width)
+            lbl.setFixedHeight(24)
+            if net:
+                lbl.setStyleSheet(
+                    f"color: {_TEXT}; font-size: {TYPE_VALUE_EMPHASIS}px; font-weight: bold;"
+                    f"background-color: {_SURFACE}; border: 1px solid {_BORDER}; padding-right: 4px; font-family: {FONT_FAMILY};"
+                )
+            else:
+                lbl.setStyleSheet(
+                    f"color: {_TEXT}; font-size: {TYPE_VALUE}px; font-weight: bold;"
+                    f"background-color: {_SURFACE}; border: 1px solid {_BORDER}; padding-right: 4px; font-family: {FONT_FAMILY};"
+                )
+            return lbl
+
+        # Row 0: Total Amount | Less CN Amt + [Credit Note] | Round off
+        nr_grid.addWidget(_cap_lbl("Total Amount"), 0, 0)
+        self._footer_total_amount = _val_box(self._panel.total_amount_label.text(), 85)
+        nr_grid.addWidget(self._footer_total_amount, 0, 1)
+
+        nr_grid.addWidget(_cap_lbl("Less CN Amt"), 0, 2)
+        cn_box_layout = QHBoxLayout()
+        cn_box_layout.setContentsMargins(0, 0, 0, 0)
+        cn_box_layout.setSpacing(4)
+        self._cn_amt_edit = _make_edit()
+        self._cn_amt_edit.setFixedWidth(65)
+        self._cn_amt_edit.setFixedHeight(24)
+        self._cn_amt_edit.setAlignment(Qt.AlignRight)
+        init_cn = getattr(self._panel, "_cn_amount", 0.0)
+        if init_cn > 0:
+            self._cn_amt_edit.setText(f"{init_cn:.2f}")
+        self._cn_amt_edit.textEdited.connect(self._on_cn_amt_edited)
+        cn_box_layout.addWidget(self._cn_amt_edit)
+
+        self._credit_note_btn = QPushButton("Credit Note")
+        self._credit_note_btn.setToolTip("Select or issue customer credit notes (Ctrl+C)")
+        self._credit_note_btn.setFixedHeight(24)
+        self._credit_note_btn.setStyleSheet(
+            "QPushButton { background-color: #0284c7; color: white; font-weight: bold; "
+            "padding: 2px 8px; border: none; border-radius: 3px; font-size: 11px; }"
+            "QPushButton:hover { background-color: #0369a1; }"
+        )
+        self._credit_note_btn.clicked.connect(self._open_credit_note_dialog)
+        cn_box_layout.addWidget(self._credit_note_btn)
+        nr_grid.addLayout(cn_box_layout, 0, 3)
+
+        nr_grid.addWidget(_cap_lbl("Round off"), 0, 4)
+        self._footer_round_off = _val_box(self._panel.round_off_label.text(), 55)
+        nr_grid.addWidget(self._footer_round_off, 0, 5)
+
+        # Row 1: Less Bill Discount | Add Dr Amt | Net Amount
+        nr_grid.addWidget(_cap_lbl("Less Bill Discount"), 1, 0)
+        self._footer_bill_discount = _val_box(f"{_safe_float(self._panel.bill_disc_edit.text()):.2f}", 85)
+        nr_grid.addWidget(self._footer_bill_discount, 1, 1)
+
+        nr_grid.addWidget(_cap_lbl("Add Dr Amt"), 1, 2)
+        self._dr_amt_edit = _make_edit()
+        self._dr_amt_edit.setFixedWidth(65)
+        self._dr_amt_edit.setFixedHeight(24)
+        self._dr_amt_edit.setAlignment(Qt.AlignRight)
+        init_dr = getattr(self._panel, "_dr_amount", 0.0)
+        if init_dr > 0:
+            self._dr_amt_edit.setText(f"{init_dr:.2f}")
+        self._dr_amt_edit.textEdited.connect(self._on_dr_amt_edited)
+        nr_grid.addWidget(self._dr_amt_edit, 1, 3)
+
+        nr_grid.addWidget(_cap_lbl("Net Amount"), 1, 4)
+        self._footer_net_amount = _val_box(self._panel.net_amt_label.text(), 75, net=True)
+        nr_grid.addWidget(self._footer_net_amount, 1, 5)
+
+        content_row.addWidget(nr_group, 0)
+        main_layout.addLayout(content_row)
+
+        # Hidden fallback attributes for backwards compatibility
+        self._footer_cn_amount = self._cn_amt_edit
+        self._footer_dr_amount = self._dr_amt_edit
+        self._footer_credit_note = QLabel("0.00")
+        self._footer_customer_saving = QLabel("0.00")
+        self._footer_yours = QLabel("0.00")
+
+        # ---- Bottom row: Save and Close (aligned right) ----
+        bottom_row = QHBoxLayout()
+        bottom_row.setContentsMargins(0, 2, 0, 0)
+        bottom_row.setSpacing(8)
         bottom_row.addStretch(1)
 
         self._final_save_btn = QPushButton("Save")
         self._final_save_btn.setStyleSheet(_BTN_SAVE)
         self._final_save_btn.setFixedWidth(100)
-        self._final_save_btn.setFixedHeight(32)
+        self._final_save_btn.setFixedHeight(30)
         self._final_save_btn.setDefault(True)
-        self._final_save_btn.setToolTip(
-            "Commit this bill: save the sale, deduct stock and post accounting (Alt+S)"
-        )
+        self._final_save_btn.setToolTip("Commit this bill: save the sale, deduct stock and post accounting (Alt+S)")
         self._final_save_btn.clicked.connect(self._on_final_save)
         bottom_row.addWidget(self._final_save_btn)
 
         from PySide6.QtGui import QShortcut, QKeySequence
         QShortcut(QKeySequence("Alt+S"), self).activated.connect(self._on_final_save)
 
-        bottom_row.addSpacing(8)
-
         close_btn = QPushButton("Close")
         close_btn.setStyleSheet(_BTN_SECONDARY)
         close_btn.setFixedWidth(100)
-        close_btn.setFixedHeight(32)
+        close_btn.setFixedHeight(30)
         close_btn.setAutoDefault(False)
         close_btn.clicked.connect(self.reject)
         bottom_row.addWidget(close_btn)
 
         main_layout.addLayout(bottom_row)
 
-        # Keep footer totals live while the bill is edited.
+        # Signals
         self._panel.totals_changed.connect(self._on_totals_changed)
-        # Also watch bill discount changes to update footer
         self._panel.bill_disc_edit.textChanged.connect(self._update_footer_totals)
 
         return bar
 
+    def _on_cn_amt_edited(self, text: str):
+        self._panel._cn_amount = _safe_float(text)
+        self._panel._recalc_totals()
+        self._update_footer_totals()
+
+    def _on_dr_amt_edited(self, text: str):
+        self._panel._dr_amount = _safe_float(text)
+        self._panel._recalc_totals()
+        self._update_footer_totals()
+
+    def _open_credit_note_dialog(self):
+        from screens.credit_note import PendingCreditNotesDialog
+        cid = self._panel.customer_combo.currentData()
+        cname = self._panel.customer_combo.currentText()
+        if not cname or is_walkin_name(cname):
+            pat = self._panel.patient_name_edit.text().strip()
+            cname = pat if pat else "WALKIN"
+
+        bill_total = _safe_float(self._panel.total_amount_label.text())
+        dlg = PendingCreditNotesDialog(
+            self,
+            customer_id=cid,
+            customer_name=cname,
+            max_adjustment_needed=bill_total,
+            already_applied_settlements=getattr(self._panel, "_applied_cn_settlements", []),
+        )
+        if (dlg.exec() if hasattr(dlg, "exec") else dlg.exec_()) == QDialog.Accepted:
+            settlements = dlg.get_settlements()
+            applied_total = dlg.get_total_credit_applied()
+            self._panel._applied_cn_settlements = settlements
+            self._panel._cn_amount = applied_total
+            if hasattr(self, "_cn_amt_edit"):
+                self._cn_amt_edit.blockSignals(True)
+                self._cn_amt_edit.setText(f"{applied_total:.2f}" if applied_total > 0 else "")
+                self._cn_amt_edit.blockSignals(False)
+            self._panel._recalc_totals()
+            self._update_footer_totals()
+
     def _update_footer_totals(self):
-        """Update footer total labels when bill discount changes."""
+        """Update footer total labels when bill discount or amounts change."""
         if hasattr(self, '_footer_bill_discount'):
             self._footer_bill_discount.setText(f"{_safe_float(self._panel.bill_disc_edit.text()):.2f}")
         if hasattr(self, '_footer_total_amount'):
             self._footer_total_amount.setText(self._panel.total_amount_label.text())
-        if hasattr(self, '_footer_customer_saving') and hasattr(self._panel, 'customer_saving_label'):
-            self._footer_customer_saving.setText(self._panel.customer_saving_label.text())
-        if hasattr(self, '_footer_yours') and hasattr(self._panel, 'yours_label'):
-            self._footer_yours.setText(self._panel.yours_label.text())
         if hasattr(self, '_footer_round_off'):
             self._footer_round_off.setText(self._panel.round_off_label.text())
         if hasattr(self, '_footer_net_amount'):
             self._footer_net_amount.setText(self._panel.net_amt_label.text())
-
-    def _on_totals_changed(self, bill_no: str, amount: str, bill_total: str):
-        # Update header voucher no if it changed
-        if hasattr(self, '_header_voucher_label'):
-            self._header_voucher_label.setText(bill_no or "")
-
-        # Update footer totals
         if hasattr(self, '_total_items_label'):
             self._total_items_label.setText(str(len(self._panel._item_rows)))
-        if hasattr(self, '_footer_total_amount'):
-            self._footer_total_amount.setText(amount)
-        if hasattr(self, '_footer_customer_saving') and hasattr(self._panel, 'customer_saving_label'):
-            self._footer_customer_saving.setText(self._panel.customer_saving_label.text())
-        if hasattr(self, '_footer_yours') and hasattr(self._panel, 'yours_label'):
-            self._footer_yours.setText(self._panel.yours_label.text())
-        if hasattr(self, '_footer_round_off'):
-            self._footer_round_off.setText(self._panel.round_off_label.text())
-        if hasattr(self, '_footer_net_amount'):
-            self._footer_net_amount.setText(bill_total)
+        if hasattr(self, '_cn_amt_edit') and not self._cn_amt_edit.hasFocus():
+            cn_amt = getattr(self._panel, "_cn_amount", 0.0)
+            self._cn_amt_edit.blockSignals(True)
+            self._cn_amt_edit.setText(f"{cn_amt:.2f}" if cn_amt > 0 else "")
+            self._cn_amt_edit.blockSignals(False)
+        if hasattr(self, '_dr_amt_edit') and not self._dr_amt_edit.hasFocus():
+            dr_amt = getattr(self._panel, "_dr_amount", 0.0)
+            self._dr_amt_edit.blockSignals(True)
+            self._dr_amt_edit.setText(f"{dr_amt:.2f}" if dr_amt > 0 else "")
+            self._dr_amt_edit.blockSignals(False)
+
+    def _on_totals_changed(self, bill_no: str, amount: str, bill_total: str):
+        if hasattr(self, '_header_voucher_label'):
+            self._header_voucher_label.setText(bill_no or "")
+        self._update_footer_totals()
 
     # Sales Bill window: spacious yet screen-aware.  Approximately 85-90%
     # of the available width and 80-85% of the available height, so several
