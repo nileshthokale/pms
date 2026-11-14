@@ -850,9 +850,18 @@ def _collect_os_info() -> dict[str, Any]:
     if WINDOWS and winreg is not None:
         try:
             with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows NT\CurrentVersion") as key:
-                info["build_number"] = winreg.QueryValueEx(key, "CurrentBuildNumber")[0]
+                build_num = winreg.QueryValueEx(key, "CurrentBuildNumber")[0]
+                info["build_number"] = build_num
                 info["display_version"] = winreg.QueryValueEx(key, "DisplayVersion")[0] if _has_value(key, "DisplayVersion") else None
-                info["product_name"] = winreg.QueryValueEx(key, "ProductName")[0]
+                prod_name = winreg.QueryValueEx(key, "ProductName")[0]
+                # Windows 11 registry retains 'Windows 10' in ProductName for legacy compatibility.
+                # Windows 11 official builds start at 22000+.
+                try:
+                    if int(build_num) >= 22000 and "Windows 10" in prod_name:
+                        prod_name = prod_name.replace("Windows 10", "Windows 11")
+                except (ValueError, TypeError):
+                    pass
+                info["product_name"] = prod_name
         except Exception:
             pass
     _cached_os = info
