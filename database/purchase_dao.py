@@ -193,7 +193,8 @@ class PurchaseDAO:
                        due_date: str, total_amount: float, gst_amount: float,
                        debit_note_amount: float, other_amount: float,
                        paid_amount: float, round_off: float, net_amount: float,
-                       remarks: str, items: list[dict]) -> int:
+                       remarks: str, items: list[dict],
+                       settlements: list[dict] | None = None) -> int:
         """Insert invoice + items + stock in a single transaction.
 
         Each dict in *items* must contain at least: item_id, batch_no,
@@ -277,6 +278,14 @@ class PurchaseDAO:
                         ),
                     )
 
+            # Apply any debit note adjustments inside this transaction
+            if settlements:
+                from database.debit_note_dao import DebitNoteDAO
+                DebitNoteDAO.settle_debit_notes(
+                    settlements, invoice_id, cur=cur,
+                    settlement_date=voucher_date, settlement_time=voucher_time
+                )
+
             # Accounting posting joins THIS transaction (atomic with save).
             posting_engine.post_purchase_invoice(invoice_id, cur=cur)
 
@@ -298,7 +307,8 @@ class PurchaseDAO:
                        debit_note_amount: float, other_amount: float,
                        paid_amount: float, round_off: float,
                        net_amount: float, remarks: str,
-                       items: list[dict]) -> None:
+                       items: list[dict],
+                       settlements: list[dict] | None = None) -> None:
         """Update invoice + replace items + adjust stock in a single transaction.
 
         Stock from old items is reversed; stock from new items is applied.
@@ -310,6 +320,15 @@ class PurchaseDAO:
 
             # Reverse previous accounting posting inside THIS transaction
             posting_engine.reverse(SOURCE_PURCHASE_INVOICE, invoice_id, cur=cur)
+
+            # Reverse and re-apply debit note settlements
+            from database.debit_note_dao import DebitNoteDAO
+            DebitNoteDAO.reverse_settlements_for_invoice(invoice_id, cur=cur)
+            if settlements:
+                DebitNoteDAO.settle_debit_notes(
+                    settlements, invoice_id, cur=cur,
+                    settlement_date=voucher_date, settlement_time=voucher_time
+                )
 
             # Reverse old stock (pay/free are packs; stock is loose units;
             # the line's own pack_size is authoritative for the reversal).
@@ -461,6 +480,10 @@ class PurchaseDAO:
 
             # Reverse the accounting posting inside THIS transaction
             posting_engine.reverse(SOURCE_PURCHASE_INVOICE, invoice_id, cur=cur)
+
+            # Reverse debit note settlements linked to this invoice
+            from database.debit_note_dao import DebitNoteDAO
+            DebitNoteDAO.reverse_settlements_for_invoice(invoice_id, cur=cur)
 
             # Reverse stock (pay/free are packs; stock is loose units).
             cur.execute(

@@ -350,7 +350,7 @@ class _ItemEntryBar(QWidget):
 class _DebitNoteEntryDialog(QDialog):
     """Modal dialog for creating / editing a debit note."""
 
-    def __init__(self, parent: QWidget | None = None, *, dn: dict | None = None):
+    def __init__(self, parent: QWidget | None = None, *, dn: dict | None = None, supplier_id: int | None = None):
         super().__init__(parent)
         self._dn = dn
         self._saved = False
@@ -400,6 +400,9 @@ class _DebitNoteEntryDialog(QDialog):
             self._populate_dn(dn)
         else:
             self._init_new_dn()
+            if supplier_id:
+                self.supplier_combo.set_selected_id(supplier_id)
+                self._entry_bar.set_supplier_id(supplier_id)
 
     def _build_top_banner(self, parent_layout: QVBoxLayout, title_text: str):
         p = _get_palette()
@@ -598,8 +601,8 @@ class _DebitNoteEntryDialog(QDialog):
         self.voucher_no_lbl.setText(format_document_number(full_vno))
         self.voucher_no_lbl.setToolTip(f"Full Voucher: {full_vno}")
 
-        # Ledger posting is checked by default for active accounting flow
-        self.add_to_ledger_cb.setChecked(True)
+        # Ledger posting unchecked by default matching Screenshot 1
+        self.add_to_ledger_cb.setChecked(False)
 
     def _populate_dn(self, dn: dict):
         from core.doc_formatter import format_document_number
@@ -1179,3 +1182,221 @@ class DebitNotePage(QWidget):
             QMessageBox.warning(self, "Print Error", str(e))
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to generate PDF:\n{e}")
+
+
+# ======================================================================
+# Pending Debit Notes Selection Dialog (Pharma-WINNER Screenshot 3)
+# ======================================================================
+
+class PendingDebitNotesDialog(QDialog):
+    """Dialog allowing selection and partial/full adjustment of pending debit notes."""
+
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        *,
+        supplier_id: int | None = None,
+        supplier_name: str | None = None,
+        max_adjustment_needed: float = 0.0,
+        already_applied_settlements: list[dict] | None = None,
+    ):
+        super().__init__(parent)
+        self._supplier_id = supplier_id
+        self._supplier_name = (supplier_name or "").strip()
+        self._max_needed = max_adjustment_needed
+        self._already_applied = {s.get("debit_note_id", s.get("id")): s for s in (already_applied_settlements or [])}
+        self._settlements_result: list[dict] = []
+        self._row_edits: list[dict] = []
+
+        self.setWindowTitle(f"Pending Debit Note(s) For {self._supplier_name}")
+        self.setMinimumWidth(740)
+        self.setMinimumHeight(420)
+        self.setModal(True)
+
+        p = _get_palette()
+        # Light yellow table background matching Pharma-WINNER Screenshot 3
+        table_bg = "#ffffea" if not p.get("is_dark", False) else p["surface"]
+        self.setStyleSheet(
+            f"QDialog {{ background-color: {p['surface']}; color: {p['text']}; }}"
+            f"QTableWidget {{ background-color: {table_bg}; color: {p['text']}; "
+            f"gridline-color: {p['border']}; border: 1px solid {p['border']}; }}"
+            f"QHeaderView::section {{ background-color: {p['accent']}; color: white; font-weight: bold; padding: 4px; border: none; }}"
+            f"QLineEdit {{ background-color: {p['surface']}; color: {p['text']}; border: 1px solid {p['border']}; padding: 3px; font-weight: bold; }}"
+            f"QLineEdit:focus {{ border: 1px solid {p['accent']}; }}"
+        )
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(10)
+
+        # Table
+        self.table = QTableWidget()
+        self.table.setColumnCount(7)
+        self.table.setHorizontalHeaderLabels([
+            "VhType", "VhNo", "VhDate", "VhAmount", "UnSettled", "DebitAmt", "DiscAmt"
+        ])
+        self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.table.verticalHeader().setVisible(False)
+        layout.addWidget(self.table, 1)
+
+        # Bottom buttons row
+        btn_row = QHBoxLayout()
+        btn_row.setContentsMargins(0, 0, 0, 0)
+        btn_row.setSpacing(10)
+
+        self.new_dn_btn = QPushButton("New Debit Note")
+        self.new_dn_btn.setStyleSheet(
+            f"QPushButton {{ background-color: {p['accent']}; color: white; font-weight: bold; padding: 6px 14px; border-radius: 3px; }}"
+            f"QPushButton:hover {{ background-color: {p['accent_hover']}; }}"
+        )
+        self.new_dn_btn.clicked.connect(self._on_new_debit_note)
+        btn_row.addWidget(self.new_dn_btn)
+
+        btn_row.addStretch()
+
+        self.done_btn = QPushButton("Done")
+        self.done_btn.setStyleSheet(
+            f"QPushButton {{ background-color: {p['accent']}; color: white; font-weight: bold; padding: 6px 20px; border-radius: 3px; }}"
+            f"QPushButton:hover {{ background-color: {p['accent_hover']}; }}"
+        )
+        self.done_btn.clicked.connect(self._on_done)
+        btn_row.addWidget(self.done_btn)
+
+        self.close_btn = QPushButton("Close")
+        self.close_btn.setStyleSheet(
+            f"QPushButton {{ background-color: transparent; color: {p['text']}; border: 1px solid {p['border']}; padding: 6px 20px; border-radius: 3px; }}"
+            f"QPushButton:hover {{ background-color: {p['border']}; }}"
+        )
+        self.close_btn.clicked.connect(self.reject)
+        btn_row.addWidget(self.close_btn)
+
+        layout.addLayout(btn_row)
+
+        self._load_pending_notes()
+
+    def _load_pending_notes(self):
+        notes = DebitNoteDAO.get_unsettled_by_supplier(
+            self._supplier_id, self._supplier_name
+        )
+        self.table.setRowCount(len(notes))
+        self._row_edits = []
+
+        remaining_needed = self._max_needed
+
+        for row, n in enumerate(notes):
+            dn_id = n["id"]
+            vh_no = str(n.get("voucher_no", ""))
+            vh_date = str(n.get("voucher_date", ""))
+            vh_amt = float(n.get("total_amount", 0.0))
+            unsettled = float(n.get("unsettled_amount", 0.0))
+
+            # Prior adjustment if already opened
+            prior_debit = 0.0
+            prior_disc = 0.0
+            if dn_id in self._already_applied:
+                prior_debit = float(self._already_applied[dn_id].get("debit_amount", self._already_applied[dn_id].get("settled_amount", 0.0)))
+                prior_disc = float(self._already_applied[dn_id].get("discount_amount", 0.0))
+
+            # If opening fresh and needed > 0, auto-fill up to remaining needed
+            if prior_debit <= 0 and remaining_needed > 0 and unsettled > 0:
+                suggested = min(unsettled, remaining_needed)
+                prior_debit = suggested
+                remaining_needed -= suggested
+
+            item_type = QTableWidgetItem("Debit Note")
+            item_type.setFlags(item_type.flags() & ~Qt.ItemIsEditable)
+
+            item_no = QTableWidgetItem(vh_no)
+            item_no.setFlags(item_no.flags() & ~Qt.ItemIsEditable)
+
+            item_date = QTableWidgetItem(vh_date)
+            item_date.setFlags(item_date.flags() & ~Qt.ItemIsEditable)
+
+            item_amt = QTableWidgetItem(f"{vh_amt:.2f}")
+            item_amt.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            item_amt.setFlags(item_amt.flags() & ~Qt.ItemIsEditable)
+
+            item_unsettled = QTableWidgetItem(f"{unsettled:.2f}")
+            item_unsettled.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            item_unsettled.setFlags(item_unsettled.flags() & ~Qt.ItemIsEditable)
+
+            debit_edit = QLineEdit(f"{prior_debit:.2f}" if prior_debit > 0 else "0.0")
+            debit_edit.setAlignment(Qt.AlignRight)
+
+            disc_edit = QLineEdit(f"{prior_disc:.2f}" if prior_disc > 0 else "0.0")
+            disc_edit.setAlignment(Qt.AlignRight)
+
+            self.table.setItem(row, 0, item_type)
+            self.table.setItem(row, 1, item_no)
+            self.table.setItem(row, 2, item_date)
+            self.table.setItem(row, 3, item_amt)
+            self.table.setItem(row, 4, item_unsettled)
+            self.table.setCellWidget(row, 5, debit_edit)
+            self.table.setCellWidget(row, 6, disc_edit)
+
+            self._row_edits.append({
+                "debit_note_id": dn_id,
+                "voucher_no": vh_no,
+                "voucher_date": vh_date,
+                "total_amount": vh_amt,
+                "unsettled": unsettled,
+                "debit_edit": debit_edit,
+                "disc_edit": disc_edit,
+            })
+
+        self.table.setColumnWidth(0, 95)
+        self.table.setColumnWidth(1, 80)
+        self.table.setColumnWidth(2, 95)
+        self.table.setColumnWidth(3, 90)
+        self.table.setColumnWidth(4, 90)
+        self.table.setColumnWidth(5, 110)
+        self.table.setColumnWidth(6, 90)
+
+    def _on_new_debit_note(self):
+        dlg = _DebitNoteEntryDialog(self, supplier_id=self._supplier_id)
+        if (dlg.exec() if hasattr(dlg, "exec") else dlg.exec_()) == QDialog.Accepted or dlg._saved:
+            self._load_pending_notes()
+
+    def _on_done(self):
+        settlements = []
+        for r in self._row_edits:
+            try:
+                debit_amt = round(float(r["debit_edit"].text() or 0.0), 2)
+            except ValueError:
+                debit_amt = 0.0
+            try:
+                disc_amt = round(float(r["disc_edit"].text() or 0.0), 2)
+            except ValueError:
+                disc_amt = 0.0
+
+            if debit_amt > r["unsettled"] + 0.001:
+                QMessageBox.warning(
+                    self,
+                    "Invalid Amount",
+                    f"Debit amount ({debit_amt:.2f}) for Voucher #{r['voucher_no']} "
+                    f"cannot exceed unsettled amount ({r['unsettled']:.2f})."
+                )
+                return
+
+            if debit_amt < 0 or disc_amt < 0:
+                QMessageBox.warning(self, "Invalid Amount", "Debit and Discount amounts cannot be negative.")
+                return
+
+            if debit_amt > 0:
+                settlements.append({
+                    "debit_note_id": r["debit_note_id"],
+                    "voucher_no": r["voucher_no"],
+                    "debit_amount": debit_amt,
+                    "discount_amount": disc_amt,
+                })
+
+        self._settlements_result = settlements
+        self.accept()
+
+    def get_settlements(self) -> list[dict]:
+        return list(self._settlements_result)
+
+    def get_total_debit_applied(self) -> float:
+        return round(sum(float(s["debit_amount"]) for s in self._settlements_result), 2)

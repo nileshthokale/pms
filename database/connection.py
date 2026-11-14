@@ -908,6 +908,50 @@ def init_database():
             "ON credit_note_settlements(sales_invoice_id)"
         )
 
+        # ── Debit Note Settlements & Purchase Invoice Extensions ──
+        cur.execute("PRAGMA table_info(debit_notes)")
+        dn_cols = {row[1] for row in cur.fetchall()}
+        if "settled_amount" not in dn_cols:
+            cur.execute("ALTER TABLE debit_notes ADD COLUMN settled_amount REAL DEFAULT 0.0")
+        if "settlement_status" not in dn_cols:
+            cur.execute("ALTER TABLE debit_notes ADD COLUMN settlement_status TEXT DEFAULT 'UNSETTLED'")
+
+        cur.execute("PRAGMA table_info(purchase_invoices)")
+        pi_cols = {row[1] for row in cur.fetchall()}
+        if "debit_note_amount" not in pi_cols:
+            cur.execute("ALTER TABLE purchase_invoices ADD COLUMN debit_note_amount REAL DEFAULT 0.0")
+        if "other_amount" not in pi_cols:
+            cur.execute("ALTER TABLE purchase_invoices ADD COLUMN other_amount REAL DEFAULT 0.0")
+        if "paid_amount" not in pi_cols:
+            cur.execute("ALTER TABLE purchase_invoices ADD COLUMN paid_amount REAL DEFAULT 0.0")
+        if "round_off" not in pi_cols:
+            cur.execute("ALTER TABLE purchase_invoices ADD COLUMN round_off REAL DEFAULT 0.0")
+        if "remarks" not in pi_cols:
+            cur.execute("ALTER TABLE purchase_invoices ADD COLUMN remarks TEXT DEFAULT ''")
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS debit_note_settlements (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                debit_note_id       INTEGER NOT NULL REFERENCES debit_notes(id) ON DELETE CASCADE,
+                purchase_invoice_id INTEGER NOT NULL REFERENCES purchase_invoices(id) ON DELETE CASCADE,
+                settled_amount      REAL NOT NULL DEFAULT 0.0,
+                discount_amount     REAL NOT NULL DEFAULT 0.0,
+                settlement_date     TEXT NOT NULL,
+                settlement_time     TEXT DEFAULT '',
+                created_at          TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_dn_settlements_dn "
+            "ON debit_note_settlements(debit_note_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_dn_settlements_pi "
+            "ON debit_note_settlements(purchase_invoice_id)"
+        )
+
         conn.commit()
 
         # Runs after the commit above so that no transaction is open: PRAGMA

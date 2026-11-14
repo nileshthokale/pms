@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
+    QTextEdit,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -33,6 +34,8 @@ from PySide6.QtWidgets import (
 
 from database.supplier_dao import SupplierDAO
 from database.ledger_dao import LedgerDAO
+from database.debit_note_dao import DebitNoteDAO
+from screens.debit_note import PendingDebitNotesDialog
 from database.item_dao import ItemDAO
 from database.tax_structures import rate_percent
 from database.purchase_dao import PurchaseDAO
@@ -1556,6 +1559,7 @@ class _InvoiceDialog(QDialog):
         self._invoice = invoice
         self._saved = False
         self._item_rows: list[_InvoiceItemRow] = []
+        self._debit_note_settlements: list[dict] = []
 
         self.setWindowTitle("Edit Purchase Invoice" if invoice else "New Purchase Invoice")
         self.setMinimumWidth(1200)
@@ -2009,6 +2013,11 @@ class _InvoiceDialog(QDialog):
     def _on_purchase_type_changed(self, new_type: str):
         if not self._invoice:
             self._set_voucher_no()
+        if hasattr(self, "info_banner") and self.info_banner:
+            if new_type == "Credit":
+                self.info_banner.setText("▶ The Credit Invoice amount will be added to supplier ledger.")
+            else:
+                self.info_banner.setText("▶ Cash Invoice - paid immediately.")
 
     def _set_voucher_no(self):
         if not self._invoice:
@@ -2275,6 +2284,8 @@ class _InvoiceDialog(QDialog):
 
     def _refresh_table(self):
         self._table.setRowCount(len(self._item_rows))
+        if hasattr(self, "_total_items_label") and self._total_items_label:
+            self._total_items_label.setText(str(len(self._item_rows)))
         for i, r in enumerate(self._item_rows):
             def _item(text: str, align: Qt.AlignmentFlag = Qt.AlignLeft | Qt.AlignVCenter) -> QTableWidgetItem:
                 it = QTableWidgetItem(text)
@@ -2328,79 +2339,221 @@ class _InvoiceDialog(QDialog):
     # ------------------------------------------------------------------
 
     def _build_totals(self):
+        p = palette()
         self._totals_widget = QWidget()
-        self._totals_widget.setFixedHeight(70)
+        self._totals_widget.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         self._totals_widget.setStyleSheet(
             f"background-color: {_SURFACE}; border-top: 1px solid {_BORDER};"
         )
-        layout = QHBoxLayout(self._totals_widget)
-        layout.setContentsMargins(12, 4, 12, 4)
-        layout.setSpacing(10)
+        layout = QVBoxLayout(self._totals_widget)
+        layout.setContentsMargins(12, 6, 12, 6)
+        layout.setSpacing(6)
 
-        self._add_total_field(layout, "Total Amt", "total_amount_label")
-        self._add_total_field(layout, "+ GST", "gst_label")
-        self._add_total_field(layout, "- Bill Disc", "bill_disc_edit")
-        self._add_total_field(layout, "- DN Amt", "dn_edit")
-        self._add_total_field(layout, "+ Other", "other_edit")
-        self._add_total_field(layout, "Paid", "paid_edit")
-        self._add_total_field(layout, "Round Off", "round_off_edit")
-        self._add_total_field(layout, "NET AMT", "net_amt_label")
+        # Content Row: Left side (Total Items) and Right side (Net Payable GroupBox)
+        content_row = QHBoxLayout()
+        content_row.setContentsMargins(0, 0, 0, 0)
+        content_row.setSpacing(20)
 
-        layout.addStretch(1)
+        # Left side: Total Items box (Matching Screenshot 2)
+        left_box = QVBoxLayout()
+        left_box.setSpacing(4)
+        left_box.setContentsMargins(0, 8, 0, 0)
 
-        save_btn = QPushButton("Save Invoice")
-        save_btn.setStyleSheet(_BTN_SAVE)
-        save_btn.setFixedSize(125, 36)
-        save_btn.clicked.connect(self._on_save)
-        self.save_btn = save_btn
-        layout.addWidget(save_btn, 0, Qt.AlignVCenter)
+        ti_row = QHBoxLayout()
+        ti_row.setSpacing(6)
+        lbl_ti = QLabel("Total Items :")
+        lbl_ti.setStyleSheet(
+            f"color: {_TEXT}; font-size: 13px; font-weight: bold; background: transparent; font-family: 'Segoe UI';"
+        )
+        ti_row.addWidget(lbl_ti)
 
-        layout.addSpacing(10)
+        self._total_items_label = QLabel(str(len(self._item_rows)))
+        self._total_items_label.setAlignment(Qt.AlignCenter)
+        self._total_items_label.setFixedWidth(50)
+        self._total_items_label.setFixedHeight(24)
+        self._total_items_label.setStyleSheet(
+            f"color: {_TEXT}; font-size: 13px; font-weight: bold; "
+            f"background-color: {_SURFACE}; border: 1px solid {_BORDER}; font-family: 'Segoe UI';"
+        )
+        ti_row.addWidget(self._total_items_label)
+        ti_row.addStretch(1)
+        left_box.addLayout(ti_row)
+        left_box.addStretch(1)
+        content_row.addLayout(left_box, 0)
 
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.setStyleSheet(_BTN_SECONDARY)
-        cancel_btn.setFixedSize(95, 36)
-        cancel_btn.clicked.connect(self.reject)
-        self.cancel_btn = cancel_btn
-        layout.addWidget(cancel_btn, 0, Qt.AlignVCenter)
+        # Right side: Net Payable GroupBox (Matching Screenshot 2)
+        np_group = QGroupBox("Net Payable")
+        np_group.setStyleSheet(
+            f"QGroupBox {{ font-size: 11px; font-weight: bold; color: {_TEXT}; "
+            f"border: 1px solid {_BORDER}; border-radius: 4px; margin-top: 6px; padding-top: 8px; font-family: 'Segoe UI'; }}"
+            f"QGroupBox::title {{ subcontrol-origin: margin; left: 8px; padding: 0 4px; color: {_ACCENT}; }}"
+        )
+        np_grid = QGridLayout(np_group)
+        np_grid.setContentsMargins(10, 8, 10, 8)
+        np_grid.setHorizontalSpacing(10)
+        np_grid.setVerticalSpacing(4)
+
+        def _cap_lbl(text: str) -> QLabel:
+            lbl = QLabel(text)
+            lbl.setStyleSheet(
+                f"color: {_TEXT}; font-size: 12px; font-weight: bold; background: transparent; font-family: 'Segoe UI';"
+            )
+            lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            return lbl
+
+        def _val_lbl(initial: str = "0.00", width: int = 95, is_net: bool = False) -> QLabel:
+            lbl = QLabel(initial)
+            lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            lbl.setFixedWidth(width)
+            lbl.setFixedHeight(24)
+            if is_net:
+                lbl.setStyleSheet(
+                    f"color: {_TEXT}; font-size: 16px; font-weight: bold; "
+                    f"background-color: {_SURFACE}; border: 1px solid {_BORDER}; padding-right: 4px; font-family: 'Segoe UI';"
+                )
+            else:
+                lbl.setStyleSheet(
+                    f"color: {_TEXT}; font-size: 13px; font-weight: bold; "
+                    f"background-color: {_SURFACE}; border: 1px solid {_BORDER}; padding-right: 4px; font-family: 'Segoe UI';"
+                )
+            return lbl
+
+        # Left column of Net Payable
+        # Row 0: Total Amount
+        np_grid.addWidget(_cap_lbl("Total Amount :"), 0, 0)
+        self.total_amount_label = _val_lbl("0.00")
+        np_grid.addWidget(self.total_amount_label, 0, 1)
+
+        # Row 1: Add GST Tax
+        np_grid.addWidget(_cap_lbl("Add GST Tax :"), 1, 0)
+        self.gst_label = _val_lbl("0.00")
+        np_grid.addWidget(self.gst_label, 1, 1)
+
+        # Row 2: Less Bill Discount
+        np_grid.addWidget(_cap_lbl("Less Bill Discount :"), 2, 0)
+        self.bill_disc_edit = _make_edit("0.00", width=95)
+        self.bill_disc_edit.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        np_grid.addWidget(self.bill_disc_edit, 2, 1)
+
+        # Row 3: Less DN Amt + [ Debit Note ]
+        np_grid.addWidget(_cap_lbl("Less DN Amt :"), 3, 0)
+        dn_row = QHBoxLayout()
+        dn_row.setContentsMargins(0, 0, 0, 0)
+        dn_row.setSpacing(4)
+        self.dn_edit = _make_edit("0.00", width=80)
+        self.dn_edit.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        dn_row.addWidget(self.dn_edit)
+
+        self.dn_btn = QPushButton("Debit Note")
+        self.dn_btn.setStyleSheet(
+            f"QPushButton {{ background-color: {_ACCENT}; color: white; font-weight: bold; "
+            f"font-size: 11px; padding: 3px 8px; border-radius: 2px; }}"
+            f"QPushButton:hover {{ background-color: {_ACCENT_HOVER}; }}"
+        )
+        self.dn_btn.setFixedHeight(24)
+        self.dn_btn.clicked.connect(self._open_debit_note_dialog)
+        dn_row.addWidget(self.dn_btn)
+        np_grid.addLayout(dn_row, 3, 1)
+
+        # Right column of Net Payable
+        # Row 0: Add Other Amt
+        np_grid.addWidget(_cap_lbl("Add Other Amt :"), 0, 2)
+        self.other_edit = _make_edit("0.00", width=95)
+        self.other_edit.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        np_grid.addWidget(self.other_edit, 0, 3)
+
+        # Row 1: Paid Amount
+        np_grid.addWidget(_cap_lbl("Paid Amount :"), 1, 2)
+        self.paid_edit = _make_edit("0.00", width=95)
+        self.paid_edit.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        np_grid.addWidget(self.paid_edit, 1, 3)
+
+        # Row 2: Round off
+        np_grid.addWidget(_cap_lbl("Round off :"), 2, 2)
+        self.round_off_edit = _make_edit("0.00", width=95)
+        self.round_off_edit.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        np_grid.addWidget(self.round_off_edit, 2, 3)
+
+        # Row 3: Net Amount
+        np_grid.addWidget(_cap_lbl("Net Amount :"), 3, 2)
+        self.net_amt_label = _val_lbl("0", width=95, is_net=True)
+        np_grid.addWidget(self.net_amt_label, 3, 3)
+
+        # Row 4: Remarks (spanning columns 1 to 3)
+        np_grid.addWidget(_cap_lbl("Remarks :"), 4, 0)
+        self.remarks_edit = QTextEdit()
+        self.remarks_edit.setFixedHeight(40)
+        self.remarks_edit.setStyleSheet(
+            f"QTextEdit {{ background-color: {_SURFACE}; color: {_TEXT}; "
+            f"border: 1px solid {_BORDER}; border-radius: 2px; font-size: 12px; font-family: 'Segoe UI'; }}"
+            f"QTextEdit:focus {{ border: 1px solid {_ACCENT}; }}"
+        )
+        np_grid.addWidget(self.remarks_edit, 4, 1, 1, 3)
+
+        content_row.addWidget(np_group, 1)
+        layout.addLayout(content_row)
+
+        # Banner below Net Payable (Matching Screenshot 2)
+        self.info_banner = QLabel("▶ The Credit Invoice amount will be added to supplier ledger.")
+        self.info_banner.setStyleSheet(
+            f"background-color: #fefce8; color: #854d0e; border: 1px solid #fef08a; "
+            f"padding: 4px 10px; font-size: 12px; font-weight: 500; border-radius: 2px; font-family: 'Segoe UI';"
+        )
+        layout.addWidget(self.info_banner)
+
+        # Bottom Buttons Row (Save and Close on right side)
+        btn_row = QHBoxLayout()
+        btn_row.setContentsMargins(0, 0, 0, 0)
+        btn_row.setSpacing(8)
+        btn_row.addStretch(1)
+
+        self.save_btn = QPushButton("Save")
+        self.save_btn.setStyleSheet(
+            f"QPushButton {{ background-color: {_ACCENT}; color: white; font-weight: bold; "
+            f"font-size: 13px; padding: 5px 22px; border-radius: 3px; min-width: 75px; min-height: 28px; }}"
+            f"QPushButton:hover {{ background-color: {_ACCENT_HOVER}; }}"
+        )
+        self.save_btn.clicked.connect(self._on_save)
+        btn_row.addWidget(self.save_btn)
+
+        self.cancel_btn = QPushButton("Close")
+        self.cancel_btn.setStyleSheet(
+            f"QPushButton {{ background-color: transparent; color: {_TEXT}; font-weight: bold; "
+            f"border: 1px solid {_BORDER}; font-size: 13px; padding: 5px 22px; border-radius: 3px; min-width: 75px; min-height: 28px; }}"
+            f"QPushButton:hover {{ background-color: {_BORDER}; }}"
+        )
+        self.cancel_btn.clicked.connect(self.reject)
+        btn_row.addWidget(self.cancel_btn)
+
+        layout.addLayout(btn_row)
 
         self.bill_disc_edit.textChanged.connect(self._sync_footer_to_header_disc)
 
-    def _add_total_field(self, layout: QHBoxLayout, title: str, attr_name: str):
-        container = QVBoxLayout()
-        container.setSpacing(2)
-        lbl = QLabel(title)
-        lbl.setStyleSheet(_HEADER_LABEL)
-        lbl.setAlignment(Qt.AlignCenter)
-        container.addWidget(lbl)
+    def _open_debit_note_dialog(self):
+        sid = self.supplier_combo.currentData()
+        if not sid:
+            QMessageBox.warning(self, "Debit Note", "Please select a supplier first.")
+            return
 
-        if attr_name.endswith("_label"):
-            val_lbl = QLabel("0.00")
-            val_lbl.setAlignment(Qt.AlignCenter)
-            val_lbl.setMinimumWidth(80)
-            if attr_name == "net_amt_label":
-                val_lbl.setStyleSheet(
-                    f"color: {_ACCENT}; font-size: 16px; font-weight: bold;"
-                    f"background: transparent; font-family: 'Segoe UI'; padding: 2px;"
-                )
-            else:
-                val_lbl.setStyleSheet(
-                    f"color: {_TEXT}; font-size: 15px; font-weight: bold;"
-                    f"background: transparent; font-family: 'Segoe UI'; padding: 2px;"
-                )
-            container.addWidget(val_lbl)
-            setattr(self, attr_name, val_lbl)
-        else:
-            edit = _make_edit("0.00")
-            edit.setMinimumWidth(75)
-            edit.setMaximumWidth(95)
-            edit.setAlignment(Qt.AlignCenter)
-            container.addWidget(edit)
-            setattr(self, attr_name, edit)
-            if attr_name not in ("bill_disc_edit", "dn_edit", "other_edit", "paid_edit", "round_off_edit"):
-                edit.setReadOnly(True)
+        supplier_name = self.supplier_combo.currentText().strip()
+        total_amount = _round2(sum(r.amount for r in self._item_rows))
+        total_gst = _round2(sum(r.gst_amount for r in self._item_rows))
+        bill_disc = _safe_float(self.bill_disc_edit.text())
+        other = _safe_float(self.other_edit.text())
+        max_needed = max(0.0, float(_d(total_amount) + _d(total_gst) - _d(bill_disc) + _d(other)))
 
-        layout.addLayout(container)
+        dlg = PendingDebitNotesDialog(
+            self,
+            supplier_id=sid,
+            supplier_name=supplier_name,
+            max_adjustment_needed=max_needed,
+            already_applied_settlements=self._debit_note_settlements,
+        )
+        if (dlg.exec() if hasattr(dlg, "exec") else dlg.exec_()) == QDialog.Accepted:
+            self._debit_note_settlements = dlg.get_settlements()
+            total_dn = dlg.get_total_debit_applied()
+            self.dn_edit.setText(f"{total_dn:.2f}" if total_dn > 0 else "0.00")
+            self._recalc_totals()
 
     def _recalc_totals(self):
         total_amount = _round2(sum(r.amount for r in self._item_rows))
@@ -2518,6 +2671,9 @@ class _InvoiceDialog(QDialog):
         self.other_edit.setText(str(inv.get("other_amount", 0.0)))
         self.paid_edit.setText(str(inv.get("paid_amount", 0.0)))
         self.round_off_edit.setText(str(inv.get("round_off", 0.0)))
+        if hasattr(self, "remarks_edit"):
+            self.remarks_edit.setPlainText(inv.get("remarks") or "")
+        self._debit_note_settlements = DebitNoteDAO.get_settlements_for_invoice(inv["id"])
 
         self._recalc_totals()
 
@@ -2593,7 +2749,7 @@ class _InvoiceDialog(QDialog):
         invoice_no = self.invoice_no_edit.text().strip()
         invoice_date = self.invoice_date.date().toString("yyyy-MM-dd")
         due_date = self.due_date.date().toString("yyyy-MM-dd")
-        remarks = ""
+        remarks = self.remarks_edit.toPlainText().strip() if hasattr(self, "remarks_edit") else ""
 
         items_data = [r.to_dict() for r in self._item_rows]
 
@@ -2611,6 +2767,7 @@ class _InvoiceDialog(QDialog):
                     paid_amount=paid, round_off=round_off,
                     net_amount=net_amount, remarks=remarks,
                     items=items_data,
+                    settlements=self._debit_note_settlements,
                 )
             else:
                 PurchaseDAO.insert_invoice(
@@ -2624,6 +2781,7 @@ class _InvoiceDialog(QDialog):
                     paid_amount=paid, round_off=round_off,
                     net_amount=net_amount, remarks=remarks,
                     items=items_data,
+                    settlements=self._debit_note_settlements,
                 )
             self._saved = True
             self.accept()
