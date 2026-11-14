@@ -56,7 +56,7 @@ a = Analysis(
         "psutil",
         "httpx",
         "cryptography",
-    ] + collect_submodules("screens") + collect_submodules("database") + collect_submodules("ui"),
+    ] + collect_submodules("screens") + collect_submodules("database") + collect_submodules("ui") + collect_submodules("reports") + collect_submodules("core"),
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -87,7 +87,7 @@ exe = EXE(
     strip=False,
     upx=False,
     console=False,  # GUI application: no console window.
-    disable_windowed_traceback=False,
+    disable_windowed_traceback=True,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,

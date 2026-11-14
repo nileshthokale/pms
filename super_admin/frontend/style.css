@@ -1064,6 +1064,10 @@ td.actions .action-cell-buttons {
   .network-stage {
     height: 280px;
   }
+  .network-stage.fallback-active,
+  #network-stage.fallback-active {
+    height: auto !important;
+  }
 
   /* Toolbar & Controls */
   .toolbar {
@@ -1717,7 +1721,9 @@ td.actions .action-cell-buttons {
 
 /* Fallback Access Topology Cards */
 .network-stage.fallback-active,
-.network-stage:has(.fallback-map) {
+.network-stage:has(.fallback-map),
+#network-stage.fallback-active,
+#network-stage:has(.fallback-map) {
   height: auto !important;
   min-height: 280px !important;
   max-height: none !important;
@@ -1732,6 +1738,7 @@ td.actions .action-cell-buttons {
   width: 100% !important;
   box-sizing: border-box !important;
   height: auto !important;
+  max-height: none !important;
   overflow: visible !important;
 }
 
@@ -1758,6 +1765,7 @@ td.actions .action-cell-buttons {
   padding: 6px;
   border-bottom: 1px solid var(--line);
   margin-bottom: 4px;
+  flex-shrink: 0 !important;
 }
 
 .fallback-device {
@@ -1766,6 +1774,8 @@ td.actions .action-cell-buttons {
   align-items: stretch !important;
   justify-content: flex-start !important;
   gap: 8px !important;
+  flex-shrink: 0 !important;
+  min-height: min-content !important;
   text-align: left !important;
   background: #000 !important;
   border: 1px solid var(--line) !important;
@@ -2417,11 +2427,28 @@ td.actions .action-cell-buttons {
   }
 
   /* Fallback Network Cards */
+  .network-stage.fallback-active,
+  #network-stage.fallback-active,
+  .network-stage:has(.fallback-map) {
+    height: auto !important;
+    min-height: 280px !important;
+    overflow: visible !important;
+  }
+
   .fallback-map {
     display: flex !important;
     flex-direction: column !important;
     gap: 10px !important;
     padding: 10px 8px !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .fallback-device {
+    flex-shrink: 0 !important;
+    min-height: min-content !important;
+    padding: 12px 14px !important;
   }
 }
 

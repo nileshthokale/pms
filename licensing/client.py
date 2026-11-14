@@ -6,10 +6,12 @@ import logging.handlers
 import os
 from pathlib import Path
 import secrets
+import sys
 import threading
 import time
 from urllib.parse import urlsplit
 import uuid
+import ctypes
 
 import httpx
 
@@ -37,10 +39,25 @@ class Decision:
     connectivity: str
 
 
+OFFICIAL_PRIMARY_KEY = "RPIYJwkrVmSP0lbzozg1s2TymWLAEM39CJAWjnGk/ho="
+
+
+def _is_debugger_attached():
+    if sys.platform == "win32":
+        try:
+            return bool(ctypes.windll.kernel32.IsDebuggerPresent())
+        except Exception:
+            return False
+    return False
+
+
 def load_config():
     config = json.loads(Path(__file__).with_name("config.json").read_text(encoding="utf-8"))
     if config.get("activation_mode") != "ALERT" or config.get("offline_grace_hours") != 48:
         raise ValueError("Unsupported licensing policy")
+    primary_key = config.get("public_keys", {}).get("primary")
+    if primary_key != OFFICIAL_PRIMARY_KEY:
+        raise ValueError("Cryptographic license key tampering detected")
     return config
 
 
@@ -86,6 +103,8 @@ class LicenseClient:
         self.store.write(self.state)
         if not self.config.get("server_url") or not self.config.get("public_keys"):
             result = Decision(False, "NOT_CONFIGURED", "Licensing service is not configured. Contact support.", self.connectivity)
+        elif _is_debugger_attached():
+            result = Decision(False, "SECURITY_TAMPER", "Process debugger or unauthorized analysis tool detected.", self.connectivity)
         elif self.connectivity == "AUTHENTICATION_ERROR" or not envelope:
             msg = "This computer's registration was removed or rejected in Super Admin. Please activate with an active license." if self.connectivity == "AUTHENTICATION_ERROR" else "Connect to the internet and activate this installation to continue."
             status = "AUTHENTICATION_ERROR" if self.connectivity == "AUTHENTICATION_ERROR" else "VALIDATION_REQUIRED"
