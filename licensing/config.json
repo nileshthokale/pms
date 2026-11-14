@@ -3,7 +3,7 @@
   "public_keys": {
     "primary": "RPIYJwkrVmSP0lbzozg1s2TymWLAEM39CJAWjnGk/ho="
   },
-  "heartbeat_seconds": 300,
+  "heartbeat_seconds": 120,
   "activation_mode": "ALERT",
   "offline_grace_hours": 48
 }

@@ -152,7 +152,7 @@ class LicenseController(QObject):
         self.timer.timeout.connect(self._tick)
         self.timer.start(1000)
         self.ticks = 0
-        self.period = max(60, min(int(client.config.get("heartbeat_seconds", 300)), 600))
+        self.period = max(60, min(int(client.config.get("heartbeat_seconds", 120)), 600))
         if parent is not None and hasattr(parent, "aboutToQuit"):
             try:
                 parent.aboutToQuit.connect(self.shutdown)
