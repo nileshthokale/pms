@@ -640,11 +640,26 @@ function selectDevice(id) {
 
 function fallbackNetwork() {
   usingFallback = true;
+  const stage = el('network-stage');
+  stage?.classList.add('fallback-active');
+  // Clean up any leftovers from 3D attempts or loaders
+  stage?.querySelectorAll('.network-label, canvas, .scene-loading, .fallback-map').forEach(e => e.remove());
+
   const map = node('div', null, 'fallback-map');
   map.append(node('div', 'Licensing server', 'fallback-server'));
   for (const d of networkDevices) {
     const act = getDeviceActivity(d);
-    const b = button(null, () => showDevice(d.device_id), 'fallback-device');
+    const b = node('div', null, 'fallback-device');
+    b.setAttribute('role', 'button');
+    b.setAttribute('tabindex', '0');
+    b.onclick = () => showDevice(d.device_id);
+    b.onkeydown = e => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        showDevice(d.device_id);
+      }
+    };
+
     const headerRow = node('div', null, 'fallback-dev-header');
     headerRow.append(
       icon('device'),
@@ -667,9 +682,7 @@ function fallbackNetwork() {
     b.append(headerRow, ipPill, osRow, actRow);
     map.append(b);
   }
-  el('scene-loading')?.remove();
-  el('network-stage').querySelector('.fallback-map')?.remove();
-  el('network-stage').append(map);
+  stage?.append(map);
   el('scene-state').textContent = '3D unavailable · accessible device map';
   el('motion-toggle').disabled = true;
 }

@@ -1708,11 +1708,35 @@ td.actions .action-cell-buttons {
 }
 
 /* Fallback Access Topology Cards */
+.network-stage.fallback-active,
+.network-stage:has(.fallback-map) {
+  height: auto !important;
+  min-height: 280px !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
 .fallback-map {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 12px;
-  padding: 16px;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+  padding: 16px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  height: auto !important;
+  overflow: visible !important;
+}
+
+@media (min-width: 768px) {
+  .fallback-map {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)) !important;
+    gap: 14px !important;
+    padding: 18px !important;
+    max-height: 480px !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 .fallback-server {
@@ -1725,69 +1749,95 @@ td.actions .action-cell-buttons {
   color: #718096;
   padding: 6px;
   border-bottom: 1px dashed #2d3748;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 .fallback-device {
   display: flex !important;
   flex-direction: column !important;
-  gap: 6px !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  gap: 8px !important;
   text-align: left !important;
   background: #0d1117 !important;
   border: 1px solid #30363d !important;
   border-radius: 8px !important;
-  padding: 14px !important;
+  padding: 14px 16px !important;
   cursor: pointer !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  white-space: normal !important;
   transition: all 0.2s ease;
+  user-select: none;
 }
 
-.fallback-device:hover {
+.fallback-device:hover,
+.fallback-device:focus-visible {
   background: #161b22 !important;
   border-color: #58a6ff !important;
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  outline: none;
 }
 
 .fallback-dev-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+  width: 100% !important;
+}
+
+.fallback-dev-header .icon {
+  width: 18px !important;
+  height: 18px !important;
+  color: #58a6ff !important;
+  flex-shrink: 0 !important;
 }
 
 .fallback-cust-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: #f0f6fc;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: #f0f6fc !important;
 }
 
 .fallback-ip-pill {
-  font-size: 11px;
-  color: #8b949e;
-  background: #161b22;
-  border: 1px solid #21262d;
-  padding: 3px 8px;
-  border-radius: 4px;
+  display: block !important;
+  font-size: 11.5px !important;
+  color: #8b949e !important;
+  background: #161b22 !important;
+  border: 1px solid #21262d !important;
+  padding: 5px 10px !important;
+  border-radius: 5px !important;
+  text-align: center !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
 }
 
 .fallback-ip-pill.has-ip {
-  color: #58a6ff;
-  border-color: rgba(88, 166, 255, 0.4);
-  background: rgba(56, 139, 253, 0.1);
-  font-weight: 600;
+  color: #58a6ff !important;
+  border-color: rgba(88, 166, 255, 0.4) !important;
+  background: rgba(56, 139, 253, 0.1) !important;
+  font-weight: 600 !important;
 }
 
 .fallback-os-text {
-  font-size: 11px;
-  color: #8b949e;
+  font-size: 11px !important;
+  color: #8b949e !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
 }
 
 .fallback-act-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  margin-top: 4px;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+  font-size: 11px !important;
+  margin-top: 2px !important;
+  padding-top: 6px !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
 }
 
 .alert-ip-pill {
@@ -2362,8 +2412,10 @@ td.actions .action-cell-buttons {
 
   /* Fallback Network Cards */
   .fallback-map {
-    grid-template-columns: 1fr !important;
-    padding: 8px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    padding: 10px 8px !important;
   }
 }
 
