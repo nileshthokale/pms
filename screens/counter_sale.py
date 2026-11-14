@@ -1326,7 +1326,21 @@ class _KeyboardCombo(QComboBox):
             user_data = index.data(Qt.UserRole)
             if user_data is not None:
                 data_idx = self.findData(user_data)
-                if data_idx >= 0:
+                if isinstance(user_data, PatientOption):
+                    if data_idx >= 0:
+                        self.blockSignals(True)
+                        self.setCurrentIndex(data_idx)
+                        self.blockSignals(False)
+                    self.setEditText(user_data.name)
+                    self._selected_item_data = user_data
+                    self.completionAccepted.emit()
+                    try:
+                        self.completer().popup().hide()
+                        self._restore_owner_activation()
+                    except Exception:
+                        pass
+                    return
+                elif data_idx >= 0:
                     self.setCurrentIndex(data_idx)
                     self.completionAccepted.emit()
                     try:
@@ -1568,7 +1582,14 @@ class _KeyboardCombo(QComboBox):
             user_data = index.data(Qt.UserRole)
             if user_data is not None:
                 data_idx = self.findData(user_data)
-                if data_idx >= 0:
+                if isinstance(user_data, PatientOption):
+                    if data_idx >= 0:
+                        self.blockSignals(True)
+                        self.setCurrentIndex(data_idx)
+                        self.blockSignals(False)
+                    self.setEditText(user_data.name)
+                    self._selected_item_data = user_data
+                elif data_idx >= 0:
                     self.setCurrentIndex(data_idx)
                 elif display is not None:
                     self._accept_text(str(display))
@@ -1761,25 +1782,113 @@ class _DBLookupCombo(_KeyboardCombo):
                 self.lineEdit().blockSignals(False)
             self.blockSignals(False)
 
+    def _apply_patient_selection(self, user_data, display: str = "") -> bool:
+        data = user_data
+        if data is None and display:
+            idx = self.findText(display, Qt.MatchFixedString)
+            if idx >= 0:
+                data = self.itemData(idx)
+        if isinstance(data, PatientOption):
+            idx = self.findData(data)
+            if idx >= 0:
+                self.blockSignals(True)
+                self.setCurrentIndex(idx)
+                self.blockSignals(False)
+            self.setEditText(data.name)
+            self._selected_item_data = data
+            return True
+        elif isinstance(data, dict):
+            clean = data.get("patient_name") or data.get("clean_text") or display
+            idx = self.findData(data)
+            if idx >= 0:
+                self.blockSignals(True)
+                self.setCurrentIndex(idx)
+                self.blockSignals(False)
+            self.setEditText(clean)
+            self._selected_item_data = data
+            return True
+        elif data is not None:
+            idx = self.findData(data)
+            if idx >= 0:
+                self.blockSignals(True)
+                self.setCurrentIndex(idx)
+                self.blockSignals(False)
+            self.setEditText(str(data))
+            self._selected_item_data = data
+            return True
+        elif display:
+            clean = display
+            import re
+            m = re.match(r"^(.*?)\s*\(([^)]+)\)\s*$", display.strip())
+            if m and m.group(1).strip():
+                clean = m.group(1).strip()
+            self.setEditText(clean)
+            return True
+        return False
+
+    def _on_activated_index(self, index: QModelIndex):
+        if index.isValid():
+            user_data = index.data(Qt.UserRole)
+            display = index.data(Qt.DisplayRole)
+            if self._apply_patient_selection(user_data, str(display) if display is not None else ""):
+                self.completionAccepted.emit()
+                try:
+                    self.completer().popup().hide()
+                    self._restore_owner_activation()
+                except Exception:
+                    pass
+                return
+        super()._on_activated_index(index)
+
+    def _accept_popup_selection(self) -> bool:
+        completer = self.completer()
+        popup = completer.popup()
+        index = popup.currentIndex()
+        if index.isValid() and index.data(Qt.UserRole) is not None:
+            accepted = True
+        elif index.isValid() and not self._completion_source_has_data():
+            accepted = True
+        else:
+            index = self._selectable_index(0, 1)
+            accepted = index.isValid()
+        if accepted:
+            display = index.data(Qt.DisplayRole)
+            user_data = index.data(Qt.UserRole)
+            if not self._apply_patient_selection(user_data, str(display) if display is not None else ""):
+                if user_data is not None:
+                    data_idx = self.findData(user_data)
+                    if data_idx >= 0:
+                        self.setCurrentIndex(data_idx)
+                    elif display is not None:
+                        self._accept_text(str(display))
+                elif display is not None:
+                    self._accept_text(str(display))
+        popup.hide()
+        self._restore_owner_activation()
+        if accepted:
+            self.completionAccepted.emit()
+        return accepted
+
     def _accept_text(self, text: str) -> bool:
         index = self.findText(text, Qt.MatchFixedString)
         if index >= 0:
             data = self.itemData(index)
-            if isinstance(data, PatientOption):
-                self.setEditText(data.name)
-                self._selected_item_data = data
-                return True
-            elif isinstance(data, dict):
-                clean = data.get("patient_name") or data.get("clean_text") or str(text)
-                self.setEditText(clean)
-                self._selected_item_data = data
-                return True
-            elif data:
-                self.setEditText(str(data))
-                self._selected_item_data = data
+            if self._apply_patient_selection(data, text):
                 return True
             self.setCurrentIndex(index)
             return True
+        import re
+        m = re.match(r"^(.*?)\s*\(([^)]+)\)\s*$", (text or "").strip())
+        if m:
+            clean = m.group(1).strip()
+            if clean:
+                idx = self.findText(clean, Qt.MatchFixedString)
+                if idx >= 0:
+                    data = self.itemData(idx)
+                    if self._apply_patient_selection(data, clean):
+                        return True
+                self.setEditText(clean)
+                return True
         return False
 
     def reload(self, query: str = ""):
@@ -2716,19 +2825,16 @@ class _ItemEntryBar(QWidget):
                 self._item_completion_model.rowCount() - 1
             )
             self._has_no_match_row = False
-        if query and not any(value.startswith(query.casefold()) for value in self._item_search_values):
-            reloaded = self.reload_items_if_needed(keep_selection=True)
-            if not reloaded and ItemDAO.find_by_name(query) is not None:
-                self.load_items(keep_selection=True)
+        completer = self.item_combo.completer()
+        completer.setCompletionPrefix(query)
 
-        if query and not any(value.startswith(query.casefold()) for value in self._item_search_values):
+        if query and completer.completionCount() == 0:
             status = QStandardItem("No products found")
             status.setData(None, Qt.UserRole)
             status.setData(query, Qt.UserRole + 1)
             self._item_completion_model.appendRow(status)
             self._has_no_match_row = True
-        completer = self.item_combo.completer()
-        completer.setCompletionPrefix(query)
+            completer.setCompletionPrefix(query)
         item = self.get_selected_item()
         if item:
             self._update_item_text_color(item.get("scheduled"))
@@ -3991,7 +4097,7 @@ class _SalePanel(QWidget):
     def apply_popup_entry_widths(self, available_width: int | None = None):
         """Size the popup's single Item Entry row so nothing overlaps.
 
-        The row keeps its existing order, widgets, labels and behaviour â€”
+        The row keeps its existing order, widgets, labels and behaviour —
         CNo, Item, Batch, Pack, Loc, Exp, MRP, Avail, Qty, Disc, Amt, + Add.
         Twelve fields plus their labels are simply wider than the popup, so
         instead of fixed guesses this measures what the row's labels, gaps
@@ -4014,6 +4120,16 @@ class _SalePanel(QWidget):
         if available_width is None:
             available_width = bar.width()
 
+        # Compact spacers and captions for popup mode first
+        for index in range(layout.count()):
+            item = layout.itemAt(index)
+            spacer = item.spacerItem()
+            if spacer is not None:
+                spacer.changeSize(2, 0, QSizePolicy.Fixed, QSizePolicy.Minimum)
+        layout.invalidate()
+
+        self._pin_popup_entry_captions()
+
         # What the row spends before any field: every label, every gap and
         # the bar's own margins.
         spent = (layout.spacing() * max(layout.count() - 1, 0)
@@ -4031,96 +4147,76 @@ class _SalePanel(QWidget):
                 spent += spacer.sizeHint().width()
                 continue
             widget = item.widget()
-            if widget is None or not widget.isVisible():
+            if widget is None or widget.isHidden():
                 continue
             if widget is bar.cno_label:
                 # Compact measured slot (not the label's wide sizeHint).
                 try:
-                    spent += self._popup_cno_slot_width()
+                    cno_w = self._popup_cno_slot_width()
                 except Exception:
-                    spent += _POPUP_CNO_WIDTH
+                    cno_w = _POPUP_CNO_WIDTH
+                bar.cno_label.setFixedWidth(cno_w)
+                spent += cno_w
             elif isinstance(widget, QLabel):
-                spent += widget.sizeHint().width()
+                spent += widget.width()
                 captions += 1
             elif isinstance(widget, QPushButton) and widget is not bar.add_btn:
                 spent += widget.sizeHint().width()
 
-        # Comfortable size per field: (attribute, preferred width).
+        # Comfortable size per field: (attribute, preferred width, usable floor).
         # Item/Batch lead with wider targets now that CNo is compact and
-        # the dialog itself is larger.
+        # the dialog itself is larger. Every field has a defined floor so none
+        # can shrink to 4-6px and overlap.
         preferred = (
-            # (attribute, comfortable width, smallest usable width)
-            ("item_combo", 320, 140),
-            ("batch_combo", 180, 100),
-            ("pack_edit", 70, 34),
-            ("location_edit", 90, 40),
-            ("expiry_edit", 105, 48),
-            ("mrp_edit", 95, 44),
-            ("stock_edit", 90, 40),
-            ("qty_edit", 75, 34),
-            ("discount_edit", 90, 40),
-            ("amount_edit", 110, 50),
-            ("add_btn", 85, 60),
+            ("item_combo", 280, 110),
+            ("batch_combo", 140, 70),
+            ("pack_edit", 50, 28),
+            ("location_edit", 55, 30),
+            ("expiry_edit", 65, 38),
+            ("mrp_edit", 60, 36),
+            ("stock_edit", 55, 30),
+            ("qty_edit", 50, 28),
+            ("discount_edit", 55, 32),
+            ("amount_edit", 75, 40),
+            ("add_btn", 70, 50),
         )
-        total_preferred = sum(width for _, width, _floor in preferred)
-        # Captions are pinned to their own text width below, so everything the
-        # row has not already spent on labels and gaps belongs to the fields.
+        floors = {a: f for a, _, f in preferred}
+        floor_total = sum(floors.values())
         room = max(0, available_width - spent)
 
-        # Search fields and the Add button are the ones a user actually types
-        # into or reads at length, so they are guaranteed a comfortable width
-        # first; the compact read-outs share what is left.
-        floors = {"item_combo": 220, "batch_combo": 120, "add_btn": 64}
-        if room >= sum(floors.values()):
-            widths = dict(floors)
-            shared = room - sum(floors.values())
-            weights = [(a, w) for a, w, _f in preferred if a not in floors]
-            weight_total = sum(w for _, w in weights)
-            for attribute, weight in weights:
-                widths[attribute] = shared * weight // weight_total
-            widths["item_combo"] += shared - sum(
-                v for a, v in widths.items() if a not in floors
-            )
+        if room <= floor_total:
+            if floor_total > 0 and room < floor_total:
+                widths = {a: max(_ENTRY_MIN_DRAWABLE, f * room // floor_total) for a, f in floors.items()}
+            else:
+                widths = dict(floors)
         else:
-            # Not even the comfortable widths fit: share everything evenly.
-            widths = {a: room * w // total_preferred for a, w, _f in preferred}
-        # Give the rounding remainder to the Item field so the row consumes
-        # exactly the space that was measured.
-        widths["item_combo"] += room - sum(widths.values())
-        # Guarantee a usable Qty width without breaking the measured total:
-        # borrow from Item (which keeps >=180) so Qty stays >=32 and the row
-        # still lands exactly inside the bar with no overlap.
-        try:
-            _qty_need = 32 - int(widths.get("qty_edit", 0))
-            if _qty_need > 0:
-                _give = min(_qty_need, int(widths.get("item_combo", 0)) - 180)
-                if _give > 0:
-                    widths["item_combo"] -= _give
-                    widths["qty_edit"] += _give
-        except Exception:
-            pass
+            widths = dict(floors)
+            surplus = room - floor_total
+            headroom = {a: max(0, w - floors[a]) for a, w, _ in preferred}
+            total_headroom = sum(headroom.values())
+            if surplus <= total_headroom and total_headroom > 0:
+                allocated = 0
+                for a in floors:
+                    share = surplus * headroom[a] // total_headroom
+                    widths[a] += share
+                    allocated += share
+                widths["item_combo"] += surplus - allocated
+            else:
+                for a, w, _ in preferred:
+                    widths[a] = w
+                widths["item_combo"] += surplus - total_headroom
 
         for attribute, comfortable, floor in preferred:
             widget = getattr(bar, attribute)
             width = widths[attribute]
             _ItemEntryBar._fit(widget, width, width)
 
-        # CNo mirrors the bill number in a compact measured slot: wide
-        # enough for the complete number, narrow enough to leave Item/Batch
-        # the remainder.
-        try:
-            _cno_w = self._popup_cno_slot_width()
-        except Exception:
-            _cno_w = _POPUP_CNO_WIDTH
-        bar.cno_label.setMinimumWidth(_cno_w)
-        bar.cno_label.setMaximumWidth(_cno_w)
         # Re-render CNo now that the slot has its final width (it may have
         # been elided against a zero width before layout).
         try:
             bar.set_cno(self.bill_no_edit.text())
         except Exception:
             pass
-        self._pin_popup_entry_captions()
         self._fit_popup_entry_row_to_width(available_width, preferred)
 
     def _fit_popup_entry_row_to_width(self, available_width: int,
@@ -4129,8 +4225,8 @@ class _SalePanel(QWidget):
 
         The widths above are computed from measured label and gap sizes, but
         Qt's own rounding can leave the row a pixel or two long.  Rather than
-        let a caption or a field be squeezed, the Item field â€” which has the
-        most room to give â€” absorbs the difference, never dropping below its
+        let a caption or a field be squeezed, the Item field — which has the
+        most room to give — absorbs the difference, never dropping below its
         usable minimum.
         """
         bar = self._entry_bar
@@ -4149,7 +4245,7 @@ class _SalePanel(QWidget):
                     total += spacer.sizeHint().width()
                     continue
                 widget = item.widget()
-                if widget is None:
+                if widget is None or widget.isHidden():
                     continue
                 if widget is bar.cno_label:
                     try:
@@ -4173,17 +4269,20 @@ class _SalePanel(QWidget):
     def _pin_popup_entry_captions(self):
         """Stop the row's captions being squeezed by the fields.
 
-        Each caption is held at exactly the width its own text needs, which
-        is what keeps a label from being clipped once the fields beside it
-        have taken their share of the window.
+        Each caption is held at a compact width suitable for popup dialogs.
         """
         bar = self._entry_bar
+        font = readable_font(TYPE_FORM_LABEL, bold=True)
         for index in range(bar.layout().count()):
             widget = bar.layout().itemAt(index).widget()
             if isinstance(widget, QLabel) and widget is not bar.cno_label:
-                width = widget.sizeHint().width()
+                widget.setFont(font)
+                txt = widget.text().strip()
+                fm = widget.fontMetrics()
+                width = min(max(18, fm.horizontalAdvance(txt) + 2), 36)
                 widget.setMinimumWidth(width)
                 widget.setMaximumWidth(width)
+                widget.setContentsMargins(0, 0, 0, 0)
 
 
     def _make_doctor_lookup(self):
@@ -4405,6 +4504,27 @@ class _SalePanel(QWidget):
             self._update_mobile_for_patient(text)
 
     def _on_patient_name_changed(self, text: str):
+        import re
+        m = re.match(r"^(.*?)\s*\(([^)]+)\)\s*$", (text or "").strip())
+        if m and m.group(1).strip() and m.group(2).strip():
+            clean_name = m.group(1).strip()
+            embedded_addr = m.group(2).strip()
+            if hasattr(self, "patient_name_edit"):
+                self.patient_name_edit.blockSignals(True)
+                if hasattr(self.patient_name_edit, "setEditText"):
+                    self.patient_name_edit.setEditText(clean_name)
+                elif hasattr(self.patient_name_edit, "setText"):
+                    self.patient_name_edit.setText(clean_name)
+                self.patient_name_edit.blockSignals(False)
+            text = clean_name
+            if hasattr(self, "address_edit") and not getattr(self, "_user_edited_address", False):
+                if hasattr(self.address_edit, "set_patient_addresses"):
+                    self.address_edit.set_patient_addresses([embedded_addr])
+                self.address_edit.setText(embedded_addr)
+                self._auto_filled_address_patient = clean_name
+                self._auto_filled_address_text = embedded_addr
+                self._user_edited_address = False
+
         full_bno = getattr(self, "_full_bill_no", None)
         if full_bno and getattr(self, "_invoice", None) is not None:
             disp = _display_bill_no(full_bno, patient_name=text)
@@ -4427,6 +4547,22 @@ class _SalePanel(QWidget):
             return
 
         norm = " ".join((text or "").split()).strip()
+        import re
+        m = re.match(r"^(.*?)\s*\(([^)]+)\)\s*$", norm)
+        embedded_addr = ""
+        if m and m.group(1).strip() and m.group(2).strip():
+            clean_name = m.group(1).strip()
+            embedded_addr = m.group(2).strip()
+            if hasattr(self, "patient_name_edit"):
+                curr = self.patient_name_edit.text().strip() if hasattr(self.patient_name_edit, "text") else ""
+                if curr == norm:
+                    self.patient_name_edit.blockSignals(True)
+                    if hasattr(self.patient_name_edit, "setEditText"):
+                        self.patient_name_edit.setEditText(clean_name)
+                    elif hasattr(self.patient_name_edit, "setText"):
+                        self.patient_name_edit.setText(clean_name)
+                    self.patient_name_edit.blockSignals(False)
+            norm = clean_name
 
         # If patient name is genuinely empty or whitespace or WALKIN:
         if not norm or norm.upper() in ("WALKIN", "WALKIN CUSTOMER"):
@@ -4456,6 +4592,8 @@ class _SalePanel(QWidget):
             return
 
         addresses = CustomerDAO.get_saved_addresses_for_patient(norm)
+        if embedded_addr and not addresses:
+            addresses = [embedded_addr]
         self._last_lookup_patient = norm
 
         if len(addresses) == 1:
@@ -4488,6 +4626,10 @@ class _SalePanel(QWidget):
             return
 
         norm = " ".join((text or "").split()).strip()
+        import re
+        m = re.match(r"^(.*?)\s*\(([^)]+)\)\s*$", norm)
+        if m and m.group(1).strip():
+            norm = m.group(1).strip()
 
         # If patient name is genuinely empty or whitespace or WALKIN:
         if not norm or norm.upper() in ("WALKIN", "WALKIN CUSTOMER"):
@@ -6411,6 +6553,7 @@ class SalesBillReviewDialog(QDialog):
                 self._panel._entry_bar.close_popups()
                 self._panel._entry_bar.reset_batch()
                 self._panel._entry_bar.reload_items_if_needed(keep_selection=True)
+                self._panel.apply_popup_entry_widths(self.width() - _POPUP_BODY_CHROME)
             if hasattr(self, "_final_save_btn"):
                 self._final_save_btn.setFocus()
         except Exception:
@@ -6813,16 +6956,15 @@ class SalesBillReviewDialog(QDialog):
     # centred; on smaller displays it clamps to the available geometry
     # instead of forcing controls off-screen.  The table owns the stretch,
     # so extra height goes to item rows while Save/Close stay visible.
-    MIN_WIDTH, MAX_WIDTH = 900, 16777215
+    MIN_WIDTH, MAX_WIDTH = 1080, 16777215
     MIN_HEIGHT, MAX_HEIGHT = 600, 16777215
 
     @classmethod
     def target_size(cls, available_w: int, available_h: int) -> tuple[int, int]:
         """Popup size for a screen of ``available_w`` x ``available_h``.
 
-        Approximately 87% of the width and 82% of the height.  On a display
-        smaller than the minimum, the available size wins so controls are
-        never forced beyond the screen.
+        Approximately 87% of the width and 82% of the height. Ensures
+        at least MIN_WIDTH / MIN_HEIGHT so entry row controls never overlap.
         """
         try:
             aw = max(1, int(available_w or 0))
@@ -6831,10 +6973,8 @@ class SalesBillReviewDialog(QDialog):
             aw, ah = 1366, 768
         width = int(round(aw * 0.87))
         height = int(round(ah * 0.82))
-        # Clamp into [min(available, MIN), available] so a small display
-        # never gets a window larger than itself.
-        width = max(min(cls.MIN_WIDTH, aw), min(width, aw))
-        height = max(min(cls.MIN_HEIGHT, ah), min(height, ah))
+        width = max(cls.MIN_WIDTH, min(width, max(aw, cls.MIN_WIDTH)))
+        height = max(cls.MIN_HEIGHT, min(height, max(ah, cls.MIN_HEIGHT)))
         return width, height
 
     def _resize_compact(self):
@@ -6846,7 +6986,7 @@ class SalesBillReviewDialog(QDialog):
         except Exception:
             available = QSize(1366, 768)
         # Offscreen/headless screens report a tiny available size while the
-        # parent Counter Sale page is 1366x768.  Size from the larger of the
+        # parent Counter Sale page is 1366x768. Size from the larger of the
         # two so the entry row keeps its readable widths in tests; on a real
         # small display the parent is itself small, so this still fits.
         try:
@@ -6860,15 +7000,19 @@ class SalesBillReviewDialog(QDialog):
                                       max(available.height(), ph))
         except Exception:
             pass
+        if available.width() < self.MIN_WIDTH or available.height() < self.MIN_HEIGHT:
+            available = QSize(max(available.width(), self.MIN_WIDTH),
+                              max(available.height(), self.MIN_HEIGHT))
         width, height = self.target_size(available.width(), available.height())
         try:
             self.setMinimumSize(self.MIN_WIDTH, self.MIN_HEIGHT)
         except Exception:
             pass
-        # Resizable: no fixed size and no tight maximum.  Clamp the maximum
+        # Resizable: no fixed size and no tight maximum. Clamp the maximum
         # to the available screen so the window can never open off-screen.
         try:
-            self.setMaximumSize(available.width(), available.height())
+            self.setMaximumSize(max(available.width(), self.MIN_WIDTH),
+                                max(available.height(), self.MIN_HEIGHT))
         except Exception:
             pass
         try:
