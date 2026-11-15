@@ -87,11 +87,11 @@ class TestTableComboBox(unittest.TestCase):
         # Row 0 is "-- Select Batch --", followed by 3 batches
         self.assertEqual(self.combo.count(), 4)
         self.assertEqual(self.combo._table_model.rowCount(), 4)
-        self.assertEqual(self.combo._table_model.columnCount(), 6)
+        self.assertEqual(self.combo._table_model.columnCount(), 5)
 
-        # Header titles
-        headers = [self.combo._table_model.headerData(c, Qt.Horizontal) for c in range(6)]
-        self.assertEqual(headers, ["Batch No", "Expiry Date", "MRP", "Rate", "Balance", "Status"])
+        # Header titles (Status column removed per user specification)
+        headers = [self.combo._table_model.headerData(c, Qt.Horizontal) for c in range(5)]
+        self.assertEqual(headers, ["Batch No", "Expiry Date", "MRP", "Rate", "Balance"])
 
     def test_02_data_and_display_formatting(self):
         self.combo.set_batches(self.sample_batches)
@@ -106,21 +106,18 @@ class TestTableComboBox(unittest.TestCase):
         mrp_item = self.combo._table_model.item(1, 2)
         rate_item = self.combo._table_model.item(1, 3)
         bal_item = self.combo._table_model.item(1, 4)
-        status_item = self.combo._table_model.item(1, 5)
 
         self.assertEqual(bno_item.text(), "ACR26040")
         self.assertEqual(exp_item.text(), "31-03-2028")
         self.assertEqual(mrp_item.text(), "121.00")
         self.assertEqual(rate_item.text(), "92.20")
         self.assertEqual(bal_item.text(), "335")
-        self.assertEqual(status_item.text(), "Valid")
 
     def test_03_expired_and_zero_stock_visual_cues(self):
         self.combo.set_batches(self.sample_batches)
         # Index 2 is BBC-105 (Expired, stock 0)
-        status_item = self.combo._table_model.item(2, 5)
-        self.assertEqual(status_item.text(), "Expired")
-        self.assertTrue(status_item.font().bold())
+        exp_bno_item = self.combo._table_model.item(2, 0)
+        self.assertTrue(exp_bno_item.font().bold())
 
         # Balance item should be "0"
         bal_item = self.combo._table_model.item(2, 4)

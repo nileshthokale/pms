@@ -1363,11 +1363,10 @@ class SearchableComboBox(ConstrainedComboBox):
 
 DEFAULT_BATCH_COLUMNS = [
     {"key": "batch_no", "header": "Batch No", "width": 130, "align": Qt.AlignLeft},
-    {"key": "expiry", "header": "Expiry Date", "width": 95, "align": Qt.AlignCenter},
-    {"key": "mrp", "header": "MRP", "width": 75, "align": Qt.AlignRight},
-    {"key": "rate", "header": "Rate", "width": 75, "align": Qt.AlignRight},
-    {"key": "stock_qty", "header": "Balance", "width": 70, "align": Qt.AlignRight},
-    {"key": "status", "header": "Status", "width": 75, "align": Qt.AlignCenter},
+    {"key": "expiry", "header": "Expiry Date", "width": 100, "align": Qt.AlignCenter},
+    {"key": "mrp", "header": "MRP", "width": 80, "align": Qt.AlignRight},
+    {"key": "rate", "header": "Rate", "width": 80, "align": Qt.AlignRight},
+    {"key": "stock_qty", "header": "Balance", "width": 75, "align": Qt.AlignRight},
 ]
 
 
@@ -1490,6 +1489,7 @@ class TableComboBox(SearchableComboBox):
     def _setup_table_popup(self):
         self._popup_frame = QFrame(None, Qt.Popup | Qt.FramelessWindowHint)
         self._popup_frame.setObjectName("TableComboBoxPopup")
+        self._popup_frame.installEventFilter(self)
         layout = QVBoxLayout(self._popup_frame)
         layout.setContentsMargins(1, 1, 1, 1)
         layout.setSpacing(0)
@@ -1505,6 +1505,10 @@ class TableComboBox(SearchableComboBox):
         self.table_view.setShowGrid(True)
         self.table_view.setAlternatingRowColors(True)
         self.table_view.setFocusPolicy(Qt.NoFocus)
+        self.table_view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.table_view.installEventFilter(self)
+        if self.table_view.horizontalHeader() is not None:
+            self.table_view.horizontalHeader().installEventFilter(self)
         self.table_view.clicked.connect(self._on_table_row_clicked)
         self.table_view.doubleClicked.connect(self._on_table_row_clicked)
         layout.addWidget(self.table_view, 1)
@@ -1883,6 +1887,7 @@ class TableComboBox(SearchableComboBox):
         if first_match >= 0:
             idx = self._table_model.index(first_match, 0)
             self.table_view.setCurrentIndex(idx)
+            self.table_view.selectRow(first_match)
             self.table_view.scrollTo(idx, QAbstractItemView.PositionAtCenter)
 
     def mousePressEvent(self, event):
@@ -1909,9 +1914,14 @@ class TableComboBox(SearchableComboBox):
         target_w = max(combo_w, self._min_popup_width, cols_width + 28)
         target_w = min(target_w, avail.width() - 20)
 
-        # Calculate height
+        # Calculate height: show up to 5 batches without scrollbar; scroll on 5+ batches
         visible_rows = sum(1 for r in range(total) if not self.table_view.isRowHidden(r))
-        target_h = min(self._max_popup_height, max(self._min_popup_height, 28 * visible_rows + 54))
+        row_h = max(28, self.table_view.rowHeight(0) if total > 0 else 30)
+        header_h = max(26, self.table_view.horizontalHeader().height())
+        footer_h = max(24, self._footer_bar.height() if hasattr(self, "_footer_bar") else 24)
+        rows_to_show = min(visible_rows, 5)
+        target_h = rows_to_show * row_h + header_h + footer_h + 12
+        target_h = max(self._min_popup_height, target_h)
 
         # Boundary X
         x = pos.x()
@@ -1932,72 +1942,103 @@ class TableComboBox(SearchableComboBox):
 
         self._popup_frame.setGeometry(QRect(x, y, target_w, h))
 
-        # Select current index
+        # Select current index and highlight full row
         cur = self.currentIndex()
         if not (0 <= cur < total and not self.table_view.isRowHidden(cur)):
             cur = 1 if (total > 1 and self.itemData(0) is None and self.itemText(0).startswith("--")) else 0
         if 0 <= cur < total and not self.table_view.isRowHidden(cur):
             idx = self._table_model.index(cur, 0)
             self.table_view.setCurrentIndex(idx)
+            self.table_view.selectRow(cur)
             self.table_view.scrollTo(idx, QAbstractItemView.PositionAtCenter)
 
         self._popup_frame.show()
         self._popup_frame.raise_()
+        line = self.lineEdit()
+        if line is not None:
+            line.setFocus()
 
     def hidePopup(self):
-        if hasattr(self, "_popup_frame") and self._popup_frame.isVisible():
-            self._popup_frame.hide()
+        try:
+            if hasattr(self, "_popup_frame") and self._popup_frame is not None and self._popup_frame.isVisible():
+                self._popup_frame.hide()
+        except (RuntimeError, ReferenceError):
+            pass
 
     def eventFilter(self, obj, event):
-        if obj == self.lineEdit():
-            if event.type() == QEvent.MouseButtonPress:
-                if hasattr(self, "_popup_frame") and not self._popup_frame.isVisible() and self.count() > 0:
+        line = self.lineEdit()
+        popup = getattr(self, "_popup_frame", None)
+        table = getattr(self, "table_view", None)
+
+        if obj == line:
+            if event.type() in (QEvent.MouseButtonPress, QEvent.FocusIn):
+                if popup is not None and not popup.isVisible() and self.count() > 0:
                     QTimer.singleShot(0, self.showPopup)
-            elif event.type() == QEvent.KeyPress:
-                key = event.key()
-                if key in (Qt.Key_Down, Qt.Key_Up, Qt.Key_PageDown, Qt.Key_PageUp):
-                    if not self._popup_frame.isVisible():
-                        if key == Qt.Key_Down:
-                            self.showPopup()
-                            return True
-                    else:
-                        count = self._table_model.rowCount()
-                        if count > 0:
-                            cur_idx = self.table_view.currentIndex()
-                            cur_row = cur_idx.row() if cur_idx.isValid() else -1
-                            step = 1 if key == Qt.Key_Down else (-1 if key == Qt.Key_Up else (5 if key == Qt.Key_PageDown else -5))
-                            next_row = 0 if cur_row < 0 and step > 0 else (count - 1 if cur_row < 0 else cur_row + step)
-                            while 0 <= next_row < count:
-                                if not self.table_view.isRowHidden(next_row):
-                                    idx = self._table_model.index(next_row, 0)
-                                    self.table_view.setCurrentIndex(idx)
-                                    self.table_view.scrollTo(idx, QAbstractItemView.PositionAtCenter)
-                                    return True
-                                next_row += (1 if step > 0 else -1)
-                            return True
-                elif key in (Qt.Key_Return, Qt.Key_Enter):
-                    if self._popup_frame.isVisible():
-                        idx = self.table_view.currentIndex()
-                        if not idx.isValid():
-                            for r in range(self._table_model.rowCount()):
-                                if not self.table_view.isRowHidden(r):
-                                    idx = self._table_model.index(r, 0)
-                                    break
-                        if idx.isValid():
-                            self._commit_row(idx.row())
-                            self.hidePopup()
-                            return True
-                elif key == Qt.Key_Escape:
-                    if self._popup_frame.isVisible():
-                        self.hidePopup()
+
+        if event.type() == QEvent.KeyPress and obj in (line, popup, table):
+            key = event.key()
+            if key in (Qt.Key_Down, Qt.Key_Up, Qt.Key_PageDown, Qt.Key_PageUp):
+                if popup is None or not popup.isVisible():
+                    if key in (Qt.Key_Down, Qt.Key_Up):
+                        self.showPopup()
                         return True
-                elif key in (Qt.Key_Tab, Qt.Key_Backtab):
-                    if self._popup_frame.isVisible():
-                        idx = self.table_view.currentIndex()
-                        if idx.isValid():
-                            self._commit_row(idx.row())
-                        self.hidePopup()
-                    return False
+                else:
+                    count = self._table_model.rowCount()
+                    if count > 0:
+                        cur_idx = self.table_view.currentIndex()
+                        cur_row = cur_idx.row() if cur_idx.isValid() else -1
+                        step = 1 if key in (Qt.Key_Down, Qt.Key_PageDown) else -1
+                        if key == Qt.Key_PageDown:
+                            step = 5
+                        elif key == Qt.Key_PageUp:
+                            step = -5
+                        next_row = 0 if cur_row < 0 and step > 0 else (count - 1 if cur_row < 0 else cur_row + step)
+                        while 0 <= next_row < count:
+                            if not self.table_view.isRowHidden(next_row):
+                                idx = self._table_model.index(next_row, 0)
+                                self.table_view.setCurrentIndex(idx)
+                                self.table_view.selectRow(next_row)
+                                self.table_view.scrollTo(idx, QAbstractItemView.PositionAtCenter)
+                                return True
+                            next_row += (1 if step > 0 else -1)
+                        return True
+            elif key in (Qt.Key_Return, Qt.Key_Enter):
+                if popup is not None and popup.isVisible():
+                    idx = self.table_view.currentIndex()
+                    if not idx.isValid():
+                        for r in range(self._table_model.rowCount()):
+                            if not self.table_view.isRowHidden(r):
+                                idx = self._table_model.index(r, 0)
+                                break
+                    if idx.isValid():
+                        self._commit_row(idx.row())
+                    self.hidePopup()
+                    return True
+                else:
+                    self.completionAccepted.emit()
+                    return True
+            elif key in (Qt.Key_Tab, Qt.Key_Backtab):
+                if popup is not None and popup.isVisible():
+                    idx = self.table_view.currentIndex()
+                    if not idx.isValid():
+                        for r in range(self._table_model.rowCount()):
+                            if not self.table_view.isRowHidden(r):
+                                idx = self._table_model.index(r, 0)
+                                break
+                    if idx.isValid():
+                        self._commit_row(idx.row())
+                    self.hidePopup()
+                return False
+            elif key == Qt.Key_Escape:
+                if popup is not None and popup.isVisible():
+                    self.hidePopup()
+                    return True
+            elif obj in (popup, table) and event.text() and event.text().isprintable():
+                if line is not None:
+                    line.setFocus()
+                    line.event(event)
+                    return True
+
         return super().eventFilter(obj, event)
 
     def refresh_theme(self, p: dict | None = None):

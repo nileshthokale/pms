@@ -1435,10 +1435,27 @@ class _KeyboardCombo(QComboBox):
             self.setFocus()
             return True
 
-        if key == Qt.Key_Tab and popup.isVisible():
-            if not self._accept_popup_selection():
+        if key == Qt.Key_Tab:
+            if popup.isVisible():
+                if self._accept_popup_selection():
+                    return True
                 self.focusNextChild()
-            return True
+                return True
+            else:
+                text = self.currentText().strip()
+                if text and self.currentData() is None:
+                    for idx in range(self.count()):
+                        item_text = self.itemText(idx)
+                        b_no = item_text.split(" | ")[0].strip()
+                        base = item_text.split("(")[0].strip()
+                        if text.upper() in (b_no.upper(), item_text.upper(), base.upper()):
+                            self.setCurrentIndex(idx)
+                            break
+                if self.currentData() is not None:
+                    self.completionAccepted.emit()
+                    return True
+                self.focusNextChild()
+                return True
 
         return super().eventFilter(watched, event)
 
@@ -2939,14 +2956,19 @@ class _ItemEntryBar(QWidget):
             self.stock_edit.clear()
             return
         batch = SalesDAO.get_batch_by_id(batch_id)
+        if not batch and hasattr(self.batch_combo, "_row_dicts"):
+            cur_idx = self.batch_combo.currentIndex()
+            if 0 <= cur_idx < len(self.batch_combo._row_dicts):
+                batch = self.batch_combo._row_dicts[cur_idx]
         if batch:
-            self.pack_edit.setText(batch.get("pack_size", ""))
+            self.pack_edit.setText(str(batch.get("pack_size", "")))
             item = self._items_by_id.get(self.item_combo.currentData(), {})
             self.location_edit.setText(
                 batch.get("location") or item.get("location", "") or ""
             )
-            self.expiry_edit.setText(batch.get("expiry", ""))
-            self.mrp_edit.setText(f"{batch.get('mrp', 0.0):.2f}")
+            self.expiry_edit.setText(str(batch.get("expiry", "")))
+            mrp_val = float(batch.get("mrp", 0.0) or 0.0)
+            self.mrp_edit.setText(f"{mrp_val:.2f}")
             reserved, available = self._availability(batch)
             self.stock_edit.setText(f"{available:.0f}")
             self.stock_edit.setToolTip(
