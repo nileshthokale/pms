@@ -55,6 +55,7 @@ from ui.theme import (
     TYPE_TABLE_HEADER,
     TYPE_VALUE,
     TYPE_VALUE_EMPHASIS,
+    combo_subcontrols,
     date_subcontrols,
     palette,
 )
@@ -81,8 +82,8 @@ def _fresh_combo_style(p: dict) -> str:
         f"  padding: 4px 6px; font-size: {TYPE_INPUT}px; font-family: {FONT_FAMILY};"
         f"}}"
         f"QComboBox:hover {{ border: 1px solid {p['accent']}; }}"
-        f"QComboBox::drop-down {{ border: none; width: 20px; }}"
-        f"QComboBox QAbstractItemView {{"
+        + combo_subcontrols(p, width=20)
+        + f"QComboBox QAbstractItemView {{"
         f"  background-color: {p['bg']}; color: {p['text']};"
         f"  border: 1px solid {p['border']}; selection-background-color: {p['selected']};"
         f"  selection-color: {p['text']}; outline: 0;"

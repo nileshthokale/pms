@@ -162,7 +162,16 @@ def _document_lines(title: str, record: dict, items: list[dict]) -> list[str]:
                 _text(item.get("return_qty")), _money(item.get("less_amount")), _money(item.get("amount")),
                 _text(item.get("return_reason")),
             ]))
-        lines.extend(["", f"Total Amount: {_money(record.get('total_amount'))}", f"Ledger Amount: {_money(record.get('ledger_amount'))}"])
+        summary_lines = []
+        if record.get("less_amount") or record.get("discount_pct"):
+            disc_pct = float(record.get("discount_pct") or 0.0)
+            less_amt = float(record.get("less_amount") or 0.0)
+            if disc_pct > 0:
+                summary_lines.append(f"Less ({disc_pct:g}%): {_money(less_amt)}")
+            else:
+                summary_lines.append(f"Less: {_money(less_amt)}")
+        summary_lines.extend([f"Total Amount: {_money(record.get('total_amount'))}", f"Ledger Amount: {_money(record.get('ledger_amount'))}"])
+        lines.extend([""] + summary_lines)
     elif title == "Customer Receipt":
         lines.extend([
             f"Payment Mode: {_text(record.get('receipt_mode'))}", f"Amount: {_money(record.get('amount'))}",

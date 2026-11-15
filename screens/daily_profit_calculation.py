@@ -168,9 +168,14 @@ class DailyProfitCostReportWidget(QWidget):
         self.item_combo.clear()
         self.item_combo.addItem("-- All Medicines --", None)
         try:
+            seen_ids = set()
             for it in SalesReportsDAO.get_filter_items():
+                item_id = it.get("id")
+                if item_id is None or item_id in seen_ids:
+                    continue
+                seen_ids.add(item_id)
                 disp = f"{it['item_name']} ({it['company_code'] or it['company_name']})" if (it.get('company_code') or it.get('company_name')) else it['item_name']
-                self.item_combo.addItem(disp, it["id"])
+                self.item_combo.addItem(disp, item_id)
         except Exception:
             pass
         if self.item_combo.completer():

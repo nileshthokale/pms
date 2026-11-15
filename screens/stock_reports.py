@@ -232,7 +232,8 @@ class _BaseStockReportPage(QWidget):
             f"QLabel {{ color: {p['text']}; font-size: 12px; font-weight: bold; background: transparent; }}"
             f"QSpinBox {{ background-color: {p['surface']}; color: {p['text']}; border: 1px solid {p['border']}; border-radius: 2px; padding: 4px; font-size: 12px; }}"
             f"QComboBox {{ background-color: {p['surface']}; color: {p['text']}; border: 1px solid {p['border']}; border-radius: 2px; padding: 4px; font-size: 12px; }}"
-            f"QCheckBox {{ color: {p['text']}; font-size: 12px; font-weight: bold; background: transparent; }}"
+            + theme.combo_subcontrols(p, width=20)
+            + f"QCheckBox {{ color: {p['text']}; font-size: 12px; font-weight: bold; background: transparent; }}"
             f"QPushButton {{ background-color: {p['accent']}; color: white; border: none; border-radius: 3px; padding: 7px 12px; font-size: 13px; font-weight: bold; }}"
             f"QPushButton:hover {{ background-color: {p['accent_hover']}; }}"
             f"QPushButton:disabled {{ background-color: {'#404040' if is_dark else '#A0B8D0'}; color: {'#707070' if is_dark else '#E0E8F0'}; }}"

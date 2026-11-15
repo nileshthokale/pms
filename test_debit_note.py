@@ -256,7 +256,7 @@ class TestDNValidation(_BaseTest):
 
     def test_11_insufficient_stock_raises(self):
         header = {"voucher_date": "2026-01-20", "voucher_time": "10:00", "dn_date": "2026-01-20", "dn_type": "Supplier", "supplier_id": self.supplier_id, "total_amount": 8000, "ledger_amount": 8000, "remarks": ""}
-        items = [{"item_id": self.item_id, "stock_batch_id": self.batch_id, "batch_no": "BATCH-A", "expiry": "12/27", "pack_size": "10x10", "rate": 40, "mrp": 50, "return_qty": 200, "less_amount": 0, "amount": 8000, "return_reason": "", "price_factor": 1.0}]
+        items = [{"item_id": self.item_id, "stock_batch_id": self.batch_id, "batch_no": "BATCH-A", "expiry": "12/27", "pack_size": "10x10", "rate": 40, "mrp": 50, "return_qty": 20000, "less_amount": 0, "amount": 8000, "return_reason": "", "price_factor": 1.0}]
         with self.assertRaises(ValueError) as ctx:
             DebitNoteDAO.insert_debit_note(header, items)
         self.assertIn("Insufficient stock", str(ctx.exception))

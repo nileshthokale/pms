@@ -55,10 +55,10 @@ class StockDAO:
 
         if item_name:
             clauses.append("i.item_name LIKE ?")
-            params.append(f"%{item_name}%")
+            params.append(f"{item_name.strip()}%")
         if batch_no:
             clauses.append("sb.batch_no LIKE ?")
-            params.append(f"%{batch_no}%")
+            params.append(f"{batch_no.strip()}%")
         if company_id is not None:
             clauses.append("i.company_id = ?")
             params.append(company_id)

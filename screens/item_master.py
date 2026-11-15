@@ -46,7 +46,7 @@ from database.tax_structures import (
 
 from ui.components import SearchableComboBox
 from ui.input_rules import attach_uppercase
-from ui.theme import palette
+from ui.theme import combo_subcontrols, palette
 _p = palette()
 _DARK_BG = _p["bg"]
 _SURFACE = _p["surface"]
@@ -103,11 +103,8 @@ def _drug_combo_style() -> str:
         f"  padding: 6px; font-size: 15px; font-family: 'Segoe UI';"
         f"}}"
         f"QComboBox:hover {{ border: 1px solid {_ACCENT}; }}"
-        f"QComboBox::drop-down {{ border: none; width: 24px; }}"
-        f"QComboBox::down-arrow {{ image: none; border: none; }}"
-        # The editable field lives inside the combo: strip the boxed
-        # QLineEdit look the dialog's own stylesheet would give it.
-        f"QComboBox QLineEdit {{"
+        + combo_subcontrols(_p, width=24)
+        + f"QComboBox QLineEdit {{"
         f"  background: transparent; border: none; padding: 0px;"
         f"  color: {_TEXT}; font-size: 15px; font-family: 'Segoe UI';"
         f"}}"
@@ -175,7 +172,7 @@ class _DrugComboBox(QComboBox):
 
         completer = QCompleter(self._model, self)
         completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-        completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        completer.setFilterMode(Qt.MatchFlag.MatchStartsWith)
         completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
         completer.setMaxVisibleItems(_DRUG_POPUP_MAX_ROWS)
         self.setCompleter(completer)
@@ -493,11 +490,8 @@ class _CompanyComboBox(SearchableComboBox):
             f"  padding: 8px; font-size: 15px; font-family: 'Segoe UI';"
             f"}}"
             f"QComboBox:hover {{ border: 1px solid {_ACCENT}; }}"
-            f"QComboBox::drop-down {{"
-            f"  border: none; width: 24px;"
-            f"}}"
-            f"QComboBox::down-arrow {{ image: none; border: none; }}"
-            f"QComboBox QAbstractItemView {{"
+            + combo_subcontrols(_p, width=24)
+            + f"QComboBox QAbstractItemView {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; selection-background-color: {_ACCENT};"
             f"  font-size: 15px; font-family: 'Segoe UI';"
@@ -600,11 +594,8 @@ class _ItemDialog(QDialog):
             f"  padding: 8px; font-size: 15px; font-family: 'Segoe UI';"
             f"}}"
             f"QComboBox:hover {{ border: 1px solid {_ACCENT}; }}"
-            f"QComboBox::drop-down {{"
-            f"  border: none; width: 24px;"
-            f"}}"
-            f"QComboBox::down-arrow {{ image: none; border: none; }}"
-            f"QComboBox QAbstractItemView {{"
+            + combo_subcontrols(_p, width=24)
+            + f"QComboBox QAbstractItemView {{"
             f"  background-color: {_SURFACE}; color: {_TEXT};"
             f"  border: 1px solid {_BORDER}; selection-background-color: {_ACCENT};"
             f"  font-size: 15px; font-family: 'Segoe UI';"

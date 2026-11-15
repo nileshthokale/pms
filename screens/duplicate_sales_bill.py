@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QDate, QTime, Qt, Signal
+from PySide6.QtCore import QDate, QTime, QTimer, Qt, Signal
 import re
 from PySide6.QtWidgets import (
     QScrollArea,
@@ -56,6 +56,8 @@ from ui.input_rules import attach_uppercase
 from ui.theme import (
     FONT_FAMILY,
     TYPE_FORM_LABEL,
+    combo_subcontrols,
+    date_subcontrols,
     palette,
 )
 
@@ -536,6 +538,7 @@ class DuplicateSalesBillDialog(QDialog):
 
     def __init__(self, dup_id: int | None = None, parent: QWidget | None = None):
         super().__init__(parent)
+        self._initial_focus_done = False
         self._dup_id = dup_id
         self._items: list[dict[str, Any]] = []
         self._current_item_batches: list[dict[str, Any]] = []
@@ -560,6 +563,8 @@ class DuplicateSalesBillDialog(QDialog):
             f"  selection-background-color: {p['accent']}; selection-color: #ffffff;"
             f"  border: 1px solid {p['border']};"
             f"}}"
+            + combo_subcontrols(p, width=20)
+            + date_subcontrols(p, width=22)
         )
 
         self._build_ui()
@@ -568,6 +573,23 @@ class DuplicateSalesBillDialog(QDialog):
             self._load_existing_bill(self._dup_id)
         else:
             self._init_new_bill()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if not getattr(self, "_initial_focus_done", False):
+            self._initial_focus_done = True
+            QTimer.singleShot(0, self.focus_patient_name)
+
+    def focus_patient_name(self):
+        try:
+            if hasattr(self, "_patient_edit") and self._patient_edit.isVisible():
+                self._patient_edit.setFocus(Qt.OtherFocusReason)
+                if self._patient_edit.text():
+                    self._patient_edit.selectAll()
+                else:
+                    self._patient_edit.setCursorPosition(0)
+        except Exception:
+            pass
 
     def _build_ui(self):
         root = QVBoxLayout(self)
@@ -699,7 +721,7 @@ class DuplicateSalesBillDialog(QDialog):
         suggestions = DuplicateSalesDAO.get_item_name_suggestions(limit=5000)
         self._item_completer = QCompleter(suggestions, self)
         self._item_completer.setCaseSensitivity(Qt.CaseInsensitive)
-        self._item_completer.setFilterMode(Qt.MatchContains)
+        self._item_completer.setFilterMode(Qt.MatchStartsWith)
         self._entry_item.setCompleter(self._item_completer)
         self._item_completer.activated[str].connect(self._on_item_name_chosen)
         self._entry_item.editingFinished.connect(self._on_item_editing_finished)
@@ -1028,6 +1050,7 @@ class DuplicateSalesBillDialog(QDialog):
 
             b_completer = QCompleter(batch_list, self)
             b_completer.setCaseSensitivity(Qt.CaseInsensitive)
+            b_completer.setFilterMode(Qt.MatchStartsWith)
             self._entry_batch.setCompleter(b_completer)
             b_completer.activated[str].connect(self._on_batch_chosen)
         else:

@@ -27,7 +27,7 @@ from database.ledger_dao import LedgerDAO
 from database.journal_dao import JournalDAO
 from database import financial_year
 
-from ui.theme import date_subcontrols, palette
+from ui.theme import combo_subcontrols, date_subcontrols, palette
 _p = palette()
 _DARK_BG = _p["bg"]
 _SURFACE = _p["surface"]
@@ -45,9 +45,8 @@ _COMBO_STYLE = (
     f"  padding: 6px; font-size: 15px; font-family: 'Segoe UI';"
     f"}}"
     f"QComboBox:hover {{ border: 1px solid {_ACCENT}; }}"
-    f"QComboBox::drop-down {{ border: none; width: 24px; }}"
-    f"QComboBox::down-arrow {{ image: none; border: none; }}"
-    f"QComboBox QAbstractItemView {{"
+    + combo_subcontrols(_p, width=24)
+    + f"QComboBox QAbstractItemView {{"
     f"  background-color: {_SURFACE}; color: {_TEXT};"
     f"  border: 1px solid {_BORDER}; selection-background-color: {_ACCENT};"
     f"  font-size: 15px; font-family: 'Segoe UI';"

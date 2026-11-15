@@ -405,7 +405,10 @@ class SalesDAO:
                        discount: float, paid_amount: float,
                        total_amount: float, round_off: float,
                        net_amount: float, remarks: str,
-                       items: list[dict]) -> int:
+                       items: list[dict],
+                       cn_amount: float = 0.0,
+                       dr_amount: float = 0.0,
+                       settlements: list[dict] | None = None) -> int:
         """Insert sales invoice + items + stock deduction in a single transaction.
 
         Each dict in *items* must contain:
@@ -465,13 +468,15 @@ class SalesDAO:
                     bill_no, sale_date, sale_time, sale_type,
                     customer_id, patient_name, doctor_id,
                     discount, paid_amount, total_amount, round_off,
+                    cn_amount, dr_amount,
                     net_amount, remarks
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     bill_no, sale_date, sale_time, sale_type,
                     customer_id, patient_name, doctor_id,
                     discount, paid_amount, total_amount, round_off,
+                    cn_amount, dr_amount,
                     net_amount, remarks,
                 ),
             )
@@ -533,6 +538,14 @@ class SalesDAO:
                     (item["sale_qty"], item["stock_batch_id"]),
                 )
 
+            # Apply any credit note adjustments inside this transaction
+            if settlements:
+                from database.credit_note_dao import CreditNoteDAO
+                CreditNoteDAO.settle_credit_notes(
+                    settlements, invoice_id, cur=cur,
+                    settlement_date=sale_date, settlement_time=sale_time
+                )
+
             # Accounting posting joins THIS transaction (atomic with save).
             posting_engine.post_counter_sale(invoice_id, cur=cur)
 
@@ -551,7 +564,10 @@ class SalesDAO:
                        doctor_id: int | None, discount: float,
                        paid_amount: float, total_amount: float,
                        round_off: float, net_amount: float, remarks: str,
-                       items: list[dict]) -> None:
+                       items: list[dict],
+                       cn_amount: float = 0.0,
+                       dr_amount: float = 0.0,
+                       settlements: list[dict] | None = None) -> None:
         """Update sale header/items, adjust stock, and repost accounting.
 
         Runs in ONE transaction:
@@ -606,16 +622,27 @@ class SalesDAO:
                     bill_no = ?, sale_date = ?, sale_time = ?, sale_type = ?,
                     customer_id = ?, patient_name = ?, doctor_id = ?,
                     discount = ?, paid_amount = ?, total_amount = ?,
-                    round_off = ?, net_amount = ?, remarks = ?
+                    round_off = ?, cn_amount = ?, dr_amount = ?,
+                    net_amount = ?, remarks = ?
                 WHERE id = ?
                 """,
                 (
                     bill_no, sale_date, sale_time, sale_type,
                     customer_id, patient_name, doctor_id,
                     discount, paid_amount, total_amount, round_off,
+                    cn_amount, dr_amount,
                     net_amount, remarks, invoice_id,
                 ),
             )
+
+            # Reverse and re-apply credit note settlements
+            from database.credit_note_dao import CreditNoteDAO
+            CreditNoteDAO.reverse_settlements_for_invoice(invoice_id, cur=cur)
+            if settlements:
+                CreditNoteDAO.settle_credit_notes(
+                    settlements, invoice_id, cur=cur,
+                    settlement_date=sale_date, settlement_time=sale_time
+                )
 
             # Require valid medicine items before saving
             if not items:
@@ -699,6 +726,10 @@ class SalesDAO:
                     "UPDATE stock_batches SET stock_qty = stock_qty + ? WHERE id = ?",
                     (old["sale_qty"], old["stock_batch_id"]),
                 )
+
+            # Reverse credit note settlements linked to this invoice
+            from database.credit_note_dao import CreditNoteDAO
+            CreditNoteDAO.reverse_settlements_for_invoice(invoice_id, cur=cur)
 
             # Reverse the accounting posting inside THIS transaction so no
             # active accounting effect survives the deletion (no-op for
@@ -870,8 +901,8 @@ class SalesDAO:
             if patient_name and patient_name.strip():
                 # One LIKE per typed word (AND): each word must appear in
                 # the patient name, but the words need not be adjacent or
-                # in the stored order.  A single word behaves exactly as
-                # the old whole-string substring match.
+                # in the stored order. A single word behaves exactly as
+                # the whole-string match.
                 for word in patient_name.split():
                     clauses.append("si.patient_name LIKE ?")
                     params.append(f"%{word}%")
@@ -880,7 +911,7 @@ class SalesDAO:
                 params.append(customer_id)
             elif customer_name and customer_name.strip():
                 clauses.append("c.customer_name LIKE ?")
-                params.append(f"%{customer_name.strip()}%")
+                params.append(f"{customer_name.strip()}%")
             if bill_no and bill_no.strip():
                 clean_bno = bill_no.strip()
                 if clean_bno.isdigit():
@@ -919,7 +950,7 @@ class SalesDAO:
                     clauses.append(f"({' OR '.join(exact_conds + like_conds)})")
                 else:
                     clauses.append("si.bill_no LIKE ?")
-                    params.append(f"%{clean_bno}%")
+                    params.append(f"{clean_bno}%")
             if start_date and start_date.strip():
                 clauses.append("substr(si.sale_date, 1, 10) >= ?")
                 params.append(start_date.strip())
@@ -1077,9 +1108,13 @@ class SalesDAO:
                     clauses.append(f"({' OR '.join(exact_conds + like_conds)})")
                 else:
                     clauses.append("si.bill_no LIKE ?")
-                    params.append(f"%{clean_bno}%")
+                    params.append(f"{clean_bno}%")
 
             if patient_name and patient_name.strip():
+                # One LIKE per typed word (AND): each word must appear in
+                # the patient name, but the words need not be adjacent or
+                # in the stored order. A single word behaves exactly as
+                # the whole-string match.
                 for word in patient_name.split():
                     clauses.append("si.patient_name LIKE ?")
                     params.append(f"%{word}%")
@@ -1145,3 +1180,18 @@ class SalesDAO:
             return rows, total_count
         finally:
             conn.close()
+
+    @staticmethod
+    def search_sales(*args, **kwargs):
+        """Unified sales search alias for search_sales_history.
+        Supports calling with positional argument or keyword arguments.
+        """
+        if args and "patient_name" not in kwargs:
+            kwargs["patient_name"] = str(args[0])
+        return SalesDAO.search_sales_history(**kwargs)
+
+    @staticmethod
+    def search_patient_names(search: str, limit: int = 25) -> list[str]:
+        """Alias for get_matching_patient_names."""
+        return SalesDAO.get_matching_patient_names(search, limit=limit)
+

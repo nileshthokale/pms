@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from PySide6.QtCore import Qt, QDate
+from PySide6.QtCore import Qt, QDate, QEvent, QTimer
+from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -31,9 +32,11 @@ from database.item_dao import ItemDAO
 from database.purchase_dao import pack_factor
 from database.sales_dao import SalesDAO
 from database.customer_dao import CustomerDAO
+from core.doc_formatter import format_document_number
 
-from ui.components import SearchableComboBox
-from ui.theme import date_subcontrols, palette
+from ui.components import SearchableComboBox, TableComboBox
+from ui.input_rules import attach_uppercase
+from ui.theme import combo_subcontrols, date_subcontrols, palette
 
 
 def _get_palette():
@@ -46,6 +49,33 @@ def _safe_float(text: str, default: float = 0.0) -> float:
         return float(t) if t else default
     except (ValueError, TypeError):
         return default
+
+
+def _parse_header_less(text: str, subtotal: float) -> tuple[float, float]:
+    """Parse header Less text into (less_amount, discount_pct).
+
+    Supports percentage format (e.g. '5%', '5.0%') or flat amount (e.g. '10.00', '15').
+    Returns (less_amount, discount_pct) rounded to 2 decimal places.
+    """
+    raw = (text or "").strip()
+    if not raw:
+        return 0.0, 0.0
+    if "%" in raw:
+        try:
+            pct = float(raw.replace("%", "").strip())
+        except ValueError:
+            pct = 0.0
+        pct = max(0.0, min(100.0, pct))
+        less_amt = round(subtotal * (pct / 100.0), 2)
+        return less_amt, pct
+    else:
+        try:
+            amt = float(raw)
+        except ValueError:
+            amt = 0.0
+        amt = max(0.0, amt)
+        less_amt = min(amt, subtotal) if subtotal > 0 else amt
+        return less_amt, 0.0
 
 
 # ======================================================================
@@ -135,8 +165,8 @@ class _ItemEntryBar(QWidget):
                 l.setFixedWidth(width)
             return l
 
-        lbl_row.addWidget(_make_lbl("* Item Name", 280, bold=True))
-        lbl_row.addWidget(_make_lbl("Batch #", 160))
+        lbl_row.addWidget(_make_lbl("* Item Name", 300, bold=True))
+        lbl_row.addWidget(_make_lbl("Batch #", 210))
         lbl_row.addWidget(_make_lbl("Expiry", 85))
         lbl_row.addWidget(_make_lbl("Pack Size", 75))
         lbl_row.addWidget(_make_lbl("Rate", 75))
@@ -154,12 +184,12 @@ class _ItemEntryBar(QWidget):
         ctrl_row.setSpacing(4)
 
         self.item_combo = SearchableComboBox(placeholder="Type medicine name to search...")
-        self.item_combo.setFixedWidth(280)
+        self.item_combo.setFixedWidth(300)
+        attach_uppercase(self.item_combo)
         ctrl_row.addWidget(self.item_combo)
 
-        self.batch_combo = SearchableComboBox(placeholder="-- Select Batch --", min_width=320)
-        self.batch_combo.setFixedWidth(170)
-        self.batch_combo.selection_changed.connect(self._on_batch_selected)
+        self.batch_combo = TableComboBox(placeholder="-- Select Batch --", min_width=320)
+        self.batch_combo.setFixedWidth(210)
         self.batch_combo.currentIndexChanged.connect(self._on_batch_changed)
         ctrl_row.addWidget(self.batch_combo)
 
@@ -225,6 +255,83 @@ class _ItemEntryBar(QWidget):
         layout.addLayout(ctrl_row)
 
         self.item_combo.selection_changed.connect(self._on_item_selected)
+        if self.item_combo.lineEdit():
+            self.item_combo.lineEdit().textEdited.connect(self._on_item_text_edited)
+            self.item_combo.lineEdit().installEventFilter(self)
+        self.item_combo.installEventFilter(self)
+
+        if self.batch_combo.lineEdit():
+            self.batch_combo.lineEdit().installEventFilter(self)
+        self.batch_combo.installEventFilter(self)
+
+    def eventFilter(self, watched, event):
+        if hasattr(self, "item_combo") and (watched is self.item_combo or (self.item_combo.lineEdit() and watched is self.item_combo.lineEdit())):
+            if event.type() == QEvent.MouseButtonPress:
+                line = self.item_combo.lineEdit()
+                if line:
+                    QTimer.singleShot(0, line.selectAll)
+                if not self.item_combo.completer().popup().isVisible():
+                    QTimer.singleShot(50, self.item_combo.show_all_suggestions)
+            elif event.type() == QEvent.KeyPress:
+                key = event.key()
+                if key in (Qt.Key_Return, Qt.Key_Enter):
+                    self._commit_item_and_focus_batch()
+                    return True
+                elif key == Qt.Key_Tab and not (event.modifiers() & Qt.ShiftModifier):
+                    self._commit_item_and_focus_batch()
+                    return True
+        elif hasattr(self, "batch_combo") and (watched is self.batch_combo or (self.batch_combo.lineEdit() and watched is self.batch_combo.lineEdit())):
+            if event.type() == QEvent.MouseButtonPress:
+                line = self.batch_combo.lineEdit()
+                if line:
+                    QTimer.singleShot(0, line.selectAll)
+                if self.batch_combo.count() > 1 and not self.batch_combo.completer().popup().isVisible():
+                    QTimer.singleShot(50, self.batch_combo.show_all_suggestions)
+            elif event.type() == QEvent.KeyPress:
+                key = event.key()
+                if key in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Tab) and not (event.modifiers() & Qt.ShiftModifier):
+                    if self.batch_combo.currentData():
+                        self.qty_edit.setFocus()
+                        self.qty_edit.selectAll()
+                        return True
+        return super().eventFilter(watched, event)
+
+    def _on_item_text_edited(self, text: str):
+        # As soon as user modifies item search text, clear batch combo and batch fields
+        # so previous item's batches never linger!
+        self.batch_combo.blockSignals(True)
+        self.batch_combo.clear()
+        self.batch_combo.blockSignals(False)
+        self._clear_batch_fields()
+        line = self.batch_combo.lineEdit()
+        if line:
+            line.setPlaceholderText("Select item first")
+
+    def _commit_item_and_focus_batch(self):
+        completer = self.item_combo.completer()
+        popup = completer.popup() if completer else None
+        committed = False
+        if popup and popup.isVisible():
+            cur_idx = popup.currentIndex()
+            if cur_idx.isValid() and cur_idx.data(Qt.UserRole) is not None:
+                self.item_combo._on_completer_index_activated(cur_idx)
+                committed = True
+            elif self.item_combo._completer_model.rowCount() > 0:
+                first_idx = self.item_combo._completer_model.index(0, 0)
+                if first_idx.isValid() and first_idx.data(Qt.UserRole) is not None:
+                    self.item_combo._on_completer_index_activated(first_idx)
+                    committed = True
+            popup.hide()
+
+        if not committed:
+            self.item_combo.resolve_text()
+
+        item_id = self.item_combo.currentData()
+        if item_id:
+            self._reload_batches(int(item_id))
+            self.batch_combo.lineEdit().setFocus()
+            if self.batch_combo.count() > 1:
+                QTimer.singleShot(50, self.batch_combo.show_all_suggestions)
 
     def set_customer_id(self, customer_id: int | None):
         self._customer_id = customer_id
@@ -233,14 +340,28 @@ class _ItemEntryBar(QWidget):
             self._reload_batches(int(item_id))
 
     def load_items(self):
-        items = ItemDAO.get_all()
-        list_items = [(it["item_name"], it["id"]) for it in items]
+        items = ItemDAO.get_items_for_selector()
+        list_items = []
+        seen_ids = set()
+        for it in items:
+            item_id = it.get("id")
+            if item_id is None or item_id in seen_ids:
+                continue
+            seen_ids.add(item_id)
+            uname = (it.get("unit_name") or "").strip()
+            name_display = f"{it['item_name']} ({uname})" if uname else it["item_name"]
+            list_items.append((name_display, item_id))
         self.item_combo.populate(list_items)
 
     def _on_item_selected(self, item_id: object):
         if not item_id:
+            self.batch_combo.blockSignals(True)
             self.batch_combo.clear()
+            self.batch_combo.blockSignals(False)
             self._clear_batch_fields()
+            line = self.batch_combo.lineEdit()
+            if line:
+                line.setPlaceholderText("Select item first")
             return
         self._reload_batches(int(item_id))
 
@@ -250,31 +371,56 @@ class _ItemEntryBar(QWidget):
         self._clear_batch_fields()
 
         batches = CreditNoteDAO.get_batches_for_customer_item(self._customer_id, item_id)
+        if not batches:
+            batches = SalesDAO.get_stock_batches_for_item(item_id)
+
+        # Sort so active unexpired stock batches (same as Counter Sale) come first,
+        # followed by other batches for this item
+        def _batch_sort_key(b):
+            stock = float(b.get("stock_qty", 0.0) or 0.0)
+            is_exp = bool(b.get("is_expired"))
+            exp = b.get("expiry", "") or ""
+            if stock > 0 and not is_exp:
+                return (0, exp, b.get("batch_no", ""))
+            elif stock > 0:
+                return (1, exp, b.get("batch_no", ""))
+            else:
+                return (2, exp, b.get("batch_no", ""))
+
+        batches.sort(key=_batch_sort_key)
+
         self.batch_combo.addItem("-- Select Batch --", None)
         for b in batches:
             b_no = b.get("batch_no", "")
-            exp = b.get("expiry", "")
-            stock = b.get("stock_qty", 0.0)
-            tag = " [EXP]" if b.get("is_expired") else ""
-            label = f"{b_no} (Exp: {exp}, Stk: {stock:g}){tag}"
-            self.batch_combo.addItem(label, b, raw_name=b_no)
+            self.batch_combo.addItem(b_no, b, raw_name=b_no, row_data=b)
+
         self.batch_combo.blockSignals(False)
 
+        line_edit = self.batch_combo.lineEdit()
         if len(batches) == 1:
             self.batch_combo.setCurrentIndex(1)
             self._on_batch_selected(batches[0])
         else:
             self.batch_combo.setCurrentIndex(0)
+            if line_edit:
+                line_edit.clear()
+                if len(batches) == 0:
+                    line_edit.setPlaceholderText("No batches available")
+                else:
+                    line_edit.setPlaceholderText("Select batch")
 
     def _on_batch_selected(self, batch_data: object):
         if not batch_data or not isinstance(batch_data, dict):
             self._clear_batch_fields()
             return
         b = batch_data
-        self.expiry_edit.setText(b.get("expiry", ""))
+        self.expiry_edit.setText(b.get("expiry", "") or "")
         self.pack_edit.setText(str(b.get("pack_size") or "1"))
         self.rate_edit.setText(f"{b.get('purchase_rate', 0.0):.2f}")
         self.mrp_edit.setText(f"{b.get('mrp', 0.0):.2f}")
+        line_edit = self.batch_combo.lineEdit()
+        if line_edit:
+            line_edit.setCursorPosition(0)
 
     def _on_batch_changed(self, idx: int):
         b = self.batch_combo.currentData()
@@ -290,8 +436,11 @@ class _ItemEntryBar(QWidget):
 
     def clear(self):
         self.item_combo.clear_selection()
-        self.batch_combo.clear_selection()
+        self.batch_combo.clear()
         self._clear_batch_fields()
+        line = self.batch_combo.lineEdit()
+        if line:
+            line.setPlaceholderText("Select item first")
 
     def get_current_data(self) -> dict | None:
         item_id = self.item_combo.currentData()
@@ -342,6 +491,7 @@ class _CreditNoteEntryDialog(QDialog):
             f"border: 1px solid {p['border']}; border-radius: 2px; padding: 4px; font-size: 13px; font-family: 'Segoe UI'; }}"
             f"QLineEdit:focus, QDateEdit:focus, QComboBox:focus {{ border: 1px solid {p['accent']}; }}"
             + date_subcontrols(p, width=22)
+            + combo_subcontrols(p, width=22)
         )
 
         root = QVBoxLayout(self)
@@ -365,14 +515,19 @@ class _CreditNoteEntryDialog(QDialog):
         # 5. Bottom summary bar
         self._build_bottom_bar(root)
 
-        # Load initial data
-        self._load_customers()
-        self._entry_bar.load_items()
+        # Load initial data with cascade suppression
+        self._populating = True
+        try:
+            self._load_customers()
+            self._entry_bar.load_items()
 
-        if cn:
-            self._populate_cn(cn)
-        else:
-            self._init_new_cn()
+            if cn:
+                self._populate_cn(cn)
+            else:
+                self._init_new_cn()
+        finally:
+            self._populating = False
+        self._recalc_totals()
 
     def _build_top_banner(self, parent_layout: QVBoxLayout, title_text: str):
         p = _get_palette()
@@ -447,9 +602,10 @@ class _CreditNoteEntryDialog(QDialog):
         hl.addWidget(self.customer_combo, 1)
 
         hl.addWidget(_hdr_lbl("Less :"))
-        self.header_less_edit = QLineEdit("0.00")
+        self.header_less_edit = QLineEdit("0%")
         self.header_less_edit.setFixedWidth(80)
         self.header_less_edit.setAlignment(Qt.AlignRight)
+        self.header_less_edit.setToolTip("Discount percentage (e.g. 5%) or flat amount (e.g. 10.00)")
         self.header_less_edit.textChanged.connect(self._recalc_totals)
         hl.addWidget(self.header_less_edit)
 
@@ -548,6 +704,7 @@ class _CreditNoteEntryDialog(QDialog):
 
     def _load_customers(self):
         customers = CustomerDAO.get_all()
+        self._customer_cache = {c["id"]: c for c in customers}
         items = [(c["customer_name"], c["id"]) for c in customers]
         self.customer_combo.populate(items)
 
@@ -562,6 +719,17 @@ class _CreditNoteEntryDialog(QDialog):
     def _on_customer_changed(self, customer_id: object):
         cid = int(customer_id) if customer_id else None
         self._entry_bar.set_customer_id(cid)
+        if getattr(self, "_populating", False):
+            return
+        if cid:
+            cust = getattr(self, "_customer_cache", {}).get(cid) or CustomerDAO.get_by_id(cid)
+            disc = float(cust.get("discount") or 0.0) if cust else 0.0
+            if disc > 0:
+                self.header_less_edit.setText(f"{disc:g}%")
+            else:
+                self.header_less_edit.setText("0%")
+        else:
+            self.header_less_edit.setText("0%")
 
     def _on_date_changed(self, qdate: QDate):
         self.banner_date_lbl.setText(qdate.toString("dd-MM-yyyy"))
@@ -582,58 +750,83 @@ class _CreditNoteEntryDialog(QDialog):
         # Ledger posting is checked by default for active accounting flow
         self.add_to_ledger_cb.setChecked(True)
 
-    def _populate_cn(self, cn: dict):
-        from core.doc_formatter import format_document_number
-        full_vno = cn.get("voucher_no", "")
-        self._full_voucher_no = full_vno
-        self.voucher_no_lbl.setText(format_document_number(full_vno))
-        self.voucher_no_lbl.setToolTip(f"Full Voucher: {full_vno}")
-
-        vd = cn.get("voucher_date", "")
-        if vd:
-            parts = vd.split("-")
-            self.date_edit.setDate(QDate(int(parts[0]), int(parts[1]), int(parts[2])))
-        self.banner_time_lbl.setText(cn.get("voucher_time", ""))
-
-        cid = cn.get("customer_id")
+        cid = self.customer_combo.currentData()
         if cid:
-            self.customer_combo.set_selected_id(cid)
-        elif (cn.get("customer_name") or "").strip().upper() in ("WALKIN", "WALKIN CUSTOMER") or (cn.get("customer_name") or "").strip().upper().startswith("WALKIN"):
-            walkin_id = next(
-                (c["id"] for c in CustomerDAO.get_all() if (c.get("customer_name") or "").strip().upper() in ("WALKIN", "WALKIN CUSTOMER") or (c.get("customer_name") or "").strip().upper().startswith("WALKIN")),
-                None
-            )
-            if walkin_id:
-                self.customer_combo.set_selected_id(walkin_id)
+            cust = getattr(self, "_customer_cache", {}).get(int(cid)) or CustomerDAO.get_by_id(int(cid))
+            disc = float(cust.get("discount") or 0.0) if cust else 0.0
+            if disc > 0:
+                self.header_less_edit.setText(f"{disc:g}%")
+            else:
+                self.header_less_edit.setText("0%")
+        else:
+            self.header_less_edit.setText("0%")
 
-        # Checkbox state
-        is_posted = cn.get("added_to_ledger") == "Y"
-        self.add_to_ledger_cb.setChecked(is_posted)
+    def _populate_cn(self, cn: dict):
+        self._populating = True
+        try:
+            from core.doc_formatter import format_document_number
+            full_vno = cn.get("voucher_no", "")
+            self._full_voucher_no = full_vno
+            self.voucher_no_lbl.setText(format_document_number(full_vno))
+            self.voucher_no_lbl.setToolTip(f"Full Voucher: {full_vno}")
 
-        # Load items
-        items = CreditNoteDAO.get_items(cn["id"])
-        self._item_rows.clear()
-        for it in items:
-            self._item_rows.append(
-                _ReturnItemRow(
-                    item_id=it["item_id"],
-                    item_name=it.get("item_name", ""),
-                    stock_batch_id=it["stock_batch_id"],
-                    batch_no=it.get("batch_no", ""),
-                    expiry=it.get("expiry", ""),
-                    pack_size=str(it.get("pack_size") or "1"),
-                    rate=float(it.get("rate", 0.0)),
-                    mrp=float(it.get("mrp", 0.0)),
-                    return_qty=float(it.get("return_qty", 0.0)),
-                    less_amount=float(it.get("less_amount", 0.0)),
-                    amount=float(it.get("amount", 0.0)),
-                    return_reason=it.get("return_reason", "Sales Return"),
-                    price_factor="RATE" if it.get("price_factor", 1.0) == 0.0 else "MRP",
-                    price_factor_num=float(it.get("price_factor", 1.0)),
+            vd = cn.get("voucher_date", "")
+            if vd:
+                parts = vd.split("-")
+                self.date_edit.setDate(QDate(int(parts[0]), int(parts[1]), int(parts[2])))
+            self.banner_time_lbl.setText(cn.get("voucher_time", ""))
+
+            cid = cn.get("customer_id")
+            if cid:
+                self.customer_combo.set_selected_id(cid)
+            elif (cn.get("customer_name") or "").strip().upper() in ("WALKIN", "WALKIN CUSTOMER") or (cn.get("customer_name") or "").strip().upper().startswith("WALKIN"):
+                walkin_id = next(
+                    (c["id"] for c in CustomerDAO.get_all() if (c.get("customer_name") or "").strip().upper() in ("WALKIN", "WALKIN CUSTOMER") or (c.get("customer_name") or "").strip().upper().startswith("WALKIN")),
+                    None
                 )
-            )
-        self._refresh_table()
-        self._recalc_totals()
+                if walkin_id:
+                    self.customer_combo.set_selected_id(walkin_id)
+
+            # Checkbox state
+            is_posted = cn.get("added_to_ledger") == "Y"
+            self.add_to_ledger_cb.setChecked(is_posted)
+
+            # Header Less / Discount restoration
+            disc_pct = float(cn.get("discount_pct") or 0.0)
+            less_amt = float(cn.get("less_amount") or 0.0)
+            if disc_pct > 0:
+                self.header_less_edit.setText(f"{disc_pct:g}%")
+            elif less_amt > 0:
+                self.header_less_edit.setText(f"{less_amt:.2f}")
+            else:
+                self.header_less_edit.setText("0%")
+
+            # Load items
+            items = CreditNoteDAO.get_items(cn["id"])
+            self._item_rows.clear()
+            for it in items:
+                self._item_rows.append(
+                    _ReturnItemRow(
+                        item_id=it["item_id"],
+                        item_name=it.get("item_name", ""),
+                        stock_batch_id=it["stock_batch_id"],
+                        batch_no=it.get("batch_no", ""),
+                        expiry=it.get("expiry", ""),
+                        pack_size=str(it.get("pack_size") or "1"),
+                        rate=float(it.get("rate", 0.0)),
+                        mrp=float(it.get("mrp", 0.0)),
+                        return_qty=float(it.get("return_qty", 0.0)),
+                        less_amount=float(it.get("less_amount", 0.0)),
+                        amount=float(it.get("amount", 0.0)),
+                        return_reason=it.get("return_reason", "Sales Return"),
+                        price_factor="RATE" if it.get("price_factor", 1.0) == 0.0 else "MRP",
+                        price_factor_num=float(it.get("price_factor", 1.0)),
+                    )
+                )
+            self._refresh_table()
+            self._recalc_totals()
+        finally:
+            self._populating = False
 
     def _on_add_item(self):
         data = self._entry_bar.get_current_data()
@@ -702,45 +895,52 @@ class _CreditNoteEntryDialog(QDialog):
 
     def _refresh_table(self):
         p = _get_palette()
-        self._table.setRowCount(len(self._item_rows))
-        for i, r in enumerate(self._item_rows):
-            self._table.setItem(i, 0, QTableWidgetItem(r.item_name))
-            self._table.setItem(i, 1, QTableWidgetItem(r.pack_size))
-            self._table.setItem(i, 2, QTableWidgetItem(r.batch_no))
-            self._table.setItem(i, 3, QTableWidgetItem(r.expiry))
-
-            rate_item = QTableWidgetItem(f"{r.rate:.2f}")
-            rate_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self._table.setItem(i, 4, rate_item)
-
-            mrp_item = QTableWidgetItem(f"{r.mrp:.2f}")
-            mrp_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self._table.setItem(i, 5, mrp_item)
-
-            qty_item = QTableWidgetItem(f"{r.return_qty:g}")
-            qty_item.setTextAlignment(Qt.AlignCenter)
-            self._table.setItem(i, 6, qty_item)
-
-            disc_item = QTableWidgetItem(f"{r.less_amount:.2f}")
-            disc_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self._table.setItem(i, 7, disc_item)
-
-            amt_item = QTableWidgetItem(f"{r.amount:.2f}")
-            amt_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self._table.setItem(i, 8, amt_item)
-
-            self._table.setItem(i, 9, QTableWidgetItem(r.return_reason))
-            self._table.setItem(i, 10, QTableWidgetItem(r.price_factor))
-
-            del_btn = QPushButton("Del")
-            del_btn.setStyleSheet(
+        self._table.setUpdatesEnabled(False)
+        self._table.blockSignals(True)
+        try:
+            self._table.setRowCount(len(self._item_rows))
+            btn_style = (
                 "QPushButton { background-color: #ef4444; color: white; border: none; "
                 "border-radius: 2px; font-weight: bold; font-size: 11px; padding: 2px; }"
                 "QPushButton:hover { background-color: #dc2626; }"
             )
-            del_btn.setFixedWidth(36)
-            del_btn.clicked.connect(lambda _, idx=i: self._delete_row(idx))
-            self._table.setCellWidget(i, 11, del_btn)
+            for i, r in enumerate(self._item_rows):
+                self._table.setItem(i, 0, QTableWidgetItem(r.item_name))
+                self._table.setItem(i, 1, QTableWidgetItem(r.pack_size))
+                self._table.setItem(i, 2, QTableWidgetItem(r.batch_no))
+                self._table.setItem(i, 3, QTableWidgetItem(r.expiry))
+
+                rate_item = QTableWidgetItem(f"{r.rate:.2f}")
+                rate_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self._table.setItem(i, 4, rate_item)
+
+                mrp_item = QTableWidgetItem(f"{r.mrp:.2f}")
+                mrp_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self._table.setItem(i, 5, mrp_item)
+
+                qty_item = QTableWidgetItem(f"{r.return_qty:g}")
+                qty_item.setTextAlignment(Qt.AlignCenter)
+                self._table.setItem(i, 6, qty_item)
+
+                disc_item = QTableWidgetItem(f"{r.less_amount:.2f}")
+                disc_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self._table.setItem(i, 7, disc_item)
+
+                amt_item = QTableWidgetItem(f"{r.amount:.2f}")
+                amt_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self._table.setItem(i, 8, amt_item)
+
+                self._table.setItem(i, 9, QTableWidgetItem(r.return_reason))
+                self._table.setItem(i, 10, QTableWidgetItem(r.price_factor))
+
+                del_btn = QPushButton("Del")
+                del_btn.setStyleSheet(btn_style)
+                del_btn.setFixedWidth(36)
+                del_btn.clicked.connect(lambda _, idx=i: self._delete_row(idx))
+                self._table.setCellWidget(i, 11, del_btn)
+        finally:
+            self._table.blockSignals(False)
+            self._table.setUpdatesEnabled(True)
 
     def _delete_row(self, idx: int):
         if 0 <= idx < len(self._item_rows):
@@ -751,8 +951,8 @@ class _CreditNoteEntryDialog(QDialog):
     def _recalc_totals(self):
         total_items = len(self._item_rows)
         subtotal = sum(r.amount for r in self._item_rows)
-        header_less = _safe_float(self.header_less_edit.text(), 0.0)
-        total_amount = max(0.0, round(subtotal - header_less, 2))
+        less_amt, _ = _parse_header_less(self.header_less_edit.text(), subtotal)
+        total_amount = max(0.0, round(subtotal - less_amt, 2))
 
         self.total_items_val.setText(str(total_items))
         self.total_amount_val.setText(f"{total_amount:.2f}")
@@ -774,7 +974,9 @@ class _CreditNoteEntryDialog(QDialog):
             return
 
         self._recalc_totals()
-        total_amount = float(self.total_amount_val.text())
+        subtotal = sum(r.amount for r in self._item_rows)
+        less_amt, disc_pct = _parse_header_less(self.header_less_edit.text(), subtotal)
+        total_amount = max(0.0, round(subtotal - less_amt, 2))
         add_to_ledger = self.add_to_ledger_cb.isChecked()
 
         voucher_date = self.date_edit.date().toString("yyyy-MM-dd")
@@ -791,6 +993,8 @@ class _CreditNoteEntryDialog(QDialog):
             "total_amount": total_amount,
             "ledger_amount": total_amount if add_to_ledger else 0.0,
             "add_to_ledger": add_to_ledger,
+            "discount_pct": disc_pct,
+            "less_amount": less_amt,
             "remarks": "",
         }
         items_data = [r.to_dict() for r in self._item_rows]
@@ -1030,48 +1234,52 @@ class CreditNotePage(QWidget):
             customer_id=cid,
         )
 
+        self._hist_table.setUpdatesEnabled(False)
         self._hist_table.setSortingEnabled(False)
-        self._hist_table.setRowCount(len(cns))
+        try:
+            self._hist_table.setRowCount(len(cns))
 
-        for i, cn in enumerate(cns):
-            from core.doc_formatter import format_document_number
-            raw_vno = cn.get("voucher_no", "")
-            disp_no = format_document_number(raw_vno)
+            for i, cn in enumerate(cns):
+                raw_vno = cn.get("voucher_no", "")
+                disp_no = format_document_number(raw_vno)
 
-            item_type = QTableWidgetItem("Credit Note")
-            item_type.setData(Qt.UserRole, cn["id"])
-            self._hist_table.setItem(i, 0, item_type)
+                item_type = QTableWidgetItem("Credit Note")
+                item_type.setData(Qt.UserRole, cn["id"])
+                self._hist_table.setItem(i, 0, item_type)
 
-            no_item = QTableWidgetItem(disp_no)
-            no_item.setToolTip(f"Full Voucher: {raw_vno}")
-            self._hist_table.setItem(i, 1, no_item)
+                no_item = QTableWidgetItem(disp_no)
+                no_item.setToolTip(f"Full Voucher: {raw_vno}")
+                self._hist_table.setItem(i, 1, no_item)
 
-            vd = cn.get("voucher_date", "")
-            if vd and "-" in vd:
-                p_date = vd.split("-")
-                vd_disp = f"{p_date[2]}/{p_date[1]}/{p_date[0]}"
-            else:
-                vd_disp = vd
-            self._hist_table.setItem(i, 2, QTableWidgetItem(vd_disp))
+                vd = cn.get("voucher_date", "")
+                if vd and "-" in vd:
+                    p_date = vd.split("-")
+                    vd_disp = f"{p_date[2]}/{p_date[1]}/{p_date[0]}"
+                else:
+                    vd_disp = vd
+                self._hist_table.setItem(i, 2, QTableWidgetItem(vd_disp))
 
-            self._hist_table.setItem(i, 3, QTableWidgetItem(cn.get("voucher_time", "")))
+                self._hist_table.setItem(i, 3, QTableWidgetItem(cn.get("voucher_time", "")))
 
-            cd = cn.get("cn_date", "")
-            if cd and "-" in cd:
-                p_date = cd.split("-")
-                cd_disp = f"{p_date[2]}/{p_date[1]}/{p_date[0]}"
-            else:
-                cd_disp = cd
-            self._hist_table.setItem(i, 4, QTableWidgetItem(cd_disp))
+                cd = cn.get("cn_date", "")
+                if cd and "-" in cd:
+                    p_date = cd.split("-")
+                    cd_disp = f"{p_date[2]}/{p_date[1]}/{p_date[0]}"
+                else:
+                    cd_disp = cd
+                self._hist_table.setItem(i, 4, QTableWidgetItem(cd_disp))
 
-            self._hist_table.setItem(i, 5, QTableWidgetItem(cn.get("cn_type", "Customer")))
-            self._hist_table.setItem(i, 6, QTableWidgetItem(cn.get("customer_name", "")))
+                self._hist_table.setItem(i, 5, QTableWidgetItem(cn.get("cn_type", "Customer")))
+                self._hist_table.setItem(i, 6, QTableWidgetItem(cn.get("customer_name", "")))
 
-            amt_item = QTableWidgetItem(f"{cn.get('total_amount', 0.0):.2f}")
-            amt_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self._hist_table.setItem(i, 7, amt_item)
-
-        self._hist_table.setSortingEnabled(True)
+                tot_val = float(cn.get('total_amount', 0.0) or 0.0)
+                amt_item = QTableWidgetItem(f"{tot_val:.2f}")
+                amt_item.setData(Qt.EditRole, tot_val)
+                amt_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self._hist_table.setItem(i, 7, amt_item)
+        finally:
+            self._hist_table.setSortingEnabled(True)
+            self._hist_table.setUpdatesEnabled(True)
 
     def _selected_id(self) -> int | None:
         rows = self._hist_table.selectionModel().selectedRows()
@@ -1156,3 +1364,293 @@ class CreditNotePage(QWidget):
             QMessageBox.warning(self, "Print Error", str(e))
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to generate PDF:\n{e}")
+
+
+# ======================================================================
+# Pending Credit Notes Selection Dialog (Pharma-WINNER Screenshot 3)
+# ======================================================================
+
+class PendingCreditNotesDialog(QDialog):
+    """Dialog allowing selection and partial/full adjustment of pending credit notes."""
+
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        *,
+        customer_id: int | None = None,
+        customer_name: str | None = None,
+        max_adjustment_needed: float = 0.0,
+        already_applied_settlements: list[dict] | None = None,
+    ):
+        super().__init__(parent)
+        self._customer_id = customer_id
+        if customer_name is not None and customer_name.strip():
+            self._customer_name = customer_name.strip()
+        elif customer_id:
+            try:
+                cust = CustomerDAO.get_by_id(customer_id)
+                self._customer_name = (cust.get("customer_name") or "").strip() if cust else ""
+            except Exception:
+                self._customer_name = ""
+        else:
+            self._customer_name = "WALKIN"
+        self._max_needed = max_adjustment_needed
+        self._already_applied = {s["credit_note_id"]: s for s in (already_applied_settlements or [])}
+        self._settlements_result: list[dict] = []
+        self._row_edits: list[dict] = []
+
+        self.setWindowTitle(f"Pending Credit Note(s) For {self._customer_name}")
+        self.setMinimumWidth(980)
+        self.setMinimumHeight(440)
+        self.resize(1020, 480)
+        self.setModal(True)
+
+        p = _get_palette()
+        input_bg = p.get("bg", "#ffffff")
+        input_text = p.get("text", "#000000")
+        input_border = p.get("border", "#9db6cc")
+        input_focus = p.get("accent", "#2f6fb0")
+        sel_bg = p.get("selected", "#cfe2f3")
+        sel_text = p.get("selected_text", "#000000")
+        dis_bg = p.get("disabled_bg", "#e9eef3")
+        dis_text = p.get("disabled_text", "#9aa7b4")
+
+        self.setStyleSheet(
+            f"QDialog {{ background-color: {p['surface']}; color: {p['text']}; }}"
+            f"QTableWidget {{ background-color: {p['surface']}; color: {p['text']}; "
+            f"gridline-color: {p['border']}; border: 1px solid {p['border']}; }}"
+            f"QHeaderView::section {{ background-color: {p['accent']}; color: white; font-weight: bold; padding: 4px; border: none; }}"
+            f"QLineEdit {{ background-color: {input_bg}; color: {input_text}; border: 1px solid {input_border}; "
+            f"border-radius: 2px; padding: 3px 5px; font-weight: bold; font-size: 13px; "
+            f"selection-background-color: {sel_bg}; selection-color: {sel_text}; }}"
+            f"QLineEdit:focus {{ border: 1.5px solid {input_focus}; background-color: {input_bg}; color: {input_text}; }}"
+            f"QLineEdit:read-only, QLineEdit:disabled {{ background-color: {dis_bg}; color: {dis_text}; border: 1px solid {input_border}; }}"
+        )
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(10)
+
+        # Table
+        self.table = QTableWidget()
+        self.table.setColumnCount(7)
+        self.table.setHorizontalHeaderLabels([
+            "VhType", "VhNo", "VhDate", "VhAmount", "UnSettled", "CreditAmt", "DiscAmt"
+        ])
+        self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.table.verticalHeader().setVisible(False)
+        layout.addWidget(self.table, 1)
+
+        # Bottom buttons row
+        btn_row = QHBoxLayout()
+        btn_row.setContentsMargins(0, 0, 0, 0)
+        btn_row.setSpacing(10)
+
+        self.new_cn_btn = QPushButton("New Credit Note")
+        self.new_cn_btn.setStyleSheet(
+            f"QPushButton {{ background-color: {p['accent']}; color: white; font-weight: bold; padding: 6px 14px; border-radius: 3px; }}"
+            f"QPushButton:hover {{ background-color: {p['accent_hover']}; }}"
+        )
+        self.new_cn_btn.clicked.connect(self._on_new_credit_note)
+        btn_row.addWidget(self.new_cn_btn)
+
+        btn_row.addStretch()
+
+        self.done_btn = QPushButton("Done")
+        self.done_btn.setStyleSheet(
+            f"QPushButton {{ background-color: {p['accent']}; color: white; font-weight: bold; padding: 6px 20px; border-radius: 3px; }}"
+            f"QPushButton:hover {{ background-color: {p['accent_hover']}; }}"
+        )
+        self.done_btn.clicked.connect(self._on_done)
+        btn_row.addWidget(self.done_btn)
+
+        self.close_btn = QPushButton("Close")
+        self.close_btn.setStyleSheet(
+            f"QPushButton {{ background-color: transparent; color: {p['text']}; border: 1px solid {p['border']}; padding: 6px 20px; border-radius: 3px; }}"
+            f"QPushButton:hover {{ background-color: {p['border']}; }}"
+        )
+        self.close_btn.clicked.connect(self.reject)
+        btn_row.addWidget(self.close_btn)
+
+        layout.addLayout(btn_row)
+
+        self._load_pending_notes()
+
+    def _load_pending_notes(self):
+        p = _get_palette()
+        input_bg = p.get("bg", "#ffffff")
+        input_text = p.get("text", "#000000")
+        input_border = p.get("border", "#9db6cc")
+        input_focus = p.get("accent", "#2f6fb0")
+        sel_bg = p.get("selected", "#cfe2f3")
+        sel_text = p.get("selected_text", "#000000")
+        dis_bg = p.get("disabled_bg", "#e9eef3")
+        dis_text = p.get("disabled_text", "#9aa7b4")
+
+        edit_style = (
+            f"QLineEdit {{ background-color: {input_bg}; color: {input_text}; "
+            f"border: 1px solid {input_border}; border-radius: 2px; padding: 3px 5px; "
+            f"font-weight: bold; font-size: 13px; "
+            f"selection-background-color: {sel_bg}; selection-color: {sel_text}; }}"
+            f"QLineEdit:focus {{ border: 1.5px solid {input_focus}; background-color: {input_bg}; color: {input_text}; }}"
+            f"QLineEdit:read-only, QLineEdit:disabled {{ background-color: {dis_bg}; color: {dis_text}; border: 1px solid {input_border}; }}"
+        )
+
+        notes = CreditNoteDAO.get_unsettled_by_customer(
+            self._customer_id, self._customer_name
+        )
+        self.table.setUpdatesEnabled(False)
+        self.table.setSortingEnabled(False)
+        try:
+            self.table.setRowCount(len(notes))
+            self._row_edits = []
+
+            remaining_needed = self._max_needed
+
+            for row, n in enumerate(notes):
+                cn_id = n["id"]
+                vh_no = str(n.get("voucher_no", ""))
+                vh_date = str(n.get("voucher_date", ""))
+                vh_amt = float(n.get("total_amount", 0.0))
+                unsettled = float(n.get("unsettled_amount", 0.0))
+
+                # Prior adjustment if already opened
+                prior_credit = 0.0
+                prior_disc = 0.0
+                if cn_id in self._already_applied:
+                    prior_credit = float(self._already_applied[cn_id].get("credit_amount", 0.0))
+                    prior_disc = float(self._already_applied[cn_id].get("discount_amount", 0.0))
+
+                # If opening fresh and needed > 0, we can auto-fill up to remaining needed
+                if prior_credit <= 0 and remaining_needed > 0 and unsettled > 0:
+                    suggested = min(unsettled, remaining_needed)
+                    prior_credit = suggested
+                    remaining_needed -= suggested
+
+                date_disp = vh_date
+                if vh_date and len(vh_date) >= 10 and vh_date[4] == "-" and vh_date[7] == "-":
+                    date_disp = f"{vh_date[8:10]}/{vh_date[5:7]}/{vh_date[:4]}"
+
+                item_type = QTableWidgetItem("Credit Note")
+                item_type.setToolTip("Credit Note")
+                item_type.setFlags(item_type.flags() & ~Qt.ItemIsEditable)
+
+                item_no = QTableWidgetItem(vh_no)
+                item_no.setToolTip(vh_no)
+                item_no.setFlags(item_no.flags() & ~Qt.ItemIsEditable)
+
+                item_date = QTableWidgetItem(date_disp)
+                item_date.setTextAlignment(Qt.AlignCenter)
+                item_date.setToolTip(f"{date_disp} ({vh_date})" if date_disp != vh_date else vh_date)
+                item_date.setFlags(item_date.flags() & ~Qt.ItemIsEditable)
+
+                item_amt = QTableWidgetItem(f"{vh_amt:.2f}")
+                item_amt.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                item_amt.setToolTip(f"{vh_amt:.2f}")
+                item_amt.setFlags(item_amt.flags() & ~Qt.ItemIsEditable)
+
+                item_unsettled = QTableWidgetItem(f"{unsettled:.2f}")
+                item_unsettled.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                item_unsettled.setToolTip(f"{unsettled:.2f}")
+                item_unsettled.setFlags(item_unsettled.flags() & ~Qt.ItemIsEditable)
+
+                credit_edit = QLineEdit(f"{prior_credit:.2f}" if prior_credit > 0 else "0.0")
+                credit_edit.setAlignment(Qt.AlignRight)
+
+                disc_edit = QLineEdit(f"{prior_disc:.2f}" if prior_disc > 0 else "0.0")
+                disc_edit.setAlignment(Qt.AlignRight)
+
+                for ed in (credit_edit, disc_edit):
+                    ed.setStyleSheet(edit_style)
+                    ed_pal = ed.palette()
+                    ed_pal.setColor(QPalette.Base, QColor(input_bg))
+                    ed_pal.setColor(QPalette.Text, QColor(input_text))
+                    ed.setPalette(ed_pal)
+
+                self.table.setItem(row, 0, item_type)
+                self.table.setItem(row, 1, item_no)
+                self.table.setItem(row, 2, item_date)
+                self.table.setItem(row, 3, item_amt)
+                self.table.setItem(row, 4, item_unsettled)
+                self.table.setCellWidget(row, 5, credit_edit)
+                self.table.setCellWidget(row, 6, disc_edit)
+
+                self._row_edits.append({
+                    "credit_note_id": cn_id,
+                    "voucher_no": vh_no,
+                    "voucher_date": vh_date,
+                    "total_amount": vh_amt,
+                    "unsettled": unsettled,
+                    "credit_edit": credit_edit,
+                    "disc_edit": disc_edit,
+                })
+
+            # Ensure columns fit full text without truncation
+            self.table.resizeColumnToContents(0)
+            self.table.resizeColumnToContents(1)
+            self.table.resizeColumnToContents(2)
+            self.table.setColumnWidth(0, max(130, self.table.columnWidth(0) + 16))
+            self.table.setColumnWidth(1, max(260, self.table.columnWidth(1) + 16))
+            self.table.setColumnWidth(2, max(120, self.table.columnWidth(2) + 16))
+            self.table.setColumnWidth(3, 95)
+            self.table.setColumnWidth(4, 95)
+            self.table.setColumnWidth(5, 110)
+            self.table.setColumnWidth(6, 95)
+        finally:
+            self.table.setUpdatesEnabled(True)
+
+    def _on_new_credit_note(self):
+        dlg = _CreditNoteEntryDialog(self)
+        if self._customer_id and hasattr(dlg, "customer_combo"):
+            if hasattr(dlg.customer_combo, "set_selected_id"):
+                dlg.customer_combo.set_selected_id(self._customer_id)
+            elif hasattr(dlg.customer_combo, "findData"):
+                idx = dlg.customer_combo.findData(self._customer_id)
+                if idx >= 0:
+                    dlg.customer_combo.setCurrentIndex(idx)
+        if (dlg.exec() if hasattr(dlg, "exec") else dlg.exec_()) == QDialog.Accepted or dlg._saved:
+            self._load_pending_notes()
+
+    def _on_done(self):
+        settlements = []
+        for r in self._row_edits:
+            try:
+                credit_amt = round(float(r["credit_edit"].text() or 0.0), 2)
+            except ValueError:
+                credit_amt = 0.0
+            try:
+                disc_amt = round(float(r["disc_edit"].text() or 0.0), 2)
+            except ValueError:
+                disc_amt = 0.0
+
+            if credit_amt > r["unsettled"] + 0.001:
+                QMessageBox.warning(
+                    self,
+                    "Invalid Amount",
+                    f"Credit amount ({credit_amt:.2f}) for Voucher #{r['voucher_no']} "
+                    f"cannot exceed unsettled amount ({r['unsettled']:.2f})."
+                )
+                return
+
+            if credit_amt < 0 or disc_amt < 0:
+                QMessageBox.warning(self, "Invalid Amount", "Credit and Discount amounts cannot be negative.")
+                return
+
+            if credit_amt > 0:
+                settlements.append({
+                    "credit_note_id": r["credit_note_id"],
+                    "voucher_no": r["voucher_no"],
+                    "credit_amount": credit_amt,
+                    "discount_amount": disc_amt,
+                })
+
+        self._settlements_result = settlements
+        self.accept()
+
+    def get_settlements(self) -> list[dict]:
+        return self._settlements_result
+
+    def get_total_credit_applied(self) -> float:
+        return round(sum(s["credit_amount"] for s in self._settlements_result), 2)

@@ -1119,6 +1119,86 @@ def fix_date_stylesheet(stylesheet_text: str, p: dict | None = None) -> str:
     return (stripped + fresh) if stripped else fresh
 
 
+# ── Combo-box drop-down indicator ─────────────────────────────────────
+# Setting background-color or border on a QComboBox tells Qt's style
+# engine to stop drawing the native combo box chrome.  Without explicit
+# QComboBox::drop-down and QComboBox::down-arrow rules, the drop-down
+# button becomes a blank strip and the arrow disappears entirely.
+#
+# The fix mirrors the date-picker subcontrols: a generated down-chevron
+# PNG tinted with the live palette's text colour (dark in Day Mode, light
+# in Night Mode, with a disabled-text variant), an explicit button width,
+# a left separator border, and a hover fill.
+
+_COMBO_DROP_WIDTH = 20
+_COMBO_ARROW_SIZE = 12
+
+
+def combo_subcontrols(p: dict | None = None, *, width: int = _COMBO_DROP_WIDTH) -> str:
+    """QSS fragment for the combo-box drop-down button + arrow in the given palette.
+
+    Every combo box shares one icon size (12 px), one right-side button width,
+    and consistent alignment.  The button carries a left separator border and a hover fill;
+    the arrow uses the generated chevron in the palette's text colour with a disabled-text variant,
+    falling back to the native arrow when the glyph cannot be produced (never `image: none`).
+    """
+    pal = p if p is not None else palette()
+    arrow = _drop_arrow_path(pal["text"])
+    arrow_off = _drop_arrow_path(pal.get("disabled_text", pal.get("text_dim", "#777777")))
+
+    def arrow_decl(glyph: str) -> str:
+        if glyph:
+            return f'image: url("{glyph}"); width: {_COMBO_ARROW_SIZE}px; height: {_COMBO_ARROW_SIZE}px;'
+        return f"width: {_COMBO_ARROW_SIZE}px; height: {_COMBO_ARROW_SIZE}px;"
+
+    return (
+        "QComboBox::drop-down {"
+        "  subcontrol-origin: padding; subcontrol-position: top right;"
+        f"  width: {int(width)}px;"
+        f"  border-left: 1px solid {pal['border']};"
+        "  border-top-right-radius: 2px; border-bottom-right-radius: 2px;"
+        f"  background: {pal['surface']}; margin: 0px;"
+        "}"
+        "QComboBox::drop-down:hover {"
+        f"  background: {pal['selected']};"
+        "}"
+        "QComboBox::drop-down:disabled {"
+        f"  background: {pal['disabled_bg']};"
+        f"  border-left: 1px solid {pal['border']};"
+        "}"
+        f"QComboBox::down-arrow {{ {arrow_decl(arrow)} }}"
+        f"QComboBox::down-arrow:disabled {{ {arrow_decl(arrow_off)} }}"
+    )
+
+
+def fix_combo_stylesheet(stylesheet_text: str, p: dict | None = None) -> str:
+    """Replace icon-hiding combo rules in a baked sheet with the shared icon.
+
+    Preserves each screen's own drop-down width (18/20/22/24 px) so layout
+    never shifts; only the invisible button/arrow becomes the shared
+    visible one.  Sheets without any QComboBox rule are returned untouched.
+    """
+    import re as _re
+
+    if not stylesheet_text or "QComboBox" not in stylesheet_text:
+        return stylesheet_text
+    pal = p if p is not None else palette()
+    width = _COMBO_DROP_WIDTH
+    try:
+        m = _re.search(
+            r"QComboBox::drop-down\s*\{[^}]*?width:\s*(\d+)px", stylesheet_text)
+        if m:
+            width = max(16, min(28, int(m.group(1))))
+    except Exception:
+        pass
+    fresh = combo_subcontrols(pal, width=width)
+    pattern = _re.compile(
+        r"QComboBox::(?:drop-down|down-arrow)[^{]*\{[^}]*\}"
+    )
+    stripped = pattern.sub("", stylesheet_text).strip()
+    return (stripped + " " + fresh) if stripped else fresh
+
+
 def stylesheet() -> str:
     """Return the application-wide stylesheet for the current mode.
 
@@ -1230,7 +1310,12 @@ def stylesheet() -> str:
         # field that follows the application stylesheet (e.g. the
         # Financial Year dialog).  Fields with their own stylesheet get the
         # same fragment from date_subcontrols()/fix_date_stylesheet().
-        + date_subcontrols(p) +
+        + date_subcontrols(p)
+        # Drop-down button + down arrow for combo boxes.  Setting
+        # background/border on QComboBox suppresses Qt's native drop-down
+        # arrow, so every combo box needs explicit drop-down and down-arrow
+        # subcontrols with high-contrast tinted glyphs.
+        + combo_subcontrols(p) +
         # Editable combo text field must not render as a nested white box.
         "QComboBox QLineEdit {"
         "  background: transparent;"

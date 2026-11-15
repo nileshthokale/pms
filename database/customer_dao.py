@@ -85,7 +85,7 @@ class CustomerDAO:
                    LEFT JOIN account_ledgers al ON al.id = c.ledger_id
                    WHERE c.customer_name LIKE ?
                    ORDER BY c.customer_name""",
-                (f"%{name}%",),
+                (f"{name.strip()}%",),
             ).fetchall()
             return [dict(row) for row in rows]
         finally:
@@ -203,6 +203,12 @@ class CustomerDAO:
         raw = (patient_name or "").strip()
         if not raw:
             return ""
+        import re
+        match = re.match(r"^(.*?)\s*\(([^)]+)\)\s*$", raw)
+        if match:
+            clean_name = match.group(1).strip()
+            if clean_name:
+                raw = clean_name
         norm = " ".join(raw.split()).upper()
         if norm in ("WALKIN", "WALKIN CUSTOMER"):
             return ""
@@ -298,6 +304,14 @@ class CustomerDAO:
         raw = (patient_name or "").strip()
         if not raw:
             return []
+        import re
+        match = re.match(r"^(.*?)\s*\(([^)]+)\)\s*$", raw)
+        embedded_addr = ""
+        if match:
+            clean_name = match.group(1).strip()
+            embedded_addr = match.group(2).strip()
+            if clean_name:
+                raw = clean_name
         norm = " ".join(raw.split()).upper()
         if norm in ("WALKIN", "WALKIN CUSTOMER"):
             return []
@@ -365,6 +379,10 @@ class CustomerDAO:
             )
             for row in cur.fetchall():
                 _add(row["address"] if isinstance(row, sqlite3.Row) else row[0])
+
+            # If embedded address was extracted and no addresses found, include embedded address
+            if embedded_addr and not addresses:
+                _add(embedded_addr)
         finally:
             conn.close()
 
@@ -385,16 +403,15 @@ class CustomerDAO:
         CustomerDAO._ensure_patient_addresses_table()
 
         clean = " ".join((query or "").split()).strip()
-        words = clean.split()
 
         import sqlite3
         conn = get_connection()
         try:
             clauses = []
             params = []
-            for w in words:
+            if clean:
                 clauses.append("patient_name LIKE ?")
-                params.append(f"%{w}%")
+                params.append(f"{clean}%")
             where_sql = ("WHERE " + " AND ".join(clauses)) if clauses else "WHERE 1=1"
 
             sql = f"""

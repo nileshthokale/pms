@@ -77,7 +77,7 @@ class _SupplierDialog(QDialog):
         self._opening_balance_edit.setPlaceholderText("0.00")
         form.addRow("Opening Balance:", self._opening_balance_edit)
 
-        self._discount_edit = QLineEdit()
+        self._discount_edit = QLineEdit("0.0")
         self._discount_edit.setPlaceholderText("0.0")
         form.addRow("Discount (%):", self._discount_edit)
 
@@ -205,6 +205,11 @@ class _SupplierDialog(QDialog):
             )
             return
 
+        discount_val = self._safe_float(self._discount_edit.text(), 0.0)
+        if discount_val < 0.0 or discount_val > 100.0:
+            QMessageBox.warning(self, "Validation", "Discount must be between 0% and 100%.")
+            return
+
         kwargs = {
             "supplier_name": name,
             "sales_tax_no": self._sales_tax_no_edit.text().strip(),
@@ -214,7 +219,7 @@ class _SupplierDialog(QDialog):
             "contact_no": self._contact_no_edit.text().strip(),
             "address": self._address_edit.text().strip(),
             "state": self._state_edit.text().strip(),
-            "discount": self._safe_float(self._discount_edit.text()),
+            "discount": discount_val,
             "credit_limit": self._safe_float(self._credit_limit_edit.text()),
             "credit_period": self._safe_int(self._credit_period_edit.text()),
             "vat_tin": self._vat_tin_edit.text().strip(),

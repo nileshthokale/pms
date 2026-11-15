@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from ui.components import SearchableComboBox
-from ui.theme import date_subcontrols, palette
+from ui.theme import combo_subcontrols, date_subcontrols, palette
 
 
 def combo_style(p: dict | None = None) -> str:
@@ -32,8 +32,8 @@ def combo_style(p: dict | None = None) -> str:
         f"  padding: 4px 8px; font-size: 15px; font-family: 'Segoe UI';"
         f"}}"
         f"QComboBox:hover {{ border: 1px solid {accent}; }}"
-        f"QComboBox::drop-down {{ border-left: 1px solid {border}; width: 22px; background: {surface}; }}"
-        f"QComboBox QAbstractItemView {{"
+        + combo_subcontrols(p, width=22)
+        + f"QComboBox QAbstractItemView {{"
         f"  background-color: {surface}; color: {text};"
         f"  border: 1px solid {border}; selection-background-color: {accent};"
         f"  selection-color: white; font-size: 15px; font-family: 'Segoe UI';"

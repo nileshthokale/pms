@@ -365,7 +365,7 @@ class DuplicateSalesDAO:
                     WHERE item_name LIKE ? AND item_name IS NOT NULL AND item_name != ''
                     ORDER BY item_name ASC LIMIT ?
                     """,
-                    (f"%{query.strip()}%", limit),
+                    (f"{query.strip()}%", limit),
                 )
             else:
                 cur = conn.execute(

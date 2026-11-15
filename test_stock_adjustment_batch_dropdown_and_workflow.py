@@ -32,15 +32,33 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 
 from database.connection import get_connection, init_database
 from database.stock_dao import StockDAO
+import tempfile
 from database.stock_adjustment_dao import StockAdjustmentDAO, StockAdjustmentError
 from screens.stock_adjustment_dialog import StockAdjustmentDialog
+
+_TEST_DB = os.path.join(tempfile.gettempdir(), "test_stock_adj_workflow.db")
 
 
 class TestStockAdjustmentBatchDropdownAndWorkflow(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        if os.path.exists(_TEST_DB):
+            try:
+                os.remove(_TEST_DB)
+            except Exception:
+                pass
+        os.environ["PHARMACY_DB"] = _TEST_DB
         cls.app = QApplication.instance() or QApplication(sys.argv)
         init_database()
+
+    @classmethod
+    def tearDownClass(cls):
+        os.environ.pop("PHARMACY_DB", None)
+        if os.path.exists(_TEST_DB):
+            try:
+                os.remove(_TEST_DB)
+            except Exception:
+                pass
 
     def setUp(self):
         self._patches = [

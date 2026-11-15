@@ -40,13 +40,14 @@ from PySide6.QtWidgets import (
 from database.connection import get_connection
 from database.stock_dao import StockDAO
 from database.stock_adjustment_dao import StockAdjustmentDAO, StockAdjustmentError
-from ui.components import FONT_FAMILY, SearchableComboBox
+from ui.components import FONT_FAMILY, SearchableComboBox, TableComboBox
 from ui.theme import (
     TYPE_BUTTON,
     TYPE_FORM_LABEL,
     TYPE_HINT,
     TYPE_INPUT,
     TYPE_PAGE_TITLE,
+    combo_subcontrols,
     palette,
 )
 
@@ -190,6 +191,7 @@ class StockAdjustmentDialog(QDialog):
         self.op_filter.setStyleSheet(
             f"QComboBox {{ background-color: {p['surface']}; color: {p['text']}; border: 1px solid {p['border']}; "
             f"padding: 2px 8px; font-size: {TYPE_INPUT}px; border-radius: 2px; }}"
+            + combo_subcontrols(p, width=20)
         )
         self.op_filter.currentIndexChanged.connect(self._on_filter_changed)
         row1.addWidget(self.op_filter)
@@ -225,12 +227,11 @@ class StockAdjustmentDialog(QDialog):
         grid.addWidget(self.item_stock_edit, 1, col)
         col += 1
 
-        # 3. Batch # (Searchable Dropdown)
+        # 3. Batch # (Table Dropdown)
         grid.addWidget(self._create_header_label("Batch #"), 0, col)
-        self.batch_combo = SearchableComboBox(
+        self.batch_combo = TableComboBox(
             placeholder="Select Batch...",
             min_width=350,
-            allow_width_expansion=True,
         )
         self.batch_combo.setFixedHeight(30)
         self.batch_combo.setMinimumWidth(260)
@@ -487,9 +488,14 @@ class StockAdjustmentDialog(QDialog):
             conn.close()
 
         items = []
+        seen_ids = set()
         for it in self._items_list:
+            item_id = it.get("id")
+            if item_id is None or item_id in seen_ids:
+                continue
+            seen_ids.add(item_id)
             display = f"{it['item_name']} [Pack: {it['pack_size']}]"
-            items.append((display, int(it["id"]), str(it["item_name"])))
+            items.append((display, int(item_id), str(it["item_name"])))
 
         self.item_combo.populate(items)
 
@@ -654,13 +660,10 @@ class StockAdjustmentDialog(QDialog):
             self.projected_label.setStyleSheet(f"color: {p['text_dim']}; font-weight: bold;")
             return
 
-        batch_items = []
+        self.batch_combo.clear()
         for b in filtered:
             b_no = str(b.get("batch_no") or "").strip() or "-"
-            # User requirement: Batch box shows ONLY the batch number (no expiry, no MRP)
-            batch_items.append((b_no, int(b["id"]), b_no))
-
-        self.batch_combo.populate(batch_items)
+            self.batch_combo.addItem(b_no, int(b["id"]), raw_name=b_no, row_data=b)
 
         # Handle initial or explicit selection
         target_id = select_batch_id

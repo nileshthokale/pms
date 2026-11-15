@@ -108,7 +108,8 @@ class TestDebitAndCreditNotes(unittest.TestCase):
                 VALUES
                     (1, 101, 'BATCH-P1', '2028-12-31', '10', 30.0, 20.0, 100.0),
                     (2, 102, 'BATCH-A1', '2028-10-31', '10', 120.0, 90.0, 50.0),
-                    (3, 103, 'BATCH-EXP', '2020-01-01', '1', 85.0, 60.0, 20.0)
+                    (3, 103, 'BATCH-EXP', '2020-01-01', '1', 85.0, 60.0, 20.0),
+                    (4, 101, 'BATCH-P2', '2028-06-30', '10', 30.0, 20.0, 50.0)
                 """
             )
 
@@ -123,6 +124,7 @@ class TestDebitAndCreditNotes(unittest.TestCase):
             conn.execute("UPDATE stock_batches SET stock_qty = 100.0 WHERE id = 1")
             conn.execute("UPDATE stock_batches SET stock_qty = 50.0 WHERE id = 2")
             conn.execute("UPDATE stock_batches SET stock_qty = 20.0 WHERE id = 3")
+            conn.execute("UPDATE stock_batches SET stock_qty = 50.0 WHERE id = 4")
             conn.commit()
         finally:
             conn.close()

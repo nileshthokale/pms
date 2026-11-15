@@ -74,7 +74,11 @@ class DebitNoteDAO:
                        d.dn_date, d.dn_type, d.supplier_id,
                        s.supplier_name,
                        d.total_amount, d.ledger_amount, d.remarks,
-                       COALESCE(d.added_to_ledger, 'N') AS added_to_ledger
+                       COALESCE(d.discount_pct, 0.0) AS discount_pct,
+                       COALESCE(d.less_amount, 0.0) AS less_amount,
+                       COALESCE(d.added_to_ledger, 'N') AS added_to_ledger,
+                       COALESCE(d.settled_amount, 0.0) AS settled_amount,
+                       COALESCE(d.settlement_status, 'UNSETTLED') AS settlement_status
                 FROM debit_notes d
                 LEFT JOIN suppliers s ON s.id = d.supplier_id
                 ORDER BY d.id DESC
@@ -94,7 +98,11 @@ class DebitNoteDAO:
                        d.dn_date, d.dn_type, d.supplier_id,
                        s.supplier_name,
                        d.total_amount, d.ledger_amount, d.remarks,
-                       COALESCE(d.added_to_ledger, 'N') AS added_to_ledger
+                       COALESCE(d.discount_pct, 0.0) AS discount_pct,
+                       COALESCE(d.less_amount, 0.0) AS less_amount,
+                       COALESCE(d.added_to_ledger, 'N') AS added_to_ledger,
+                       COALESCE(d.settled_amount, 0.0) AS settled_amount,
+                       COALESCE(d.settlement_status, 'UNSETTLED') AS settlement_status
                 FROM debit_notes d
                 LEFT JOIN suppliers s ON s.id = d.supplier_id
                 WHERE d.id = ?
@@ -151,10 +159,10 @@ class DebitNoteDAO:
                 params.append(voucher_to)
             if party:
                 clauses.append("s.supplier_name LIKE ?")
-                params.append(f"%{party}%")
+                params.append(f"{party.strip()}%")
             if voucher_no:
                 clauses.append("d.voucher_no LIKE ?")
-                params.append(f"%{voucher_no}%")
+                params.append(f"{voucher_no.strip()}%")
             if supplier_id:
                 clauses.append("d.supplier_id = ?")
                 params.append(supplier_id)
@@ -164,7 +172,11 @@ class DebitNoteDAO:
                        d.dn_date, d.dn_type, d.supplier_id,
                        s.supplier_name,
                        d.total_amount, d.ledger_amount, d.remarks,
-                       COALESCE(d.added_to_ledger, 'N') AS added_to_ledger
+                       COALESCE(d.discount_pct, 0.0) AS discount_pct,
+                       COALESCE(d.less_amount, 0.0) AS less_amount,
+                       COALESCE(d.added_to_ledger, 'N') AS added_to_ledger,
+                       COALESCE(d.settled_amount, 0.0) AS settled_amount,
+                       COALESCE(d.settlement_status, 'UNSETTLED') AS settlement_status
                 FROM debit_notes d
                 LEFT JOIN suppliers s ON s.id = d.supplier_id
                 {where}
@@ -247,13 +259,16 @@ class DebitNoteDAO:
             added_to_ledger = "Y" if add_to_ledger else "N"
             total_amount = round(float(header.get("total_amount", 0.0)), 2)
             ledger_amount = total_amount if add_to_ledger else 0.0
+            discount_pct = float(header.get("discount_pct", 0.0))
+            less_amount = round(float(header.get("less_amount", 0.0)), 2)
 
             cur.execute(
                 """
                 INSERT INTO debit_notes
                     (voucher_no, voucher_date, voucher_time, dn_date, dn_type,
-                     supplier_id, total_amount, ledger_amount, remarks, added_to_ledger)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     supplier_id, total_amount, ledger_amount, remarks, added_to_ledger,
+                     discount_pct, less_amount)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     voucher_no,
@@ -266,6 +281,8 @@ class DebitNoteDAO:
                     ledger_amount,
                     header.get("remarks", ""),
                     added_to_ledger,
+                    discount_pct,
+                    less_amount,
                 ),
             )
             dn_id = cur.lastrowid
@@ -296,10 +313,10 @@ class DebitNoteDAO:
                 direct_loose = (ret_qty + free_qty)
                 loose_deduction = pack_loose if is_pack else direct_loose
 
-                if loose_deduction > available or pack_loose > available:
+                if loose_deduction > available:
                     raise ValueError(
                         f"Insufficient stock: batch has {available:.0f}, "
-                        f"cannot return {max(loose_deduction, pack_loose):.0f}"
+                        f"cannot return {loose_deduction:.0f}"
                     )
 
                 cur.execute(
@@ -351,6 +368,8 @@ class DebitNoteDAO:
         finally:
             conn.close()
 
+    create_debit_note = insert_debit_note
+
     @staticmethod
     def update_debit_note(dn_id: int, header: dict, items: list[dict]) -> bool:
         conn = get_connection()
@@ -393,13 +412,16 @@ class DebitNoteDAO:
             added_to_ledger = "Y" if add_to_ledger else "N"
             total_amount = round(float(header.get("total_amount", 0.0)), 2)
             ledger_amount = total_amount if add_to_ledger else 0.0
+            discount_pct = float(header.get("discount_pct", 0.0))
+            less_amount = round(float(header.get("less_amount", 0.0)), 2)
 
             cur.execute(
                 """
                 UPDATE debit_notes SET
                     voucher_date = ?, voucher_time = ?, dn_date = ?,
                     dn_type = ?, supplier_id = ?, total_amount = ?,
-                    ledger_amount = ?, remarks = ?, added_to_ledger = ?
+                    ledger_amount = ?, remarks = ?, added_to_ledger = ?,
+                    discount_pct = ?, less_amount = ?
                 WHERE id = ?
                 """,
                 (
@@ -412,6 +434,8 @@ class DebitNoteDAO:
                     ledger_amount,
                     header.get("remarks", ""),
                     added_to_ledger,
+                    discount_pct,
+                    less_amount,
                     dn_id,
                 ),
             )
@@ -442,10 +466,10 @@ class DebitNoteDAO:
                 direct_loose = (ret_qty + free_qty)
                 loose_deduction = pack_loose if is_pack else direct_loose
 
-                if loose_deduction > available or pack_loose > available:
+                if loose_deduction > available:
                     raise ValueError(
                         f"Insufficient stock: batch has {available:.0f}, "
-                        f"cannot return {max(loose_deduction, pack_loose):.0f}"
+                        f"cannot return {loose_deduction:.0f}"
                     )
 
                 cur.execute(
@@ -530,5 +554,186 @@ class DebitNoteDAO:
         except Exception:
             conn.rollback()
             raise
+        finally:
+            conn.close()
+
+    # ── settlements & adjustments ──────────────────────────────────────
+    @staticmethod
+    def get_unsettled_by_supplier(
+        supplier_id: int | None = None,
+        supplier_name: str | None = None,
+    ) -> list[dict]:
+        """Fetch unsettled or partially settled debit notes for a supplier.
+
+        Excludes notes already posted to ledger (added_to_ledger='Y'), since those
+        are credited to the supplier's balance directly.
+        """
+        conn = get_connection()
+        try:
+            clauses = [
+                "(d.total_amount - COALESCE(d.settled_amount, 0.0)) > 0.001",
+                "COALESCE(d.added_to_ledger, 'N') != 'Y'",
+            ]
+            params: list = []
+            if supplier_id:
+                clauses.append("d.supplier_id = ?")
+                params.append(supplier_id)
+            elif supplier_name:
+                clauses.append("s.supplier_name LIKE ?")
+                params.append(f"{supplier_name.strip()}%")
+
+            where = "WHERE " + " AND ".join(clauses)
+            sql = f"""
+                SELECT d.id, d.voucher_no, d.voucher_date, d.voucher_time,
+                       d.total_amount,
+                       COALESCE(d.settled_amount, 0.0) AS settled_amount,
+                       ROUND(d.total_amount - COALESCE(d.settled_amount, 0.0), 2) AS unsettled_amount,
+                       COALESCE(d.settlement_status, 'UNSETTLED') AS settlement_status,
+                       s.supplier_name
+                FROM debit_notes d
+                LEFT JOIN suppliers s ON s.id = d.supplier_id
+                {where}
+                ORDER BY d.id ASC
+            """
+            rows = conn.execute(sql, params).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    @staticmethod
+    def settle_debit_notes(
+        settlements: list[dict],
+        purchase_invoice_id: int,
+        cur: sqlite3.Cursor | None = None,
+        settlement_date: str = "",
+        settlement_time: str = "",
+    ) -> None:
+        """Apply debit note settlements against a purchase invoice atomically."""
+        should_commit = False
+        conn = None
+        if cur is None:
+            conn = get_connection()
+            cur = conn.cursor()
+            cur.execute("BEGIN")
+            should_commit = True
+
+        try:
+            for s in settlements:
+                dn_id = s.get("debit_note_id") or s.get("id")
+                debit_amt = round(float(s.get("debit_amount", 0.0) or s.get("settled_amount", 0.0)), 2)
+                disc_amt = round(float(s.get("discount_amount", 0.0)), 2)
+                if debit_amt <= 0:
+                    continue
+
+                # 1. Insert settlement row
+                cur.execute(
+                    """
+                    INSERT INTO debit_note_settlements (
+                        debit_note_id, purchase_invoice_id,
+                        settled_amount, discount_amount,
+                        settlement_date, settlement_time
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (dn_id, purchase_invoice_id, debit_amt, disc_amt, settlement_date, settlement_time),
+                )
+
+                # 2. Update debit note settled balance and status
+                cur.execute(
+                    """
+                    UPDATE debit_notes
+                    SET settled_amount = ROUND(COALESCE(settled_amount, 0.0) + ?, 2),
+                        settlement_status = CASE
+                            WHEN ROUND(COALESCE(settled_amount, 0.0) + ?, 2) >= total_amount - 0.01
+                            THEN 'SETTLED'
+                            ELSE 'PARTIAL'
+                        END
+                    WHERE id = ?
+                    """,
+                    (debit_amt, debit_amt, dn_id),
+                )
+
+            if should_commit and conn:
+                conn.commit()
+        except Exception:
+            if should_commit and conn:
+                conn.rollback()
+            raise
+        finally:
+            if should_commit and conn:
+                conn.close()
+
+    @staticmethod
+    def reverse_settlements_for_invoice(
+        purchase_invoice_id: int,
+        cur: sqlite3.Cursor | None = None,
+    ) -> None:
+        """Reverse all debit note settlements linked to a purchase invoice."""
+        should_commit = False
+        conn = None
+        if cur is None:
+            conn = get_connection()
+            cur = conn.cursor()
+            cur.execute("BEGIN")
+            should_commit = True
+
+        try:
+            rows = cur.execute(
+                """
+                SELECT debit_note_id, settled_amount
+                FROM debit_note_settlements
+                WHERE purchase_invoice_id = ?
+                """,
+                (purchase_invoice_id,),
+            ).fetchall()
+
+            for r in rows:
+                dn_id = r["debit_note_id"]
+                s_amt = r["settled_amount"]
+                cur.execute(
+                    """
+                    UPDATE debit_notes
+                    SET settled_amount = ROUND(MAX(0.0, COALESCE(settled_amount, 0.0) - ?), 2),
+                        settlement_status = CASE
+                            WHEN ROUND(MAX(0.0, COALESCE(settled_amount, 0.0) - ?), 2) <= 0.001
+                            THEN 'UNSETTLED'
+                            ELSE 'PARTIAL'
+                        END
+                    WHERE id = ?
+                    """,
+                    (s_amt, s_amt, dn_id),
+                )
+
+            cur.execute(
+                "DELETE FROM debit_note_settlements WHERE purchase_invoice_id = ?",
+                (purchase_invoice_id,),
+            )
+
+            if should_commit and conn:
+                conn.commit()
+        except Exception:
+            if should_commit and conn:
+                conn.rollback()
+            raise
+        finally:
+            if should_commit and conn:
+                conn.close()
+
+    @staticmethod
+    def get_settlements_for_invoice(purchase_invoice_id: int) -> list[dict]:
+        """Fetch all debit note settlements applied to a purchase invoice."""
+        conn = get_connection()
+        try:
+            sql = """
+                SELECT dns.id, dns.debit_note_id, dns.purchase_invoice_id,
+                       dns.settled_amount, dns.discount_amount,
+                       dns.settlement_date, dns.settlement_time,
+                       dn.voucher_no, dn.total_amount
+                FROM debit_note_settlements dns
+                JOIN debit_notes dn ON dn.id = dns.debit_note_id
+                WHERE dns.purchase_invoice_id = ?
+                ORDER BY dns.id ASC
+            """
+            rows = conn.execute(sql, (purchase_invoice_id,)).fetchall()
+            return [dict(r) for r in rows]
         finally:
             conn.close()

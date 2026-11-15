@@ -57,7 +57,7 @@ from ui.crystal_report_viewer import (
 )
 from ui.fy_view import view_year_bounds
 from ui.searchable_filter import SearchableFilterEdit
-from ui.theme import palette
+from ui.theme import date_subcontrols, palette
 
 
 # ── Report Pagination Helper ──────────────────────────────────────────
@@ -744,7 +744,7 @@ class SalesReportPage(QWidget):
             f"  padding: 5px 8px; font-size: 13px; font-family: 'Segoe UI';"
             f"}}"
             f"QDateEdit:focus {{ border: 1px solid {p['accent']}; }}"
-            f"QDateEdit::drop-down {{ border: none; width: 20px; }}"
+            + date_subcontrols(p, width=20)
         )
         self._from_date.setStyleSheet(date_style)
         self._to_date.setStyleSheet(date_style)
