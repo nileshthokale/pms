@@ -10,18 +10,20 @@ from PySide6.QtWidgets import (
     QDateEdit,
     QDialog,
     QFileDialog,
+    QFrame,
+    QGridLayout,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QSizePolicy,
     QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
-    QFrame,
 )
 
 from database.debit_note_dao import DebitNoteDAO
@@ -30,9 +32,10 @@ from database.document_printing import DocumentPrintError, generate_debit_note
 from database.item_dao import ItemDAO
 from database.purchase_dao import pack_factor
 from database.supplier_dao import SupplierDAO
+from core.doc_formatter import format_document_number
 
-from ui.components import SearchableComboBox
-from ui.theme import date_subcontrols, palette
+from ui.components import SearchableComboBox, TableComboBox
+from ui.theme import combo_subcontrols, date_subcontrols, palette
 
 
 def _get_palette():
@@ -45,6 +48,33 @@ def _safe_float(text: str, default: float = 0.0) -> float:
         return float(t) if t else default
     except (ValueError, TypeError):
         return default
+
+
+def _parse_header_less(text: str, subtotal: float) -> tuple[float, float]:
+    """Parse header Less text into (less_amount, discount_pct).
+
+    Supports percentage format (e.g. '5%', '5.0%') or flat amount (e.g. '10.00', '15').
+    Returns (less_amount, discount_pct) rounded to 2 decimal places.
+    """
+    raw = (text or "").strip()
+    if not raw:
+        return 0.0, 0.0
+    if "%" in raw:
+        try:
+            pct = float(raw.replace("%", "").strip())
+        except ValueError:
+            pct = 0.0
+        pct = max(0.0, min(100.0, pct))
+        less_amt = round(subtotal * (pct / 100.0), 2)
+        return less_amt, pct
+    else:
+        try:
+            amt = float(raw)
+        except ValueError:
+            amt = 0.0
+        amt = max(0.0, amt)
+        less_amt = min(amt, subtotal) if subtotal > 0 else amt
+        return less_amt, 0.0
 
 
 # ======================================================================
@@ -114,6 +144,23 @@ class _ReturnItemRow:
 class _ItemEntryBar(QWidget):
     """Horizontal bar matching Pharma-WINNER item entry row."""
 
+    @staticmethod
+    def _detect_unit_name(item_name: str, unit_name: str = "") -> str:
+        combined = f"{item_name} {unit_name}".upper()
+        if any(w in combined for w in ["CAP", "CAPSULE", "CAPS"]):
+            return "Capsules"
+        if any(w in combined for w in ["TAB", "TABLET", "TABS"]):
+            return "Tablets"
+        if any(w in combined for w in ["INJ", "INJECTION"]):
+            return "Vials"
+        if any(w in combined for w in ["SYR", "SYRUP", "SUSP", "SUSPENSION", "BOT", "BOTTLE"]):
+            return "Bottles"
+        if item_name and "(" in item_name and item_name.endswith(")"):
+            extracted = item_name.rsplit("(", 1)[1].rstrip(")").strip()
+            if extracted:
+                return extracted
+        return "Units"
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._supplier_id: int | None = None
@@ -121,98 +168,102 @@ class _ItemEntryBar(QWidget):
 
     def _build_ui(self):
         p = _get_palette()
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(6, 4, 6, 4)
-        layout.setSpacing(4)
+        grid = QGridLayout(self)
+        grid.setContentsMargins(6, 4, 6, 4)
+        grid.setHorizontalSpacing(8)
+        grid.setVerticalSpacing(4)
 
-        # Labels row
-        lbl_row = QHBoxLayout()
-        lbl_row.setContentsMargins(0, 0, 0, 0)
-        lbl_row.setSpacing(4)
-
-        def _make_lbl(text: str, width: int | None = None, bold: bool = False):
+        def _make_lbl(text: str, bold: bool = False):
             l = QLabel(text)
             f = "bold" if bold else "normal"
             l.setStyleSheet(f"color: {p['text']}; font-size: 13px; font-weight: {f}; font-family: 'Segoe UI';")
-            if width:
-                l.setFixedWidth(width)
             return l
 
-        lbl_row.addWidget(_make_lbl("* Item Name", 240, bold=True))
-        lbl_row.addWidget(_make_lbl("", 90))  # space for expired only checkbox
-        lbl_row.addWidget(_make_lbl("Batch #", 150))
-        lbl_row.addWidget(_make_lbl("Expiry", 80))
-        lbl_row.addWidget(_make_lbl("Pack Size", 70))
-        lbl_row.addWidget(_make_lbl("Rate", 70))
-        lbl_row.addWidget(_make_lbl("MRP", 70))
-        lbl_row.addWidget(_make_lbl("Return Qty", 70))
-        lbl_row.addWidget(_make_lbl("Free Qty", 65))
-        lbl_row.addWidget(_make_lbl("Less %", 65))
-        lbl_row.addWidget(_make_lbl("Return Reason", 130))
-        lbl_row.addWidget(_make_lbl("Price Factor", 90))
-        lbl_row.addWidget(_make_lbl("", 40))  # add button space
-        layout.addLayout(lbl_row)
-
-        # Controls row
-        ctrl_row = QHBoxLayout()
-        ctrl_row.setContentsMargins(0, 0, 0, 0)
-        ctrl_row.setSpacing(4)
-
-        self.item_combo = SearchableComboBox(placeholder="Type medicine name to search...")
-        self.item_combo.setFixedWidth(240)
-        ctrl_row.addWidget(self.item_combo)
+        # Col 0: Item Name label + Expired Only checkbox in header row
+        item_hdr = QHBoxLayout()
+        item_hdr.setContentsMargins(0, 0, 0, 0)
+        item_hdr.setSpacing(8)
+        item_hdr.addWidget(_make_lbl("* Item Name", bold=True))
+        item_hdr.addStretch()
 
         self.expired_only_cb = QCheckBox("Expired Only")
-        self.expired_only_cb.setFixedWidth(90)
-        self.expired_only_cb.setStyleSheet(f"color: {p['text']}; font-size: 12px;")
+        self.expired_only_cb.setStyleSheet(f"color: {p['text']}; font-size: 12px; font-weight: normal; font-family: 'Segoe UI';")
         self.expired_only_cb.toggled.connect(self._on_expired_toggled)
-        ctrl_row.addWidget(self.expired_only_cb)
+        item_hdr.addWidget(self.expired_only_cb)
+        grid.addLayout(item_hdr, 0, 0)
 
-        self.batch_combo = SearchableComboBox(placeholder="-- Select Batch --", min_width=320)
-        self.batch_combo.setFixedWidth(170)
+        self.item_combo = SearchableComboBox(placeholder="Type medicine name to search...")
+        self.item_combo.setMinimumWidth(260)
+        self.item_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        grid.addWidget(self.item_combo, 1, 0)
+
+        # Col 1: Batch #
+        grid.addWidget(_make_lbl("Batch #"), 0, 1)
+        self.batch_combo = TableComboBox(placeholder="", min_width=320)
+        self.batch_combo.setMinimumWidth(160)
+        self.batch_combo.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         self.batch_combo.selection_changed.connect(self._on_batch_selected)
-        self.batch_combo.currentIndexChanged.connect(self._on_batch_changed)
-        ctrl_row.addWidget(self.batch_combo)
+        grid.addWidget(self.batch_combo, 1, 1)
 
+        # Col 2: Expiry
+        grid.addWidget(_make_lbl("Expiry"), 0, 2)
         self.expiry_edit = QLineEdit()
         self.expiry_edit.setFixedWidth(80)
         self.expiry_edit.setReadOnly(True)
         self.expiry_edit.setAlignment(Qt.AlignCenter)
-        ctrl_row.addWidget(self.expiry_edit)
+        grid.addWidget(self.expiry_edit, 1, 2)
 
+        # Col 3: Pack Size
+        grid.addWidget(_make_lbl("Pack Size"), 0, 3)
         self.pack_edit = QLineEdit()
         self.pack_edit.setFixedWidth(70)
         self.pack_edit.setReadOnly(True)
         self.pack_edit.setAlignment(Qt.AlignCenter)
-        ctrl_row.addWidget(self.pack_edit)
+        grid.addWidget(self.pack_edit, 1, 3)
 
+        # Col 4: Rate
+        grid.addWidget(_make_lbl("Rate"), 0, 4)
         self.rate_edit = QLineEdit("0.00")
         self.rate_edit.setFixedWidth(70)
         self.rate_edit.setAlignment(Qt.AlignRight)
-        ctrl_row.addWidget(self.rate_edit)
+        grid.addWidget(self.rate_edit, 1, 4)
 
+        # Col 5: MRP
+        grid.addWidget(_make_lbl("MRP"), 0, 5)
         self.mrp_edit = QLineEdit("0.00")
         self.mrp_edit.setFixedWidth(70)
         self.mrp_edit.setAlignment(Qt.AlignRight)
-        ctrl_row.addWidget(self.mrp_edit)
+        grid.addWidget(self.mrp_edit, 1, 5)
 
+        # Col 6: Return Qty
+        self.return_qty_lbl = _make_lbl("Return Qty (Units)")
+        grid.addWidget(self.return_qty_lbl, 0, 6)
         self.qty_edit = QLineEdit("1")
-        self.qty_edit.setFixedWidth(70)
+        self.qty_edit.setFixedWidth(75)
         self.qty_edit.setAlignment(Qt.AlignCenter)
-        ctrl_row.addWidget(self.qty_edit)
+        self.qty_edit.setToolTip("Return quantity in individual units (tablets/capsules)")
+        grid.addWidget(self.qty_edit, 1, 6)
 
+        # Col 7: Free Qty
+        self.free_qty_lbl = _make_lbl("Free Qty (Units)")
+        grid.addWidget(self.free_qty_lbl, 0, 7)
         self.free_qty_edit = QLineEdit("0")
         self.free_qty_edit.setFixedWidth(65)
         self.free_qty_edit.setAlignment(Qt.AlignCenter)
-        ctrl_row.addWidget(self.free_qty_edit)
+        self.free_qty_edit.setToolTip("Free quantity in individual units (tablets/capsules)")
+        grid.addWidget(self.free_qty_edit, 1, 7)
 
+        # Col 8: Less %
+        grid.addWidget(_make_lbl("Less %"), 0, 8)
         self.less_edit = QLineEdit("0.00")
         self.less_edit.setFixedWidth(65)
         self.less_edit.setAlignment(Qt.AlignRight)
-        ctrl_row.addWidget(self.less_edit)
+        grid.addWidget(self.less_edit, 1, 8)
 
+        # Col 9: Return Reason
+        grid.addWidget(_make_lbl("Return Reason"), 0, 9)
         self.reason_combo = QComboBox()
-        self.reason_combo.setFixedWidth(130)
+        self.reason_combo.setMinimumWidth(130)
         self.reason_combo.addItems([
             "Purchase Return",
             "Expiry Return",
@@ -221,13 +272,17 @@ class _ItemEntryBar(QWidget):
             "Rate Difference",
             "Other",
         ])
-        ctrl_row.addWidget(self.reason_combo)
+        grid.addWidget(self.reason_combo, 1, 9)
 
+        # Col 10: Price Factor
+        grid.addWidget(_make_lbl("Price Factor"), 0, 10)
         self.price_factor_combo = QComboBox()
         self.price_factor_combo.setFixedWidth(90)
         self.price_factor_combo.addItems(["RATE", "MRP"])
-        ctrl_row.addWidget(self.price_factor_combo)
+        grid.addWidget(self.price_factor_combo, 1, 10)
 
+        # Col 11: Add Button
+        grid.addWidget(QLabel(""), 0, 11)
         self.add_btn = QPushButton("▼")
         self.add_btn.setToolTip("Add item to return list")
         self.add_btn.setFixedWidth(40)
@@ -237,9 +292,12 @@ class _ItemEntryBar(QWidget):
             f"font-weight: bold; font-size: 14px; border: none; border-radius: 3px; }}"
             f"QPushButton:hover {{ background-color: {p['accent_hover']}; }}"
         )
-        ctrl_row.addWidget(self.add_btn)
+        grid.addWidget(self.add_btn, 1, 11)
 
-        layout.addLayout(ctrl_row)
+        grid.setColumnStretch(0, 3)
+        grid.setColumnStretch(1, 1)
+        for c in range(2, 12):
+            grid.setColumnStretch(c, 0)
 
         self.item_combo.selection_changed.connect(self._on_item_selected)
 
@@ -251,21 +309,23 @@ class _ItemEntryBar(QWidget):
             self._reload_batches(item_id)
 
     def load_items(self):
-        items = ItemDAO.get_all()
-        list_items = [
-            (
-                f"{it['item_name']} ({it['unit_name'].strip()})"
-                if (it.get("unit_name") or "").strip()
-                else it["item_name"],
-                it["id"],
-            )
-            for it in items
-        ]
+        items = ItemDAO.get_items_for_selector()
+        list_items = []
+        seen_ids = set()
+        for it in items:
+            item_id = it.get("id")
+            if item_id is None or item_id in seen_ids:
+                continue
+            seen_ids.add(item_id)
+            uname = (it.get("unit_name") or "").strip()
+            name_display = f"{it['item_name']} ({uname})" if uname else it["item_name"]
+            list_items.append((name_display, item_id))
         self.item_combo.populate(list_items)
 
     def _on_item_selected(self, item_id: object):
         if not item_id:
             self.batch_combo.clear()
+            self.batch_combo.clear_selection()
             self._clear_batch_fields()
             return
         self._reload_batches(int(item_id))
@@ -283,21 +343,18 @@ class _ItemEntryBar(QWidget):
         batches = DebitNoteDAO.get_batches_for_supplier_item(
             self._supplier_id, item_id, expired_only=self.expired_only_cb.isChecked()
         )
-        self.batch_combo.addItem("-- Select Batch --", None)
         for b in batches:
             b_no = b.get("batch_no", "")
-            exp = b.get("expiry", "")
-            stock = b.get("stock_qty", 0.0)
-            tag = " [EXP]" if b.get("is_expired") else ""
-            label = f"{b_no} (Exp: {exp}, Stk: {stock:g}){tag}"
-            self.batch_combo.addItem(label, b, raw_name=b_no)
-        self.batch_combo.blockSignals(False)
+            self.batch_combo.addItem(b_no, b, raw_name=b_no, row_data=b)
 
         if len(batches) == 1:
-            self.batch_combo.setCurrentIndex(1)
+            self.batch_combo.setCurrentIndex(0)
             self._on_batch_selected(batches[0])
         else:
-            self.batch_combo.setCurrentIndex(0)
+            self.batch_combo.clear_selection()
+            self._clear_batch_fields()
+
+        self.batch_combo.blockSignals(False)
 
     def _on_batch_selected(self, batch_data: object):
         if not batch_data or not isinstance(batch_data, dict):
@@ -308,6 +365,11 @@ class _ItemEntryBar(QWidget):
         self.pack_edit.setText(str(b.get("pack_size") or "1"))
         self.rate_edit.setText(f"{b.get('purchase_rate', 0.0):.2f}")
         self.mrp_edit.setText(f"{b.get('mrp', 0.0):.2f}")
+        unit = self._detect_unit_name(self.item_combo.currentText())
+        if hasattr(self, "return_qty_lbl"):
+            self.return_qty_lbl.setText(f"Return Qty ({unit})")
+        if hasattr(self, "free_qty_lbl"):
+            self.free_qty_lbl.setText(f"Free Qty ({unit})")
 
     def _on_batch_changed(self, idx: int):
         b = self.batch_combo.currentData()
@@ -321,9 +383,14 @@ class _ItemEntryBar(QWidget):
         self.qty_edit.setText("1")
         self.free_qty_edit.setText("0")
         self.less_edit.setText("0.00")
+        if hasattr(self, "return_qty_lbl"):
+            self.return_qty_lbl.setText("Return Qty (Units)")
+        if hasattr(self, "free_qty_lbl"):
+            self.free_qty_lbl.setText("Free Qty (Units)")
 
     def clear(self):
         self.item_combo.clear_selection()
+        self.batch_combo.clear()
         self.batch_combo.clear_selection()
         self._clear_batch_fields()
 
@@ -366,8 +433,9 @@ class _DebitNoteEntryDialog(QDialog):
 
         title_text = "Edit Debit Note" if dn else "New Debit Note"
         self.setWindowTitle(f"Debit Note - {title_text}")
-        self.setMinimumWidth(1260)
-        self.setMinimumHeight(680)
+        self.resize(1260, 680)
+        self.setMinimumWidth(1160)
+        self.setMinimumHeight(600)
         self.setModal(True)
 
         p = _get_palette()
@@ -377,6 +445,7 @@ class _DebitNoteEntryDialog(QDialog):
             f"border: 1px solid {p['border']}; border-radius: 2px; padding: 4px; font-size: 13px; font-family: 'Segoe UI'; }}"
             f"QLineEdit:focus, QDateEdit:focus, QComboBox:focus {{ border: 1px solid {p['accent']}; }}"
             + date_subcontrols(p, width=22)
+            + combo_subcontrols(p, width=22)
         )
 
         root = QVBoxLayout(self)
@@ -400,17 +469,21 @@ class _DebitNoteEntryDialog(QDialog):
         # 5. Bottom summary bar
         self._build_bottom_bar(root)
 
-        # Load initial data
-        self._load_suppliers()
-        self._entry_bar.load_items()
+        # Load initial data with cascade suppression
+        self._populating = True
+        try:
+            self._load_suppliers()
+            self._entry_bar.load_items()
 
-        if dn:
-            self._populate_dn(dn)
-        else:
-            self._init_new_dn()
-            if supplier_id:
-                self.supplier_combo.set_selected_id(supplier_id)
-                self._entry_bar.set_supplier_id(supplier_id)
+            if dn:
+                self._populate_dn(dn)
+            else:
+                self._init_new_dn()
+                if supplier_id:
+                    self.supplier_combo.set_selected_id(supplier_id)
+        finally:
+            self._populating = False
+        self._recalc_totals()
 
     def _build_top_banner(self, parent_layout: QVBoxLayout, title_text: str):
         p = _get_palette()
@@ -485,9 +558,10 @@ class _DebitNoteEntryDialog(QDialog):
         hl.addWidget(self.supplier_combo, 1)
 
         hl.addWidget(_hdr_lbl("Less :"))
-        self.header_less_edit = QLineEdit("0.00")
+        self.header_less_edit = QLineEdit("0%")
         self.header_less_edit.setFixedWidth(80)
         self.header_less_edit.setAlignment(Qt.AlignRight)
+        self.header_less_edit.setToolTip("Discount percentage (e.g. 5%) or flat amount (e.g. 10.00)")
         self.header_less_edit.textChanged.connect(self._recalc_totals)
         hl.addWidget(self.header_less_edit)
 
@@ -586,12 +660,24 @@ class _DebitNoteEntryDialog(QDialog):
 
     def _load_suppliers(self):
         suppliers = SupplierDAO.get_all()
+        self._supplier_cache = {s["id"]: s for s in suppliers}
         items = [(s["supplier_name"], s["id"]) for s in suppliers]
         self.supplier_combo.populate(items)
 
     def _on_supplier_changed(self, supplier_id: object):
         sid = int(supplier_id) if supplier_id else None
         self._entry_bar.set_supplier_id(sid)
+        if getattr(self, "_populating", False):
+            return
+        if sid:
+            sup = getattr(self, "_supplier_cache", {}).get(sid) or SupplierDAO.get_by_id(sid)
+            disc = float(sup.get("discount") or 0.0) if sup else 0.0
+            if disc > 0:
+                self.header_less_edit.setText(f"{disc:g}%")
+            else:
+                self.header_less_edit.setText("0%")
+        else:
+            self.header_less_edit.setText("0%")
 
     def _on_date_changed(self, qdate: QDate):
         self.banner_date_lbl.setText(qdate.toString("dd-MM-yyyy"))
@@ -612,54 +698,79 @@ class _DebitNoteEntryDialog(QDialog):
         # Ledger posting unchecked by default matching Screenshot 1
         self.add_to_ledger_cb.setChecked(False)
 
-    def _populate_dn(self, dn: dict):
-        from core.doc_formatter import format_document_number
-        full_vno = dn.get("voucher_no", "")
-        self._full_voucher_no = full_vno
-        self.voucher_no_lbl.setText(format_document_number(full_vno))
-        self.voucher_no_lbl.setToolTip(f"Full Voucher: {full_vno}")
-
-        vd = dn.get("voucher_date", "")
-        if vd:
-            parts = vd.split("-")
-            self.date_edit.setDate(QDate(int(parts[0]), int(parts[1]), int(parts[2])))
-        self.banner_time_lbl.setText(dn.get("voucher_time", ""))
-
-        sid = dn.get("supplier_id")
+        sid = self.supplier_combo.currentData()
         if sid:
-            idx = self.supplier_combo.findData(sid)
-            if idx >= 0:
-                self.supplier_combo.setCurrentIndex(idx)
+            sup = getattr(self, "_supplier_cache", {}).get(int(sid)) or SupplierDAO.get_by_id(int(sid))
+            disc = float(sup.get("discount") or 0.0) if sup else 0.0
+            if disc > 0:
+                self.header_less_edit.setText(f"{disc:g}%")
+            else:
+                self.header_less_edit.setText("0%")
+        else:
+            self.header_less_edit.setText("0%")
 
-        # Checkbox state
-        is_posted = dn.get("added_to_ledger") == "Y"
-        self.add_to_ledger_cb.setChecked(is_posted)
+    def _populate_dn(self, dn: dict):
+        self._populating = True
+        try:
+            from core.doc_formatter import format_document_number
+            full_vno = dn.get("voucher_no", "")
+            self._full_voucher_no = full_vno
+            self.voucher_no_lbl.setText(format_document_number(full_vno))
+            self.voucher_no_lbl.setToolTip(f"Full Voucher: {full_vno}")
 
-        # Load items
-        items = DebitNoteDAO.get_items(dn["id"])
-        self._item_rows.clear()
-        for it in items:
-            self._item_rows.append(
-                _ReturnItemRow(
-                    item_id=it["item_id"],
-                    item_name=it.get("item_name", ""),
-                    stock_batch_id=it["stock_batch_id"],
-                    batch_no=it.get("batch_no", ""),
-                    expiry=it.get("expiry", ""),
-                    pack_size=str(it.get("pack_size") or "1"),
-                    rate=float(it.get("rate", 0.0)),
-                    mrp=float(it.get("mrp", 0.0)),
-                    return_qty=float(it.get("return_qty", 0.0)),
-                    free_qty=float(it.get("free_qty", 0.0)),
-                    less_amount=float(it.get("less_amount", 0.0)),
-                    amount=float(it.get("amount", 0.0)),
-                    return_reason=it.get("return_reason", "Purchase Return"),
-                    price_factor="RATE" if it.get("price_factor", 1.0) == 1.0 else "MRP",
-                    price_factor_num=float(it.get("price_factor", 1.0)),
+            vd = dn.get("voucher_date", "")
+            if vd:
+                parts = vd.split("-")
+                self.date_edit.setDate(QDate(int(parts[0]), int(parts[1]), int(parts[2])))
+            self.banner_time_lbl.setText(dn.get("voucher_time", ""))
+
+            sid = dn.get("supplier_id")
+            if sid:
+                idx = self.supplier_combo.findData(sid)
+                if idx >= 0:
+                    self.supplier_combo.setCurrentIndex(idx)
+
+            # Checkbox state
+            is_posted = dn.get("added_to_ledger") == "Y"
+            self.add_to_ledger_cb.setChecked(is_posted)
+
+            # Header Less / Discount restoration
+            disc_pct = float(dn.get("discount_pct") or 0.0)
+            less_amt = float(dn.get("less_amount") or 0.0)
+            if disc_pct > 0:
+                self.header_less_edit.setText(f"{disc_pct:g}%")
+            elif less_amt > 0:
+                self.header_less_edit.setText(f"{less_amt:.2f}")
+            else:
+                self.header_less_edit.setText("0%")
+
+            # Load items
+            items = DebitNoteDAO.get_items(dn["id"])
+            self._item_rows.clear()
+            for it in items:
+                self._item_rows.append(
+                    _ReturnItemRow(
+                        item_id=it["item_id"],
+                        item_name=it.get("item_name", ""),
+                        stock_batch_id=it["stock_batch_id"],
+                        batch_no=it.get("batch_no", ""),
+                        expiry=it.get("expiry", ""),
+                        pack_size=str(it.get("pack_size") or "1"),
+                        rate=float(it.get("rate", 0.0)),
+                        mrp=float(it.get("mrp", 0.0)),
+                        return_qty=float(it.get("return_qty", 0.0)),
+                        free_qty=float(it.get("free_qty", 0.0)),
+                        less_amount=float(it.get("less_amount", 0.0)),
+                        amount=float(it.get("amount", 0.0)),
+                        return_reason=it.get("return_reason", "Purchase Return"),
+                        price_factor="RATE" if it.get("price_factor", 1.0) == 1.0 else "MRP",
+                        price_factor_num=float(it.get("price_factor", 1.0)),
+                    )
                 )
-            )
-        self._refresh_table()
-        self._recalc_totals()
+            self._refresh_table()
+            self._recalc_totals()
+        finally:
+            self._populating = False
 
     def _on_add_item(self):
         data = self._entry_bar.get_current_data()
@@ -689,13 +800,15 @@ class _DebitNoteEntryDialog(QDialog):
             if r.stock_batch_id == data["stock_batch_id"]
         )
 
+        unit = self._entry_bar._detect_unit_name(data["item_name"])
+
         if (loose_deduction + already_added_loose) > available_stock:
             max_packs = max(0.0, (available_stock - already_added_loose) / p_factor)
             QMessageBox.warning(
                 self,
                 "Insufficient Stock",
-                f"Batch {data['batch_no']} has {available_stock:g} loose units in stock.\n"
-                f"Cannot return {loose_deduction + already_added_loose:g} loose units "
+                f"Batch {data['batch_no']} has {available_stock:g} loose {unit.lower()} in stock.\n"
+                f"Cannot return {loose_deduction + already_added_loose:g} loose {unit.lower()} "
                 f"(max available: {max_packs:g} packs).",
             )
             return
@@ -730,49 +843,56 @@ class _DebitNoteEntryDialog(QDialog):
 
     def _refresh_table(self):
         p = _get_palette()
-        self._table.setRowCount(len(self._item_rows))
-        for i, r in enumerate(self._item_rows):
-            self._table.setItem(i, 0, QTableWidgetItem(r.item_name))
-            self._table.setItem(i, 1, QTableWidgetItem(r.pack_size))
-            self._table.setItem(i, 2, QTableWidgetItem(r.batch_no))
-            self._table.setItem(i, 3, QTableWidgetItem(r.expiry))
-
-            rate_item = QTableWidgetItem(f"{r.rate:.2f}")
-            rate_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self._table.setItem(i, 4, rate_item)
-
-            mrp_item = QTableWidgetItem(f"{r.mrp:.2f}")
-            mrp_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self._table.setItem(i, 5, mrp_item)
-
-            qty_item = QTableWidgetItem(f"{r.return_qty:g}")
-            qty_item.setTextAlignment(Qt.AlignCenter)
-            self._table.setItem(i, 6, qty_item)
-
-            free_item = QTableWidgetItem(f"{r.free_qty:g}")
-            free_item.setTextAlignment(Qt.AlignCenter)
-            self._table.setItem(i, 7, free_item)
-
-            disc_item = QTableWidgetItem(f"{r.less_amount:.2f}")
-            disc_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self._table.setItem(i, 8, disc_item)
-
-            amt_item = QTableWidgetItem(f"{r.amount:.2f}")
-            amt_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self._table.setItem(i, 9, amt_item)
-
-            self._table.setItem(i, 10, QTableWidgetItem(r.return_reason))
-            self._table.setItem(i, 11, QTableWidgetItem(r.price_factor))
-
-            del_btn = QPushButton("Del")
-            del_btn.setStyleSheet(
+        self._table.setUpdatesEnabled(False)
+        self._table.blockSignals(True)
+        try:
+            self._table.setRowCount(len(self._item_rows))
+            btn_style = (
                 "QPushButton { background-color: #ef4444; color: white; border: none; "
                 "border-radius: 2px; font-weight: bold; font-size: 11px; padding: 2px; }"
                 "QPushButton:hover { background-color: #dc2626; }"
             )
-            del_btn.setFixedWidth(36)
-            del_btn.clicked.connect(lambda _, idx=i: self._delete_row(idx))
-            self._table.setCellWidget(i, 12, del_btn)
+            for i, r in enumerate(self._item_rows):
+                self._table.setItem(i, 0, QTableWidgetItem(r.item_name))
+                self._table.setItem(i, 1, QTableWidgetItem(r.pack_size))
+                self._table.setItem(i, 2, QTableWidgetItem(r.batch_no))
+                self._table.setItem(i, 3, QTableWidgetItem(r.expiry))
+
+                rate_item = QTableWidgetItem(f"{r.rate:.2f}")
+                rate_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self._table.setItem(i, 4, rate_item)
+
+                mrp_item = QTableWidgetItem(f"{r.mrp:.2f}")
+                mrp_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self._table.setItem(i, 5, mrp_item)
+
+                qty_item = QTableWidgetItem(f"{r.return_qty:g}")
+                qty_item.setTextAlignment(Qt.AlignCenter)
+                self._table.setItem(i, 6, qty_item)
+
+                free_item = QTableWidgetItem(f"{r.free_qty:g}")
+                free_item.setTextAlignment(Qt.AlignCenter)
+                self._table.setItem(i, 7, free_item)
+
+                disc_item = QTableWidgetItem(f"{r.less_amount:.2f}")
+                disc_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self._table.setItem(i, 8, disc_item)
+
+                amt_item = QTableWidgetItem(f"{r.amount:.2f}")
+                amt_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self._table.setItem(i, 9, amt_item)
+
+                self._table.setItem(i, 10, QTableWidgetItem(r.return_reason))
+                self._table.setItem(i, 11, QTableWidgetItem(r.price_factor))
+
+                del_btn = QPushButton("Del")
+                del_btn.setStyleSheet(btn_style)
+                del_btn.setFixedWidth(36)
+                del_btn.clicked.connect(lambda _, idx=i: self._delete_row(idx))
+                self._table.setCellWidget(i, 12, del_btn)
+        finally:
+            self._table.blockSignals(False)
+            self._table.setUpdatesEnabled(True)
 
     def _delete_row(self, idx: int):
         if 0 <= idx < len(self._item_rows):
@@ -783,8 +903,8 @@ class _DebitNoteEntryDialog(QDialog):
     def _recalc_totals(self):
         total_items = len(self._item_rows)
         subtotal = sum(r.amount for r in self._item_rows)
-        header_less = _safe_float(self.header_less_edit.text(), 0.0)
-        total_amount = max(0.0, round(subtotal - header_less, 2))
+        less_amt, _ = _parse_header_less(self.header_less_edit.text(), subtotal)
+        total_amount = max(0.0, round(subtotal - less_amt, 2))
 
         self.total_items_val.setText(str(total_items))
         self.total_amount_val.setText(f"{total_amount:.2f}")
@@ -806,7 +926,9 @@ class _DebitNoteEntryDialog(QDialog):
             return
 
         self._recalc_totals()
-        total_amount = float(self.total_amount_val.text())
+        subtotal = sum(r.amount for r in self._item_rows)
+        less_amt, disc_pct = _parse_header_less(self.header_less_edit.text(), subtotal)
+        total_amount = max(0.0, round(subtotal - less_amt, 2))
         add_to_ledger = self.add_to_ledger_cb.isChecked()
 
         voucher_date = self.date_edit.date().toString("yyyy-MM-dd")
@@ -823,6 +945,8 @@ class _DebitNoteEntryDialog(QDialog):
             "total_amount": total_amount,
             "ledger_amount": total_amount if add_to_ledger else 0.0,
             "add_to_ledger": add_to_ledger,
+            "discount_pct": disc_pct,
+            "less_amount": less_amt,
             "remarks": "",
         }
         items_data = [r.to_dict() for r in self._item_rows]
@@ -1063,49 +1187,53 @@ class DebitNotePage(QWidget):
             supplier_id=sid,
         )
 
+        self._hist_table.setUpdatesEnabled(False)
         self._hist_table.setSortingEnabled(False)
-        self._hist_table.setRowCount(len(dns))
+        try:
+            self._hist_table.setRowCount(len(dns))
 
-        for i, dn in enumerate(dns):
-            from core.doc_formatter import format_document_number
-            raw_vno = dn.get("voucher_no", "")
-            disp_no = format_document_number(raw_vno)
+            for i, dn in enumerate(dns):
+                raw_vno = dn.get("voucher_no", "")
+                disp_no = format_document_number(raw_vno)
 
-            item_type = QTableWidgetItem("Debit Note")
-            item_type.setData(Qt.UserRole, dn["id"])
-            self._hist_table.setItem(i, 0, item_type)
+                item_type = QTableWidgetItem("Debit Note")
+                item_type.setData(Qt.UserRole, dn["id"])
+                self._hist_table.setItem(i, 0, item_type)
 
-            no_item = QTableWidgetItem(disp_no)
-            no_item.setToolTip(f"Full Voucher: {raw_vno}")
-            self._hist_table.setItem(i, 1, no_item)
+                no_item = QTableWidgetItem(disp_no)
+                no_item.setToolTip(f"Full Voucher: {raw_vno}")
+                self._hist_table.setItem(i, 1, no_item)
 
-            # Dates in dd/MM/yyyy
-            vd = dn.get("voucher_date", "")
-            if vd and "-" in vd:
-                p_date = vd.split("-")
-                vd_disp = f"{p_date[2]}/{p_date[1]}/{p_date[0]}"
-            else:
-                vd_disp = vd
-            self._hist_table.setItem(i, 2, QTableWidgetItem(vd_disp))
+                # Dates in dd/MM/yyyy
+                vd = dn.get("voucher_date", "")
+                if vd and "-" in vd:
+                    p_date = vd.split("-")
+                    vd_disp = f"{p_date[2]}/{p_date[1]}/{p_date[0]}"
+                else:
+                    vd_disp = vd
+                self._hist_table.setItem(i, 2, QTableWidgetItem(vd_disp))
 
-            self._hist_table.setItem(i, 3, QTableWidgetItem(dn.get("voucher_time", "")))
+                self._hist_table.setItem(i, 3, QTableWidgetItem(dn.get("voucher_time", "")))
 
-            dd = dn.get("dn_date", "")
-            if dd and "-" in dd:
-                p_date = dd.split("-")
-                dd_disp = f"{p_date[2]}/{p_date[1]}/{p_date[0]}"
-            else:
-                dd_disp = dd
-            self._hist_table.setItem(i, 4, QTableWidgetItem(dd_disp))
+                dd = dn.get("dn_date", "")
+                if dd and "-" in dd:
+                    p_date = dd.split("-")
+                    dd_disp = f"{p_date[2]}/{p_date[1]}/{p_date[0]}"
+                else:
+                    dd_disp = dd
+                self._hist_table.setItem(i, 4, QTableWidgetItem(dd_disp))
 
-            self._hist_table.setItem(i, 5, QTableWidgetItem(dn.get("dn_type", "Supplier")))
-            self._hist_table.setItem(i, 6, QTableWidgetItem(dn.get("supplier_name", "")))
+                self._hist_table.setItem(i, 5, QTableWidgetItem(dn.get("dn_type", "Supplier")))
+                self._hist_table.setItem(i, 6, QTableWidgetItem(dn.get("supplier_name", "")))
 
-            amt_item = QTableWidgetItem(f"{dn.get('total_amount', 0.0):.2f}")
-            amt_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self._hist_table.setItem(i, 7, amt_item)
-
-        self._hist_table.setSortingEnabled(True)
+                tot_val = float(dn.get('total_amount', 0.0) or 0.0)
+                amt_item = QTableWidgetItem(f"{tot_val:.2f}")
+                amt_item.setData(Qt.EditRole, tot_val)
+                amt_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self._hist_table.setItem(i, 7, amt_item)
+        finally:
+            self._hist_table.setSortingEnabled(True)
+            self._hist_table.setUpdatesEnabled(True)
 
     def _selected_id(self) -> int | None:
         rows = self._hist_table.selectionModel().selectedRows()
@@ -1217,8 +1345,9 @@ class PendingDebitNotesDialog(QDialog):
         self._row_edits: list[dict] = []
 
         self.setWindowTitle(f"Pending Debit Note(s) For {self._supplier_name}")
-        self.setMinimumWidth(740)
-        self.setMinimumHeight(420)
+        self.resize(880, 400)
+        self.setMinimumWidth(800)
+        self.setMinimumHeight(300)
         self.setModal(True)
 
         p = _get_palette()
@@ -1243,8 +1372,11 @@ class PendingDebitNotesDialog(QDialog):
         self.table.setHorizontalHeaderLabels([
             "VhType", "VhNo", "VhDate", "VhAmount", "UnSettled", "DebitAmt", "DiscAmt"
         ])
-        self.table.horizontalHeader().setStretchLastSection(True)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        header = self.table.horizontalHeader()
+        header.setStretchLastSection(False)
+        header.setSectionResizeMode(QHeaderView.Interactive)
+        header.setSectionResizeMode(1, QHeaderView.Stretch)
+        header.setMinimumSectionSize(80)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.verticalHeader().setVisible(False)
         layout.addWidget(self.table, 1)
@@ -1288,79 +1420,93 @@ class PendingDebitNotesDialog(QDialog):
         notes = DebitNoteDAO.get_unsettled_by_supplier(
             self._supplier_id, self._supplier_name
         )
-        self.table.setRowCount(len(notes))
-        self._row_edits = []
+        self.table.setUpdatesEnabled(False)
+        self.table.setSortingEnabled(False)
+        try:
+            self.table.setRowCount(len(notes))
+            self._row_edits = []
 
-        remaining_needed = self._max_needed
+            remaining_needed = self._max_needed
 
-        for row, n in enumerate(notes):
-            dn_id = n["id"]
-            vh_no = str(n.get("voucher_no", ""))
-            vh_date = str(n.get("voucher_date", ""))
-            vh_amt = float(n.get("total_amount", 0.0))
-            unsettled = float(n.get("unsettled_amount", 0.0))
+            for row, n in enumerate(notes):
+                dn_id = n["id"]
+                vh_no = str(n.get("voucher_no", ""))
+                vh_date = str(n.get("voucher_date", ""))
+                vh_amt = float(n.get("total_amount", 0.0))
+                unsettled = float(n.get("unsettled_amount", 0.0))
 
-            # Prior adjustment if already opened
-            prior_debit = 0.0
-            prior_disc = 0.0
-            if dn_id in self._already_applied:
-                prior_debit = float(self._already_applied[dn_id].get("debit_amount", self._already_applied[dn_id].get("settled_amount", 0.0)))
-                prior_disc = float(self._already_applied[dn_id].get("discount_amount", 0.0))
+                # Prior adjustment if already opened
+                prior_debit = 0.0
+                prior_disc = 0.0
+                if dn_id in self._already_applied:
+                    prior_debit = float(self._already_applied[dn_id].get("debit_amount", self._already_applied[dn_id].get("settled_amount", 0.0)))
+                    prior_disc = float(self._already_applied[dn_id].get("discount_amount", 0.0))
 
-            # If opening fresh and needed > 0, auto-fill up to remaining needed
-            if prior_debit <= 0 and remaining_needed > 0 and unsettled > 0:
-                suggested = min(unsettled, remaining_needed)
-                prior_debit = suggested
-                remaining_needed -= suggested
+                # If opening fresh and needed > 0, auto-fill up to remaining needed
+                if prior_debit <= 0 and remaining_needed > 0 and unsettled > 0:
+                    suggested = min(unsettled, remaining_needed)
+                    prior_debit = suggested
+                    remaining_needed -= suggested
 
-            item_type = QTableWidgetItem("Debit Note")
-            item_type.setFlags(item_type.flags() & ~Qt.ItemIsEditable)
+                raw_date = str(n.get("voucher_date", "")).strip()
+                if raw_date and len(raw_date) >= 10 and raw_date[4] == "-" and raw_date[7] == "-":
+                    disp_date = f"{raw_date[8:10]}-{raw_date[5:7]}-{raw_date[:4]}"
+                else:
+                    disp_date = raw_date
 
-            item_no = QTableWidgetItem(vh_no)
-            item_no.setFlags(item_no.flags() & ~Qt.ItemIsEditable)
+                item_type = QTableWidgetItem("Debit Note")
+                item_type.setFlags(item_type.flags() & ~Qt.ItemIsEditable)
 
-            item_date = QTableWidgetItem(vh_date)
-            item_date.setFlags(item_date.flags() & ~Qt.ItemIsEditable)
+                item_no = QTableWidgetItem(vh_no)
+                item_no.setFlags(item_no.flags() & ~Qt.ItemIsEditable)
 
-            item_amt = QTableWidgetItem(f"{vh_amt:.2f}")
-            item_amt.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            item_amt.setFlags(item_amt.flags() & ~Qt.ItemIsEditable)
+                item_date = QTableWidgetItem(disp_date)
+                item_date.setTextAlignment(Qt.AlignCenter)
+                item_date.setFlags(item_date.flags() & ~Qt.ItemIsEditable)
 
-            item_unsettled = QTableWidgetItem(f"{unsettled:.2f}")
-            item_unsettled.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            item_unsettled.setFlags(item_unsettled.flags() & ~Qt.ItemIsEditable)
+                item_amt = QTableWidgetItem(f"{vh_amt:.2f}")
+                item_amt.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                item_amt.setFlags(item_amt.flags() & ~Qt.ItemIsEditable)
 
-            debit_edit = QLineEdit(f"{prior_debit:.2f}" if prior_debit > 0 else "0.0")
-            debit_edit.setAlignment(Qt.AlignRight)
+                item_unsettled = QTableWidgetItem(f"{unsettled:.2f}")
+                item_unsettled.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                item_unsettled.setFlags(item_unsettled.flags() & ~Qt.ItemIsEditable)
 
-            disc_edit = QLineEdit(f"{prior_disc:.2f}" if prior_disc > 0 else "0.0")
-            disc_edit.setAlignment(Qt.AlignRight)
+                debit_edit = QLineEdit(f"{prior_debit:.2f}" if prior_debit > 0 else "0.0")
+                debit_edit.setAlignment(Qt.AlignRight)
+                debit_edit.setMinimumWidth(85)
 
-            self.table.setItem(row, 0, item_type)
-            self.table.setItem(row, 1, item_no)
-            self.table.setItem(row, 2, item_date)
-            self.table.setItem(row, 3, item_amt)
-            self.table.setItem(row, 4, item_unsettled)
-            self.table.setCellWidget(row, 5, debit_edit)
-            self.table.setCellWidget(row, 6, disc_edit)
+                disc_edit = QLineEdit(f"{prior_disc:.2f}" if prior_disc > 0 else "0.0")
+                disc_edit.setAlignment(Qt.AlignRight)
+                disc_edit.setMinimumWidth(85)
 
-            self._row_edits.append({
-                "debit_note_id": dn_id,
-                "voucher_no": vh_no,
-                "voucher_date": vh_date,
-                "total_amount": vh_amt,
-                "unsettled": unsettled,
-                "debit_edit": debit_edit,
-                "disc_edit": disc_edit,
-            })
+                self.table.setItem(row, 0, item_type)
+                self.table.setItem(row, 1, item_no)
+                self.table.setItem(row, 2, item_date)
+                self.table.setItem(row, 3, item_amt)
+                self.table.setItem(row, 4, item_unsettled)
+                self.table.setCellWidget(row, 5, debit_edit)
+                self.table.setCellWidget(row, 6, disc_edit)
 
-        self.table.setColumnWidth(0, 95)
-        self.table.setColumnWidth(1, 80)
-        self.table.setColumnWidth(2, 95)
-        self.table.setColumnWidth(3, 90)
-        self.table.setColumnWidth(4, 90)
-        self.table.setColumnWidth(5, 110)
-        self.table.setColumnWidth(6, 90)
+                self._row_edits.append({
+                    "debit_note_id": dn_id,
+                    "voucher_no": vh_no,
+                    "voucher_date": vh_date,
+                    "total_amount": vh_amt,
+                    "unsettled": unsettled,
+                    "debit_edit": debit_edit,
+                    "disc_edit": disc_edit,
+                })
+
+            self.table.setColumnWidth(0, 115)
+            self.table.setColumnWidth(1, 165)
+            self.table.setColumnWidth(2, 110)
+            self.table.setColumnWidth(3, 110)
+            self.table.setColumnWidth(4, 110)
+        finally:
+            self.table.setUpdatesEnabled(True)
+        self.table.setColumnWidth(5, 120)
+        self.table.setColumnWidth(6, 115)
 
     def _on_new_debit_note(self):
         dlg = _DebitNoteEntryDialog(self, supplier_id=self._supplier_id)

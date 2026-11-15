@@ -177,7 +177,7 @@ class DrugDAO:
 
         conn = get_connection()
         try:
-            pattern = f"%{term}%"
+            pattern = f"{term}%"
             cur = conn.execute(
                 """
                 SELECT DISTINCT
@@ -233,7 +233,7 @@ class DrugDAO:
         if not term:
             return []
 
-        pattern = f"%{term}%"
+        pattern = f"{term}%"
         conn = get_connection()
         try:
             results = []

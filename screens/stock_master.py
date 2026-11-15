@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 from database.stock_dao import StockDAO
 from database.company_dao import CompanyDAO
 
-from ui.theme import palette
+from ui.theme import combo_subcontrols, palette
 _p = palette()
 _DARK_BG = _p["bg"]
 _SURFACE = _p["surface"]
@@ -35,9 +35,8 @@ _COMBO_STYLE = (
     f"  padding: 6px; font-size: 15px; font-family: 'Segoe UI';"
     f"}}"
     f"QComboBox:hover {{ border: 1px solid {_ACCENT}; }}"
-    f"QComboBox::drop-down {{ border: none; width: 24px; }}"
-    f"QComboBox::down-arrow {{ image: none; border: none; }}"
-    f"QComboBox QAbstractItemView {{"
+    + combo_subcontrols(_p, width=24)
+    + f"QComboBox QAbstractItemView {{"
     f"  background-color: {_SURFACE}; color: {_TEXT};"
     f"  border: 1px solid {_BORDER}; selection-background-color: {_ACCENT};"
     f"  font-size: 15px; font-family: 'Segoe UI';"

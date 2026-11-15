@@ -5,8 +5,8 @@ import re
 from datetime import datetime, date
 from decimal import Decimal, ROUND_HALF_UP
 
-from PySide6.QtCore import Qt, QDate, QEvent, Signal, QModelIndex, QPoint
-from PySide6.QtGui import QFont, QStandardItemModel, QStandardItem
+from PySide6.QtCore import Qt, QDate, QEvent, Signal, QModelIndex, QPoint, QSize
+from PySide6.QtGui import QFont, QStandardItemModel, QStandardItem, QIcon
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCalendarWidget,
@@ -45,7 +45,7 @@ from database.document_printing import DocumentPrintError, generate_purchase_inv
 from screens.item_master import _ItemDialog
 
 from ui.components import ConstrainedComboBox, SearchableComboBox
-from ui.theme import date_subcontrols, palette
+from ui.theme import combo_subcontrols, date_subcontrols, palette, _drop_arrow_path
 _p = palette()
 _DARK_BG = _p["bg"]
 _SURFACE = _p["surface"]
@@ -73,9 +73,8 @@ def _combo_style(p: dict | None = None) -> str:
         f"  min-height: 24px;"
         f"}}"
         f"QComboBox:hover {{ border: 1px solid {accent}; }}"
-        f"QComboBox::drop-down {{ border: none; width: 24px; }}"
-        f"QComboBox::down-arrow {{ image: none; border: none; }}"
-        f"QComboBox QAbstractItemView {{"
+        + combo_subcontrols(p, width=24)
+        + f"QComboBox QAbstractItemView {{"
         f"  background-color: {surface}; color: {text};"
         f"  border: 1px solid {border}; selection-background-color: {selected_bg};"
         f"  selection-color: {selected_text};"
@@ -427,7 +426,7 @@ class BatchLineEdit(QLineEdit):
         self._model = QStandardItemModel(self)
         self._completer = BatchCompleter(self._model, self)
         self._completer.setCaseSensitivity(Qt.CaseInsensitive)
-        self._completer.setFilterMode(Qt.MatchContains)
+        self._completer.setFilterMode(Qt.MatchStartsWith)
         self._completer.setCompletionRole(Qt.UserRole + 1)
         self._completer.setCompletionMode(QCompleter.PopupCompletion)
         self._completer.setMaxVisibleItems(8)
@@ -817,12 +816,18 @@ class ExpiryDateEdit(QWidget):
             f"  background-color: {btn_bg}; color: {text};"
             f"  border: 1px solid {border};"
             f"  border-top-right-radius: 2px; border-bottom-right-radius: 2px;"
-            f"  width: 20px; font-size: 10px; font-weight: bold;"
+            f"  width: 20px; font-weight: bold;"
             f"}}"
             f"QToolButton:hover {{ background-color: {accent}; color: white; }}"
             f"QToolButton:disabled {{ background-color: {disabled_bg}; color: {disabled_text}; }}"
         )
-        self._btn.setText("▼")
+        glyph = _drop_arrow_path(disabled_text if self._read_only else text)
+        if glyph:
+            self._btn.setIcon(QIcon(glyph))
+            self._btn.setIconSize(QSize(12, 12))
+            self._btn.setText("")
+        else:
+            self._btn.setText("▼")
         if self._cal:
             self._cal.setStyleSheet(
                 f"QCalendarWidget QWidget {{ background-color: {cal_bg}; color: {text}; font-size: 13px; font-family: 'Segoe UI'; }}"
@@ -976,15 +981,18 @@ class _ItemPurchaseHistoryDialog(QDialog):
         self._history_data = rows
         self.table.setRowCount(len(rows))
         for row_idx, r in enumerate(rows):
-            # Tran.No
-            raw_vno = str(r.get("voucher_no") or "")
-            vno_disp = _display_voucher_no(raw_vno) if raw_vno else str(r.get("invoice_id") or "")
+            # Tran.No - Supplier Invoice/Transaction number (fallback to voucher no or invoice id)
+            raw_inv_no = str(r.get("invoice_no") or "").strip()
+            raw_vno = str(r.get("voucher_no") or "").strip()
+            vno_disp = raw_inv_no if raw_inv_no else (_display_voucher_no(raw_vno) if raw_vno else str(r.get("invoice_id") or ""))
             item_vno = QTableWidgetItem(vno_disp)
-            item_vno.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            item_vno.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             self.table.setItem(row_idx, 0, item_vno)
 
-            # Tran.Date (DD-MM-YYYY)
-            raw_date = str(r.get("voucher_date") or "").strip()
+            # Tran.Date (DD-MM-YYYY) - Supplier Invoice date (fallback to voucher date)
+            raw_inv_date = str(r.get("invoice_date") or "").strip()
+            raw_vno_date = str(r.get("voucher_date") or "").strip()
+            raw_date = raw_inv_date if raw_inv_date else raw_vno_date
             date_disp = ""
             if raw_date:
                 try:
@@ -993,7 +1001,7 @@ class _ItemPurchaseHistoryDialog(QDialog):
                 except Exception:
                     date_disp = raw_date
             item_date = QTableWidgetItem(date_disp)
-            item_date.setTextAlignment(Qt.AlignCenter)
+            item_date.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             self.table.setItem(row_idx, 1, item_date)
 
             # Tran.Type
@@ -1492,10 +1500,15 @@ class _ItemEntryBar(QWidget):
         except Exception:
             items = []
         list_items = []
+        seen_ids = set()
         for it in items:
+            item_id = it.get("id")
+            if item_id is None or item_id in seen_ids:
+                continue
+            seen_ids.add(item_id)
             uname = (it.get("unit_name") or "").strip()
             name_display = f"{it['item_name']} ({uname})" if uname else it["item_name"]
-            list_items.append((name_display, it["id"]))
+            list_items.append((name_display, item_id))
         self.item_combo.populate(list_items)
 
     def clear(self):
@@ -1834,7 +1847,7 @@ class _InvoiceDialog(QDialog):
             f"  padding: 1px 2px 1px 6px; font-size: 13px; font-weight: bold; font-family: 'Segoe UI';"
             f"}}"
             f"QComboBox:hover {{ border: 1px solid {_ACCENT}; }}"
-            f"QComboBox::drop-down {{ border: none; width: 18px; }}"
+            + combo_subcontrols(palette(), width=18)
         )
         disc_row.addWidget(self.bill_disc_type_combo)
         self.bill_discount_edit = _make_edit("0.00", width=80)
@@ -2848,6 +2861,16 @@ class _InvoiceDialog(QDialog):
         p = palette()
         self.supplier_combo.refresh_theme(p)
         self.purchase_type_combo.setStyleSheet(_combo_style(p))
+        if hasattr(self, "bill_disc_type_combo"):
+            self.bill_disc_type_combo.setStyleSheet(
+                f"QComboBox {{"
+                f"  background-color: {p['surface']}; color: {p['text']};"
+                f"  border: 1px solid {p['border']}; border-radius: 2px;"
+                f"  padding: 1px 2px 1px 6px; font-size: 13px; font-weight: bold; font-family: 'Segoe UI';"
+                f"}}"
+                f"QComboBox:hover {{ border: 1px solid {p['accent']}; }}"
+                + combo_subcontrols(p, width=18)
+            )
         self._entry_bar.refresh_theme(p)
         date_st = _date_style(p)
         self.voucher_date.setStyleSheet(date_st)

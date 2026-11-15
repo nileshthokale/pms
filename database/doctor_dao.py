@@ -48,7 +48,7 @@ class DoctorDAO:
         try:
             rows = conn.execute(
                 "SELECT * FROM doctors WHERE doctor_name LIKE ? ORDER BY doctor_name",
-                (f"%{name}%",),
+                (f"{name.strip()}%",),
             ).fetchall()
             return [dict(row) for row in rows]
         finally:

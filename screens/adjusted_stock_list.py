@@ -42,6 +42,8 @@ from ui.theme import (
     TYPE_FORM_LABEL,
     TYPE_HINT,
     TYPE_INPUT,
+    combo_subcontrols,
+    date_subcontrols,
     palette,
 )
 
@@ -137,12 +139,12 @@ class AdjustedStockListPage(QWidget):
         date_edit_style = (
             f"QDateEdit {{ background-color: {p['surface']}; color: {p['text']}; "
             f"border: 1px solid {p['border']}; border-radius: 2px; padding: 2px 6px; font-size: {TYPE_INPUT}px; }}"
-            f"QDateEdit::drop-down {{ subcontrol-origin: padding; subcontrol-position: top right; width: 20px; "
-            f"border-left: 1px solid {p['border']}; }}"
+            + date_subcontrols(p, width=20)
         )
         combo_style = (
             f"QComboBox {{ background-color: {p['surface']}; color: {p['text']}; border: 1px solid {p['border']}; "
             f"border-radius: 2px; padding: 2px 6px; font-size: {TYPE_INPUT}px; }}"
+            + combo_subcontrols(p, width=20)
         )
 
         # Date range filters neatly aligned on one row: From Date | AdjustedDate | To Date | Filter | Refresh

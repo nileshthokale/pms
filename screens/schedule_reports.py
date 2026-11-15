@@ -55,7 +55,7 @@ from ui.crystal_report_viewer import (
     print_or_export_report_pages,
 )
 from ui.components import SearchableComboBox
-from ui.theme import palette
+from ui.theme import combo_subcontrols, date_subcontrols, palette
 
 STORE_LINE_1 = "SHREE SAMARTH MEDICAL AND GEN STORE"
 STORE_LINE_2 = "GHORPADE HOSPITAL, RAHURI"
@@ -412,6 +412,8 @@ class _BaseScheduleReportPage(QWidget):
             f"QFrame {{ background-color: {bg_col}; border-left: 1px solid {border_col}; }}"
             f"QLabel {{ color: {text_col}; font-family: Segoe UI, Arial; }}"
             f"QDateEdit, QComboBox {{ background-color: {p['surface']}; color: {p['text']}; border: 1px solid {p['border']}; border-radius: 2px; padding: 3px; font-size: 11px; }}"
+            + combo_subcontrols(p, width=20)
+            + date_subcontrols(p, width=22)
         )
         self.lbl_panel_title.setStyleSheet(f"color: {p['accent'] if is_night else '#003366'}; font-size: 14px; font-weight: bold; margin-bottom: 6px;")
 

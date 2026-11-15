@@ -68,9 +68,9 @@ from screens.counter_sale_actions import (
 )
 from screens.item_master import _ItemDialog
 
-from ui.theme import date_subcontrols, palette
+from ui.theme import combo_subcontrols, date_subcontrols, palette
 from ui.theme import indicator_style
-from ui.components import FONT_FAMILY, readable_font, refresh_containers
+from ui.components import FONT_FAMILY, readable_font, refresh_containers, TableComboBox
 from ui.input_rules import attach_uppercase
 from ui import fy_view
 from ui.theme import (
@@ -131,9 +131,8 @@ _COMBO_STYLE = (
     f"  font-family: {FONT_FAMILY};"
     f"}}"
     f"QComboBox:hover {{ border: 1px solid {_ACCENT}; }}"
-    f"QComboBox::drop-down {{ border: none; width: 22px; }}"
-    f"QComboBox::down-arrow {{ image: none; border: none; }}"
-    f"QComboBox QAbstractItemView {{"
+    + combo_subcontrols(_p, width=22)
+    + f"QComboBox QAbstractItemView {{"
     f"  background-color: {_POPUP_BG}; color: {_POPUP_TEXT};"
     f"  border: 1px solid {_POPUP_BORDER}; selection-background-color: {_POPUP_SELECTED};"
     f"  selection-color: {_POPUP_TEXT}; outline: 0;"
@@ -204,9 +203,8 @@ _COMPACT_COMBO_STYLE = (
     f"  font-family: {FONT_FAMILY};"
     f"}}"
     f"QComboBox:hover {{ border: 1px solid {_ACCENT}; }}"
-    f"QComboBox::drop-down {{ border: none; width: 18px; }}"
-    f"QComboBox::down-arrow {{ image: none; border: none; }}"
-    f"QComboBox QAbstractItemView {{"
+    + combo_subcontrols(_p, width=18)
+    + f"QComboBox QAbstractItemView {{"
     f"  background-color: {_POPUP_BG}; color: {_POPUP_TEXT};"
     f"  border: 1px solid {_POPUP_BORDER}; selection-background-color: {_POPUP_SELECTED};"
     f"  selection-color: {_POPUP_TEXT}; outline: 0;"
@@ -500,9 +498,8 @@ def _fresh_combo_style(p: dict | None = None) -> str:
         f"  font-family: {FONT_FAMILY};"
         f"}}"
         f"QComboBox:hover {{ border: 1px solid {p['accent']}; }}"
-        f"QComboBox::drop-down {{ border: none; width: 22px; }}"
-        f"QComboBox::down-arrow {{ image: none; border: none; }}"
-        f"QComboBox QAbstractItemView {{"
+        + combo_subcontrols(p, width=22)
+        + f"QComboBox QAbstractItemView {{"
         f"  background-color: {pp['bg']}; color: {pp['text']};"
         f"  border: 1px solid {pp['border']}; selection-background-color: {pp['selected']};"
         f"  selection-color: {pp['text']}; outline: 0;"
@@ -582,9 +579,8 @@ def _fresh_compact_combo_style(p: dict | None = None) -> str:
         f"  font-family: {FONT_FAMILY};"
         f"}}"
         f"QComboBox:hover {{ border: 1px solid {p['accent']}; }}"
-        f"QComboBox::drop-down {{ border: none; width: 18px; }}"
-        f"QComboBox::down-arrow {{ image: none; border: none; }}"
-        f"QComboBox QAbstractItemView {{"
+        + combo_subcontrols(p, width=18)
+        + f"QComboBox QAbstractItemView {{"
         f"  background-color: {pp['bg']}; color: {pp['text']};"
         f"  border: 1px solid {pp['border']}; selection-background-color: {pp['selected']};"
         f"  selection-color: {pp['text']}; outline: 0;"
@@ -1271,7 +1267,7 @@ class _KeyboardCombo(QComboBox):
 
     completionAccepted = Signal()
 
-    def __init__(self, filter_mode: Qt.MatchFlag = Qt.MatchContains):
+    def __init__(self, filter_mode: Qt.MatchFlag = Qt.MatchStartsWith):
         super().__init__()
         self.setEditable(True)
         self.setInsertPolicy(QComboBox.NoInsert)
@@ -1646,7 +1642,7 @@ class _KeyboardCombo(QComboBox):
             pass
 
 
-def _make_combo(filter_mode: Qt.MatchFlag = Qt.MatchContains) -> QComboBox:
+def _make_combo(filter_mode: Qt.MatchFlag = Qt.MatchStartsWith) -> QComboBox:
     c = _KeyboardCombo(filter_mode=filter_mode)
     c.setStyleSheet(_COMBO_STYLE)
     _mark_cs(c, "combo")
@@ -1753,7 +1749,7 @@ class _DBLookupCombo(_KeyboardCombo):
             if self._patient_addresses is not None:
                 q = (query or "").strip().upper()
                 if q:
-                    options = [a for a in self._patient_addresses if q in a.upper()]
+                    options = [a for a in self._patient_addresses if a.upper().startswith(q)]
                 else:
                     options = list(self._patient_addresses)
             else:
@@ -2170,7 +2166,7 @@ class _ItemEntryBar(QWidget):
         # light completion popup has room to show useful batch text.
         layout.addSpacing(_ENTRY_ITEM_BATCH_GAP)
         layout.addWidget(self._lbl("Batch"))
-        self.batch_combo = _make_combo()
+        self.batch_combo = TableComboBox(placeholder="Select batch", min_width=_ENTRY_BATCH_MIN_WIDTH)
         self.batch_combo.setStyleSheet(_ENTRY_COMBO_STYLE)
         _mark_cs(self.batch_combo, "entry_combo")
         self._fit(self.batch_combo, _ENTRY_BATCH_MIN_WIDTH, _ENTRY_BATCH_MAX_WIDTH)
@@ -2580,26 +2576,35 @@ class _ItemEntryBar(QWidget):
         self._has_no_match_row = False
         self.item_combo.addItem("-- Select --", None)
         items = ItemDAO.get_all()
+        seen_ids = set()
         for it in items:
-            item_name = (it["item_name"] or "").strip()
+            item_id = it.get("id")
+            if item_id is None or item_id in seen_ids:
+                continue
+            seen_ids.add(item_id)
+            item_name = (it.get("item_name") or "").strip()
             unit_name = (it.get("unit_name") or "").strip()
             display_name = f"{item_name} ({unit_name})" if unit_name else item_name
-            self.item_combo.addItem(display_name, it["id"])
-            self._items_by_id[it["id"]] = it
+            self.item_combo.addItem(display_name, item_id)
+            self._items_by_id[item_id] = it
             idx = self.item_combo.count() - 1
             is_sched = is_schedule_h1_or_nrx(it.get("scheduled"))
             sched_color = QColor(Qt.red) if is_sched else QColor(Qt.black)
             self.item_combo.setItemData(idx, sched_color, Qt.ForegroundRole)
 
             completion_item = QStandardItem(display_name)
-            completion_item.setData(it["id"], Qt.UserRole)
-            completion_item.setData(display_name, Qt.UserRole + 1)
+            completion_item.setData(item_id, Qt.UserRole)
+            generic_name = (it.get("generic_name") or "").strip()
+            search_key = f"{display_name} {generic_name}".strip() if generic_name else display_name
+            completion_item.setData(search_key, Qt.UserRole + 1)
             completion_item.setForeground(sched_color)
             self._item_completion_model.appendRow(completion_item)
             self._item_search_values.append(item_name.casefold())
             if unit_name:
                 self._item_search_values.append(display_name.casefold())
                 self._item_search_values.append(f"{item_name} {unit_name}".casefold())
+            if generic_name:
+                self._item_search_values.append(generic_name.casefold())
         self.item_combo.blockSignals(False)
 
         try:
@@ -2705,7 +2710,7 @@ class _ItemEntryBar(QWidget):
             curr_text = self.item_combo.currentText().strip()
             item = self._items_by_id.get(curr_id, {})
             expected_name = (item.get("item_name") or "").strip()
-            if text.casefold() in (curr_text.casefold(), expected_name.casefold()):
+            if curr_text.casefold().startswith(text.casefold()) or expected_name.casefold().startswith(text.casefold()):
                 return _commit_existing(curr_id)
 
         # 3. Check if text matches an existing item in item_combo
@@ -2724,9 +2729,9 @@ class _ItemEntryBar(QWidget):
         # 5. Check if text unambiguously matches exactly one item in _items_by_id
         matches = [
             it for it in self._items_by_id.values()
-            if text.casefold() in (it.get("item_name") or "").strip().casefold()
-            or text.casefold() in f"{(it.get('item_name') or '').strip()} ({(it.get('unit_name') or '').strip()})".casefold()
-            or text.casefold() in f"{(it.get('item_name') or '').strip()} {(it.get('unit_name') or '').strip()}".casefold()
+            if (it.get("item_name") or "").strip().casefold().startswith(text.casefold())
+            or f"{(it.get('item_name') or '').strip()} ({(it.get('unit_name') or '').strip()})".casefold().startswith(text.casefold())
+            or f"{(it.get('item_name') or '').strip()} {(it.get('unit_name') or '').strip()}".casefold().startswith(text.casefold())
         ]
         if len(matches) == 1:
             return _commit_existing(matches[0]["id"])
@@ -2897,7 +2902,10 @@ class _ItemEntryBar(QWidget):
                 f"{b['batch_no']} | Exp: {exp} | MRP: {b.get('mrp', 0.0):.2f} "
                 f"| Avail: {available:.0f}{suffix}"
             )
-            self.batch_combo.addItem(label, b["id"])
+            b_row = dict(b)
+            b_row["available"] = available
+            b_row["stock_qty"] = available
+            self.batch_combo.addItem(label, b["id"], raw_name=b.get("batch_no", ""), row_data=b_row)
         self.batch_combo.setCurrentIndex(-1)
         line_edit = self.batch_combo.lineEdit()
         if line_edit is not None:
@@ -3971,6 +3979,15 @@ class _SalePanel(QWidget):
         right.setColumnStretch(1, 1)  # Stretch right fields
         form_row.addLayout(right, 1)
 
+        # Explicit tab chain through the top strip
+        QWidget.setTabOrder(self.sale_type_combo, self.customer_combo)
+        QWidget.setTabOrder(self.customer_combo, self.patient_name_edit)
+        QWidget.setTabOrder(self.patient_name_edit, self.address_edit)
+        QWidget.setTabOrder(self.address_edit, self.mobile_edit)
+        QWidget.setTabOrder(self.mobile_edit, self.doctor_combo)
+        QWidget.setTabOrder(self.doctor_combo, self.bill_disc_edit)
+        QWidget.setTabOrder(self.bill_disc_edit, self.paid_edit)
+
         main_layout.addLayout(form_row)
 
         saving_row = QHBoxLayout()
@@ -4450,16 +4467,16 @@ class _SalePanel(QWidget):
     def focus_patient_name(self):
         """Put keyboard focus on the Patient Name entry and select all text so typing replaces it."""
         try:
-            target = None
-            if hasattr(self, "patient_name_edit"):
-                if hasattr(self.patient_name_edit, "lineEdit") and self.patient_name_edit.lineEdit():
-                    target = self.patient_name_edit.lineEdit()
-                else:
-                    target = self.patient_name_edit
-            if target is not None:
-                target.setFocus()
-                if hasattr(target, "selectAll"):
+            combo = getattr(self, "patient_name_edit", None)
+            if combo is not None and combo.isVisible():
+                target = combo.lineEdit() if hasattr(combo, "lineEdit") and combo.lineEdit() else combo
+                target.setFocus(Qt.OtherFocusReason)
+                if hasattr(target, "selectAll") and hasattr(target, "text") and target.text():
                     target.selectAll()
+                elif hasattr(target, "setCursorPosition"):
+                    target.setCursorPosition(len(target.text() if hasattr(target, "text") else ""))
+                return
+            self.focus_item_name()
         except Exception:
             pass
 
@@ -5800,6 +5817,7 @@ class _SalePanel(QWidget):
         dialog.show()
         dialog.raise_()
         dialog.activateWindow()
+        dialog.focus_patient_name()
         return dialog
 
     def _release_review_dialog(self, *_args):
@@ -6461,6 +6479,7 @@ class SalesBillReviewDialog(QDialog):
     ):
         super().__init__(parent)
         _keep_alive(self)
+        self._initial_focus_done = False
         self._source_panel = panel
         self._invoice_to_edit = invoice
         self._is_editing = invoice is not None
@@ -6543,8 +6562,7 @@ class SalesBillReviewDialog(QDialog):
         self._panel._entry_bar.close_popups()
         self._panel._entry_bar.reset_batch()
         self._panel._entry_bar.clear()
-        if hasattr(self, "_final_save_btn"):
-            self._final_save_btn.setFocus()
+        self.focus_patient_name()
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -6554,8 +6572,10 @@ class SalesBillReviewDialog(QDialog):
                 self._panel._entry_bar.reset_batch()
                 self._panel._entry_bar.reload_items_if_needed(keep_selection=True)
                 self._panel.apply_popup_entry_widths(self.width() - _POPUP_BODY_CHROME)
-            if hasattr(self, "_final_save_btn"):
-                self._final_save_btn.setFocus()
+            if not getattr(self, "_initial_focus_done", False):
+                self._initial_focus_done = True
+                self.focus_patient_name()
+                QTimer.singleShot(0, self.focus_patient_name)
         except Exception:
             pass
 
@@ -7396,7 +7416,11 @@ class CounterSalePage(QWidget):
 
     def focus_entry(self) -> None:
         if hasattr(self, "_sale_panel"):
-            self._sale_panel.focus_item_name()
+            if not getattr(self._sale_panel, "_item_rows", None):
+                self._sale_panel.focus_patient_name()
+                QTimer.singleShot(0, self._sale_panel.focus_patient_name)
+            else:
+                self._sale_panel.focus_item_name()
 
     def _open_pur_invoice(self) -> None:
         """Open the New Purchase Invoice dialog directly as a popup."""
@@ -8498,7 +8522,7 @@ class CounterSalePage(QWidget):
         self._sale_panel.set_other_draft_reservation_provider(self._reserved_by_other_open_bills)
         self._refresh_open_bill_cards()
         self._refresh_combined_summary()
-        self._sale_panel.focus_item_name()
+        self.focus_entry()
 
     def _on_add_bill(self) -> None:
         if not self._confirm_new_sale_under_historical_fy():
@@ -8515,7 +8539,7 @@ class CounterSalePage(QWidget):
         self._sync_provisional_bill_numbers()
         self._refresh_open_bill_cards()
         self._refresh_combined_summary()
-        self._sale_panel.focus_item_name()
+        self.focus_entry()
 
     def _remove_active_open_bill(self) -> None:
         self._open_bills.pop(self._active_open_bill_id, None)
@@ -8532,7 +8556,7 @@ class CounterSalePage(QWidget):
         self._sale_panel.set_other_draft_reservation_provider(self._reserved_by_other_open_bills)
         self._refresh_open_bill_cards()
         self._refresh_combined_summary()
-        self._sale_panel.focus_item_name()
+        self.focus_entry()
 
     def _cancel_active_open_bill(self) -> None:
         state = self._sale_panel.draft_state()
@@ -8877,7 +8901,7 @@ class CounterSalePage(QWidget):
         self._sale_panel.set_other_draft_reservation_provider(self._reserved_by_other_open_bills)
         self._refresh_open_bill_cards()
         self._refresh_combined_summary()
-        self._sale_panel.focus_item_name()
+        self.focus_entry()
 
     def _on_edit(self) -> SalesBillReviewDialog | None:
         try:
@@ -9019,7 +9043,7 @@ class CounterSalePage(QWidget):
         self._sale_panel.set_other_draft_reservation_provider(self._reserved_by_other_open_bills)
         self._refresh_open_bill_cards()
         self._refresh_combined_summary()
-        self._sale_panel.focus_item_name()
+        self.focus_entry()
 
     def open_sale_dialog_with_hold(self, hold_bill_data: dict):
         """Load a held bill into the inline sale area (called from HoldBillPage).
@@ -9059,8 +9083,7 @@ class CounterSalePage(QWidget):
         self._sale_panel.set_other_draft_reservation_provider(self._reserved_by_other_open_bills)
         self._refresh_open_bill_cards()
         self._refresh_combined_summary()
-        self._sale_panel.focus_patient_name()
-        QTimer.singleShot(0, self._sale_panel.focus_patient_name)
+        self.focus_entry()
 
     def _on_sale_held(self):
         # Holding persists only the selected draft through the established

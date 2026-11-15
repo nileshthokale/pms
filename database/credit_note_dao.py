@@ -73,6 +73,8 @@ class CreditNoteDAO:
                        c.cn_date, c.cn_type, c.customer_id,
                        cu.customer_name AS customer_name,
                        c.total_amount, c.ledger_amount, c.remarks,
+                       COALESCE(c.discount_pct, 0.0) AS discount_pct,
+                       COALESCE(c.less_amount, 0.0) AS less_amount,
                        COALESCE(c.added_to_ledger, 'N') AS added_to_ledger,
                        COALESCE(c.settled_amount, 0.0) AS settled_amount,
                        COALESCE(c.settlement_status, 'UNSETTLED') AS settlement_status
@@ -95,6 +97,8 @@ class CreditNoteDAO:
                        c.cn_date, c.cn_type, c.customer_id,
                        cu.customer_name AS customer_name,
                        c.total_amount, c.ledger_amount, c.remarks,
+                       COALESCE(c.discount_pct, 0.0) AS discount_pct,
+                       COALESCE(c.less_amount, 0.0) AS less_amount,
                        COALESCE(c.added_to_ledger, 'N') AS added_to_ledger,
                        COALESCE(c.settled_amount, 0.0) AS settled_amount,
                        COALESCE(c.settlement_status, 'UNSETTLED') AS settlement_status
@@ -154,10 +158,10 @@ class CreditNoteDAO:
                 params.append(voucher_to)
             if party:
                 clauses.append("cu.customer_name LIKE ?")
-                params.append(f"%{party}%")
+                params.append(f"{party.strip()}%")
             if voucher_no:
                 clauses.append("c.voucher_no LIKE ?")
-                params.append(f"%{voucher_no}%")
+                params.append(f"{voucher_no.strip()}%")
             if customer_id:
                 clauses.append("c.customer_id = ?")
                 params.append(customer_id)
@@ -167,6 +171,8 @@ class CreditNoteDAO:
                        c.cn_date, c.cn_type, c.customer_id,
                        cu.customer_name AS customer_name,
                        c.total_amount, c.ledger_amount, c.remarks,
+                       COALESCE(c.discount_pct, 0.0) AS discount_pct,
+                       COALESCE(c.less_amount, 0.0) AS less_amount,
                        COALESCE(c.added_to_ledger, 'N') AS added_to_ledger,
                        COALESCE(c.settled_amount, 0.0) AS settled_amount,
                        COALESCE(c.settlement_status, 'UNSETTLED') AS settlement_status
@@ -227,13 +233,16 @@ class CreditNoteDAO:
             added_to_ledger = "Y" if add_to_ledger else "N"
             total_amount = round(float(header.get("total_amount", 0.0)), 2)
             ledger_amount = total_amount if add_to_ledger else 0.0
+            discount_pct = float(header.get("discount_pct", 0.0))
+            less_amount = round(float(header.get("less_amount", 0.0)), 2)
 
             cur.execute(
                 """
                 INSERT INTO credit_notes
                     (voucher_no, voucher_date, voucher_time, cn_date, cn_type,
-                     customer_id, total_amount, ledger_amount, remarks, added_to_ledger)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     customer_id, total_amount, ledger_amount, remarks, added_to_ledger,
+                     discount_pct, less_amount)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     voucher_no,
@@ -246,6 +255,8 @@ class CreditNoteDAO:
                     ledger_amount,
                     header.get("remarks", ""),
                     added_to_ledger,
+                    discount_pct,
+                    less_amount,
                 ),
             )
             cn_id = cur.lastrowid
@@ -359,13 +370,16 @@ class CreditNoteDAO:
             added_to_ledger = "Y" if add_to_ledger else "N"
             total_amount = round(float(header.get("total_amount", 0.0)), 2)
             ledger_amount = total_amount if add_to_ledger else 0.0
+            discount_pct = float(header.get("discount_pct", 0.0))
+            less_amount = round(float(header.get("less_amount", 0.0)), 2)
 
             cur.execute(
                 """
                 UPDATE credit_notes SET
                     voucher_date = ?, voucher_time = ?, cn_date = ?,
                     cn_type = ?, customer_id = ?, total_amount = ?,
-                    ledger_amount = ?, remarks = ?, added_to_ledger = ?
+                    ledger_amount = ?, remarks = ?, added_to_ledger = ?,
+                    discount_pct = ?, less_amount = ?
                 WHERE id = ?
                 """,
                 (
@@ -378,6 +392,8 @@ class CreditNoteDAO:
                     ledger_amount,
                     header.get("remarks", ""),
                     added_to_ledger,
+                    discount_pct,
+                    less_amount,
                     cn_id,
                 ),
             )

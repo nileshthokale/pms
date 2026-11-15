@@ -417,6 +417,8 @@ def init_database():
                 customer_id     INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
                 total_amount    REAL    DEFAULT 0.0,
                 ledger_amount   REAL    DEFAULT 0.0,
+                discount_pct    REAL    DEFAULT 0.0,
+                less_amount     REAL    DEFAULT 0.0,
                 settled_amount  REAL    DEFAULT 0.0,
                 settlement_status TEXT  DEFAULT 'UNSETTLED',
                 remarks         TEXT    DEFAULT '',
@@ -457,6 +459,8 @@ def init_database():
                 supplier_id     INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
                 total_amount    REAL    DEFAULT 0.0,
                 ledger_amount   REAL    DEFAULT 0.0,
+                discount_pct    REAL    DEFAULT 0.0,
+                less_amount     REAL    DEFAULT 0.0,
                 settled_amount  REAL    DEFAULT 0.0,
                 settlement_status TEXT  DEFAULT 'UNSETTLED',
                 remarks         TEXT    DEFAULT '',
@@ -764,6 +768,10 @@ def init_database():
 
         cur.execute("PRAGMA table_info(debit_notes)")
         dn_cols = {row[1] for row in cur.fetchall()}
+        if "discount_pct" not in dn_cols:
+            cur.execute("ALTER TABLE debit_notes ADD COLUMN discount_pct REAL DEFAULT 0.0")
+        if "less_amount" not in dn_cols:
+            cur.execute("ALTER TABLE debit_notes ADD COLUMN less_amount REAL DEFAULT 0.0")
         if "added_to_ledger" not in dn_cols:
             cur.execute("ALTER TABLE debit_notes ADD COLUMN added_to_ledger TEXT DEFAULT 'N'")
             cur.execute(
@@ -778,6 +786,10 @@ def init_database():
 
         cur.execute("PRAGMA table_info(credit_notes)")
         cn_cols = {row[1] for row in cur.fetchall()}
+        if "discount_pct" not in cn_cols:
+            cur.execute("ALTER TABLE credit_notes ADD COLUMN discount_pct REAL DEFAULT 0.0")
+        if "less_amount" not in cn_cols:
+            cur.execute("ALTER TABLE credit_notes ADD COLUMN less_amount REAL DEFAULT 0.0")
         if "added_to_ledger" not in cn_cols:
             cur.execute("ALTER TABLE credit_notes ADD COLUMN added_to_ledger TEXT DEFAULT 'N'")
             cur.execute(
@@ -950,6 +962,68 @@ def init_database():
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_dn_settlements_pi "
             "ON debit_note_settlements(purchase_invoice_id)"
+        )
+
+        # ── Performance Optimization Indexes (Debit/Credit Notes, Invoices, Ledgers) ──
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_pii_item_batch "
+            "ON purchase_invoice_items(item_id, batch_no)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_pii_invoice_id "
+            "ON purchase_invoice_items(purchase_invoice_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_pi_supplier_id "
+            "ON purchase_invoices(supplier_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sii_item_batch "
+            "ON sales_invoice_items(item_id, batch_no)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sii_invoice_id "
+            "ON sales_invoice_items(sales_invoice_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_si_customer_id "
+            "ON sales_invoices(customer_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_stock_batches_item_expiry "
+            "ON stock_batches(item_id, expiry)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_dni_debit_note_id "
+            "ON debit_note_items(debit_note_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_dn_supplier_id "
+            "ON debit_notes(supplier_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_dn_voucher_date "
+            "ON debit_notes(voucher_date)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_cni_credit_note_id "
+            "ON credit_note_items(credit_note_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_cn_customer_id "
+            "ON credit_notes(customer_id, voucher_date)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_cn_voucher_date "
+            "ON credit_notes(voucher_date)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ledger_transactions_ref "
+            "ON ledger_transactions(reference_type, reference_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ledger_transactions_ledger "
+            "ON ledger_transactions(ledger_id)"
         )
 
         conn.commit()

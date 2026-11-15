@@ -54,7 +54,7 @@ class LedgerDAO:
         try:
             rows = conn.execute(
                 "SELECT * FROM account_ledgers WHERE ledger_name LIKE ? ORDER BY ledger_name",
-                (f"%{name}%",),
+                (f"{name.strip()}%",),
             ).fetchall()
             return [dict(r) for r in rows]
         finally:

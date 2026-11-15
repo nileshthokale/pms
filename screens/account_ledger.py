@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
 from database.ledger_dao import LedgerDAO
 from database.account_group_dao import AccountGroupDAO
 
-from ui.theme import palette
+from ui.theme import combo_subcontrols, palette
 _p = palette()
 _DARK_BG = _p["bg"]
 _SURFACE = _p["surface"]
@@ -43,9 +43,8 @@ _COMBO_STYLE = (
     f"  padding: 6px; font-size: 15px; font-family: 'Segoe UI';"
     f"}}"
     f"QComboBox:hover {{ border: 1px solid {_ACCENT}; }}"
-    f"QComboBox::drop-down {{ border: none; width: 24px; }}"
-    f"QComboBox::down-arrow {{ image: none; border: none; }}"
-    f"QComboBox QAbstractItemView {{"
+    + combo_subcontrols(_p, width=24)
+    + f"QComboBox QAbstractItemView {{"
     f"  background-color: {_SURFACE}; color: {_TEXT};"
     f"  border: 1px solid {_BORDER}; selection-background-color: {_ACCENT};"
     f"  font-size: 15px; font-family: 'Segoe UI';"
@@ -194,7 +193,7 @@ class _LedgerEntryDialog(QDialog):
         self._opening_balance_type_combo.setMaximumWidth(140)
         form.addRow("Balance Type:", self._opening_balance_type_combo)
 
-        self._discount_edit = QLineEdit()
+        self._discount_edit = QLineEdit("0.0")
         self._discount_edit.setPlaceholderText("0.0")
         form.addRow("Discount (%):", self._discount_edit)
 
@@ -290,12 +289,17 @@ class _LedgerEntryDialog(QDialog):
             )
             return
 
+        discount_val = _safe_float(self._discount_edit.text(), 0.0)
+        if discount_val < 0.0 or discount_val > 100.0:
+            QMessageBox.warning(self, "Validation", "Discount must be between 0% and 100%.")
+            return
+
         kwargs = {
             "ledger_name": name,
             "account_group": self._account_group_edit.text().strip(),
             "opening_balance": _safe_float(self._opening_balance_edit.text()),
             "opening_balance_type": self._opening_balance_type_combo.currentText(),
-            "discount": _safe_float(self._discount_edit.text()),
+            "discount": discount_val,
             "credit_limit": _safe_float(self._credit_limit_edit.text()),
             "credit_period": _safe_int(self._credit_period_edit.text()),
             "address": self._address_edit.text().strip(),

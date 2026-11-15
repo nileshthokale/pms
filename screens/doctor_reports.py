@@ -379,7 +379,9 @@ class _BaseDoctorReportPage(QWidget):
             f"QLabel {{ color: {p['text']}; font-size: 12px; font-weight: bold; background: transparent; }}"
             f"QDateEdit {{ background-color: {p['surface']}; color: {p['text']}; border: 1px solid {p['border']}; border-radius: 2px; padding: 4px 6px; font-size: 12px; }}"
             f"QComboBox {{ background-color: {p['surface']}; color: {p['text']}; border: 1px solid {p['border']}; border-radius: 2px; padding: 4px 6px; font-size: 12px; }}"
-            f"QPushButton {{ background-color: {p['accent']}; color: white; border: none; border-radius: 3px; padding: 7px 12px; font-size: 13px; font-weight: bold; }}"
+            + theme.combo_subcontrols(p, width=20)
+            + theme.date_subcontrols(p, width=22)
+            + f"QPushButton {{ background-color: {p['accent']}; color: white; border: none; border-radius: 3px; padding: 7px 12px; font-size: 13px; font-weight: bold; }}"
             f"QPushButton:hover {{ background-color: {p['accent_hover']}; }}"
             f"QPushButton:disabled {{ background-color: {'#404040' if is_dark else '#A0B8D0'}; color: {'#707070' if is_dark else '#E0E8F0'}; }}"
         )

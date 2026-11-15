@@ -182,7 +182,7 @@ class PharmacyMainWindow(QMainWindow):
         if hasattr(curr, "focus_entry"):
             curr.focus_entry()
         elif hasattr(curr, "_sale_panel"):
-            curr._sale_panel.focus_item_name()
+            curr._sale_panel.focus_patient_name()
 
     def _open_sales_bill(self):
         curr = self._stack.currentWidget()

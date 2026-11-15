@@ -52,6 +52,7 @@ from ui.theme import (
     TYPE_INPUT,
     TYPE_TABLE_DATA,
     TYPE_TABLE_HEADER,
+    combo_subcontrols,
     palette,
 )
 from ui.components import FONT_FAMILY
@@ -145,7 +146,8 @@ def _fresh_combo_style(p: dict | None = None) -> str:
         f"  font-family: {FONT_FAMILY};"
         f"}}"
         f"QComboBox:focus {{ border: 1px solid {p['accent']}; }}"
-        f"QComboBox QAbstractItemView {{"
+        + combo_subcontrols(p, width=22)
+        + f"QComboBox QAbstractItemView {{"
         f"  background-color: {p['bg']}; color: {p['text']};"
         f"  border: 1px solid {p['border']}; selection-background-color: {p['selected']};"
         f"  selection-color: {p['selected_text']}; font-size: {TYPE_INPUT}px;"
@@ -307,6 +309,7 @@ class DrugSubstituteDialog(QDialog):
         self._completer_model = QStandardItemModel(self)
         self._completer = QCompleter(self._completer_model, self.drug_combo)
         self._completer.setCaseSensitivity(Qt.CaseInsensitive)
+        self._completer.setFilterMode(Qt.MatchStartsWith)
         self._completer.setCompletionMode(QCompleter.PopupCompletion)
         self._completer.setMaxVisibleItems(8)
         self._completer.activated[QModelIndex].connect(self._on_completer_activated)
@@ -878,9 +881,9 @@ class DemandOrderDialog(QDialog):
         else:
             self._displayed_records = [
                 r for r in self._all_records
-                if query in str(r.get("item_name") or "").upper()
-                or query in str(r.get("supplier_name") or "").upper()
-                or query in str(r.get("contact_no") or "").upper()
+                if str(r.get("item_name") or "").strip().upper().startswith(query)
+                or str(r.get("supplier_name") or "").strip().upper().startswith(query)
+                or str(r.get("contact_no") or "").strip().upper().startswith(query)
             ]
 
         self._populate_table()

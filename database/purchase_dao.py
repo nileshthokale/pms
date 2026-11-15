@@ -667,7 +667,9 @@ class PurchaseDAO:
                 SELECT 
                     pi.id AS invoice_id,
                     pi.voucher_no,
+                    pi.invoice_no,
                     pi.voucher_date,
+                    pi.invoice_date,
                     pi.purchase_type,
                     pii.batch_no,
                     pii.expiry,
@@ -681,7 +683,7 @@ class PurchaseDAO:
                 JOIN purchase_invoices pi ON pi.id = pii.purchase_invoice_id
                 LEFT JOIN suppliers s ON s.id = pi.supplier_id
                 WHERE pii.item_id = ?
-                ORDER BY pi.voucher_date DESC, pi.id DESC
+                ORDER BY COALESCE(NULLIF(pi.invoice_date, ''), pi.voucher_date) DESC, pi.id DESC, pii.batch_no ASC
             """
             cur = conn.execute(query, (item_id,))
             rows = [dict(r) for r in cur.fetchall()]
@@ -691,7 +693,9 @@ class PurchaseDAO:
                     SELECT 
                         sb.id AS invoice_id,
                         '' AS voucher_no,
+                        '' AS invoice_no,
                         '' AS voucher_date,
+                        '' AS invoice_date,
                         'Opening/Stock' AS purchase_type,
                         sb.batch_no,
                         sb.expiry,

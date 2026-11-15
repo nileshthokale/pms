@@ -901,8 +901,8 @@ class SalesDAO:
             if patient_name and patient_name.strip():
                 # One LIKE per typed word (AND): each word must appear in
                 # the patient name, but the words need not be adjacent or
-                # in the stored order.  A single word behaves exactly as
-                # the old whole-string substring match.
+                # in the stored order. A single word behaves exactly as
+                # the whole-string match.
                 for word in patient_name.split():
                     clauses.append("si.patient_name LIKE ?")
                     params.append(f"%{word}%")
@@ -911,7 +911,7 @@ class SalesDAO:
                 params.append(customer_id)
             elif customer_name and customer_name.strip():
                 clauses.append("c.customer_name LIKE ?")
-                params.append(f"%{customer_name.strip()}%")
+                params.append(f"{customer_name.strip()}%")
             if bill_no and bill_no.strip():
                 clean_bno = bill_no.strip()
                 if clean_bno.isdigit():
@@ -950,7 +950,7 @@ class SalesDAO:
                     clauses.append(f"({' OR '.join(exact_conds + like_conds)})")
                 else:
                     clauses.append("si.bill_no LIKE ?")
-                    params.append(f"%{clean_bno}%")
+                    params.append(f"{clean_bno}%")
             if start_date and start_date.strip():
                 clauses.append("substr(si.sale_date, 1, 10) >= ?")
                 params.append(start_date.strip())
@@ -1108,9 +1108,13 @@ class SalesDAO:
                     clauses.append(f"({' OR '.join(exact_conds + like_conds)})")
                 else:
                     clauses.append("si.bill_no LIKE ?")
-                    params.append(f"%{clean_bno}%")
+                    params.append(f"{clean_bno}%")
 
             if patient_name and patient_name.strip():
+                # One LIKE per typed word (AND): each word must appear in
+                # the patient name, but the words need not be adjacent or
+                # in the stored order. A single word behaves exactly as
+                # the whole-string match.
                 for word in patient_name.split():
                     clauses.append("si.patient_name LIKE ?")
                     params.append(f"%{word}%")
@@ -1176,3 +1180,18 @@ class SalesDAO:
             return rows, total_count
         finally:
             conn.close()
+
+    @staticmethod
+    def search_sales(*args, **kwargs):
+        """Unified sales search alias for search_sales_history.
+        Supports calling with positional argument or keyword arguments.
+        """
+        if args and "patient_name" not in kwargs:
+            kwargs["patient_name"] = str(args[0])
+        return SalesDAO.search_sales_history(**kwargs)
+
+    @staticmethod
+    def search_patient_names(search: str, limit: int = 25) -> list[str]:
+        """Alias for get_matching_patient_names."""
+        return SalesDAO.get_matching_patient_names(search, limit=limit)
+

@@ -74,6 +74,8 @@ class DebitNoteDAO:
                        d.dn_date, d.dn_type, d.supplier_id,
                        s.supplier_name,
                        d.total_amount, d.ledger_amount, d.remarks,
+                       COALESCE(d.discount_pct, 0.0) AS discount_pct,
+                       COALESCE(d.less_amount, 0.0) AS less_amount,
                        COALESCE(d.added_to_ledger, 'N') AS added_to_ledger,
                        COALESCE(d.settled_amount, 0.0) AS settled_amount,
                        COALESCE(d.settlement_status, 'UNSETTLED') AS settlement_status
@@ -96,6 +98,8 @@ class DebitNoteDAO:
                        d.dn_date, d.dn_type, d.supplier_id,
                        s.supplier_name,
                        d.total_amount, d.ledger_amount, d.remarks,
+                       COALESCE(d.discount_pct, 0.0) AS discount_pct,
+                       COALESCE(d.less_amount, 0.0) AS less_amount,
                        COALESCE(d.added_to_ledger, 'N') AS added_to_ledger,
                        COALESCE(d.settled_amount, 0.0) AS settled_amount,
                        COALESCE(d.settlement_status, 'UNSETTLED') AS settlement_status
@@ -155,10 +159,10 @@ class DebitNoteDAO:
                 params.append(voucher_to)
             if party:
                 clauses.append("s.supplier_name LIKE ?")
-                params.append(f"%{party}%")
+                params.append(f"{party.strip()}%")
             if voucher_no:
                 clauses.append("d.voucher_no LIKE ?")
-                params.append(f"%{voucher_no}%")
+                params.append(f"{voucher_no.strip()}%")
             if supplier_id:
                 clauses.append("d.supplier_id = ?")
                 params.append(supplier_id)
@@ -168,6 +172,8 @@ class DebitNoteDAO:
                        d.dn_date, d.dn_type, d.supplier_id,
                        s.supplier_name,
                        d.total_amount, d.ledger_amount, d.remarks,
+                       COALESCE(d.discount_pct, 0.0) AS discount_pct,
+                       COALESCE(d.less_amount, 0.0) AS less_amount,
                        COALESCE(d.added_to_ledger, 'N') AS added_to_ledger,
                        COALESCE(d.settled_amount, 0.0) AS settled_amount,
                        COALESCE(d.settlement_status, 'UNSETTLED') AS settlement_status
@@ -253,13 +259,16 @@ class DebitNoteDAO:
             added_to_ledger = "Y" if add_to_ledger else "N"
             total_amount = round(float(header.get("total_amount", 0.0)), 2)
             ledger_amount = total_amount if add_to_ledger else 0.0
+            discount_pct = float(header.get("discount_pct", 0.0))
+            less_amount = round(float(header.get("less_amount", 0.0)), 2)
 
             cur.execute(
                 """
                 INSERT INTO debit_notes
                     (voucher_no, voucher_date, voucher_time, dn_date, dn_type,
-                     supplier_id, total_amount, ledger_amount, remarks, added_to_ledger)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     supplier_id, total_amount, ledger_amount, remarks, added_to_ledger,
+                     discount_pct, less_amount)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     voucher_no,
@@ -272,6 +281,8 @@ class DebitNoteDAO:
                     ledger_amount,
                     header.get("remarks", ""),
                     added_to_ledger,
+                    discount_pct,
+                    less_amount,
                 ),
             )
             dn_id = cur.lastrowid
@@ -302,10 +313,10 @@ class DebitNoteDAO:
                 direct_loose = (ret_qty + free_qty)
                 loose_deduction = pack_loose if is_pack else direct_loose
 
-                if loose_deduction > available or pack_loose > available:
+                if loose_deduction > available:
                     raise ValueError(
                         f"Insufficient stock: batch has {available:.0f}, "
-                        f"cannot return {max(loose_deduction, pack_loose):.0f}"
+                        f"cannot return {loose_deduction:.0f}"
                     )
 
                 cur.execute(
@@ -401,13 +412,16 @@ class DebitNoteDAO:
             added_to_ledger = "Y" if add_to_ledger else "N"
             total_amount = round(float(header.get("total_amount", 0.0)), 2)
             ledger_amount = total_amount if add_to_ledger else 0.0
+            discount_pct = float(header.get("discount_pct", 0.0))
+            less_amount = round(float(header.get("less_amount", 0.0)), 2)
 
             cur.execute(
                 """
                 UPDATE debit_notes SET
                     voucher_date = ?, voucher_time = ?, dn_date = ?,
                     dn_type = ?, supplier_id = ?, total_amount = ?,
-                    ledger_amount = ?, remarks = ?, added_to_ledger = ?
+                    ledger_amount = ?, remarks = ?, added_to_ledger = ?,
+                    discount_pct = ?, less_amount = ?
                 WHERE id = ?
                 """,
                 (
@@ -420,6 +434,8 @@ class DebitNoteDAO:
                     ledger_amount,
                     header.get("remarks", ""),
                     added_to_ledger,
+                    discount_pct,
+                    less_amount,
                     dn_id,
                 ),
             )
@@ -450,10 +466,10 @@ class DebitNoteDAO:
                 direct_loose = (ret_qty + free_qty)
                 loose_deduction = pack_loose if is_pack else direct_loose
 
-                if loose_deduction > available or pack_loose > available:
+                if loose_deduction > available:
                     raise ValueError(
                         f"Insufficient stock: batch has {available:.0f}, "
-                        f"cannot return {max(loose_deduction, pack_loose):.0f}"
+                        f"cannot return {loose_deduction:.0f}"
                     )
 
                 cur.execute(
@@ -564,7 +580,7 @@ class DebitNoteDAO:
                 params.append(supplier_id)
             elif supplier_name:
                 clauses.append("s.supplier_name LIKE ?")
-                params.append(f"%{supplier_name.strip()}%")
+                params.append(f"{supplier_name.strip()}%")
 
             where = "WHERE " + " AND ".join(clauses)
             sql = f"""

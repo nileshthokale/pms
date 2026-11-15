@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from datetime import date, datetime
 import re
 
 from PySide6.QtCore import (
@@ -33,6 +34,7 @@ from PySide6.QtCore import (
     Signal,
 )
 from PySide6.QtGui import (
+    QColor,
     QFont,
     QStandardItem,
     QStandardItemModel,
@@ -48,6 +50,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
+    QTableView,
     QTableWidget,
     QVBoxLayout,
     QWidget,
@@ -164,12 +167,12 @@ def edit_style() -> str:
 
 
 def combo_style() -> str:
+    from ui.theme import combo_subcontrols
     p = palette()
     return (
         _input_rules("QComboBox")
         + f"QComboBox:hover {{ border: 1px solid {p['focus']}; }}"
-        + "QComboBox::drop-down { border: none; width: 18px; }"
-        + "QComboBox::down-arrow { image: none; border: none; }"
+        + combo_subcontrols(p, width=20)
         + "QComboBox QAbstractItemView {"
         + f"  background-color: {p['bg']}; color: {p['text']};"
         + f"  border: 1px solid {p['border']};"
@@ -755,7 +758,7 @@ class SearchableComboBox(ConstrainedComboBox):
         max_width: int | None = None,
         min_width: int | None = None,
         allow_width_expansion: bool = True,
-        prefix_only: bool = False,
+        prefix_only: bool = True,
     ):
         super().__init__(
             parent,
@@ -821,6 +824,7 @@ class SearchableComboBox(ConstrainedComboBox):
         selected_text = p.get("selected_text", "#ffffff")
         text_dim = p.get("text_dim", "#888888")
 
+        from ui.theme import combo_subcontrols
         self.setStyleSheet(
             f"QComboBox {{"
             f"  background-color: {surface}; color: {text};"
@@ -830,11 +834,8 @@ class SearchableComboBox(ConstrainedComboBox):
             f"}}"
             f"QComboBox:hover {{ border: 1px solid {accent}; }}"
             f"QComboBox:focus {{ border: 1px solid {accent}; }}"
-            f"QComboBox::drop-down {{"
-            f"  subcontrol-origin: padding; subcontrol-position: top right;"
-            f"  width: 22px; border-left: 1px solid {border};"
-            f"}}"
-            f"QComboBox QAbstractItemView {{"
+            + combo_subcontrols(p, width=22)
+            + f"QComboBox QAbstractItemView {{"
             f"  background-color: {surface}; color: {text};"
             f"  border: 1px solid {border}; selection-background-color: {accent};"
             f"  selection-color: white; font-size: 15px; font-family: 'Segoe UI';"
@@ -1040,14 +1041,15 @@ class SearchableComboBox(ConstrainedComboBox):
         query = text.strip()
         popup = self._completer.popup()
         if not query:
+            self._completer_model.clear()
             if popup and popup.isVisible():
                 popup.hide()
             self.setCurrentIndex(-1)
             self.selection_changed.emit(None)
             return
 
-        q_fold = query.casefold()
-        if getattr(self, "_prefix_only", False):
+        q_fold = query.strip().casefold()
+        if getattr(self, "_prefix_only", True):
             matches = [
                 it for it in self._items_data
                 if (it[1] is not None or not it[0].startswith("--"))
@@ -1062,7 +1064,7 @@ class SearchableComboBox(ConstrainedComboBox):
 
         self._completer_model.clear()
         if matches:
-            for m in matches:
+            for m in matches[:50]:
                 item = QStandardItem(m[0])
                 item.setData(m[1], Qt.UserRole)
                 item.setData(m[0], Qt.DisplayRole)
@@ -1116,7 +1118,7 @@ class SearchableComboBox(ConstrainedComboBox):
         if not self._items_data:
             return
         self._completer_model.clear()
-        for m in self._items_data:
+        for m in self._items_data[:50]:
             if m[1] is None and m[0].startswith("--"):
                 continue
             item = QStandardItem(m[0])
@@ -1235,7 +1237,7 @@ class SearchableComboBox(ConstrainedComboBox):
 
         # 2. If text unambiguously matches exactly one item in _items_data, resolve it
         clean_text = text.strip().casefold()
-        if getattr(self, "_prefix_only", False):
+        if getattr(self, "_prefix_only", True):
             matches = [
                 it for it in self._items_data
                 if (it[1] is not None or not it[0].startswith("--"))
@@ -1359,6 +1361,715 @@ class SearchableComboBox(ConstrainedComboBox):
         return super().eventFilter(obj, event)
 
 
+DEFAULT_BATCH_COLUMNS = [
+    {"key": "batch_no", "header": "Batch No", "width": 130, "align": Qt.AlignLeft},
+    {"key": "expiry", "header": "Expiry Date", "width": 95, "align": Qt.AlignCenter},
+    {"key": "mrp", "header": "MRP", "width": 75, "align": Qt.AlignRight},
+    {"key": "rate", "header": "Rate", "width": 75, "align": Qt.AlignRight},
+    {"key": "stock_qty", "header": "Balance", "width": 70, "align": Qt.AlignRight},
+    {"key": "status", "header": "Status", "width": 75, "align": Qt.AlignCenter},
+]
+
+
+def _format_date_display(val: Any) -> str:
+    if not val:
+        return ""
+    s = str(val).strip()
+    if re.match(r"^\d{4}-\d{2}-\d{2}", s):
+        try:
+            return datetime.strptime(s[:10], "%Y-%m-%d").strftime("%d-%m-%Y")
+        except Exception:
+            return s
+    return s
+
+
+def _format_num_display(val: Any, decimals: int = 2) -> str:
+    if val is None or val == "":
+        return ""
+    try:
+        f = float(val)
+        if decimals == 0:
+            return f"{int(round(f))}"
+        return f"{f:.{decimals}f}"
+    except (ValueError, TypeError):
+        return str(val)
+
+
+def _parse_legacy_label(label: str) -> dict[str, Any]:
+    """Parse legacy concatenated batch strings into distinct column values."""
+    res: dict[str, Any] = {}
+    label_str = str(label or "").strip()
+    if not label_str:
+        return res
+
+    # Format: C-3728 (Exp: 2016-11-30, Stk: 0) [EXP]
+    m = re.match(r"^(.*?)\s*\(Exp:\s*([^,]+),\s*Stk:\s*([^)]+)\)(.*)$", label_str)
+    if m:
+        res["batch_no"] = m.group(1).strip()
+        res["expiry"] = m.group(2).strip()
+        res["stock_qty"] = m.group(3).strip()
+        res["is_expired"] = "[EXP]" in m.group(4) or "EXP" in m.group(4)
+        return res
+
+    # Pipe-separated format: BC-37 | Exp: 2017-04-30 | MRP: 120.00 | Avail: 450
+    parts = [p.strip() for p in label_str.split("|")]
+    if len(parts) >= 2:
+        res["batch_no"] = parts[0]
+        for p in parts[1:]:
+            plow = p.lower()
+            if "exp:" in plow:
+                res["expiry"] = p.split(":", 1)[1].strip()
+            elif "mrp:" in plow:
+                res["mrp"] = p.split(":", 1)[1].strip()
+            elif "rate:" in plow:
+                res["rate"] = p.split(":", 1)[1].strip()
+            elif any(k in plow for k in ("avail:", "stk:", "stock:", "bal:")):
+                res["stock_qty"] = p.split(":", 1)[1].strip()
+            elif "[exp]" in plow or "expired" in plow:
+                res["is_expired"] = True
+        return res
+
+    res["batch_no"] = label_str
+    return res
+
+
+class TableComboBox(SearchableComboBox):
+    """Professional multi-column table dropdown component for PySide6.
+
+    Displays rich tabular data in a clean floating popup table matching
+    professional pharmacy management ERPs (e.g. Pharma-WINNER).
+    """
+
+    completionAccepted = Signal()
+
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        *,
+        placeholder: str = "",
+        min_width: int = 160,
+        min_popup_width: int = 520,
+        max_popup_height: int = 280,
+        columns: list[dict] | list[str] | None = None,
+    ):
+        super().__init__(
+            parent,
+            placeholder=placeholder,
+            min_width=min_width,
+            max_height=max_popup_height,
+        )
+        # We control table popup and filtering directly; disable 1D completer popup
+        self.setCompleter(None)
+
+        self._min_popup_width = min_popup_width
+        self._max_popup_height = max_popup_height
+        self._min_popup_height = 90
+        self._columns = list(columns or DEFAULT_BATCH_COLUMNS)
+        self._row_dicts: list[dict[str, Any]] = []
+
+        self._table_model = QStandardItemModel(self)
+        self._setup_table_popup()
+        if columns is not None:
+            self.set_columns(columns)
+        else:
+            self._setup_columns()
+        self.refresh_theme()
+
+    def show_all_completions_on_click(self):
+        """Compatibility hook with CounterSale combo interface."""
+        pass
+
+    def _show_completion_popup(self):
+        """Compatibility hook with CounterSale combo interface."""
+        self.showPopup()
+
+    def close_popup(self):
+        """Compatibility hook with CounterSale combo interface."""
+        self.hidePopup()
+
+    def _setup_table_popup(self):
+        self._popup_frame = QFrame(None, Qt.Popup | Qt.FramelessWindowHint)
+        self._popup_frame.setObjectName("TableComboBoxPopup")
+        layout = QVBoxLayout(self._popup_frame)
+        layout.setContentsMargins(1, 1, 1, 1)
+        layout.setSpacing(0)
+
+        self.table_view = QTableView(self._popup_frame)
+        self.table_view.setModel(self._table_model)
+        self.table_view.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.table_view.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.table_view.verticalHeader().setVisible(False)
+        self.table_view.horizontalHeader().setVisible(True)
+        self.table_view.horizontalHeader().setHighlightSections(False)
+        self.table_view.horizontalHeader().setStretchLastSection(True)
+        self.table_view.setShowGrid(True)
+        self.table_view.setAlternatingRowColors(True)
+        self.table_view.setFocusPolicy(Qt.NoFocus)
+        self.table_view.clicked.connect(self._on_table_row_clicked)
+        self.table_view.doubleClicked.connect(self._on_table_row_clicked)
+        layout.addWidget(self.table_view, 1)
+
+        # Status / footer bar
+        self._footer_bar = QFrame(self._popup_frame)
+        self._footer_bar.setFixedHeight(24)
+        footer_layout = QHBoxLayout(self._footer_bar)
+        footer_layout.setContentsMargins(6, 2, 6, 2)
+        footer_layout.setSpacing(4)
+
+        self._status_label = QLabel(self._footer_bar)
+        footer_layout.addWidget(self._status_label, 1)
+
+        self._close_btn = QPushButton("✕ Close", self._footer_bar)
+        self._close_btn.setCursor(Qt.PointingHandCursor)
+        self._close_btn.clicked.connect(self.hidePopup)
+        footer_layout.addWidget(self._close_btn, 0)
+
+        layout.addWidget(self._footer_bar, 0)
+
+    def completer(self):
+        class _CompleterProxy:
+            def __init__(proxy_self, popup_frame):
+                proxy_self._frame = popup_frame
+            def popup(proxy_self):
+                return proxy_self._frame
+        if hasattr(self, "_popup_frame") and self._popup_frame is not None:
+            return _CompleterProxy(self._popup_frame)
+        return super().completer()
+
+    def _setup_columns(self):
+        headers = [c.get("header", c.get("key", "")) for c in self._columns]
+        self._table_model.setHorizontalHeaderLabels(headers)
+        header = self.table_view.horizontalHeader()
+        for idx, col in enumerate(self._columns):
+            w = col.get("width")
+            if w:
+                header.resizeSection(idx, w)
+
+    def set_columns(self, columns: list[dict] | list[str]):
+        """Configure table columns."""
+        new_cols = []
+        for c in columns:
+            if isinstance(c, str):
+                new_cols.append({"key": c.lower().replace(" ", "_"), "header": c, "width": 90, "align": Qt.AlignLeft})
+            else:
+                new_cols.append(c)
+        self._columns = new_cols
+        self._setup_columns()
+
+    def clear(self):
+        """Clear combo items, table model, and internal row data."""
+        self._block_filter = True
+        try:
+            super().clear()
+            self._table_model.clear()
+            self._row_dicts.clear()
+            self._setup_columns()
+            line = self.lineEdit()
+            if line is not None:
+                line.clear()
+                line.setToolTip("")
+        finally:
+            self._block_filter = False
+        self._update_footer()
+
+    def clear_selection(self):
+        """Reset combo to empty/unselected state."""
+        self.setCurrentIndex(-1)
+        self.table_view.clearSelection()
+        if hasattr(self, "_popup_frame") and self._popup_frame.isVisible():
+            self._popup_frame.hide()
+        line = self.lineEdit()
+        if line is not None:
+            line.clear()
+            line.setToolTip("")
+
+    def addItem(
+        self,
+        text: str,
+        data: Any = None,
+        raw_name: str | None = None,
+        row_data: dict[str, Any] | None = None,
+    ):
+        """Add a single item and update the multi-column table model."""
+        raw = raw_name if raw_name is not None else text
+        raw_str = str(raw or "")
+        text_str = str(text or "")
+
+        # Extract structured row data for multi-column presentation
+        r_info: dict[str, Any] = {}
+        if isinstance(row_data, dict):
+            r_info = dict(row_data)
+        elif isinstance(data, dict):
+            r_info = dict(data)
+        else:
+            r_info = _parse_legacy_label(text_str)
+
+        # Primary batch number
+        b_no = (
+            r_info.get("batch_no")
+            or raw_str
+            or (text_str.split("|")[0].strip() if "|" in text_str else text_str)
+        )
+        if not r_info.get("batch_no"):
+            r_info["batch_no"] = b_no
+
+        self._row_dicts.append(r_info)
+
+        # Let SearchableComboBox maintain count, index, findData, currentData
+        # We store raw_name as the primary clean text so lineEdit displays just the batch number!
+        super().addItem(text_str, data, raw_name=b_no)
+
+        # Create multi-column table row
+        self._append_table_row(r_info, data, b_no)
+        self._update_footer()
+
+    def _append_table_row(self, r_info: dict[str, Any], data: Any, primary_text: str):
+        row_items = []
+        is_placeholder = (data is None and primary_text.startswith("--"))
+
+        # Determine if batch is expired
+        is_exp = bool(r_info.get("is_expired"))
+        exp_raw = str(r_info.get("expiry") or "").strip()
+        if not is_exp and exp_raw:
+            try:
+                # Check YYYY-MM-DD
+                if len(exp_raw) >= 10:
+                    d_exp = datetime.strptime(exp_raw[:10], "%Y-%m-%d").date()
+                    if d_exp < date.today():
+                        is_exp = True
+            except Exception:
+                pass
+
+        # Determine stock level
+        stock_val = r_info.get("stock_qty")
+        if stock_val is None:
+            stock_val = r_info.get("available", r_info.get("balance"))
+        is_zero_stock = False
+        if stock_val is not None:
+            try:
+                if float(stock_val) <= 0:
+                    is_zero_stock = True
+            except (ValueError, TypeError):
+                pass
+
+        p = palette()
+        text_color = p["text"]
+        danger_color = p.get("danger", "#dc2626")
+        dim_color = p.get("text_dim", "#94a3b8")
+        success_color = "#16a34a"
+
+        for col in self._columns:
+            k = col.get("key", "")
+            align = col.get("align", Qt.AlignLeft | Qt.AlignVCenter)
+            item = QStandardItem()
+            item.setTextAlignment(align)
+
+            if is_placeholder:
+                if k in ("batch_no", self._columns[0]["key"]):
+                    item.setText(primary_text)
+                    item.setForeground(QColor(dim_color))
+                else:
+                    item.setText("")
+                row_items.append(item)
+                continue
+
+            # Populate column value
+            if k == "batch_no":
+                item.setText(str(r_info.get("batch_no") or primary_text))
+                font = item.font()
+                font.setBold(True)
+                item.setFont(font)
+                if is_exp:
+                    item.setForeground(QColor(danger_color))
+            elif k == "expiry":
+                exp_disp = _format_date_display(r_info.get("expiry"))
+                item.setText(exp_disp)
+                if is_exp:
+                    item.setForeground(QColor(danger_color))
+            elif k == "mrp":
+                mrp_val = r_info.get("mrp")
+                item.setText(_format_num_display(mrp_val, 2))
+                if is_exp:
+                    item.setForeground(QColor(danger_color))
+            elif k == "rate":
+                rate_val = r_info.get("purchase_rate")
+                if rate_val is None:
+                    rate_val = r_info.get("rate", r_info.get("sale_rate"))
+                item.setText(_format_num_display(rate_val, 2))
+                if is_exp:
+                    item.setForeground(QColor(danger_color))
+            elif k in ("stock_qty", "balance", "available"):
+                item.setText(_format_num_display(stock_val, 0))
+                if is_zero_stock:
+                    item.setForeground(QColor(dim_color))
+                elif is_exp:
+                    item.setForeground(QColor(danger_color))
+            elif k == "status":
+                if is_exp:
+                    item.setText("Expired")
+                    item.setForeground(QColor(danger_color))
+                    font = item.font()
+                    font.setBold(True)
+                    item.setFont(font)
+                else:
+                    item.setText("Valid")
+                    item.setForeground(QColor(success_color))
+            else:
+                val = r_info.get(k, "")
+                item.setText(str(val) if val is not None else "")
+                if is_exp:
+                    item.setForeground(QColor(danger_color))
+
+            row_items.append(item)
+
+        self._table_model.appendRow(row_items)
+
+    def set_batches(self, batches: list[dict[str, Any]], expired_only: bool = False):
+        """High-level batch loader displaying full table information."""
+        self.blockSignals(True)
+        try:
+            self.clear()
+            self.addItem("-- Select Batch --", None)
+            for b in batches:
+                if expired_only and not b.get("is_expired"):
+                    continue
+                b_no = str(b.get("batch_no") or "").strip()
+                self.addItem(b_no, b, raw_name=b_no, row_data=b)
+            self.setCurrentIndex(0)
+            self.clear_selection()
+        finally:
+            self.blockSignals(False)
+
+    def set_table_data(
+        self,
+        rows: list[dict[str, Any]],
+        *,
+        columns: list[dict] | list[str] | None = None,
+        display_key: str = "batch_no",
+        id_key: str = "id",
+        placeholder: str | None = None,
+    ):
+        """Load generic multi-attribute data into the table dropdown."""
+        if columns is not None:
+            self.set_columns(columns)
+        self.blockSignals(True)
+        try:
+            self.clear()
+            if placeholder:
+                self.addItem(placeholder, None)
+            for r in rows:
+                disp = str(r.get(display_key, "")).strip()
+                item_id = r.get(id_key)
+                self.addItem(disp, item_id if item_id is not None else r, raw_name=disp, row_data=r)
+            if placeholder:
+                self.setCurrentIndex(0)
+                self.clear_selection()
+        finally:
+            self.blockSignals(False)
+
+    def _build_tooltip(self, row: int) -> str:
+        if 0 <= row < len(self._row_dicts):
+            r = self._row_dicts[row]
+            b_no = r.get("batch_no", "")
+            exp = _format_date_display(r.get("expiry"))
+            mrp = _format_num_display(r.get("mrp"), 2)
+            rate = _format_num_display(r.get("purchase_rate") or r.get("rate"), 2)
+            stock = _format_num_display(r.get("stock_qty") or r.get("available"), 0)
+            status = "Expired" if r.get("is_expired") else "Valid"
+            parts = [f"Batch: {b_no}"]
+            if exp:
+                parts.append(f"Exp: {exp}")
+            if mrp:
+                parts.append(f"MRP: {mrp}")
+            if rate:
+                parts.append(f"Rate: {rate}")
+            if stock:
+                parts.append(f"Balance: {stock}")
+            parts.append(f"Status: {status}")
+            return " | ".join(parts)
+        return ""
+
+    def setCurrentIndex(self, index: int):
+        super().setCurrentIndex(index)
+        line = self.lineEdit()
+        if line is not None:
+            if index >= 0 and index < self.count():
+                raw = self.itemData(index, Qt.UserRole + 1)
+                text = str(raw) if raw is not None else self.itemText(index)
+                if index == 0 and self.itemData(index) is None and text.startswith("--"):
+                    line.clear()
+                    line.setToolTip("")
+                else:
+                    line.setText(text)
+                    line.setCursorPosition(0)
+                    line.setToolTip(self._build_tooltip(index))
+            else:
+                line.clear()
+                line.setToolTip("")
+
+    def _commit_row(self, row: int):
+        if not (0 <= row < self.count()):
+            return
+        self._block_filter = True
+        try:
+            self.setCurrentIndex(row)
+        finally:
+            self._block_filter = False
+        self.selection_changed.emit(self.currentData())
+        self.activated.emit(row)
+        self.completionAccepted.emit()
+
+    def _on_table_row_clicked(self, index: QModelIndex):
+        if not index.isValid():
+            return
+        row = index.row()
+        self._commit_row(row)
+        self.hidePopup()
+
+    def _update_footer(self):
+        if self.signalsBlocked():
+            return
+        if not hasattr(self, "_status_label") or self._status_label is None:
+            return
+        total = self._table_model.rowCount()
+        expired_count = sum(1 for r in self._row_dicts if r.get("is_expired"))
+        visible = sum(1 for r in range(total) if not self.table_view.isRowHidden(r))
+        if total == 0:
+            self._status_label.setText("No batches available")
+        elif visible < total:
+            self._status_label.setText(f"Showing {visible} of {total} batches ({expired_count} expired)")
+        else:
+            exp_text = f" ({expired_count} expired)" if expired_count > 0 else ""
+            self._status_label.setText(f"Total {total} batch{'es' if total != 1 else ''}{exp_text}")
+
+    def _on_text_edited(self, text: str):
+        if getattr(self, "_block_filter", False):
+            return
+        q = text.strip().casefold()
+        total = self._table_model.rowCount()
+        first_match = -1
+
+        for r in range(total):
+            if not q:
+                self.table_view.setRowHidden(r, False)
+                if first_match < 0:
+                    first_match = r
+                continue
+
+            # Match across batch_no or any column
+            matched = False
+            for c in range(self._table_model.columnCount()):
+                item = self._table_model.item(r, c)
+                if not item:
+                    continue
+                item_text = item.text().strip().casefold()
+                if getattr(self, "_prefix_only", True):
+                    if item_text.startswith(q):
+                        matched = True
+                        break
+                else:
+                    if q in item_text:
+                        matched = True
+                        break
+            self.table_view.setRowHidden(r, not matched)
+            if matched and first_match < 0:
+                first_match = r
+
+        self._update_footer()
+
+        if hasattr(self, "_popup_frame") and not self._popup_frame.isVisible() and total > 0:
+            self.showPopup()
+
+        if first_match >= 0:
+            idx = self._table_model.index(first_match, 0)
+            self.table_view.setCurrentIndex(idx)
+            self.table_view.scrollTo(idx, QAbstractItemView.PositionAtCenter)
+
+    def mousePressEvent(self, event):
+        if hasattr(self, "_popup_frame") and self._popup_frame.isVisible():
+            self.hidePopup()
+            return
+        super().mousePressEvent(event)
+
+    def showPopup(self):
+        total = self._table_model.rowCount()
+        if total == 0:
+            return
+        self._update_footer()
+
+        # Position and size popup
+        pos = self.mapToGlobal(QPoint(0, 0))
+        combo_w = self.width()
+        combo_h = self.height()
+        screen = QApplication.screenAt(pos) or QApplication.primaryScreen()
+        avail = screen.availableGeometry() if screen else QRect(0, 0, 1920, 1080)
+
+        # Calculate width from columns
+        cols_width = sum(self._columns[i].get("width", 90) for i in range(len(self._columns)))
+        target_w = max(combo_w, self._min_popup_width, cols_width + 28)
+        target_w = min(target_w, avail.width() - 20)
+
+        # Calculate height
+        visible_rows = sum(1 for r in range(total) if not self.table_view.isRowHidden(r))
+        target_h = min(self._max_popup_height, max(self._min_popup_height, 28 * visible_rows + 54))
+
+        # Boundary X
+        x = pos.x()
+        if x + target_w > avail.right() - 8:
+            x = max(avail.left() + 8, avail.right() - target_w - 8)
+        if x < avail.left() + 8:
+            x = avail.left() + 8
+
+        # Boundary Y
+        space_below = avail.bottom() - (pos.y() + combo_h)
+        space_above = pos.y() - avail.top()
+        if space_below >= target_h or space_below >= space_above:
+            y = pos.y() + combo_h + 2
+            h = min(target_h, max(self._min_popup_height, space_below - 8))
+        else:
+            h = min(target_h, max(self._min_popup_height, space_above - 8))
+            y = pos.y() - h - 2
+
+        self._popup_frame.setGeometry(QRect(x, y, target_w, h))
+
+        # Select current index
+        cur = self.currentIndex()
+        if not (0 <= cur < total and not self.table_view.isRowHidden(cur)):
+            cur = 1 if (total > 1 and self.itemData(0) is None and self.itemText(0).startswith("--")) else 0
+        if 0 <= cur < total and not self.table_view.isRowHidden(cur):
+            idx = self._table_model.index(cur, 0)
+            self.table_view.setCurrentIndex(idx)
+            self.table_view.scrollTo(idx, QAbstractItemView.PositionAtCenter)
+
+        self._popup_frame.show()
+        self._popup_frame.raise_()
+
+    def hidePopup(self):
+        if hasattr(self, "_popup_frame") and self._popup_frame.isVisible():
+            self._popup_frame.hide()
+
+    def eventFilter(self, obj, event):
+        if obj == self.lineEdit():
+            if event.type() == QEvent.MouseButtonPress:
+                if hasattr(self, "_popup_frame") and not self._popup_frame.isVisible() and self.count() > 0:
+                    QTimer.singleShot(0, self.showPopup)
+            elif event.type() == QEvent.KeyPress:
+                key = event.key()
+                if key in (Qt.Key_Down, Qt.Key_Up, Qt.Key_PageDown, Qt.Key_PageUp):
+                    if not self._popup_frame.isVisible():
+                        if key == Qt.Key_Down:
+                            self.showPopup()
+                            return True
+                    else:
+                        count = self._table_model.rowCount()
+                        if count > 0:
+                            cur_idx = self.table_view.currentIndex()
+                            cur_row = cur_idx.row() if cur_idx.isValid() else -1
+                            step = 1 if key == Qt.Key_Down else (-1 if key == Qt.Key_Up else (5 if key == Qt.Key_PageDown else -5))
+                            next_row = 0 if cur_row < 0 and step > 0 else (count - 1 if cur_row < 0 else cur_row + step)
+                            while 0 <= next_row < count:
+                                if not self.table_view.isRowHidden(next_row):
+                                    idx = self._table_model.index(next_row, 0)
+                                    self.table_view.setCurrentIndex(idx)
+                                    self.table_view.scrollTo(idx, QAbstractItemView.PositionAtCenter)
+                                    return True
+                                next_row += (1 if step > 0 else -1)
+                            return True
+                elif key in (Qt.Key_Return, Qt.Key_Enter):
+                    if self._popup_frame.isVisible():
+                        idx = self.table_view.currentIndex()
+                        if not idx.isValid():
+                            for r in range(self._table_model.rowCount()):
+                                if not self.table_view.isRowHidden(r):
+                                    idx = self._table_model.index(r, 0)
+                                    break
+                        if idx.isValid():
+                            self._commit_row(idx.row())
+                            self.hidePopup()
+                            return True
+                elif key == Qt.Key_Escape:
+                    if self._popup_frame.isVisible():
+                        self.hidePopup()
+                        return True
+                elif key in (Qt.Key_Tab, Qt.Key_Backtab):
+                    if self._popup_frame.isVisible():
+                        idx = self.table_view.currentIndex()
+                        if idx.isValid():
+                            self._commit_row(idx.row())
+                        self.hidePopup()
+                    return False
+        return super().eventFilter(obj, event)
+
+    def refresh_theme(self, p: dict | None = None):
+        super().refresh_theme(p)
+        if not hasattr(self, "_popup_frame") or self._popup_frame is None:
+            return
+        p = p or palette()
+        surface = p["surface"]
+        surface_alt = p.get("surface_alt", "#f8fafc")
+        text = p["text"]
+        border = p["border"]
+        accent = p["accent"]
+        selected_bg = p.get("selected", accent)
+        selected_text = p.get("selected_text", "#ffffff")
+        text_dim = p.get("text_dim", "#888888")
+        danger_color = p.get("danger", "#dc2626")
+
+        self._popup_frame.setStyleSheet(
+            f"QFrame#TableComboBoxPopup {{"
+            f"  background-color: {surface};"
+            f"  border: 1px solid {accent};"
+            f"  border-radius: 2px;"
+            f"}}"
+        )
+        self.table_view.setStyleSheet(
+            f"QTableView {{"
+            f"  background-color: {surface};"
+            f"  alternate-background-color: {surface_alt};"
+            f"  color: {text};"
+            f"  border: none;"
+            f"  gridline-color: {border};"
+            f"  font-size: 13px; font-family: 'Segoe UI';"
+            f"  selection-background-color: {selected_bg};"
+            f"  selection-color: {selected_text};"
+            f"  outline: 0;"
+            f"}}"
+            f"QTableView::item {{"
+            f"  padding: 3px 6px;"
+            f"  min-height: 24px;"
+            f"}}"
+            f"QTableView::item:selected {{"
+            f"  background-color: {selected_bg};"
+            f"  color: {selected_text};"
+            f"}}"
+            f"QHeaderView::section {{"
+            f"  background-color: {surface_alt};"
+            f"  color: {text};"
+            f"  font-size: 12px; font-weight: bold; font-family: 'Segoe UI';"
+            f"  border: none;"
+            f"  border-bottom: 2px solid {border};"
+            f"  border-right: 1px solid {border};"
+            f"  padding: 4px 6px;"
+            f"}}"
+        )
+        self._footer_bar.setStyleSheet(
+            f"QFrame {{"
+            f"  background-color: {surface_alt};"
+            f"  border-top: 1px solid {border};"
+            f"}}"
+            f"QLabel {{"
+            f"  color: {text_dim}; font-size: 11px; font-family: 'Segoe UI'; font-weight: 500;"
+            f"}}"
+            f"QPushButton {{"
+            f"  background: transparent; color: {text_dim}; border: none;"
+            f"  font-size: 11px; font-family: 'Segoe UI'; font-weight: bold; padding: 2px 4px;"
+            f"}}"
+            f"QPushButton:hover {{"
+            f"  color: {danger_color};"
+            f"}}"
+        )
+
+
 class ReportFilterSearchCombo(SearchableComboBox):
     """Searchable combo for Filter dropdowns in Reports (Purchase, Sales, Schedule, etc.).
 
@@ -1394,6 +2105,7 @@ class ReportFilterSearchCombo(SearchableComboBox):
         query = text.strip()
         popup = self._completer.popup()
         if not query:
+            self._completer_model.clear()
             if popup and popup.isVisible():
                 popup.hide()
             self.setCurrentIndex(-1)
@@ -2134,6 +2846,44 @@ def refresh_generic_screen(root: QWidget) -> int:
                     elif "down-arrow" not in ss and "drop-down" not in ss:
                         # Unstyled date field follows the app stylesheet;
                         # repolish so the global chevron applies.
+                        try:
+                            style = w.style()
+                            if style is not None:
+                                style.unpolish(w)
+                                style.polish(w)
+                            w.update()
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+                continue
+            if isinstance(w, QComboBox):
+                try:
+                    ss = w.styleSheet() if hasattr(w, "styleSheet") else ""
+                    if ss:
+                        new_ss = ss
+                        for old, new in (
+                            (_PALS["dark"]["bg"], p["bg"]),
+                            (_PALS["light"]["bg"], p["bg"]),
+                            (_PALS["dark"]["text"], p["text"]),
+                            (_PALS["light"]["text"], p["text"]),
+                            (_PALS["dark"]["border"], p["border"]),
+                            (_PALS["light"]["border"], p["border"]),
+                            (_PALS["dark"]["accent"], p["accent"]),
+                            (_PALS["light"]["accent"], p["accent"]),
+                        ):
+                            if old and new and old.lower() != new.lower():
+                                new_ss = _re.sub(_re.escape(old), new, new_ss,
+                                                 flags=_re.IGNORECASE)
+                        try:
+                            from ui.theme import fix_combo_stylesheet as _fix_combos
+                            new_ss = _fix_combos(new_ss, p)
+                        except Exception:
+                            pass
+                        if new_ss != ss:
+                            w.setStyleSheet(new_ss)
+                            updated += 1
+                    else:
                         try:
                             style = w.style()
                             if style is not None:

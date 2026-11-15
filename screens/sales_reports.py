@@ -61,7 +61,7 @@ from ui.crystal_report_viewer import (
     print_or_export_report_pages,
 )
 from ui.fy_view import view_year_bounds
-from ui.theme import palette
+from ui.theme import combo_subcontrols, date_subcontrols, palette
 
 MAX_PAGE_BODY_HEIGHT_PORTRAIT = 980.0
 MAX_PAGE_BODY_HEIGHT_LANDSCAPE = 635.0
@@ -307,6 +307,8 @@ class _BaseSalesReportPage(QWidget):
             f"  background-color: {p['surface']}; color: {p['text']};"
             f"  border: 1px solid {p['border']}; border-radius: 2px; padding: 4px 6px; font-size: 12px;"
             f"}}"
+            + combo_subcontrols(p, width=20)
+            + date_subcontrols(p, width=22)
         )
         self.btn_show_report.setStyleSheet(
             f"QPushButton {{ background-color: #1B5299; color: white; border: none; border-radius: 3px; padding: 7px 12px; font-size: 13px; font-weight: bold; }}"
@@ -797,12 +799,17 @@ class ItemwiseSalesPage(_BaseSalesReportPage):
         items = SalesReportsDAO.get_filter_items()
         self.item_combo.clear()
         self.item_combo.addItem("-- Select Item --", None)
+        seen_ids = set()
         for it in items:
+            item_id = it.get("id")
+            if item_id is None or item_id in seen_ids:
+                continue
+            seen_ids.add(item_id)
             name = str(it.get("item_name") or "").strip()
             unit = str(it.get("unit_name") or "").strip()
             raw = f"{name} {unit}".strip() if unit else name
             if name:
-                self.item_combo.addItem(name, it.get("id"), raw)
+                self.item_combo.addItem(name, item_id, raw)
         self.item_combo.setCurrentIndex(0)
 
     def set_history_financial_year(self, year: Optional[Dict]):

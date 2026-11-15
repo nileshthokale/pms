@@ -1,5 +1,6 @@
 import os
 import sys
+import tempfile
 import unittest
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
@@ -8,7 +9,8 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 
 app = QApplication.instance() or QApplication(sys.argv)
 
-from database.connection import get_connection
+from database.connection import get_connection, init_database
+from database.account_roles import ensure_system_ledgers
 from database.company_dao import CompanyDAO
 from database.unit_dao import UnitDAO
 from database.item_dao import ItemDAO
@@ -18,13 +20,32 @@ from database.stock_dao import StockDAO
 from screens.counter_sale import _ItemEntryBar
 from screens.purchase_invoice import _ItemPurchaseHistoryDialog
 
+_TEST_DB = os.path.join(tempfile.gettempdir(), "test_counter_sale_history_btn.db")
+
 
 class TestCounterSaleHistoryButton(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        if os.path.exists(_TEST_DB):
+            try:
+                os.remove(_TEST_DB)
+            except Exception:
+                pass
+        os.environ["PHARMACY_DB"] = _TEST_DB
+        init_database()
+        ensure_system_ledgers()
         conn = get_connection()
         conn.execute("PRAGMA foreign_keys = OFF;")
         conn.close()
+
+    @classmethod
+    def tearDownClass(cls):
+        os.environ.pop("PHARMACY_DB", None)
+        if os.path.exists(_TEST_DB):
+            try:
+                os.remove(_TEST_DB)
+            except Exception:
+                pass
 
     def setUp(self):
         import uuid
@@ -62,6 +83,20 @@ class TestCounterSaleHistoryButton(unittest.TestCase):
             rate=520.38,
         )
 
+    def tearDown(self):
+        conn = get_connection()
+        try:
+            if hasattr(self, "inv_id"):
+                conn.execute("DELETE FROM purchase_invoice_items WHERE purchase_invoice_id = ?", (self.inv_id,))
+                conn.execute("DELETE FROM purchase_invoices WHERE id = ?", (self.inv_id,))
+            if hasattr(self, "item_id"):
+                conn.execute("DELETE FROM purchase_invoice_items WHERE item_id = ?", (self.item_id,))
+                conn.execute("DELETE FROM stock_batches WHERE item_id = ?", (self.item_id,))
+                conn.execute("DELETE FROM items WHERE id = ?", (self.item_id,))
+            conn.commit()
+        finally:
+            conn.close()
+
     def test_item_entry_bar_controls(self):
         bar = _ItemEntryBar(two_row=True)
         self.assertTrue(hasattr(bar, "hist_btn"))
@@ -74,14 +109,15 @@ class TestCounterSaleHistoryButton(unittest.TestCase):
     def test_history_dialog_columns_and_data(self):
         import uuid
         test_vno = f"2026-2027-Credit-{uuid.uuid4().hex[:5].upper()}"
+        test_inv_no = f"INV-{uuid.uuid4().hex[:4].upper()}"
         # Insert a purchase invoice with purchase item for this item
-        inv_id = PurchaseDAO.insert_invoice(
+        self.inv_id = PurchaseDAO.insert_invoice(
             voucher_no=test_vno,
             voucher_date="2026-10-06",
             voucher_time="10:00",
             purchase_type="Credit",
             supplier_id=self.s_id,
-            invoice_no=f"INV-{uuid.uuid4().hex[:4].upper()}",
+            invoice_no=test_inv_no,
             invoice_date="2026-10-06",
             invoice_net_amount=5203.80,
             bill_discount=0.0,
@@ -116,6 +152,7 @@ class TestCounterSaleHistoryButton(unittest.TestCase):
         rows = PurchaseDAO.get_item_purchase_history(self.item_id)
         self.assertGreaterEqual(len(rows), 1)
         self.assertEqual(rows[0]["batch_no"], "26SFC02")
+        self.assertEqual(rows[0]["invoice_no"], test_inv_no)
         self.assertTrue("SHRINIWAS" in rows[0]["supplier_name"] or "SUPP_" in rows[0]["supplier_name"])
 
         dlg = _ItemPurchaseHistoryDialog(item_id=self.item_id, item_name="STAFLEX 3 D CAPSULE")
@@ -130,9 +167,8 @@ class TestCounterSaleHistoryButton(unittest.TestCase):
         self.assertEqual(actual_headers, expected_headers)
         self.assertEqual(dlg.table.rowCount(), len(rows))
 
-        # Check row 0 contents
-        from core.doc_formatter import format_purchase_voucher_number
-        self.assertEqual(dlg.table.item(0, 0).text(), format_purchase_voucher_number(test_vno))
+        # Check row 0 contents: Tran.No matches test_inv_no
+        self.assertEqual(dlg.table.item(0, 0).text(), test_inv_no)
         self.assertEqual(dlg.table.item(0, 1).text(), "06-10-2026")
         self.assertEqual(dlg.table.item(0, 3).text(), "26SFC02")
         self.assertEqual(dlg.table.item(0, 4).text(), "10")

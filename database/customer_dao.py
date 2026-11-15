@@ -85,7 +85,7 @@ class CustomerDAO:
                    LEFT JOIN account_ledgers al ON al.id = c.ledger_id
                    WHERE c.customer_name LIKE ?
                    ORDER BY c.customer_name""",
-                (f"%{name}%",),
+                (f"{name.strip()}%",),
             ).fetchall()
             return [dict(row) for row in rows]
         finally:
@@ -403,16 +403,15 @@ class CustomerDAO:
         CustomerDAO._ensure_patient_addresses_table()
 
         clean = " ".join((query or "").split()).strip()
-        words = clean.split()
 
         import sqlite3
         conn = get_connection()
         try:
             clauses = []
             params = []
-            for w in words:
+            if clean:
                 clauses.append("patient_name LIKE ?")
-                params.append(f"%{w}%")
+                params.append(f"{clean}%")
             where_sql = ("WHERE " + " AND ".join(clauses)) if clauses else "WHERE 1=1"
 
             sql = f"""
