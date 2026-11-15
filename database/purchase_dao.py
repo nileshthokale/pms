@@ -700,9 +700,8 @@ class PurchaseDAO:
                         sb.mrp,
                         sb.purchase_rate AS rate,
                         0.0 AS discount,
-                        COALESCE(s.supplier_name, '') AS supplier_name
+                        '' AS supplier_name
                     FROM stock_batches sb
-                    LEFT JOIN suppliers s ON s.id = sb.supplier_id
                     WHERE sb.item_id = ?
                     ORDER BY sb.id DESC
                     """,
