@@ -40,6 +40,7 @@ class TestCreditNoteWorkflow(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.app = QApplication.instance() or QApplication([])
+        cls._orig_db = os.environ.get("PHARMACY_DB")
         cls._db_fd, cls._db_path = tempfile.mkstemp(suffix="_cn_wf.db")
         os.close(cls._db_fd)
         os.environ["PHARMACY_DB"] = cls._db_path
@@ -56,6 +57,11 @@ class TestCreditNoteWorkflow(unittest.TestCase):
             os.remove(cls._db_path)
         except Exception:
             pass
+        if cls._orig_db is not None:
+            os.environ["PHARMACY_DB"] = cls._orig_db
+        else:
+            os.environ.pop("PHARMACY_DB", None)
+        init_database()
 
     def setUp(self):
         self._msg = mock.patch.multiple(

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from PySide6.QtCore import Qt, QDate
+from PySide6.QtCore import Qt, QDate, QEvent, QTimer
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -33,6 +33,7 @@ from database.sales_dao import SalesDAO
 from database.customer_dao import CustomerDAO
 
 from ui.components import SearchableComboBox
+from ui.input_rules import attach_uppercase
 from ui.theme import date_subcontrols, palette
 
 
@@ -135,8 +136,8 @@ class _ItemEntryBar(QWidget):
                 l.setFixedWidth(width)
             return l
 
-        lbl_row.addWidget(_make_lbl("* Item Name", 280, bold=True))
-        lbl_row.addWidget(_make_lbl("Batch #", 160))
+        lbl_row.addWidget(_make_lbl("* Item Name", 300, bold=True))
+        lbl_row.addWidget(_make_lbl("Batch #", 210))
         lbl_row.addWidget(_make_lbl("Expiry", 85))
         lbl_row.addWidget(_make_lbl("Pack Size", 75))
         lbl_row.addWidget(_make_lbl("Rate", 75))
@@ -154,12 +155,12 @@ class _ItemEntryBar(QWidget):
         ctrl_row.setSpacing(4)
 
         self.item_combo = SearchableComboBox(placeholder="Type medicine name to search...")
-        self.item_combo.setFixedWidth(280)
+        self.item_combo.setFixedWidth(300)
+        attach_uppercase(self.item_combo)
         ctrl_row.addWidget(self.item_combo)
 
         self.batch_combo = SearchableComboBox(placeholder="-- Select Batch --", min_width=320)
-        self.batch_combo.setFixedWidth(170)
-        self.batch_combo.selection_changed.connect(self._on_batch_selected)
+        self.batch_combo.setFixedWidth(210)
         self.batch_combo.currentIndexChanged.connect(self._on_batch_changed)
         ctrl_row.addWidget(self.batch_combo)
 
@@ -225,6 +226,83 @@ class _ItemEntryBar(QWidget):
         layout.addLayout(ctrl_row)
 
         self.item_combo.selection_changed.connect(self._on_item_selected)
+        if self.item_combo.lineEdit():
+            self.item_combo.lineEdit().textEdited.connect(self._on_item_text_edited)
+            self.item_combo.lineEdit().installEventFilter(self)
+        self.item_combo.installEventFilter(self)
+
+        if self.batch_combo.lineEdit():
+            self.batch_combo.lineEdit().installEventFilter(self)
+        self.batch_combo.installEventFilter(self)
+
+    def eventFilter(self, watched, event):
+        if hasattr(self, "item_combo") and (watched is self.item_combo or (self.item_combo.lineEdit() and watched is self.item_combo.lineEdit())):
+            if event.type() == QEvent.MouseButtonPress:
+                line = self.item_combo.lineEdit()
+                if line:
+                    QTimer.singleShot(0, line.selectAll)
+                if not self.item_combo.completer().popup().isVisible():
+                    QTimer.singleShot(50, self.item_combo.show_all_suggestions)
+            elif event.type() == QEvent.KeyPress:
+                key = event.key()
+                if key in (Qt.Key_Return, Qt.Key_Enter):
+                    self._commit_item_and_focus_batch()
+                    return True
+                elif key == Qt.Key_Tab and not (event.modifiers() & Qt.ShiftModifier):
+                    self._commit_item_and_focus_batch()
+                    return True
+        elif hasattr(self, "batch_combo") and (watched is self.batch_combo or (self.batch_combo.lineEdit() and watched is self.batch_combo.lineEdit())):
+            if event.type() == QEvent.MouseButtonPress:
+                line = self.batch_combo.lineEdit()
+                if line:
+                    QTimer.singleShot(0, line.selectAll)
+                if self.batch_combo.count() > 1 and not self.batch_combo.completer().popup().isVisible():
+                    QTimer.singleShot(50, self.batch_combo.show_all_suggestions)
+            elif event.type() == QEvent.KeyPress:
+                key = event.key()
+                if key in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Tab) and not (event.modifiers() & Qt.ShiftModifier):
+                    if self.batch_combo.currentData():
+                        self.qty_edit.setFocus()
+                        self.qty_edit.selectAll()
+                        return True
+        return super().eventFilter(watched, event)
+
+    def _on_item_text_edited(self, text: str):
+        # As soon as user modifies item search text, clear batch combo and batch fields
+        # so previous item's batches never linger!
+        self.batch_combo.blockSignals(True)
+        self.batch_combo.clear()
+        self.batch_combo.blockSignals(False)
+        self._clear_batch_fields()
+        line = self.batch_combo.lineEdit()
+        if line:
+            line.setPlaceholderText("Select item first")
+
+    def _commit_item_and_focus_batch(self):
+        completer = self.item_combo.completer()
+        popup = completer.popup() if completer else None
+        committed = False
+        if popup and popup.isVisible():
+            cur_idx = popup.currentIndex()
+            if cur_idx.isValid() and cur_idx.data(Qt.UserRole) is not None:
+                self.item_combo._on_completer_index_activated(cur_idx)
+                committed = True
+            elif self.item_combo._completer_model.rowCount() > 0:
+                first_idx = self.item_combo._completer_model.index(0, 0)
+                if first_idx.isValid() and first_idx.data(Qt.UserRole) is not None:
+                    self.item_combo._on_completer_index_activated(first_idx)
+                    committed = True
+            popup.hide()
+
+        if not committed:
+            self.item_combo.resolve_text()
+
+        item_id = self.item_combo.currentData()
+        if item_id:
+            self._reload_batches(int(item_id))
+            self.batch_combo.lineEdit().setFocus()
+            if self.batch_combo.count() > 1:
+                QTimer.singleShot(50, self.batch_combo.show_all_suggestions)
 
     def set_customer_id(self, customer_id: int | None):
         self._customer_id = customer_id
@@ -234,13 +312,26 @@ class _ItemEntryBar(QWidget):
 
     def load_items(self):
         items = ItemDAO.get_all()
-        list_items = [(it["item_name"], it["id"]) for it in items]
+        list_items = [
+            (
+                f"{it['item_name']} ({it['unit_name'].strip()})"
+                if (it.get("unit_name") or "").strip()
+                else it["item_name"],
+                it["id"],
+            )
+            for it in items
+        ]
         self.item_combo.populate(list_items)
 
     def _on_item_selected(self, item_id: object):
         if not item_id:
+            self.batch_combo.blockSignals(True)
             self.batch_combo.clear()
+            self.batch_combo.blockSignals(False)
             self._clear_batch_fields()
+            line = self.batch_combo.lineEdit()
+            if line:
+                line.setPlaceholderText("Select item first")
             return
         self._reload_batches(int(item_id))
 
@@ -250,31 +341,62 @@ class _ItemEntryBar(QWidget):
         self._clear_batch_fields()
 
         batches = CreditNoteDAO.get_batches_for_customer_item(self._customer_id, item_id)
+        if not batches:
+            batches = SalesDAO.get_stock_batches_for_item(item_id)
+
+        # Sort so active unexpired stock batches (same as Counter Sale) come first,
+        # followed by other batches for this item
+        def _batch_sort_key(b):
+            stock = float(b.get("stock_qty", 0.0) or 0.0)
+            is_exp = bool(b.get("is_expired"))
+            exp = b.get("expiry", "") or ""
+            if stock > 0 and not is_exp:
+                return (0, exp, b.get("batch_no", ""))
+            elif stock > 0:
+                return (1, exp, b.get("batch_no", ""))
+            else:
+                return (2, exp, b.get("batch_no", ""))
+
+        batches.sort(key=_batch_sort_key)
+
         self.batch_combo.addItem("-- Select Batch --", None)
         for b in batches:
             b_no = b.get("batch_no", "")
             exp = b.get("expiry", "")
-            stock = b.get("stock_qty", 0.0)
-            tag = " [EXP]" if b.get("is_expired") else ""
-            label = f"{b_no} (Exp: {exp}, Stk: {stock:g}){tag}"
+            stock = float(b.get("stock_qty", 0.0) or 0.0)
+            mrp = float(b.get("mrp", 0.0) or 0.0)
+            is_exp = bool(b.get("is_expired"))
+            tag = " | [EXP]" if is_exp else ""
+            label = f"{b_no} | Exp: {exp} | MRP: {mrp:.2f} | Avail: {stock:.0f}{tag}"
             self.batch_combo.addItem(label, b, raw_name=b_no)
+
         self.batch_combo.blockSignals(False)
 
+        line_edit = self.batch_combo.lineEdit()
         if len(batches) == 1:
             self.batch_combo.setCurrentIndex(1)
             self._on_batch_selected(batches[0])
         else:
             self.batch_combo.setCurrentIndex(0)
+            if line_edit:
+                line_edit.clear()
+                if len(batches) == 0:
+                    line_edit.setPlaceholderText("No batches available")
+                else:
+                    line_edit.setPlaceholderText("Select batch")
 
     def _on_batch_selected(self, batch_data: object):
         if not batch_data or not isinstance(batch_data, dict):
             self._clear_batch_fields()
             return
         b = batch_data
-        self.expiry_edit.setText(b.get("expiry", ""))
+        self.expiry_edit.setText(b.get("expiry", "") or "")
         self.pack_edit.setText(str(b.get("pack_size") or "1"))
         self.rate_edit.setText(f"{b.get('purchase_rate', 0.0):.2f}")
         self.mrp_edit.setText(f"{b.get('mrp', 0.0):.2f}")
+        line_edit = self.batch_combo.lineEdit()
+        if line_edit:
+            line_edit.setCursorPosition(0)
 
     def _on_batch_changed(self, idx: int):
         b = self.batch_combo.currentData()
@@ -290,8 +412,11 @@ class _ItemEntryBar(QWidget):
 
     def clear(self):
         self.item_combo.clear_selection()
-        self.batch_combo.clear_selection()
+        self.batch_combo.clear()
         self._clear_batch_fields()
+        line = self.batch_combo.lineEdit()
+        if line:
+            line.setPlaceholderText("Select item first")
 
     def get_current_data(self) -> dict | None:
         item_id = self.item_combo.currentData()
@@ -1183,8 +1308,9 @@ class PendingCreditNotesDialog(QDialog):
         self._row_edits: list[dict] = []
 
         self.setWindowTitle(f"Pending Credit Note(s) For {self._customer_name}")
-        self.setMinimumWidth(720)
-        self.setMinimumHeight(420)
+        self.setMinimumWidth(980)
+        self.setMinimumHeight(440)
+        self.resize(1020, 480)
         self.setModal(True)
 
         p = _get_palette()
@@ -1277,21 +1403,33 @@ class PendingCreditNotesDialog(QDialog):
                 prior_credit = suggested
                 remaining_needed -= suggested
 
+            date_disp = vh_date
+            if vh_date and "-" in vh_date:
+                parts = vh_date.split("-")
+                if len(parts) == 3 and len(parts[0]) == 4:
+                    date_disp = f"{parts[2]}/{parts[1]}/{parts[0]}"
+
             item_type = QTableWidgetItem("Credit Note")
+            item_type.setToolTip("Credit Note")
             item_type.setFlags(item_type.flags() & ~Qt.ItemIsEditable)
 
             item_no = QTableWidgetItem(vh_no)
+            item_no.setToolTip(vh_no)
             item_no.setFlags(item_no.flags() & ~Qt.ItemIsEditable)
 
-            item_date = QTableWidgetItem(vh_date)
+            item_date = QTableWidgetItem(date_disp)
+            item_date.setTextAlignment(Qt.AlignCenter)
+            item_date.setToolTip(f"{date_disp} ({vh_date})" if date_disp != vh_date else vh_date)
             item_date.setFlags(item_date.flags() & ~Qt.ItemIsEditable)
 
             item_amt = QTableWidgetItem(f"{vh_amt:.2f}")
             item_amt.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            item_amt.setToolTip(f"{vh_amt:.2f}")
             item_amt.setFlags(item_amt.flags() & ~Qt.ItemIsEditable)
 
             item_unsettled = QTableWidgetItem(f"{unsettled:.2f}")
             item_unsettled.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            item_unsettled.setToolTip(f"{unsettled:.2f}")
             item_unsettled.setFlags(item_unsettled.flags() & ~Qt.ItemIsEditable)
 
             credit_edit = QLineEdit(f"{prior_credit:.2f}" if prior_credit > 0 else "0.0")
@@ -1318,13 +1456,17 @@ class PendingCreditNotesDialog(QDialog):
                 "disc_edit": disc_edit,
             })
 
-        self.table.setColumnWidth(0, 95)
-        self.table.setColumnWidth(1, 80)
-        self.table.setColumnWidth(2, 95)
-        self.table.setColumnWidth(3, 90)
-        self.table.setColumnWidth(4, 90)
+        # Ensure columns fit full text without truncation
+        self.table.resizeColumnToContents(0)
+        self.table.resizeColumnToContents(1)
+        self.table.resizeColumnToContents(2)
+        self.table.setColumnWidth(0, max(130, self.table.columnWidth(0) + 16))
+        self.table.setColumnWidth(1, max(260, self.table.columnWidth(1) + 16))
+        self.table.setColumnWidth(2, max(120, self.table.columnWidth(2) + 16))
+        self.table.setColumnWidth(3, 95)
+        self.table.setColumnWidth(4, 95)
         self.table.setColumnWidth(5, 110)
-        self.table.setColumnWidth(6, 90)
+        self.table.setColumnWidth(6, 95)
 
     def _on_new_credit_note(self):
         dlg = _CreditNoteEntryDialog(self)

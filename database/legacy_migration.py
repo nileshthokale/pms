@@ -625,15 +625,15 @@ def _analyse_financial_years(dump: LegacyDump, plan: DryRunPlan) -> None:
 
 def _analyse_masters(dump: LegacyDump, plan: DryRunPlan) -> None:
     item_ids = set()
-    names: dict[str, list] = defaultdict(list)
+    names: dict[tuple[str, int | None], list] = defaultdict(list)
     for row in dump.iter_rows("itemmst"):
         item_id = row[0]
         item_ids.add(item_id)
         name = (row[1] or "").strip()
-        names[name.upper()].append(item_id)
+        names[(name.upper(), row[2])].append(item_id)
     duplicates = {k: v for k, v in names.items() if len(v) > 1}
-    for name, ids in duplicates.items():
-        _add(plan, "duplicate_item_names", {"name": name, "legacy_ids": ids})
+    for (name, unit_id), ids in duplicates.items():
+        _add(plan, "duplicate_item_names", {"name": name, "unit_id": unit_id, "legacy_ids": ids})
     plan.counts["_item_ids"] = len(item_ids)
     plan.counts["_duplicate_item_names"] = len(duplicates)
 
@@ -975,7 +975,7 @@ class LegacyMigrator:
         self.post_state: dict = {}
         self.backup: dict | None = None
         self.conn: sqlite3.Connection | None = None
-        self._existing_items: dict[str, int] = {}
+        self._existing_items: dict[tuple[str, int | None], int] = {}
         self._existing_ledgers: dict[str, int] = {}
         self._batch_cache: dict[tuple, int] = {}
         self._duplicates: list[dict] = []
@@ -1345,7 +1345,9 @@ class LegacyMigrator:
                 self._note_unsupported("itemmst.SellLoose")
             if _text(row[14]):
                 self._note_unsupported("itemmst.BillCompulsory")
-            existing = self._existing_items.get(name.upper())
+            target_unit = self.maps["unit"].get(row[2])
+            item_key = (name.upper(), target_unit)
+            existing = self._existing_items.get(item_key)
             if existing:
                 self.maps["item"][legacy_id] = existing
                 self._note_duplicate("itemmst", legacy_id, name, existing)
@@ -1361,7 +1363,7 @@ class LegacyMigrator:
                    VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     name,
-                    self.maps["unit"].get(row[2]),
+                    target_unit,
                     self.maps["company"].get(row[4]),
                     _pack(row[5]),
                     _text(row[10]),
@@ -1377,7 +1379,7 @@ class LegacyMigrator:
             )
             new_id = cur.lastrowid
             self.maps["item"][legacy_id] = new_id
-            self._existing_items[name.upper()] = new_id
+            self._existing_items[item_key] = new_id
             stats.imported += 1
         self.conn.commit()
 

@@ -22,7 +22,7 @@ class ItemDAO:
         conn = get_connection()
         try:
             has_lim = _has_legacy_id_map(conn)
-            lim_col = "lim.legacy_id" if has_lim else "NULL AS legacy_id"
+            lim_col = "GROUP_CONCAT(DISTINCT lim.legacy_id) AS legacy_id" if has_lim else "NULL AS legacy_id"
             lim_join = "LEFT JOIN legacy_id_map lim ON lim.entity = 'item' AND lim.new_id = i.id" if has_lim else ""
             rows = conn.execute(
                 f"""SELECT
@@ -58,6 +58,7 @@ class ItemDAO:
                     JOIN drugs d ON d.id = ii.drug_id
                     GROUP BY ii.item_id
                 ) generic_names ON generic_names.item_id = i.id
+                GROUP BY i.id
                 ORDER BY i.item_name"""
             ).fetchall()
             return [dict(row) for row in rows]
@@ -193,7 +194,7 @@ class ItemDAO:
         conn = get_connection()
         try:
             has_lim = _has_legacy_id_map(conn)
-            lim_col = "lim.legacy_id" if has_lim else "NULL AS legacy_id"
+            lim_col = "GROUP_CONCAT(DISTINCT lim.legacy_id) AS legacy_id" if has_lim else "NULL AS legacy_id"
             lim_join = "LEFT JOIN legacy_id_map lim ON lim.entity = 'item' AND lim.new_id = i.id" if has_lim else ""
             where_match = "(i.item_name LIKE ? OR lim.legacy_id = ? OR CAST(i.id AS TEXT) = ?)" if has_lim else "(i.item_name LIKE ? OR CAST(i.id AS TEXT) = ?)"
             params = (f"%{name}%", name.strip(), name.strip(), category_id, category_id) if has_lim else (f"%{name}%", name.strip(), category_id, category_id)
@@ -226,6 +227,7 @@ class ItemDAO:
                 LEFT JOIN categories cat ON i.category_id = cat.id
                 WHERE {where_match}
                 AND (? IS NULL OR i.category_id = ?)
+                GROUP BY i.id
                 ORDER BY i.item_name""",
                 params,
             ).fetchall()

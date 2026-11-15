@@ -252,7 +252,15 @@ class _ItemEntryBar(QWidget):
 
     def load_items(self):
         items = ItemDAO.get_all()
-        list_items = [(it["item_name"], it["id"]) for it in items]
+        list_items = [
+            (
+                f"{it['item_name']} ({it['unit_name'].strip()})"
+                if (it.get("unit_name") or "").strip()
+                else it["item_name"],
+                it["id"],
+            )
+            for it in items
+        ]
         self.item_combo.populate(list_items)
 
     def _on_item_selected(self, item_id: object):
