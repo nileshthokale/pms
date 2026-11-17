@@ -585,7 +585,6 @@ class _ItemDialog(QDialog):
         self._item_name_edit.setPlaceholderText("Enter item name")
         if not item and initial_name:
             self._item_name_edit.setText(initial_name)
-        form.addRow("Item Name *:", self._item_name_edit)
 
         combo_style = (
             f"QComboBox {{"
@@ -605,7 +604,17 @@ class _ItemDialog(QDialog):
         self._unit_combo = QComboBox()
         self._unit_combo.setStyleSheet(combo_style)
         self._load_units()
-        form.addRow("Unit:", self._unit_combo)
+
+        name_unit_row = QHBoxLayout()
+        name_unit_row.setContentsMargins(0, 0, 0, 0)
+        name_unit_row.setSpacing(10)
+        name_unit_row.addWidget(self._item_name_edit, 3)
+        unit_lbl = QLabel("Unit *:")
+        unit_lbl.setStyleSheet(f"color: {_TEXT}; font-size: 15px; font-weight: bold; font-family: 'Segoe UI';")
+        name_unit_row.addWidget(unit_lbl)
+        name_unit_row.addWidget(self._unit_combo, 2)
+
+        form.addRow("Item Name *:", name_unit_row)
 
         self._company_combo = _CompanyComboBox(self)
         self._load_companies()

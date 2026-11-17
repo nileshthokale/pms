@@ -174,7 +174,10 @@ class DailyProfitCostReportWidget(QWidget):
                 if item_id is None or item_id in seen_ids:
                     continue
                 seen_ids.add(item_id)
-                disp = f"{it['item_name']} ({it['company_code'] or it['company_name']})" if (it.get('company_code') or it.get('company_name')) else it['item_name']
+                unit = (it.get("unit_name") or "").strip()
+                item_label = f"{it['item_name']} ({unit})" if unit else it["item_name"]
+                comp = it.get('company_code') or it.get('company_name')
+                disp = f"{item_label} ({comp})" if comp else item_label
                 self.item_combo.addItem(disp, item_id)
         except Exception:
             pass

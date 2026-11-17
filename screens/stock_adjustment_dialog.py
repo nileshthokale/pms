@@ -603,9 +603,11 @@ class StockAdjustmentDialog(QDialog):
         try:
             cur = conn.execute(
                 """
-                SELECT id, item_name, COALESCE(pack_size, '1') AS pack_size
-                FROM items
-                ORDER BY item_name COLLATE NOCASE ASC
+                SELECT i.id, i.item_name, COALESCE(i.pack_size, '1') AS pack_size,
+                       COALESCE(u.unit_name, '') AS unit_name
+                FROM items i
+                LEFT JOIN units u ON i.unit_id = u.id
+                ORDER BY i.item_name COLLATE NOCASE ASC
                 """
             )
             self._items_list = [dict(r) for r in cur.fetchall()]
@@ -619,8 +621,11 @@ class StockAdjustmentDialog(QDialog):
             if item_id is None or item_id in seen_ids:
                 continue
             seen_ids.add(item_id)
-            display = f"{it['item_name']} [Pack: {it['pack_size']}]"
-            items.append((display, int(item_id), str(it["item_name"])))
+            u = (it.get("unit_name") or "").strip()
+            item_display = f"{it['item_name']} ({u})" if u else it['item_name']
+            display = f"{item_display} [Pack: {it['pack_size']}]"
+            raw_search = f"{it['item_name']} {u}".strip() if u else str(it["item_name"])
+            items.append((display, int(item_id), raw_search))
 
         self.item_combo.populate(items)
 

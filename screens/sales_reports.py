@@ -808,8 +808,9 @@ class ItemwiseSalesPage(_BaseSalesReportPage):
             name = str(it.get("item_name") or "").strip()
             unit = str(it.get("unit_name") or "").strip()
             raw = f"{name} {unit}".strip() if unit else name
+            display_name = f"{name} ({unit})" if unit else name
             if name:
-                self.item_combo.addItem(name, item_id, raw)
+                self.item_combo.addItem(display_name, item_id, raw)
         self.item_combo.setCurrentIndex(0)
 
     def set_history_financial_year(self, year: Optional[Dict]):

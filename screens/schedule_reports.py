@@ -753,7 +753,9 @@ class ScheduleSalesItemwisePage(_BaseScheduleReportPage):
             name = str(itm.get("item_name") or "").strip()
             item_id = itm.get("id")
             if name and item_id:
-                self.item_combo.addItem(name, item_id)
+                unit = str(itm.get("unit_name") or "").strip()
+                disp = f"{name} ({unit})" if unit else name
+                self.item_combo.addItem(disp, item_id)
                 scheduled_ids.add(item_id)
 
         all_items = ScheduleReportsDAO.get_all_items()
@@ -762,7 +764,9 @@ class ScheduleSalesItemwisePage(_BaseScheduleReportPage):
             if item_id and item_id not in scheduled_ids:
                 name = str(itm.get("item_name") or "").strip()
                 if name:
-                    self.item_combo.addItem(name, item_id)
+                    unit = str(itm.get("unit_name") or "").strip()
+                    disp = f"{name} ({unit})" if unit else name
+                    self.item_combo.addItem(disp, item_id)
 
         self.item_combo.setCurrentIndex(0)
         self.fp_layout.addWidget(self.item_combo)
@@ -1203,7 +1207,9 @@ class SchedulePurchaseItemwisePage(_BaseScheduleReportPage):
             name = str(itm.get("item_name") or "").strip()
             item_id = itm.get("id")
             if name and item_id:
-                self.item_combo.addItem(name, item_id)
+                unit = str(itm.get("unit_name") or "").strip()
+                disp = f"{name} ({unit})" if unit else name
+                self.item_combo.addItem(disp, item_id)
                 scheduled_ids.add(item_id)
 
         all_items = ScheduleReportsDAO.get_all_items()
@@ -1212,7 +1218,9 @@ class SchedulePurchaseItemwisePage(_BaseScheduleReportPage):
             if item_id and item_id not in scheduled_ids:
                 name = str(itm.get("item_name") or "").strip()
                 if name:
-                    self.item_combo.addItem(name, item_id)
+                    unit = str(itm.get("unit_name") or "").strip()
+                    disp = f"{name} ({unit})" if unit else name
+                    self.item_combo.addItem(disp, item_id)
 
         self.item_combo.setCurrentIndex(0)
         self.fp_layout.addWidget(self.item_combo)

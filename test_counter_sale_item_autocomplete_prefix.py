@@ -152,14 +152,14 @@ class TestCounterSaleItemPrefixAutocomplete(unittest.TestCase):
         _APP.processEvents()
 
         results = self._get_completion_texts()
-        self.assertIn("MG 500", results)
-        self.assertIn("MG-COLD TABLET", results)
-        self.assertIn("MGDOL SUSPENSION", results)
+        self.assertTrue(any(r.startswith("MG 500") for r in results), f"'MG 500' prefix not found in {results}")
+        self.assertTrue(any(r.startswith("MG-COLD TABLET") for r in results), f"'MG-COLD TABLET' prefix not found in {results}")
+        self.assertTrue(any(r.startswith("MGDOL SUSPENSION") for r in results), f"'MGDOL SUSPENSION' prefix not found in {results}")
 
         # Crucial check: must NOT contain medicines with 6MG or 500MG
-        self.assertNotIn("CORTIMAC 6MG", results)
-        self.assertNotIn("CALDOB 500MG", results)
-        self.assertNotIn("PARACETAMOL 650", results)
+        self.assertFalse(any(r.startswith("CORTIMAC 6MG") for r in results))
+        self.assertFalse(any(r.startswith("CALDOB 500MG") for r in results))
+        self.assertFalse(any(r.startswith("PARACETAMOL 650") for r in results))
 
     def test_02_mg_case_insensitive_identical_results(self):
         """Lowercase 'mg', mixed 'Mg', and uppercase 'MG' behave identically."""
@@ -182,11 +182,11 @@ class TestCounterSaleItemPrefixAutocomplete(unittest.TestCase):
         _APP.processEvents()
 
         results = self._get_completion_texts()
-        self.assertIn("ST 10", results)
-        self.assertIn("ST-GRA 50", results)
-        self.assertNotIn("CORTIMAC 6MG", results)
-        self.assertNotIn("MG 500", results)
-        self.assertNotIn("CIPROBID 500", results)
+        self.assertTrue(any(r.startswith("ST 10") for r in results))
+        self.assertTrue(any(r.startswith("ST-GRA 50") for r in results))
+        self.assertFalse(any(r.startswith("CORTIMAC 6MG") for r in results))
+        self.assertFalse(any(r.startswith("MG 500") for r in results))
+        self.assertFalse(any(r.startswith("CIPROBID 500") for r in results))
 
     def test_04_cip_matches_only_starting_with_cip(self):
         """Typing CIP matches only medicines starting with CIP."""
@@ -195,11 +195,11 @@ class TestCounterSaleItemPrefixAutocomplete(unittest.TestCase):
         _APP.processEvents()
 
         results = self._get_completion_texts()
-        self.assertIn("CIPROBID 500", results)
-        self.assertIn("CIPLOX 250", results)
-        self.assertNotIn("CORTIMAC 6MG", results)
-        self.assertNotIn("MG 500", results)
-        self.assertNotIn("ST 10", results)
+        self.assertTrue(any(r.startswith("CIPROBID 500") for r in results))
+        self.assertTrue(any(r.startswith("CIPLOX 250") for r in results))
+        self.assertFalse(any(r.startswith("CORTIMAC 6MG") for r in results))
+        self.assertFalse(any(r.startswith("MG 500") for r in results))
+        self.assertFalse(any(r.startswith("ST 10") for r in results))
 
     def test_05_dynamic_updates_as_user_types(self):
         """Typing character by character dynamically updates suggestions."""
@@ -209,27 +209,27 @@ class TestCounterSaleItemPrefixAutocomplete(unittest.TestCase):
         QTest.keyClicks(self.line_edit, "C")
         _APP.processEvents()
         res_c = self._get_completion_texts()
-        self.assertIn("CORTIMAC 6MG", res_c)
-        self.assertIn("CALDOB 500MG", res_c)
-        self.assertIn("CIPROBID 500", res_c)
-        self.assertIn("CIPLOX 250", res_c)
-        self.assertNotIn("MG 500", res_c)
+        self.assertTrue(any(r.startswith("CORTIMAC 6MG") for r in res_c))
+        self.assertTrue(any(r.startswith("CALDOB 500MG") for r in res_c))
+        self.assertTrue(any(r.startswith("CIPROBID 500") for r in res_c))
+        self.assertTrue(any(r.startswith("CIPLOX 250") for r in res_c))
+        self.assertFalse(any(r.startswith("MG 500") for r in res_c))
 
         # Type 'I' -> 'CI' -> only CIPROBID, CIPLOX
         QTest.keyClicks(self.line_edit, "I")
         _APP.processEvents()
         res_ci = self._get_completion_texts()
-        self.assertNotIn("CORTIMAC 6MG", res_ci)
-        self.assertNotIn("CALDOB 500MG", res_ci)
-        self.assertIn("CIPROBID 500", res_ci)
-        self.assertIn("CIPLOX 250", res_ci)
+        self.assertFalse(any(r.startswith("CORTIMAC 6MG") for r in res_ci))
+        self.assertFalse(any(r.startswith("CALDOB 500MG") for r in res_ci))
+        self.assertTrue(any(r.startswith("CIPROBID 500") for r in res_ci))
+        self.assertTrue(any(r.startswith("CIPLOX 250") for r in res_ci))
 
         # Type 'P' -> 'CIP'
         QTest.keyClicks(self.line_edit, "P")
         _APP.processEvents()
         res_cip = self._get_completion_texts()
-        self.assertIn("CIPROBID 500", res_cip)
-        self.assertIn("CIPLOX 250", res_cip)
+        self.assertTrue(any(r.startswith("CIPROBID 500") for r in res_cip))
+        self.assertTrue(any(r.startswith("CIPLOX 250") for r in res_cip))
 
     def test_06_no_products_found_when_no_prefix_match(self):
         """When query matches no medicine prefix, 'No products found' is shown and cannot be selected."""
