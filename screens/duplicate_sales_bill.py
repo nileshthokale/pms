@@ -41,6 +41,7 @@ from database.duplicate_sales_dao import DuplicateSalesDAO
 from database import financial_year
 from database import pharmacy_a6_receipt as a6
 from database import duplicate_a6_cash_memo as memo_a6
+from ui.components import TableComboBox
 from ui.crystal_report_viewer import (
     BlockKind,
     PAGE_HEIGHT,
@@ -473,48 +474,35 @@ class DuplicateSalesBillA6PreviewDialog(QDialog):
 # 2. POPUP ENTRY FORM ("Sales Bill" Modal Dialog)
 # ══════════════════════════════════════════════════════════════════════
 
-class _BatchComboBox(QComboBox):
-    """Editable combo box for Batch # that provides text() and setText() for backwards compatibility."""
+class _BatchComboBox(TableComboBox):
+    """Editable multi-column table combo box for Batch # with backwards compatibility."""
 
     def __init__(self, parent: QWidget | None = None):
-        super().__init__(parent)
-        self.setEditable(True)
-        self.setInsertPolicy(QComboBox.NoInsert)
-        self.setMaxVisibleItems(15)
+        super().__init__(
+            parent,
+            placeholder="Batch",
+            min_width=120,
+            min_popup_width=475,
+            allow_free_text=True,
+        )
         if self.lineEdit():
             attach_uppercase(self.lineEdit())
-
-    def text(self) -> str:
-        return self.currentText().strip()
 
     def setText(self, val: str) -> None:
         idx = self.findText(val, Qt.MatchFixedString)
         if idx >= 0:
             self.setCurrentIndex(idx)
         else:
-            self.setEditText(val)
+            super().setText(val)
 
     def setCompleter(self, completer: QCompleter | None) -> None:
-        if self.lineEdit():
-            self.lineEdit().setCompleter(completer)
-
-    @property
-    def returnPressed(self):
-        return self.lineEdit().returnPressed
+        # TableComboBox manages its own floating table popup
+        pass
 
     @property
     def editingFinished(self):
-        return self.lineEdit().editingFinished
-
-    def selectAll(self) -> None:
-        if self.lineEdit():
-            self.lineEdit().selectAll()
-
-    def setFocus(self, reason=Qt.OtherFocusReason) -> None:
-        if self.lineEdit():
-            self.lineEdit().setFocus(reason)
-        else:
-            super().setFocus(reason)
+        line = self.lineEdit()
+        return line.editingFinished if line is not None else self.returnPressed
 
 
 class DuplicateSalesBillDialog(QDialog):
@@ -830,6 +818,7 @@ class DuplicateSalesBillDialog(QDialog):
         el.addLayout(box_disc)
 
         self._entry_batch.textActivated.connect(self._on_batch_chosen)
+        self._entry_batch.batch_selected.connect(lambda b: self._on_batch_chosen(b.get("batch_no", "")) if isinstance(b, dict) else None)
         self._entry_batch.editingFinished.connect(self._on_batch_editing_finished)
 
         # Connect returnPressed for smooth keyboard progression
@@ -1031,7 +1020,13 @@ class DuplicateSalesBillDialog(QDialog):
             b_no = str(b.get("batch_no") or "").strip()
             if b_no and b_no not in batch_list:
                 batch_list.append(b_no)
-                self._entry_batch.addItem(b_no)
+                b_row = dict(b)
+                b_row["batch_no"] = b_no
+                b_row["expiry"] = b.get("expiry", "")
+                b_row["mrp"] = b.get("mrp", 0.0)
+                b_row["rate"] = b.get("rate", b.get("mrp", 0.0))
+                b_row["stock_qty"] = b.get("stock_qty", 0)
+                self._entry_batch.addItem(b_no, b, raw_name=b_no, row_data=b_row)
 
         if batch_list:
             top = batches[0]
@@ -1047,12 +1042,6 @@ class DuplicateSalesBillDialog(QDialog):
                 self._entry_unit.setText(str(top["unit"]))
             if top.get("comp"):
                 self._entry_comp.setText(str(top["comp"]))
-
-            b_completer = QCompleter(batch_list, self)
-            b_completer.setCaseSensitivity(Qt.CaseInsensitive)
-            b_completer.setFilterMode(Qt.MatchStartsWith)
-            self._entry_batch.setCompleter(b_completer)
-            b_completer.activated[str].connect(self._on_batch_chosen)
         else:
             if batches:
                 top = batches[0]

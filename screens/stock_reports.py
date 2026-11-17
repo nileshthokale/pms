@@ -432,7 +432,7 @@ class CompanywiseItemStockPage(_BaseStockReportPage):
         self.cbo_company.setInsertPolicy(QComboBox.NoInsert)
         if self.cbo_company.completer():
             self.cbo_company.completer().setCaseSensitivity(Qt.CaseInsensitive)
-            self.cbo_company.completer().setFilterMode(Qt.MatchContains)
+            self.cbo_company.completer().setFilterMode(Qt.MatchStartsWith)
         self.fp_layout.addWidget(self.cbo_company)
 
         self._populate_companies()
@@ -776,7 +776,7 @@ class ItemListPage(_BaseStockReportPage):
         self.cbo_company.setInsertPolicy(QComboBox.NoInsert)
         if self.cbo_company.completer():
             self.cbo_company.completer().setCaseSensitivity(Qt.CaseInsensitive)
-            self.cbo_company.completer().setFilterMode(Qt.MatchContains)
+            self.cbo_company.completer().setFilterMode(Qt.MatchStartsWith)
         self.fp_layout.addWidget(self.cbo_company)
 
         self._populate_companies()

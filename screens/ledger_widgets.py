@@ -127,11 +127,11 @@ def make_date_edit(parent: QWidget | None = None, p: dict | None = None) -> QDat
 
 
 class SearchableSelector(SearchableComboBox):
-    """Searchable dropdown combo with case-insensitive contains-match autocomplete
+    """Searchable dropdown combo with case-insensitive starts-with autocomplete
     and master ID binding for Detailed Ledger reports.
 
     Inherits from the working SearchableComboBox implementation in ui.components,
-    providing contains-match autocomplete, keyboard navigation, master ID binding,
+    providing starts-with autocomplete by default, keyboard navigation, master ID binding,
     and text-to-ID validation.
     """
 
@@ -141,7 +141,7 @@ class SearchableSelector(SearchableComboBox):
         parent: QWidget | None = None,
         max_visible: int = 10,
         max_height: int = 280,
-        prefix_only: bool = False,
+        prefix_only: bool = True,
     ):
         super().__init__(
             parent,

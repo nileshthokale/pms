@@ -630,7 +630,10 @@ class ScheduleItemSearchCombo(SearchableComboBox):
         tier2_word_start.sort(key=lambda x: x[0].casefold())
         tier3_contains.sort(key=lambda x: x[0].casefold())
 
-        matches = tier1_prefix + tier2_word_start + tier3_contains
+        if getattr(self, "_prefix_only", True):
+            matches = tier1_prefix + tier2_word_start
+        else:
+            matches = tier1_prefix + tier2_word_start + tier3_contains
 
         self._completer_model.clear()
         if matches:

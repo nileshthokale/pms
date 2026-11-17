@@ -40,7 +40,7 @@ from PySide6.QtWidgets import (
 from database.connection import get_connection
 from database.stock_dao import StockDAO
 from database.stock_adjustment_dao import StockAdjustmentDAO, StockAdjustmentError
-from ui.components import FONT_FAMILY, SearchableComboBox, TableComboBox
+from ui.components import ConstrainedComboBox, FONT_FAMILY, SearchableComboBox, TableComboBox
 from ui.theme import (
     TYPE_BUTTON,
     TYPE_FORM_LABEL,
@@ -160,12 +160,19 @@ class StockAdjustmentDialog(QDialog):
         )
         self.item_combo.setFixedHeight(30)
         self.item_combo.selection_changed.connect(self._on_item_selected)
+        self.item_combo.returnPressed.connect(self._focus_batch)
+        self.item_combo.completionAccepted.connect(self._focus_batch)
+        if self.item_combo.lineEdit():
+            self.item_combo.lineEdit().installEventFilter(self)
+        self.item_combo.installEventFilter(self)
         row1.addWidget(self.item_combo, 1)
 
         self.btn_hist = QPushButton("Hist")
         self.btn_hist.setToolTip("View recent adjustment history for this medicine")
         self.btn_hist.setFixedWidth(55)
         self.btn_hist.setFixedHeight(30)
+        self.btn_hist.setAutoDefault(False)
+        self.btn_hist.setDefault(False)
         self.btn_hist.setStyleSheet(
             f"QPushButton {{ background-color: {p['surface']}; color: {p['text']}; border: 1px solid {p['border']}; "
             f"border-radius: 2px; padding: 3px 6px; font-size: {TYPE_BUTTON}px; font-weight: bold; }}"
@@ -179,7 +186,7 @@ class StockAdjustmentDialog(QDialog):
         lbl_mode.setStyleSheet(f"font-weight: bold; font-size: {TYPE_FORM_LABEL}px; color: {p['text']};")
         row1.addWidget(lbl_mode)
 
-        self.op_filter = QComboBox()
+        self.op_filter = ConstrainedComboBox()
         self.op_filter.addItems([
             "All Active Batches",
             "Stock Removal (-)",
@@ -236,6 +243,11 @@ class StockAdjustmentDialog(QDialog):
         self.batch_combo.setFixedHeight(30)
         self.batch_combo.setMinimumWidth(260)
         self.batch_combo.selection_changed.connect(self._on_batch_selected)
+        self.batch_combo.completionAccepted.connect(self._focus_qty)
+        self.batch_combo.returnPressed.connect(self._focus_qty)
+        if self.batch_combo.lineEdit():
+            self.batch_combo.lineEdit().installEventFilter(self)
+        self.batch_combo.installEventFilter(self)
 
         # Wrap set_selected_id so that if an expired batch ID is targeted, write-off mode is automatically enabled
         _orig_batch_set_id = self.batch_combo.set_selected_id
@@ -279,7 +291,8 @@ class StockAdjustmentDialog(QDialog):
             f"font-size: {TYPE_INPUT + 1}px; font-weight: bold; padding: 2px 6px; border-radius: 2px; }}"
         )
         self.qty_edit.textChanged.connect(self._update_projected_stock)
-        self.qty_edit.returnPressed.connect(self._on_save)
+        self.qty_edit.returnPressed.connect(self._focus_reason)
+        self.qty_edit.installEventFilter(self)
         grid.addWidget(self.qty_edit, 1, col)
         col += 1
 
@@ -346,7 +359,8 @@ class StockAdjustmentDialog(QDialog):
         self.reason_edit.setStyleSheet(
             f"QLineEdit {{ background-color: {p['surface']}; color: {p['text']}; border: 1px solid {p['border']}; padding: 3px 6px; font-size: {TYPE_INPUT}px; }}"
         )
-        self.reason_edit.returnPressed.connect(self._on_save)
+        self.reason_edit.returnPressed.connect(self._focus_save)
+        self.reason_edit.installEventFilter(self)
         row3.addWidget(self.reason_edit)
 
         card_layout.addLayout(row3)
@@ -374,11 +388,15 @@ class StockAdjustmentDialog(QDialog):
             f"QLineEdit {{ background-color: {p['surface']}; color: {p['text']}; border: 1px solid {p['accent']}; padding: 2px 6px; font-size: {TYPE_INPUT}px; font-weight: bold; }}"
         )
         self.phys_count_edit.textChanged.connect(self._on_physical_count_changed)
+        self.phys_count_edit.returnPressed.connect(self._on_phys_count_return)
+        self.phys_count_edit.installEventFilter(self)
         row4.addWidget(self.phys_count_edit)
 
         self.btn_reconcile = QPushButton("Reconcile Difference")
         self.btn_reconcile.setToolTip("Calculate variance between physical count and book stock, and apply to Qty (+/-)")
         self.btn_reconcile.setFixedHeight(28)
+        self.btn_reconcile.setAutoDefault(False)
+        self.btn_reconcile.setDefault(False)
         self.btn_reconcile.setStyleSheet(
             f"QPushButton {{ background-color: {p['surface']}; color: {p['text']}; border: 1px solid {p['border']}; border-radius: 2px; padding: 2px 10px; font-size: {TYPE_BUTTON}px; font-weight: bold; }}"
             f"QPushButton:hover {{ background-color: {p['selected']}; color: {p['selected_text']}; }}"
@@ -389,6 +407,8 @@ class StockAdjustmentDialog(QDialog):
         self.btn_write_off = QPushButton("Zero-Out / Write-Off")
         self.btn_write_off.setToolTip("Write off the selected batch to 0 (for expired or disposed stock)")
         self.btn_write_off.setFixedHeight(28)
+        self.btn_write_off.setAutoDefault(False)
+        self.btn_write_off.setDefault(False)
         self.btn_write_off.setStyleSheet(
             f"QPushButton {{ background-color: {p['surface']}; color: #DC2626; border: 1px solid #DC2626; border-radius: 2px; padding: 2px 10px; font-size: {TYPE_BUTTON}px; font-weight: bold; }}"
             f"QPushButton:hover {{ background-color: #DC2626; color: #ffffff; }}"
@@ -399,6 +419,8 @@ class StockAdjustmentDialog(QDialog):
         self.btn_new_batch = QPushButton("+ New Batch")
         self.btn_new_batch.setToolTip("Create a new stock batch for this medicine to add stock")
         self.btn_new_batch.setFixedHeight(28)
+        self.btn_new_batch.setAutoDefault(False)
+        self.btn_new_batch.setDefault(False)
         self.btn_new_batch.setStyleSheet(
             f"QPushButton {{ background-color: {p['surface']}; color: {p['accent']}; border: 1px solid {p['accent']}; border-radius: 2px; padding: 2px 10px; font-size: {TYPE_BUTTON}px; font-weight: bold; }}"
             f"QPushButton:hover {{ background-color: {p['accent']}; color: #ffffff; }}"
@@ -409,6 +431,8 @@ class StockAdjustmentDialog(QDialog):
         self.btn_movement = QPushButton("Movement Ledger")
         self.btn_movement.setToolTip("View authoritative transaction ledger (purchases, sales, returns, adjustments) for this batch")
         self.btn_movement.setFixedHeight(28)
+        self.btn_movement.setAutoDefault(False)
+        self.btn_movement.setDefault(False)
         self.btn_movement.setStyleSheet(
             f"QPushButton {{ background-color: {p['surface']}; color: {p['text']}; border: 1px solid {p['border']}; border-radius: 2px; padding: 2px 10px; font-size: {TYPE_BUTTON}px; }}"
             f"QPushButton:hover {{ background-color: {p['selected']}; color: {p['selected_text']}; }}"
@@ -431,6 +455,8 @@ class StockAdjustmentDialog(QDialog):
         self.save_btn = QPushButton("Save")
         self.save_btn.setFixedWidth(100)
         self.save_btn.setFixedHeight(32)
+        self.save_btn.setAutoDefault(False)
+        self.save_btn.setDefault(False)
         self.save_btn.setStyleSheet(
             f"QPushButton {{ background-color: {p['accent']}; color: #ffffff; border: 1px solid {p['accent']}; "
             f"border-radius: 3px; font-weight: bold; font-size: {TYPE_BUTTON}px; }}"
@@ -443,6 +469,8 @@ class StockAdjustmentDialog(QDialog):
         self.close_btn = QPushButton("Close")
         self.close_btn.setFixedWidth(90)
         self.close_btn.setFixedHeight(32)
+        self.close_btn.setAutoDefault(False)
+        self.close_btn.setDefault(False)
         self.close_btn.setStyleSheet(
             f"QPushButton {{ background-color: {p['surface_alt']}; color: {p['text']}; border: 1px solid {p['border']}; "
             f"border-radius: 3px; font-size: {TYPE_BUTTON}px; }}"
@@ -452,6 +480,103 @@ class StockAdjustmentDialog(QDialog):
         btn_bar.addWidget(self.close_btn)
 
         root.addLayout(btn_bar)
+
+    def _focus_batch(self):
+        if hasattr(self.batch_combo, "lineEdit") and self.batch_combo.lineEdit():
+            self.batch_combo.lineEdit().setFocus()
+            self.batch_combo.lineEdit().selectAll()
+        else:
+            self.batch_combo.setFocus()
+        if self.batch_combo.count() > 0:
+            QTimer.singleShot(50, self.batch_combo.showPopup)
+
+    def _focus_qty(self):
+        self.qty_edit.setFocus()
+        self.qty_edit.selectAll()
+
+    def _focus_reason(self):
+        self.reason_edit.setFocus()
+        self.reason_edit.selectAll()
+
+    def _focus_save(self):
+        self.save_btn.setFocus()
+
+    def _on_phys_count_return(self):
+        self._on_apply_physical_reconciliation()
+        self._focus_reason()
+
+    def _commit_batch_and_focus_qty(self):
+        if hasattr(self.batch_combo, "_popup_frame") and self.batch_combo._popup_frame.isVisible():
+            idx = self.batch_combo.table_view.currentIndex()
+            if not idx.isValid():
+                start = 1 if (self.batch_combo._table_model.rowCount() > 1 and self.batch_combo.itemData(0) is None and self.batch_combo.itemText(0).startswith("--")) else 0
+                for r in range(start, self.batch_combo._table_model.rowCount()):
+                    if not self.batch_combo.table_view.isRowHidden(r):
+                        idx = self.batch_combo._table_model.index(r, 0)
+                        break
+            if idx.isValid():
+                self.batch_combo._commit_row(idx.row(), emit_completion=True)
+            self.batch_combo.hidePopup()
+        self._focus_qty()
+
+    def eventFilter(self, watched, event):
+        from PySide6.QtCore import QEvent
+        if hasattr(self, "item_combo") and (watched is self.item_combo or (self.item_combo.lineEdit() and watched is self.item_combo.lineEdit())):
+            if event.type() == QEvent.KeyPress:
+                key = event.key()
+                if key in (Qt.Key_Return, Qt.Key_Enter):
+                    if hasattr(self.item_combo, "_resolve_current_text"):
+                        self.item_combo._resolve_current_text()
+                    self._focus_batch()
+                    return True
+                elif key == Qt.Key_Tab and not (event.modifiers() & Qt.ShiftModifier):
+                    if hasattr(self.item_combo, "_resolve_current_text"):
+                        self.item_combo._resolve_current_text()
+                    self._focus_batch()
+                    return True
+        elif hasattr(self, "batch_combo") and (watched is self.batch_combo or (self.batch_combo.lineEdit() and watched is self.batch_combo.lineEdit())):
+            if event.type() == QEvent.KeyPress:
+                key = event.key()
+                if key in (Qt.Key_Return, Qt.Key_Enter):
+                    self._commit_batch_and_focus_qty()
+                    return True
+                elif key == Qt.Key_Tab and not (event.modifiers() & Qt.ShiftModifier):
+                    self._commit_batch_and_focus_qty()
+                    return True
+                elif key == Qt.Key_Backtab or (key == Qt.Key_Tab and (event.modifiers() & Qt.ShiftModifier)):
+                    if hasattr(self.batch_combo, "_popup_frame") and self.batch_combo._popup_frame.isVisible():
+                        self.batch_combo.hidePopup()
+                    if self.item_combo.lineEdit():
+                        self.item_combo.lineEdit().setFocus()
+                        self.item_combo.lineEdit().selectAll()
+                    else:
+                        self.item_combo.setFocus()
+                    return True
+        elif hasattr(self, "qty_edit") and watched is self.qty_edit:
+            if event.type() == QEvent.KeyPress:
+                key = event.key()
+                if key == Qt.Key_Backtab or (key == Qt.Key_Tab and (event.modifiers() & Qt.ShiftModifier)):
+                    if self.batch_combo.lineEdit():
+                        self.batch_combo.lineEdit().setFocus()
+                        self.batch_combo.lineEdit().selectAll()
+                    else:
+                        self.batch_combo.setFocus()
+                    return True
+        elif hasattr(self, "phys_count_edit") and watched is self.phys_count_edit:
+            if event.type() == QEvent.KeyPress:
+                key = event.key()
+                if key == Qt.Key_Backtab or (key == Qt.Key_Tab and (event.modifiers() & Qt.ShiftModifier)):
+                    self.qty_edit.setFocus()
+                    self.qty_edit.selectAll()
+                    return True
+        elif hasattr(self, "reason_edit") and watched is self.reason_edit:
+            if event.type() == QEvent.KeyPress:
+                key = event.key()
+                if key == Qt.Key_Backtab or (key == Qt.Key_Tab and (event.modifiers() & Qt.ShiftModifier)):
+                    self.qty_edit.setFocus()
+                    self.qty_edit.selectAll()
+                    return True
+        return super().eventFilter(watched, event)
 
     def _create_header_label(self, text: str) -> QLabel:
         p = palette()
@@ -691,13 +816,29 @@ class StockAdjustmentDialog(QDialog):
             self.projected_label.setText("Select a batch to adjust stock.")
             self.projected_label.setStyleSheet(f"color: {p['text_dim']}; font-weight: bold;")
 
+    def _get_current_batch_id(self) -> int | None:
+        bid = self.batch_combo.currentData()
+        if isinstance(bid, dict):
+            bid = bid.get("id")
+        try:
+            return int(bid) if bid is not None else None
+        except (ValueError, TypeError):
+            return None
+
     def _on_batch_selected(self, batch_id: Any):
         """Called when a batch is chosen from the SearchableComboBox."""
-        if batch_id is None or int(batch_id) not in self._batches_by_id:
+        if isinstance(batch_id, dict):
+            batch_id = batch_id.get("id")
+        try:
+            bid = int(batch_id) if batch_id is not None else None
+        except (ValueError, TypeError):
+            bid = None
+
+        if bid is None or bid not in self._batches_by_id:
             self._clear_batch_fields()
             return
 
-        b = self._batches_by_id[int(batch_id)]
+        b = self._batches_by_id[bid]
         b_no = str(b.get("batch_no") or "").strip() or "-"
         exp = _format_expiry_display(b.get("expiry") or "")
         mrp = float(b.get("mrp") or 0.0)
@@ -777,8 +918,8 @@ class StockAdjustmentDialog(QDialog):
             self.reconcile_status_lbl.setStyleSheet("color: #DC2626; font-weight: bold;")
             return
 
-        batch_id = self.batch_combo.currentData()
-        b = self._batches_by_id.get(int(batch_id)) if batch_id is not None else None
+        batch_id = self._get_current_batch_id()
+        b = self._batches_by_id.get(batch_id) if batch_id is not None else None
         cur_batch_stock = float(b.get("stock_qty") or 0.0) if b else 0.0
 
         item_active = float(self._stock_summary["eligible_stock"]) if getattr(self, "_stock_summary", None) else cur_batch_stock
@@ -805,12 +946,12 @@ class StockAdjustmentDialog(QDialog):
             QMessageBox.warning(self, "Invalid Input", "Physical count must be a valid number.")
             return
 
-        batch_id = self.batch_combo.currentData()
-        if batch_id is None or int(batch_id) not in self._batches_by_id:
+        batch_id = self._get_current_batch_id()
+        if batch_id is None or batch_id not in self._batches_by_id:
             QMessageBox.warning(self, "Select Batch", "Please select a batch to reconcile.")
             return
 
-        b = self._batches_by_id[int(batch_id)]
+        b = self._batches_by_id[batch_id]
         cur_batch_stock = float(b.get("stock_qty") or 0.0)
         item_active = float(self._stock_summary["eligible_stock"]) if getattr(self, "_stock_summary", None) else cur_batch_stock
 
@@ -840,8 +981,8 @@ class StockAdjustmentDialog(QDialog):
 
     def _on_write_off_batch(self):
         """Quick action to write off the entire stock of the selected batch to 0."""
-        batch_id = self.batch_combo.currentData()
-        if batch_id is None or int(batch_id) not in self._batches_by_id:
+        batch_id = self._get_current_batch_id()
+        if batch_id is None or batch_id not in self._batches_by_id:
             # If expired batches exist, switch to write-off mode automatically
             if self._stock_summary and self._stock_summary.get("expired_batches"):
                 if hasattr(self, "show_expired_cb"):
@@ -855,7 +996,7 @@ class StockAdjustmentDialog(QDialog):
                 QMessageBox.warning(self, "Select Batch", "Please select a batch to write off.")
             return
 
-        b = self._batches_by_id[int(batch_id)]
+        b = self._batches_by_id[batch_id]
         cur_stock = float(b.get("stock_qty") or 0.0)
         if cur_stock <= 0:
             QMessageBox.information(self, "Zero Stock", "This batch already has 0 stock.")
@@ -990,13 +1131,13 @@ class StockAdjustmentDialog(QDialog):
     def _show_movement_dialog(self):
         """Display authoritative movement ledger audit for the selected batch."""
         item_id = self.item_combo.currentData()
-        batch_id = self.batch_combo.currentData()
-        if item_id is None or batch_id is None or int(batch_id) not in self._batches_by_id:
+        batch_id = self._get_current_batch_id()
+        if item_id is None or batch_id is None or batch_id not in self._batches_by_id:
             QMessageBox.information(self, "Select Batch", "Please select a medicine and batch first.")
             return
 
-        b = self._batches_by_id[int(batch_id)]
-        m = StockDAO.get_batch_ledger_movement(int(item_id), int(batch_id), b.get("batch_no"))
+        b = self._batches_by_id[batch_id]
+        m = StockDAO.get_batch_ledger_movement(int(item_id), batch_id, b.get("batch_no"))
 
         dlg = QDialog(self)
         dlg.setWindowTitle(f"Movement Ledger - Batch {b.get('batch_no', '')}")
@@ -1054,13 +1195,13 @@ class StockAdjustmentDialog(QDialog):
     def _update_projected_stock(self):
         """Compute and display projected stock dynamically as user types."""
         p = palette()
-        batch_id = self.batch_combo.currentData()
-        if batch_id is None or int(batch_id) not in self._batches_by_id:
+        batch_id = self._get_current_batch_id()
+        if batch_id is None or batch_id not in self._batches_by_id:
             self.projected_label.setText("Select a medicine and batch to adjust stock.")
             self.projected_label.setStyleSheet(f"color: {p['text_dim']}; font-weight: bold;")
             return
 
-        b = self._batches_by_id[int(batch_id)]
+        b = self._batches_by_id[batch_id]
         cur_stock = float(b.get("stock_qty") or 0.0)
         text = self.qty_edit.text().strip()
 
@@ -1181,8 +1322,8 @@ class StockAdjustmentDialog(QDialog):
             self.item_combo.setFocus()
             return
 
-        batch_id = self.batch_combo.currentData()
-        if batch_id is None or int(batch_id) not in self._batches_by_id:
+        batch_id = self._get_current_batch_id()
+        if batch_id is None or batch_id not in self._batches_by_id:
             QMessageBox.warning(self, "Validation Error", "Please select a valid stock batch.")
             self.batch_combo.setFocus()
             return

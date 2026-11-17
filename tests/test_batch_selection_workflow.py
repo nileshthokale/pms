@@ -2,7 +2,9 @@
 and keyboard navigation (Type Item -> Tab -> Up/Down -> Tab -> Qty).
 """
 import os
+import shutil
 import sys
+import tempfile
 import unittest
 
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
@@ -14,11 +16,63 @@ from PySide6.QtGui import QKeyEvent
 
 from ui.components import TableComboBox, DEFAULT_BATCH_COLUMNS
 from screens.counter_sale import CounterSalePage, _ItemEntryBar
+import database.connection as db_conn
+from database.connection import init_database, get_connection
+from database.account_roles import ensure_system_ledgers
+from database.financial_year import ensure_default_financial_year
 
 app = QApplication.instance() or QApplication([])
 
 
 class TestBatchSelectionWorkflow(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp_dir = tempfile.mkdtemp(prefix="pms_test_batch_wf_")
+        cls.db_path = os.path.join(cls.tmp_dir, "test_batch_wf.db")
+        cls._orig_env = os.environ.get("PHARMACY_DB")
+        os.environ["PHARMACY_DB"] = cls.db_path
+
+        init_database()
+        ensure_system_ledgers()
+        ensure_default_financial_year()
+
+        conn = get_connection()
+        try:
+            conn.execute("INSERT OR IGNORE INTO units (id, unit_name) VALUES (1, 'TAB')")
+            conn.execute("INSERT OR IGNORE INTO companies (id, company_name, short_name) VALUES (1, 'SUN PHARMA', 'SUN')")
+            conn.execute(
+                "INSERT OR REPLACE INTO items (id, item_name, company_id, unit_id, pack_size, location, mrp) "
+                "VALUES (101, 'BIO D3 PLUS (TABLET)', 1, 1, '10', 'RACK-1', 301.0)"
+            )
+            conn.execute(
+                "INSERT OR REPLACE INTO items (id, item_name, company_id, unit_id, pack_size, location, mrp) "
+                "VALUES (102, 'PARACETAMOL 500', 1, 1, '10', 'RACK-2', 50.0)"
+            )
+            batches = [
+                (1, 101, "KBC2402A", "2026-12-31", "10", 301.0, 215.0, 215.0, 10.0),
+                (2, 101, "14253406A", "2028-07-31", "10", 341.34, 260.07, 260.07, 5.0),
+                (3, 101, "14261266A", "2029-02-28", "10", 341.34, 260.07, 260.07, 40.0),
+            ]
+            for bid, iid, bno, exp, pack, mrp, prate, nrate, stock in batches:
+                conn.execute(
+                    "INSERT OR REPLACE INTO stock_batches (id, item_id, batch_no, expiry, pack_size, mrp, purchase_rate, net_rate, stock_qty) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (bid, iid, bno, exp, pack, mrp, prate, nrate, stock),
+                )
+            conn.commit()
+        finally:
+            conn.close()
+
+    @classmethod
+    def tearDownClass(cls):
+        if cls._orig_env is not None:
+            os.environ["PHARMACY_DB"] = cls._orig_env
+        else:
+            os.environ.pop("PHARMACY_DB", None)
+        try:
+            shutil.rmtree(cls.tmp_dir, ignore_errors=True)
+        except Exception:
+            pass
     def test_01_status_column_removed(self):
         """Verify 'Status' column is removed from default batch columns."""
         keys = [c["key"] for c in DEFAULT_BATCH_COLUMNS]
@@ -111,8 +165,8 @@ class TestBatchSelectionWorkflow(unittest.TestCase):
         self.assertEqual(bar.mrp_edit.text(), "341.34")
         self.assertEqual(bar.expiry_edit.text(), "2028-07-31")
 
-        # Focus should advance to qty_edit
-        self.assertEqual(app.focusWidget(), bar.qty_edit)
+        # Focus should advance to pack_edit
+        self.assertEqual(app.focusWidget(), bar.pack_edit)
         bar.close()
 
 

@@ -44,7 +44,7 @@ from database.tax_structures import (
     resolve_tax_display,
 )
 
-from ui.components import SearchableComboBox
+from ui.components import SearchableComboBox, setup_form_navigation
 from ui.input_rules import attach_uppercase
 from ui.theme import combo_subcontrols, palette
 _p = palette()
@@ -266,7 +266,7 @@ class _DrugComboBox(QComboBox):
         carries the pre-conversion text.
         """
         line = self.lineEdit()
-        text = line.text() if line is not None else self.currentText()
+        text = (line.text() if line is not None and line.text() else _text) or self.currentText()
         completer = self.completer()
         completer.setCompletionPrefix(text)
         if text:
@@ -720,6 +720,26 @@ class _ItemDialog(QDialog):
         )
         cancel_btn.clicked.connect(self.reject)
         btn_layout.addWidget(cancel_btn)
+
+        setup_form_navigation(
+            fields=[
+                self._item_name_edit,
+                self._unit_combo,
+                self._company_combo,
+                self._pack_size_edit,
+                self._tax_structure_combo,
+                self._discount_edit,
+                self._mrp_edit,
+                self._rate_edit,
+                self._reorder_edit,
+                self._scheduled_edit,
+                self._location_edit,
+                self._pathy_edit,
+                self._dpco_edit,
+            ],
+            save_btn=save_btn,
+            cancel_btn=cancel_btn,
+        )
 
         dlg_layout.addLayout(btn_layout)
 

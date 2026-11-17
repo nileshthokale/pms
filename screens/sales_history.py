@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QListWidget,
     QMessageBox,
     QPushButton,
+    QSizePolicy,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -367,12 +368,31 @@ class SalesBillDetailsDialog(QDialog):
             layout.addWidget(err_lbl)
             return
 
-        # Header metadata frame (compact to preserve table space)
+        # Header metadata frame: compact, balanced grid with 3 logical groups:
+        # Group 1 (cols 0-1): Bill / CNo (row 0), Patient (row 1)
+        # Group 2 (cols 2-3): Date & Time (row 0), Doctor (row 1)
+        # Group 3 (cols 4-5): Payment Type (row 0)
         self._meta_group = QGroupBox("Bill Information")
         grid = QGridLayout(self._meta_group)
-        grid.setHorizontalSpacing(16)
-        grid.setVerticalSpacing(4)
-        grid.setContentsMargins(10, 8, 10, 8)
+        grid.setHorizontalSpacing(10)
+        grid.setVerticalSpacing(6)
+        grid.setContentsMargins(14, 10, 14, 10)
+
+        # Stretch factors: Patient (col 1) and Doctor (col 3) expand; labels and payment stay compact
+        grid.setColumnStretch(0, 0)
+        grid.setColumnStretch(1, 4)
+        grid.setColumnStretch(2, 0)
+        grid.setColumnStretch(3, 4)
+        grid.setColumnStretch(4, 0)
+        grid.setColumnStretch(5, 1)
+
+        # Baseline minimum widths for consistent layout across all screen resolutions
+        grid.setColumnMinimumWidth(0, 72)
+        grid.setColumnMinimumWidth(1, 180)
+        grid.setColumnMinimumWidth(2, 80)
+        grid.setColumnMinimumWidth(3, 180)
+        grid.setColumnMinimumWidth(4, 96)
+        grid.setColumnMinimumWidth(5, 60)
 
         bill_no = self._invoice.get("bill_no") or ""
         sale_date = self._invoice.get("sale_date") or "--"
@@ -386,20 +406,29 @@ class SalesBillDetailsDialog(QDialog):
 
         def _meta_row(row_idx, label1, val1, label2, val2, label3=None, val3=None):
             l1 = QLabel(f"<b>{label1}:</b>")
+            l1.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
             v1 = QLabel(str(val1))
-            grid.addWidget(l1, row_idx, 0)
-            grid.addWidget(v1, row_idx, 1)
+            v1.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+            v1.setToolTip(str(val1))
+            grid.addWidget(l1, row_idx, 0, Qt.AlignLeft | Qt.AlignVCenter)
+            grid.addWidget(v1, row_idx, 1, Qt.AlignLeft | Qt.AlignVCenter)
 
             l2 = QLabel(f"<b>{label2}:</b>")
+            l2.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
             v2 = QLabel(str(val2))
-            grid.addWidget(l2, row_idx, 2)
-            grid.addWidget(v2, row_idx, 3)
+            v2.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+            v2.setToolTip(str(val2))
+            grid.addWidget(l2, row_idx, 2, Qt.AlignLeft | Qt.AlignVCenter)
+            grid.addWidget(v2, row_idx, 3, Qt.AlignLeft | Qt.AlignVCenter)
 
             if label3 is not None:
                 l3 = QLabel(f"<b>{label3}:</b>")
+                l3.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
                 v3 = QLabel(str(val3))
-                grid.addWidget(l3, row_idx, 4)
-                grid.addWidget(v3, row_idx, 5)
+                v3.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+                v3.setToolTip(str(val3))
+                grid.addWidget(l3, row_idx, 4, Qt.AlignLeft | Qt.AlignVCenter)
+                grid.addWidget(v3, row_idx, 5, Qt.AlignLeft | Qt.AlignVCenter)
 
         _meta_row(
             0,
@@ -429,6 +458,19 @@ class SalesBillDetailsDialog(QDialog):
         header.setSectionResizeMode(0, QHeaderView.Stretch)
         for c in range(1, 9):
             header.setSectionResizeMode(c, QHeaderView.Interactive)
+
+        # Explicit header alignments matching data column cell alignments
+        item_hdr = self._table.horizontalHeaderItem(0)
+        if item_hdr:
+            item_hdr.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        for c in (1, 2, 3, 4):
+            hdr = self._table.horizontalHeaderItem(c)
+            if hdr:
+                hdr.setTextAlignment(Qt.AlignCenter)
+        for c in (5, 6, 7, 8):
+            hdr = self._table.horizontalHeaderItem(c)
+            if hdr:
+                hdr.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
         self._table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._table.setSelectionBehavior(QAbstractItemView.SelectRows)

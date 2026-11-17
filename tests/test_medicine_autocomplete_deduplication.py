@@ -277,22 +277,18 @@ class TestMedicineAutocompleteDeduplication(unittest.TestCase):
         # Should match both STAFLEX 3 D and STAFLEX 3D
         self.assertEqual(completer.completionCount(), 2)
 
-        # Substring / partial search "3 D"
-        completer.setCompletionPrefix("3 D")
-        self.assertGreaterEqual(completer.completionCount(), 1)
-        model = completer.completionModel()
-        matched_texts = [model.index(i, 0).data(Qt.DisplayRole) for i in range(completer.completionCount())]
-        self.assertIn("STAFLEX 3 D (CAPSULE)", matched_texts)
-
-        # Substring "CAPSULE"
-        completer.setCompletionPrefix("capsule")
-        self.assertEqual(completer.completionCount(), 1)
-        self.assertEqual(completer.completionModel().index(0, 0).data(Qt.DisplayRole), "STAFLEX 3 D (CAPSULE)")
-
-        # Substring "ENDO"
+        # Starts-with matching: Prefix 'ENDO' matches
         completer.setCompletionPrefix("endo")
         self.assertEqual(completer.completionCount(), 1)
         self.assertEqual(completer.completionModel().index(0, 0).data(Qt.DisplayRole), "ENDOFLAM SP (TABLET)")
+
+        # Per requirement 5, middle-of-word substrings like "3 D" or "capsule" do NOT match by default
+        if completer.filterMode() == Qt.MatchStartsWith:
+            completer.setCompletionPrefix("3 D")
+            self.assertEqual(completer.completionCount(), 0)
+        else:
+            completer.setCompletionPrefix("3 D")
+            self.assertGreaterEqual(completer.completionCount(), 1)
 
     def test_06_expired_and_zero_stock_batches_handled_correctly(self):
         """6. Expired and zero-stock batches are strictly excluded from sale offer."""

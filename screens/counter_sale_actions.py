@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
 )
 
 from database.drug_dao import DrugDAO
+from ui.components import SearchableComboBox
 from screens.stock_adjustment_dialog import StockAdjustmentDialog
 
 __all__ = [
@@ -301,37 +302,21 @@ class DrugSubstituteDialog(QDialog):
         self.drug_lbl.setStyleSheet(f"font-size: {TYPE_FORM_LABEL}px; font-weight: bold;")
         top_bar.addWidget(self.drug_lbl)
 
-        self.drug_combo = QComboBox()
-        self.drug_combo.setEditable(True)
-        self.drug_combo.setInsertPolicy(QComboBox.NoInsert)
-
-        # Setup dynamic suggestions completer
-        self._completer_model = QStandardItemModel(self)
-        self._completer = QCompleter(self._completer_model, self.drug_combo)
-        self._completer.setCaseSensitivity(Qt.CaseInsensitive)
-        self._completer.setFilterMode(Qt.MatchStartsWith)
-        self._completer.setCompletionMode(QCompleter.PopupCompletion)
-        self._completer.setMaxVisibleItems(8)
-        self._completer.activated[QModelIndex].connect(self._on_completer_activated)
-
-        popup = self._completer.popup()
-        if popup is not None:
-            popup.setFocusPolicy(Qt.NoFocus)
-            popup.setSelectionMode(QAbstractItemView.SingleSelection)
-            popup.installEventFilter(self)
-
-        self.drug_combo.setCompleter(self._completer)
+        self.drug_combo = SearchableComboBox(
+            placeholder="Type drug or medicine name to search...",
+            min_width=240,
+            max_height=260,
+        )
+        self._completer = self.drug_combo._completer
+        self.drug_combo.setFixedHeight(30)
+        self.drug_combo.completionAccepted.connect(self._on_show_clicked)
+        self.drug_combo.returnPressed.connect(self._on_show_clicked)
+        self.drug_combo.activated.connect(self._on_combo_activated)
         top_bar.addWidget(self.drug_combo, 1)
 
         line_edit = self.drug_combo.lineEdit()
-        line_edit.setPlaceholderText("Type drug or medicine name to search...")
-        line_edit.setClearButtonEnabled(True)
-        line_edit.installEventFilter(self)
-        line_edit.textEdited.connect(self._on_text_edited)
-        line_edit.textChanged.connect(self._on_text_changed)
-
-        self.drug_combo.installEventFilter(self)
-        self.drug_combo.activated.connect(self._on_combo_activated)
+        if line_edit is not None:
+            line_edit.setClearButtonEnabled(True)
 
         self.show_btn = QPushButton("Show")
         self.show_btn.setFixedHeight(30)
@@ -764,9 +749,10 @@ class DrugSubstituteDialog(QDialog):
         p = palette()
         self.setStyleSheet(f"QDialog {{ background-color: {p['surface']}; color: {p['text']}; }}")
         self.drug_lbl.setStyleSheet(f"color: {p['text']}; font-size: {TYPE_FORM_LABEL}px; font-weight: bold;")
-        self.drug_combo.setStyleSheet(_fresh_combo_style(p))
-        if hasattr(self, "_completer") and self._completer.popup():
-            self._completer.popup().setStyleSheet(_fresh_completer_popup_style(p))
+        if hasattr(self.drug_combo, "refresh_theme"):
+            self.drug_combo.refresh_theme(p)
+        else:
+            self.drug_combo.setStyleSheet(_fresh_combo_style(p))
         self.show_btn.setStyleSheet(_fresh_btn_style(p["accent"], p))
         self.table.setStyleSheet(_fresh_table_style(p))
         self.table.horizontalHeader().setStyleSheet(_fresh_header_style(p))

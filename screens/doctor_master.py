@@ -67,18 +67,22 @@ class _DoctorDialog(QDialog):
 
         self._doctor_name_edit = QLineEdit()
         self._doctor_name_edit.setPlaceholderText("Enter doctor name")
+        self._doctor_name_edit.setMinimumWidth(280)
         form.addRow("Doctor Name *:", self._doctor_name_edit)
 
         self._city_edit = QLineEdit()
         self._city_edit.setPlaceholderText("Enter city")
+        self._city_edit.setMinimumWidth(220)
         form.addRow("City:", self._city_edit)
 
         self._specialty_edit = QLineEdit()
         self._specialty_edit.setPlaceholderText("Enter specialty")
+        self._specialty_edit.setMinimumWidth(220)
         form.addRow("Specialty:", self._specialty_edit)
 
         self._phone_no_edit = QLineEdit()
         self._phone_no_edit.setPlaceholderText("Enter phone number")
+        self._phone_no_edit.setFixedWidth(140)
         form.addRow("Phone No.:", self._phone_no_edit)
 
         if doctor:
@@ -99,6 +103,7 @@ class _DoctorDialog(QDialog):
 
         save_btn = QPushButton("Save")
         save_btn.setFixedWidth(90)
+        save_btn.setAutoDefault(False)
         save_btn.setStyleSheet(
             f"QPushButton {{ background-color: {_ACCENT}; color: white;"
             f"  border: none; border-radius: 2px; padding: 4px 8px; font-weight: bold; }}"
@@ -109,6 +114,7 @@ class _DoctorDialog(QDialog):
 
         cancel_btn = QPushButton("Cancel")
         cancel_btn.setFixedWidth(90)
+        cancel_btn.setAutoDefault(False)
         cancel_btn.setStyleSheet(
             f"QPushButton {{ background-color: {_BORDER}; color: {_TEXT};"
             f"  border: none; border-radius: 2px; padding: 8px; }}"
@@ -116,6 +122,19 @@ class _DoctorDialog(QDialog):
         )
         cancel_btn.clicked.connect(self.reject)
         btn_layout.addWidget(cancel_btn)
+
+        # Keyboard navigation: Enter moves to next logical input field
+        from ui.components import setup_form_navigation
+        setup_form_navigation(
+            fields=[
+                self._doctor_name_edit,
+                self._city_edit,
+                self._specialty_edit,
+                self._phone_no_edit,
+            ],
+            save_btn=save_btn,
+            cancel_btn=cancel_btn,
+        )
 
         main_layout.addLayout(btn_layout)
 

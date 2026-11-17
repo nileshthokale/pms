@@ -570,44 +570,70 @@ class PurchaseDAO:
             conn.close()
 
     @staticmethod
-    def get_saved_batches_for_item(item_id: int) -> list[dict]:
+    def get_saved_batches_for_item(item_id: int, supplier_id: int | None = None) -> list[dict]:
         """Return distinct saved batches for an item from purchase items and stock batches.
 
-        Includes batch_no, expiry, rate, mrp, and pack_size.
+        Includes batch_no, expiry, rate, purchase_rate, mrp, pack_size, gst_percent,
+        and current available balance (stock_qty) from stock_batches.
+        If supplier_id is provided, batches previously purchased from that supplier
+        are prioritized first and marked with is_supplier_batch=True.
         """
         conn = get_connection()
         try:
             batches: dict[str, dict] = {}
-            # 1. Purchase invoice items (gives exact purchase rate, mrp, expiry)
-            cur = conn.execute(
-                """
-                SELECT batch_no, expiry, rate, mrp, pack_size, gst_percent
-                FROM purchase_invoice_items
-                WHERE item_id = ? AND batch_no IS NOT NULL AND TRIM(batch_no) != ''
-                ORDER BY id DESC
-                """,
-                (item_id,),
-            )
+            # 1. Purchase invoice items (gives exact purchase rate, mrp, expiry, supplier info)
+            query = """
+                SELECT 
+                    pii.id AS pii_id,
+                    pii.batch_no,
+                    pii.expiry,
+                    pii.rate,
+                    pii.mrp,
+                    pii.pack_size,
+                    pii.gst_percent,
+                    pi.supplier_id,
+                    COALESCE(s.supplier_name, '') AS supplier_name
+                FROM purchase_invoice_items pii
+                JOIN purchase_invoices pi ON pi.id = pii.purchase_invoice_id
+                LEFT JOIN suppliers s ON s.id = pi.supplier_id
+                WHERE pii.item_id = ? AND pii.batch_no IS NOT NULL AND TRIM(pii.batch_no) != ''
+                ORDER BY (CASE WHEN ? IS NOT NULL AND pi.supplier_id = ? THEN 0 ELSE 1 END), pii.id DESC
+            """
+            cur = conn.execute(query, (item_id, supplier_id, supplier_id))
             for r in cur.fetchall():
                 b = dict(r)
                 bno = (b.get("batch_no") or "").strip()
                 if not bno:
                     continue
                 key = bno.upper()
+                is_sup = bool(supplier_id is not None and b.get("supplier_id") == supplier_id)
                 if key not in batches:
                     batches[key] = {
                         "batch_no": bno,
                         "expiry": (b.get("expiry") or "").strip(),
                         "rate": float(b.get("rate") or 0.0),
+                        "purchase_rate": float(b.get("rate") or 0.0),
                         "mrp": float(b.get("mrp") or 0.0),
                         "pack_size": str(b.get("pack_size") or ""),
                         "gst_percent": float(b.get("gst_percent") or 0.0) if b.get("gst_percent") is not None else None,
+                        "stock_qty": 0.0,
+                        "available": 0.0,
+                        "balance": 0.0,
+                        "supplier_id": b.get("supplier_id"),
+                        "supplier_name": b.get("supplier_name", ""),
+                        "is_supplier_batch": is_sup,
                     }
                 else:
+                    if is_sup and not batches[key].get("is_supplier_batch"):
+                        batches[key]["is_supplier_batch"] = True
+                        if b.get("supplier_id"):
+                            batches[key]["supplier_id"] = b.get("supplier_id")
+                            batches[key]["supplier_name"] = b.get("supplier_name", "")
                     if not batches[key]["expiry"] and b.get("expiry"):
                         batches[key]["expiry"] = str(b.get("expiry")).strip()
                     if batches[key]["rate"] <= 0 and float(b.get("rate") or 0.0) > 0:
                         batches[key]["rate"] = float(b.get("rate") or 0.0)
+                        batches[key]["purchase_rate"] = float(b.get("rate") or 0.0)
                     if batches[key]["mrp"] <= 0 and float(b.get("mrp") or 0.0) > 0:
                         batches[key]["mrp"] = float(b.get("mrp") or 0.0)
                     if not batches[key]["pack_size"] and b.get("pack_size"):
@@ -615,10 +641,10 @@ class PurchaseDAO:
                     if batches[key].get("gst_percent") is None and b.get("gst_percent") is not None:
                         batches[key]["gst_percent"] = float(b.get("gst_percent") or 0.0)
 
-            # 2. Stock batches (for batches that may not be in purchase_invoice_items)
+            # 2. Stock batches (for batches that may not be in purchase_invoice_items, and to get real stock_qty)
             cur = conn.execute(
                 """
-                SELECT id, batch_no, expiry, purchase_rate AS rate, mrp, pack_size
+                SELECT id, batch_no, expiry, purchase_rate AS rate, mrp, pack_size, stock_qty
                 FROM stock_batches
                 WHERE item_id = ? AND batch_no IS NOT NULL AND TRIM(batch_no) != ''
                 ORDER BY id DESC
@@ -631,6 +657,7 @@ class PurchaseDAO:
                 if not bno:
                     continue
                 key = bno.upper()
+                sq = float(b.get("stock_qty") or 0.0)
                 if key not in batches:
                     batches[key] = {
                         "id": b.get("id"),
@@ -638,23 +665,41 @@ class PurchaseDAO:
                         "batch_no": bno,
                         "expiry": (b.get("expiry") or "").strip(),
                         "rate": float(b.get("rate") or 0.0),
+                        "purchase_rate": float(b.get("rate") or 0.0),
                         "mrp": float(b.get("mrp") or 0.0),
                         "pack_size": str(b.get("pack_size") or ""),
+                        "gst_percent": None,
+                        "stock_qty": sq,
+                        "available": sq,
+                        "balance": sq,
+                        "supplier_id": None,
+                        "supplier_name": "",
+                        "is_supplier_batch": False,
                     }
                 else:
                     if not batches[key].get("id") and b.get("id"):
                         batches[key]["id"] = b.get("id")
                         batches[key]["batch_id"] = b.get("id")
+                    batches[key]["stock_qty"] = sq
+                    batches[key]["available"] = sq
+                    batches[key]["balance"] = sq
                     if not batches[key]["expiry"] and b.get("expiry"):
                         batches[key]["expiry"] = str(b.get("expiry")).strip()
                     if batches[key]["rate"] <= 0 and float(b.get("rate") or 0.0) > 0:
                         batches[key]["rate"] = float(b.get("rate") or 0.0)
+                        batches[key]["purchase_rate"] = float(b.get("rate") or 0.0)
                     if batches[key]["mrp"] <= 0 and float(b.get("mrp") or 0.0) > 0:
                         batches[key]["mrp"] = float(b.get("mrp") or 0.0)
                     if not batches[key]["pack_size"] and b.get("pack_size"):
                         batches[key]["pack_size"] = str(b.get("pack_size") or "")
 
-            return list(batches.values())
+            batch_list = list(batches.values())
+            if supplier_id is not None:
+                batch_list.sort(key=lambda x: (0 if x.get("is_supplier_batch") else 1, -(x.get("id") or 0)))
+            else:
+                batch_list.sort(key=lambda x: -(x.get("id") or 0))
+
+            return batch_list
         finally:
             conn.close()
 

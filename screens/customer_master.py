@@ -67,42 +67,52 @@ class _CustomerDialog(QDialog):
 
         self._customer_name_edit = QLineEdit()
         self._customer_name_edit.setPlaceholderText("Enter customer name")
+        self._customer_name_edit.setMinimumWidth(280)
         form.addRow("Customer Name *:", self._customer_name_edit)
 
         self._opening_balance_edit = QLineEdit()
         self._opening_balance_edit.setPlaceholderText("0.00")
+        self._opening_balance_edit.setFixedWidth(130)
         form.addRow("Opening Balance:", self._opening_balance_edit)
 
         self._discount_edit = QLineEdit("0.0")
         self._discount_edit.setPlaceholderText("0.0")
+        self._discount_edit.setFixedWidth(80)
         form.addRow("Discount (%):", self._discount_edit)
 
         self._credit_limit_edit = QLineEdit()
         self._credit_limit_edit.setPlaceholderText("0.00")
+        self._credit_limit_edit.setFixedWidth(130)
         form.addRow("Credit Limit:", self._credit_limit_edit)
 
         self._credit_period_edit = QLineEdit()
         self._credit_period_edit.setPlaceholderText("0")
+        self._credit_period_edit.setFixedWidth(80)
         form.addRow("Credit Period (Days):", self._credit_period_edit)
 
         self._address_edit = QLineEdit()
         self._address_edit.setPlaceholderText("Enter address")
+        self._address_edit.setMinimumWidth(280)
         form.addRow("Address:", self._address_edit)
 
         self._city_edit = QLineEdit()
         self._city_edit.setPlaceholderText("Enter city")
+        self._city_edit.setMinimumWidth(220)
         form.addRow("City:", self._city_edit)
 
         self._state_edit = QLineEdit()
         self._state_edit.setPlaceholderText("Enter state")
+        self._state_edit.setMinimumWidth(220)
         form.addRow("State:", self._state_edit)
 
         self._contact_person_edit = QLineEdit()
         self._contact_person_edit.setPlaceholderText("Enter contact person")
+        self._contact_person_edit.setMinimumWidth(220)
         form.addRow("Contact Person:", self._contact_person_edit)
 
         self._contact_no_edit = QLineEdit()
         self._contact_no_edit.setPlaceholderText("Enter contact number")
+        self._contact_no_edit.setFixedWidth(140)
         form.addRow("Contact No:", self._contact_no_edit)
 
         # Read-only ledger indicator
@@ -144,6 +154,7 @@ class _CustomerDialog(QDialog):
 
         save_btn = QPushButton("Save")
         save_btn.setFixedWidth(90)
+        save_btn.setAutoDefault(False)
         save_btn.setStyleSheet(
             f"QPushButton {{ background-color: {_ACCENT}; color: white;"
             f"  border: none; border-radius: 2px; padding: 4px 8px; font-weight: bold; }}"
@@ -154,6 +165,7 @@ class _CustomerDialog(QDialog):
 
         cancel_btn = QPushButton("Cancel")
         cancel_btn.setFixedWidth(90)
+        cancel_btn.setAutoDefault(False)
         cancel_btn.setStyleSheet(
             f"QPushButton {{ background-color: {_BORDER}; color: {_TEXT};"
             f"  border: none; border-radius: 2px; padding: 8px; }}"
@@ -161,6 +173,25 @@ class _CustomerDialog(QDialog):
         )
         cancel_btn.clicked.connect(self.reject)
         btn_layout.addWidget(cancel_btn)
+
+        # Keyboard navigation: Enter moves to next logical input field
+        from ui.components import setup_form_navigation
+        setup_form_navigation(
+            fields=[
+                self._customer_name_edit,
+                self._opening_balance_edit,
+                self._discount_edit,
+                self._credit_limit_edit,
+                self._credit_period_edit,
+                self._address_edit,
+                self._city_edit,
+                self._state_edit,
+                self._contact_person_edit,
+                self._contact_no_edit,
+            ],
+            save_btn=save_btn,
+            cancel_btn=cancel_btn,
+        )
 
         main_layout.addLayout(btn_layout)
 

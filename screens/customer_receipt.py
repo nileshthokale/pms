@@ -133,6 +133,7 @@ class _CustomerReceiptEntryDialog(QDialog):
         grid.addWidget(self._lbl("Voucher No:"), 0, 0)
         self.voucher_no_edit = QLineEdit()
         self.voucher_no_edit.setReadOnly(True)
+        self.voucher_no_edit.setFocusPolicy(Qt.NoFocus)
         self.voucher_no_edit.setStyleSheet(_edit_style(p))
         grid.addWidget(self.voucher_no_edit, 0, 1)
 
@@ -277,6 +278,21 @@ class _CustomerReceiptEntryDialog(QDialog):
         cancel_btn.setStyleSheet(btn_secondary_style(p))
         cancel_btn.clicked.connect(self.reject)
         btn_bar.addWidget(cancel_btn)
+
+        from ui.components import setup_form_navigation
+        setup_form_navigation(
+            fields=[
+                self.receipt_date,
+                self.receipt_time_edit,
+                self.receipt_mode_combo,
+                self.customer_selector,
+                self.amount_edit,
+                self.reference_no_edit,
+                self.remarks_edit,
+            ],
+            save_btn=self._save_btn,
+            cancel_btn=cancel_btn,
+        )
 
         root.addLayout(btn_bar)
 

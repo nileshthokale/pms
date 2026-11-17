@@ -27,6 +27,7 @@ from database.ledger_dao import LedgerDAO
 from database.journal_dao import JournalDAO
 from database import financial_year
 
+from ui.components import _ButtonEnterFilter, _EnterNavigationFilter
 from ui.theme import combo_subcontrols, date_subcontrols, palette
 _p = palette()
 _DARK_BG = _p["bg"]
@@ -185,14 +186,22 @@ class _JournalEntryDialog(QDialog):
         btn_bar.addStretch()
 
         save_btn = QPushButton("Save Entry")
+        save_btn.setAutoDefault(False)
+        save_btn.setDefault(False)
+        save_btn.installEventFilter(_ButtonEnterFilter(save_btn))
         save_btn.setStyleSheet(_BTN_SAVE)
         save_btn.clicked.connect(self._on_save)
         btn_bar.addWidget(save_btn)
+        self.save_btn = save_btn
 
         cancel_btn = QPushButton("Cancel")
+        cancel_btn.setAutoDefault(False)
+        cancel_btn.setDefault(False)
+        cancel_btn.installEventFilter(_ButtonEnterFilter(cancel_btn))
         cancel_btn.setStyleSheet(_BTN_SECONDARY)
         cancel_btn.clicked.connect(self.reject)
         btn_bar.addWidget(cancel_btn)
+        self.cancel_btn = cancel_btn
 
         root.addLayout(btn_bar)
 
@@ -219,21 +228,25 @@ class _JournalEntryDialog(QDialog):
         grid.addWidget(self._lbl("Voucher No"), row, 0)
         self.voucher_no_edit = _make_edit()
         self.voucher_no_edit.setReadOnly(True)
+        self.voucher_no_edit.setFocusPolicy(Qt.NoFocus)
         grid.addWidget(self.voucher_no_edit, row, 1)
 
         grid.addWidget(self._lbl("Date *"), row, 2)
         self.entry_date = _make_date()
         self.entry_date.setMaximumWidth(140)
+        self.entry_date.installEventFilter(_EnterNavigationFilter(lambda: self.entry_time_edit.setFocus(), self.entry_date))
         grid.addWidget(self.entry_date, row, 3)
 
         row = 1
         grid.addWidget(self._lbl("Time"), row, 0)
         self.entry_time_edit = _make_edit()
         self.entry_time_edit.setMaximumWidth(80)
+        self.entry_time_edit.returnPressed.connect(lambda: self.narration_edit.setFocus())
         grid.addWidget(self.entry_time_edit, row, 1)
 
         grid.addWidget(self._lbl("Narration"), row, 2)
         self.narration_edit = _make_edit()
+        self.narration_edit.returnPressed.connect(self._focus_first_table_line)
         grid.addWidget(self.narration_edit, row, 3)
 
         root_layout.addWidget(grp)
@@ -382,11 +395,44 @@ class _JournalEntryDialog(QDialog):
         credit_edit.setAlignment(Qt.AlignRight)
         self._lines_table.setCellWidget(row, 4, credit_edit)
 
+        # Wire keyboard navigation within line: Ledger -> Debit -> Credit -> next row
+        combo.installEventFilter(_EnterNavigationFilter(lambda r=row: self._focus_debit(r), combo))
+        debit_edit.returnPressed.connect(lambda r=row: self._focus_credit(r))
+        credit_edit.returnPressed.connect(lambda r=row: self._on_credit_return(r))
+
         del_btn = QPushButton("X")
         del_btn.setFixedSize(24, 24)
         del_btn.setStyleSheet(_BTN_DANGER)
         del_btn.clicked.connect(lambda checked, r=row: self._delete_line(r))
         self._lines_table.setCellWidget(row, 2, del_btn) if False else None
+
+    def _focus_first_table_line(self):
+        if self._lines_table.rowCount() > 0:
+            w = self._lines_table.cellWidget(0, 1)
+            if w:
+                w.setFocus()
+
+    def _focus_debit(self, row: int):
+        w = self._lines_table.cellWidget(row, 3)
+        if w:
+            w.setFocus()
+            if hasattr(w, "selectAll"):
+                w.selectAll()
+
+    def _focus_credit(self, row: int):
+        w = self._lines_table.cellWidget(row, 4)
+        if w:
+            w.setFocus()
+            if hasattr(w, "selectAll"):
+                w.selectAll()
+
+    def _on_credit_return(self, row: int):
+        if row + 1 < self._lines_table.rowCount():
+            next_combo = self._lines_table.cellWidget(row + 1, 1)
+            if next_combo:
+                next_combo.setFocus()
+        else:
+            self.save_btn.setFocus()
 
     def _delete_line(self, row: int):
         if self._lines_table.rowCount() <= 2:

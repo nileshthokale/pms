@@ -34,7 +34,7 @@ from database.sales_dao import SalesDAO
 from database.customer_dao import CustomerDAO
 from core.doc_formatter import format_document_number
 
-from ui.components import SearchableComboBox, TableComboBox
+from ui.components import ConstrainedComboBox, SearchableComboBox, TableComboBox
 from ui.input_rules import attach_uppercase
 from ui.theme import combo_subcontrols, date_subcontrols, palette
 
@@ -196,12 +196,14 @@ class _ItemEntryBar(QWidget):
         self.expiry_edit = QLineEdit()
         self.expiry_edit.setFixedWidth(85)
         self.expiry_edit.setReadOnly(True)
+        self.expiry_edit.setFocusPolicy(Qt.NoFocus)
         self.expiry_edit.setAlignment(Qt.AlignCenter)
         ctrl_row.addWidget(self.expiry_edit)
 
         self.pack_edit = QLineEdit()
         self.pack_edit.setFixedWidth(75)
         self.pack_edit.setReadOnly(True)
+        self.pack_edit.setFocusPolicy(Qt.NoFocus)
         self.pack_edit.setAlignment(Qt.AlignCenter)
         ctrl_row.addWidget(self.pack_edit)
 
@@ -212,6 +214,8 @@ class _ItemEntryBar(QWidget):
 
         self.mrp_edit = QLineEdit("0.00")
         self.mrp_edit.setFixedWidth(75)
+        self.mrp_edit.setReadOnly(True)
+        self.mrp_edit.setFocusPolicy(Qt.NoFocus)
         self.mrp_edit.setAlignment(Qt.AlignRight)
         ctrl_row.addWidget(self.mrp_edit)
 
@@ -225,7 +229,7 @@ class _ItemEntryBar(QWidget):
         self.less_edit.setAlignment(Qt.AlignRight)
         ctrl_row.addWidget(self.less_edit)
 
-        self.reason_combo = QComboBox()
+        self.reason_combo = ConstrainedComboBox()
         self.reason_combo.setFixedWidth(140)
         self.reason_combo.addItems([
             "Sales Return",
@@ -236,7 +240,7 @@ class _ItemEntryBar(QWidget):
         ])
         ctrl_row.addWidget(self.reason_combo)
 
-        self.price_factor_combo = QComboBox()
+        self.price_factor_combo = ConstrainedComboBox()
         self.price_factor_combo.setFixedWidth(90)
         self.price_factor_combo.addItems(["MRP", "RATE"])
         ctrl_row.addWidget(self.price_factor_combo)
@@ -245,6 +249,8 @@ class _ItemEntryBar(QWidget):
         self.add_btn.setToolTip("Add item to return list")
         self.add_btn.setFixedWidth(40)
         self.add_btn.setFixedHeight(30)
+        self.add_btn.setAutoDefault(False)
+        self.add_btn.setDefault(False)
         self.add_btn.setStyleSheet(
             f"QPushButton {{ background-color: {p['accent']}; color: white; "
             f"font-weight: bold; font-size: 14px; border: none; border-radius: 3px; }}"
@@ -263,6 +269,47 @@ class _ItemEntryBar(QWidget):
         if self.batch_combo.lineEdit():
             self.batch_combo.lineEdit().installEventFilter(self)
         self.batch_combo.installEventFilter(self)
+
+        # Wire keyboard chain across entry row: Item -> Batch -> Qty -> Rate -> Add -> next item
+        self.item_combo.completionAccepted.connect(self._focus_batch)
+        self.item_combo.returnPressed.connect(self._focus_batch)
+        self.batch_combo.completionAccepted.connect(self._focus_qty)
+        self.batch_combo.returnPressed.connect(self._focus_qty)
+        self.qty_edit.returnPressed.connect(self._focus_rate)
+        self.rate_edit.returnPressed.connect(self.add_btn.click)
+        self.less_edit.returnPressed.connect(self.add_btn.click)
+        self.qty_edit.installEventFilter(self)
+        self.rate_edit.installEventFilter(self)
+
+    def _focus_batch(self):
+        line = self.batch_combo.lineEdit()
+        if line is not None:
+            line.setFocus()
+            line.selectAll()
+        else:
+            self.batch_combo.setFocus()
+
+    def _focus_qty(self):
+        self.qty_edit.setFocus()
+        self.qty_edit.selectAll()
+
+    def _focus_rate(self):
+        self.rate_edit.setFocus()
+        self.rate_edit.selectAll()
+
+    def _commit_batch_and_focus_qty(self):
+        if hasattr(self.batch_combo, "_popup_frame") and self.batch_combo._popup_frame.isVisible():
+            idx = self.batch_combo.table_view.currentIndex()
+            if not idx.isValid():
+                start = 1 if (self.batch_combo._table_model.rowCount() > 1 and self.batch_combo.itemData(0) is None and self.batch_combo.itemText(0).startswith("--")) else 0
+                for r in range(start, self.batch_combo._table_model.rowCount()):
+                    if not self.batch_combo.table_view.isRowHidden(r):
+                        idx = self.batch_combo._table_model.index(r, 0)
+                        break
+            if idx.isValid():
+                self.batch_combo._commit_row(idx.row(), emit_completion=True)
+            self.batch_combo.hidePopup()
+        self._focus_qty()
 
     def eventFilter(self, watched, event):
         if hasattr(self, "item_combo") and (watched is self.item_combo or (self.item_combo.lineEdit() and watched is self.item_combo.lineEdit())):
@@ -285,15 +332,42 @@ class _ItemEntryBar(QWidget):
                 line = self.batch_combo.lineEdit()
                 if line:
                     QTimer.singleShot(0, line.selectAll)
-                if self.batch_combo.count() > 1 and not self.batch_combo.completer().popup().isVisible():
-                    QTimer.singleShot(50, self.batch_combo.show_all_suggestions)
+                if self.batch_combo.count() > 1 and not getattr(self.batch_combo, "_popup_frame", None):
+                    QTimer.singleShot(50, self.batch_combo.showPopup)
             elif event.type() == QEvent.KeyPress:
                 key = event.key()
-                if key in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Tab) and not (event.modifiers() & Qt.ShiftModifier):
-                    if self.batch_combo.currentData():
-                        self.qty_edit.setFocus()
-                        self.qty_edit.selectAll()
-                        return True
+                if key in (Qt.Key_Return, Qt.Key_Enter):
+                    self._commit_batch_and_focus_qty()
+                    return True
+                elif key == Qt.Key_Tab and not (event.modifiers() & Qt.ShiftModifier):
+                    self._commit_batch_and_focus_qty()
+                    return True
+                elif key == Qt.Key_Backtab or (key == Qt.Key_Tab and (event.modifiers() & Qt.ShiftModifier)):
+                    if hasattr(self.batch_combo, "_popup_frame") and self.batch_combo._popup_frame.isVisible():
+                        self.batch_combo.hidePopup()
+                    if self.item_combo.lineEdit():
+                        self.item_combo.lineEdit().setFocus()
+                        self.item_combo.lineEdit().selectAll()
+                    else:
+                        self.item_combo.setFocus()
+                    return True
+        elif hasattr(self, "qty_edit") and watched is self.qty_edit:
+            if event.type() == QEvent.KeyPress:
+                key = event.key()
+                if key == Qt.Key_Backtab or (key == Qt.Key_Tab and (event.modifiers() & Qt.ShiftModifier)):
+                    if self.batch_combo.lineEdit():
+                        self.batch_combo.lineEdit().setFocus()
+                        self.batch_combo.lineEdit().selectAll()
+                    else:
+                        self.batch_combo.setFocus()
+                    return True
+        elif hasattr(self, "rate_edit") and watched is self.rate_edit:
+            if event.type() == QEvent.KeyPress:
+                key = event.key()
+                if key == Qt.Key_Backtab or (key == Qt.Key_Tab and (event.modifiers() & Qt.ShiftModifier)):
+                    self.qty_edit.setFocus()
+                    self.qty_edit.selectAll()
+                    return True
         return super().eventFilter(watched, event)
 
     def _on_item_text_edited(self, text: str):
@@ -438,6 +512,9 @@ class _ItemEntryBar(QWidget):
         self.item_combo.clear_selection()
         self.batch_combo.clear()
         self._clear_batch_fields()
+        self.qty_edit.setText("1")
+        self.rate_edit.setText("0.00")
+        self.less_edit.setText("0.00")
         line = self.batch_combo.lineEdit()
         if line:
             line.setPlaceholderText("Select item first")
@@ -582,7 +659,7 @@ class _CreditNoteEntryDialog(QDialog):
             return l
 
         hl.addWidget(_hdr_lbl("Type :"))
-        self.type_combo = QComboBox()
+        self.type_combo = ConstrainedComboBox()
         self.type_combo.addItems(["Customer"])
         self.type_combo.setFixedWidth(110)
         hl.addWidget(self.type_combo)
@@ -599,6 +676,7 @@ class _CreditNoteEntryDialog(QDialog):
         self.customer_combo = SearchableComboBox(placeholder="-- Select Customer --")
         self.customer_combo.setMinimumWidth(320)
         self.customer_combo.selection_changed.connect(self._on_customer_changed)
+        self.customer_combo.returnPressed.connect(self._focus_entry_item)
         hl.addWidget(self.customer_combo, 1)
 
         hl.addWidget(_hdr_lbl("Less :"))
@@ -607,9 +685,18 @@ class _CreditNoteEntryDialog(QDialog):
         self.header_less_edit.setAlignment(Qt.AlignRight)
         self.header_less_edit.setToolTip("Discount percentage (e.g. 5%) or flat amount (e.g. 10.00)")
         self.header_less_edit.textChanged.connect(self._recalc_totals)
+        self.header_less_edit.returnPressed.connect(self._focus_entry_item)
         hl.addWidget(self.header_less_edit)
 
         parent_layout.addWidget(frame)
+
+    def _focus_entry_item(self):
+        if hasattr(self, "_entry_bar"):
+            if hasattr(self._entry_bar.item_combo, "lineEdit") and self._entry_bar.item_combo.lineEdit():
+                self._entry_bar.item_combo.lineEdit().setFocus()
+                self._entry_bar.item_combo.lineEdit().selectAll()
+            else:
+                self._entry_bar.item_combo.setFocus()
 
     def _build_items_table(self, parent_layout: QVBoxLayout):
         p = _get_palette()
@@ -681,6 +768,8 @@ class _CreditNoteEntryDialog(QDialog):
         self.save_btn = QPushButton("Save")
         self.save_btn.setFixedWidth(100)
         self.save_btn.setFixedHeight(32)
+        self.save_btn.setAutoDefault(False)
+        self.save_btn.setDefault(False)
         self.save_btn.setStyleSheet(
             f"QPushButton {{ background-color: {p['accent']}; color: white; "
             f"font-weight: bold; font-size: 14px; border: none; border-radius: 3px; }}"
@@ -692,6 +781,8 @@ class _CreditNoteEntryDialog(QDialog):
         self.close_btn = QPushButton("Close")
         self.close_btn.setFixedWidth(100)
         self.close_btn.setFixedHeight(32)
+        self.close_btn.setAutoDefault(False)
+        self.close_btn.setDefault(False)
         self.close_btn.setStyleSheet(
             f"QPushButton {{ background-color: {p['border']}; color: {p['text']}; "
             f"font-size: 14px; border: none; border-radius: 3px; }}"
@@ -892,6 +983,14 @@ class _CreditNoteEntryDialog(QDialog):
         self._refresh_table()
         self._recalc_totals()
         self._entry_bar.clear()
+        if hasattr(self._entry_bar.item_combo, "lineEdit") and self._entry_bar.item_combo.lineEdit():
+            self._entry_bar.item_combo.lineEdit().setFocus()
+        else:
+            self._entry_bar.item_combo.setFocus()
+        if self._entry_bar.item_combo.lineEdit():
+            self._entry_bar.item_combo.lineEdit().setFocus()
+        else:
+            self._entry_bar.item_combo.setFocus()
 
     def _refresh_table(self):
         p = _get_palette()

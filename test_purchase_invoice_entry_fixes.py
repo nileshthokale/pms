@@ -200,8 +200,8 @@ class TestPurchaseInvoiceEntryFixes(unittest.TestCase):
         bar.deleteLater()
 
     def test_03_default_searchable_combobox_retains_contains_matching(self):
-        """Unrelated screens without prefix_only=True keep normal contains-search."""
-        combo = SearchableComboBox(placeholder="Search...")
+        """SearchableComboBox with explicit prefix_only=False preserves alternative contains-search."""
+        combo = SearchableComboBox(placeholder="Search...", prefix_only=False)
         combo.populate([
             ("TAB PARACETAMOL 500MG", 1),
             ("CETAMOL TAB", 2),

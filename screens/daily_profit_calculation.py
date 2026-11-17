@@ -179,7 +179,7 @@ class DailyProfitCostReportWidget(QWidget):
         except Exception:
             pass
         if self.item_combo.completer():
-            self.item_combo.completer().setFilterMode(Qt.MatchContains)
+            self.item_combo.completer().setFilterMode(Qt.MatchStartsWith)
 
         # Companies
         self.company_combo.clear()
@@ -190,7 +190,7 @@ class DailyProfitCostReportWidget(QWidget):
         except Exception:
             pass
         if self.company_combo.completer():
-            self.company_combo.completer().setFilterMode(Qt.MatchContains)
+            self.company_combo.completer().setFilterMode(Qt.MatchStartsWith)
 
     def clear_filters(self):
         """Reset date range and combo filters to default."""

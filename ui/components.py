@@ -27,6 +27,7 @@ import re
 from PySide6.QtCore import (
     QEvent,
     QModelIndex,
+    QObject,
     QPoint,
     QRect,
     QTimer,
@@ -78,9 +79,174 @@ from ui.theme import (
 # ``QTableWidget::item`` padding of 3 px never clips, while staying compact
 # enough for 1366x768 pharmacy desktops.  Heights grew with the 11-12 pt
 # baseline so larger fonts never clip or overlap.
-CONTROL_HEIGHT = 34
+CONTROL_HEIGHT = 32          # Standard desktop control height (32px)
+CONTROL_HEIGHT_COMPACT = 28  # Compact variant (e.g. in-table editors, dense rows)
+CONTROL_HEIGHT_LARGE = 36    # Prominent header / hero action height
 ROW_HEIGHT = 32
 HEADER_HEIGHT = 34
+
+# Project-wide Input & Dropdown Sizing Standards (px)
+# Small fields: Qty, Free Qty, GST %, Disc %, Rate, MRP, Pack Size (65-90px)
+FIELD_WIDTH_SMALL = 80
+FIELD_WIDTH_SMALL_MIN = 65
+FIELD_WIDTH_SMALL_MAX = 90
+
+# Medium fields: Date, Batch No, Expiry, Mobile No, Phone, HSN Code (105-140px)
+FIELD_WIDTH_MEDIUM = 130
+FIELD_WIDTH_MEDIUM_MIN = 105
+FIELD_WIDTH_MEDIUM_MAX = 140
+
+# Large fields: Item Name, Supplier, Customer, Doctor, Address, City (220-350+px or Expanding)
+FIELD_WIDTH_LARGE = 300
+FIELD_WIDTH_LARGE_MIN = 220
+FIELD_WIDTH_LARGE_MAX = 450
+
+
+def apply_field_size(
+    widget: QWidget,
+    size: str = "medium",
+    *,
+    fixed: bool = False,
+    min_w: int | None = None,
+    max_w: int | None = None,
+    height: int | None = CONTROL_HEIGHT,
+) -> QWidget:
+    """Apply consistent, professional sizing to an input field or dropdown.
+
+    size:
+        - 'small' (65-90px): Qty, Free Qty, GST %, Disc %, Rate, MRP, Pack Size
+        - 'medium' (105-140px): Date, Batch No, Expiry, Mobile No, HSN Code
+        - 'large' (220-350+px): Item Name, Supplier, Customer, Doctor, Address
+    Also accepts exact field names (e.g., 'qty', 'batch_no', 'customer') to
+    automatically infer the standard sizing tier.
+    """
+    size_lower = (size or "medium").strip().lower()
+
+    small_fields = {
+        "small", "sm", "qty", "quantity", "free_qty", "free", "gst", "gst_pct",
+        "tax", "tax_pct", "disc", "discount", "disc_pct", "rate",
+        "purchase_rate", "sale_rate", "mrp", "pack_size", "pack", "unit",
+    }
+    medium_fields = {
+        "medium", "md", "date", "bill_date", "from_date", "to_date", "batch",
+        "batch_no", "expiry", "exp_date", "mobile", "mobile_no", "phone",
+        "contact_no", "hsn", "hsn_code", "bill_no", "code", "invoice_no",
+    }
+    large_fields = {
+        "large", "lg", "item", "item_name", "medicine", "supplier", "supplier_name",
+        "customer", "customer_name", "patient", "patient_name", "doctor",
+        "doctor_name", "address", "remarks", "narration", "expanding", "stretch",
+    }
+
+    if size_lower in small_fields:
+        target_w = FIELD_WIDTH_SMALL
+        default_min = FIELD_WIDTH_SMALL_MIN
+        default_max = FIELD_WIDTH_SMALL_MAX
+    elif size_lower in large_fields:
+        target_w = FIELD_WIDTH_LARGE
+        default_min = FIELD_WIDTH_LARGE_MIN
+        default_max = FIELD_WIDTH_LARGE_MAX
+    else:  # "medium", "md" or default
+        target_w = FIELD_WIDTH_MEDIUM
+        default_min = FIELD_WIDTH_MEDIUM_MIN
+        default_max = FIELD_WIDTH_MEDIUM_MAX
+
+    w_min = min_w if min_w is not None else default_min
+    w_max = max_w if max_w is not None else default_max
+
+    if fixed and target_w is not None:
+        widget.setFixedWidth(target_w)
+    else:
+        if w_min is not None:
+            widget.setMinimumWidth(w_min)
+        if w_max is not None:
+            widget.setMaximumWidth(w_max)
+        if size_lower in large_fields and not fixed and max_w is None:
+            from PySide6.QtWidgets import QSizePolicy
+            widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+    if height is not None and height > 0:
+        widget.setFixedHeight(height)
+
+    return widget
+
+
+def style_input_small(
+    widget: QWidget,
+    *,
+    upper: bool | None = None,
+    fixed: bool = False,
+    align_right: bool = True,
+) -> QWidget:
+    """Style and size a small input control (Qty, Free Qty, Rate, MRP, GST, Disc, Pack Size).
+    Applies standard input styling, 65-90px width, 32px height, and right-alignment for numbers.
+    """
+    from PySide6.QtWidgets import QComboBox, QDateEdit, QSpinBox, QDoubleSpinBox
+    if isinstance(widget, (QSpinBox, QDoubleSpinBox)):
+        widget.setStyleSheet(spin_style())
+        _mark(widget, "spin")
+    elif isinstance(widget, QDateEdit):
+        style_date(widget)
+    elif isinstance(widget, QComboBox):
+        style_combo(widget, upper=upper)
+    else:
+        style_edit(widget, upper=upper)
+        if align_right and hasattr(widget, "setAlignment"):
+            widget.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+    return apply_field_size(widget, "small", fixed=fixed)
+
+
+def style_input_medium(
+    widget: QWidget,
+    *,
+    upper: bool | None = None,
+    fixed: bool = False,
+    align_center: bool = False,
+) -> QWidget:
+    """Style and size a medium input control (Date, Batch No, Expiry, Mobile, HSN Code).
+    Applies standard input styling, 105-140px width, and 32px height.
+    """
+    from PySide6.QtWidgets import QComboBox, QDateEdit, QSpinBox, QDoubleSpinBox
+    if isinstance(widget, (QSpinBox, QDoubleSpinBox)):
+        widget.setStyleSheet(spin_style())
+        _mark(widget, "spin")
+    elif isinstance(widget, QDateEdit):
+        style_date(widget)
+    elif isinstance(widget, QComboBox):
+        style_combo(widget, upper=upper)
+    else:
+        style_edit(widget, upper=upper)
+        if align_center and hasattr(widget, "setAlignment"):
+            widget.setAlignment(Qt.AlignCenter)
+    return apply_field_size(widget, "medium", fixed=fixed)
+
+
+def style_input_large(
+    widget: QWidget,
+    *,
+    upper: bool | None = None,
+    fixed: bool = False,
+    expanding: bool = True,
+) -> QWidget:
+    """Style and size a large input control (Item Name, Supplier, Customer, Doctor, Address).
+    Applies standard input styling, 220-350+px width (expanding by default), and 32px height.
+    """
+    from PySide6.QtWidgets import QComboBox, QDateEdit, QSpinBox, QDoubleSpinBox
+    if isinstance(widget, (QSpinBox, QDoubleSpinBox)):
+        widget.setStyleSheet(spin_style())
+        _mark(widget, "spin")
+    elif isinstance(widget, QDateEdit):
+        style_date(widget)
+    elif isinstance(widget, QComboBox):
+        style_combo(widget, upper=upper)
+    else:
+        style_edit(widget, upper=upper)
+    apply_field_size(widget, "large", fixed=fixed)
+    if expanding:
+        from PySide6.QtWidgets import QSizePolicy
+        widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+    return widget
+
 
 # The hint size screens declared before the shared type scale existed.  The
 # theme-refresh inference still recognises it, so a screen that has not been
@@ -747,6 +913,8 @@ class SearchableComboBox(ConstrainedComboBox):
     """
 
     selection_changed = Signal(object)  # emits selected ID or None
+    returnPressed = Signal()
+    completionAccepted = Signal()
 
     def __init__(
         self,
@@ -1013,6 +1181,7 @@ class SearchableComboBox(ConstrainedComboBox):
             line.setToolTip("")
 
     def setCurrentIndex(self, index: int):
+        saved_text = self.lineEdit().text() if (self.lineEdit() is not None and getattr(self, "_allow_free_text", False)) else None
         super().setCurrentIndex(index)
         line = self.lineEdit()
         if line is not None:
@@ -1022,8 +1191,11 @@ class SearchableComboBox(ConstrainedComboBox):
                 line.setCursorPosition(0)
                 line.setToolTip(txt)
             else:
-                line.clear()
-                line.setToolTip("")
+                if getattr(self, "_allow_free_text", False) and saved_text:
+                    line.setText(saved_text)
+                else:
+                    line.clear()
+                    line.setToolTip("")
 
     def currentText(self) -> str:
         line = self.lineEdit()
@@ -1109,6 +1281,8 @@ class SearchableComboBox(ConstrainedComboBox):
                 y = self.mapToGlobal(QPoint(0, 0)).y() - height - 2
             if x + width > screen_geo.right():
                 x = max(screen_geo.left(), screen_geo.right() - width)
+            if x < screen_geo.left():
+                x = screen_geo.left()
 
         popup.setGeometry(QRect(x, y, width, height))
 
@@ -1339,11 +1513,27 @@ class SearchableComboBox(ConstrainedComboBox):
                             idx_item = self._completer_model.itemFromIndex(idx)
                             if idx_item and idx_item.isEnabled():
                                 self._on_completer_index_activated(idx)
-                                return True
+                            else:
+                                self._resolve_current_text()
+                        else:
+                            self._resolve_current_text()
+                        popup.hide()
                     else:
                         self._resolve_current_text()
-                        return False
-                elif key in (Qt.Key_Tab, Qt.Key_Backtab):
+                    self.completionAccepted.emit()
+                    self.returnPressed.emit()
+                    return True
+                elif key == Qt.Key_Backtab:
+                    if popup and popup.isVisible():
+                        popup.hide()
+                        cur = self.currentIndex()
+                        if cur >= 0 and self.itemData(cur) is not None:
+                            raw = self.itemData(cur, Qt.UserRole + 1)
+                            line.setText(str(raw) if raw is not None else self.itemText(cur))
+                        else:
+                            line.clear()
+                    return False
+                elif key == Qt.Key_Tab:
                     if popup and popup.isVisible():
                         idx = popup.currentIndex()
                         if not idx.isValid():
@@ -1357,16 +1547,60 @@ class SearchableComboBox(ConstrainedComboBox):
                             idx_item = self._completer_model.itemFromIndex(idx)
                             if idx_item and idx_item.isEnabled():
                                 self._on_completer_index_activated(idx)
+                            else:
+                                self._resolve_current_text()
+                        else:
+                            self._resolve_current_text()
                         popup.hide()
+                    else:
+                        self._resolve_current_text()
+                    self.completionAccepted.emit()
+                    return False
         return super().eventFilter(obj, event)
 
 
 DEFAULT_BATCH_COLUMNS = [
-    {"key": "batch_no", "header": "Batch No", "width": 130, "align": Qt.AlignLeft},
-    {"key": "expiry", "header": "Expiry Date", "width": 100, "align": Qt.AlignCenter},
-    {"key": "mrp", "header": "MRP", "width": 80, "align": Qt.AlignRight},
-    {"key": "rate", "header": "Rate", "width": 80, "align": Qt.AlignRight},
-    {"key": "stock_qty", "header": "Balance", "width": 75, "align": Qt.AlignRight},
+    {"key": "batch_no", "header": "Batch No", "width": 115, "align": Qt.AlignLeft | Qt.AlignVCenter},
+    {"key": "expiry", "header": "Expiry Date", "width": 85, "align": Qt.AlignCenter},
+    {"key": "mrp", "header": "MRP", "width": 65, "align": Qt.AlignRight | Qt.AlignVCenter},
+    {"key": "rate", "header": "Rate", "width": 65, "align": Qt.AlignRight | Qt.AlignVCenter},
+    {"key": "stock_qty", "header": "Balance", "width": 55, "align": Qt.AlignRight | Qt.AlignVCenter},
+]
+
+DEFAULT_PURCHASE_BATCH_COLUMNS = [
+    {"key": "batch_no", "header": "Batch No", "width": 130, "align": Qt.AlignLeft | Qt.AlignVCenter},
+    {"key": "expiry", "header": "Expiry Date", "width": 105, "align": Qt.AlignCenter},
+    {"key": "mrp", "header": "MRP", "width": 80, "align": Qt.AlignRight | Qt.AlignVCenter},
+    {"key": "purchase_rate", "header": "Purchase Rate", "width": 95, "align": Qt.AlignRight | Qt.AlignVCenter},
+    {"key": "stock_qty", "header": "Available Balance", "width": 110, "align": Qt.AlignRight | Qt.AlignVCenter},
+]
+
+DEFAULT_ITEM_COLUMNS = [
+    {"key": "item_name", "header": "Item Name", "width": 240, "align": Qt.AlignLeft | Qt.AlignVCenter},
+    {"key": "pack_size", "header": "Pack", "width": 65, "align": Qt.AlignCenter},
+    {"key": "company", "header": "Mfg / Company", "width": 100, "align": Qt.AlignLeft | Qt.AlignVCenter},
+    {"key": "mrp", "header": "MRP", "width": 75, "align": Qt.AlignRight | Qt.AlignVCenter},
+    {"key": "stock_qty", "header": "Stock", "width": 65, "align": Qt.AlignRight | Qt.AlignVCenter},
+]
+
+DEFAULT_SUPPLIER_COLUMNS = [
+    {"key": "supplier_name", "header": "Supplier Name", "width": 220, "align": Qt.AlignLeft | Qt.AlignVCenter},
+    {"key": "city", "header": "City", "width": 95, "align": Qt.AlignLeft | Qt.AlignVCenter},
+    {"key": "mobile", "header": "Contact", "width": 105, "align": Qt.AlignLeft | Qt.AlignVCenter},
+    {"key": "balance", "header": "Balance", "width": 80, "align": Qt.AlignRight | Qt.AlignVCenter},
+]
+
+DEFAULT_CUSTOMER_COLUMNS = [
+    {"key": "customer_name", "header": "Customer Name", "width": 200, "align": Qt.AlignLeft | Qt.AlignVCenter},
+    {"key": "mobile", "header": "Mobile", "width": 105, "align": Qt.AlignLeft | Qt.AlignVCenter},
+    {"key": "city", "header": "City / Area", "width": 110, "align": Qt.AlignLeft | Qt.AlignVCenter},
+    {"key": "balance", "header": "Balance", "width": 80, "align": Qt.AlignRight | Qt.AlignVCenter},
+]
+
+DEFAULT_DOCTOR_COLUMNS = [
+    {"key": "doctor_name", "header": "Doctor Name", "width": 220, "align": Qt.AlignLeft | Qt.AlignVCenter},
+    {"key": "specialization", "header": "Specialization", "width": 130, "align": Qt.AlignLeft | Qt.AlignVCenter},
+    {"key": "mobile", "header": "Mobile", "width": 105, "align": Qt.AlignLeft | Qt.AlignVCenter},
 ]
 
 
@@ -1440,6 +1674,9 @@ class TableComboBox(SearchableComboBox):
     """
 
     completionAccepted = Signal()
+    returnPressed = Signal()
+    batch_selected = Signal(dict)
+    textChanged = Signal(str)
 
     def __init__(
         self,
@@ -1447,9 +1684,10 @@ class TableComboBox(SearchableComboBox):
         *,
         placeholder: str = "",
         min_width: int = 160,
-        min_popup_width: int = 520,
+        min_popup_width: int = 385,
         max_popup_height: int = 280,
         columns: list[dict] | list[str] | None = None,
+        allow_free_text: bool = False,
     ):
         super().__init__(
             parent,
@@ -1460,6 +1698,7 @@ class TableComboBox(SearchableComboBox):
         # We control table popup and filtering directly; disable 1D completer popup
         self.setCompleter(None)
 
+        self._allow_free_text = allow_free_text
         self._min_popup_width = min_popup_width
         self._max_popup_height = max_popup_height
         self._min_popup_height = 90
@@ -1472,7 +1711,52 @@ class TableComboBox(SearchableComboBox):
             self.set_columns(columns)
         else:
             self._setup_columns()
+        self.installEventFilter(self)
         self.refresh_theme()
+        if self.lineEdit() is not None:
+            self.lineEdit().textChanged.connect(self.textChanged.emit)
+
+    @property
+    def _model(self):
+        return self._table_model
+
+    def text(self) -> str:
+        line = self.lineEdit()
+        return line.text().strip() if line is not None else self.currentText().strip()
+
+    def setText(self, text: str):
+        line = self.lineEdit()
+        if line is not None:
+            self._block_filter = True
+            try:
+                line.setText(text)
+                if getattr(self, "_allow_free_text", False):
+                    match = -1
+                    clean = text.strip().casefold()
+                    for r in range(self.count()):
+                        raw = self.itemData(r, Qt.UserRole + 1)
+                        raw_str = (str(raw) if raw is not None else self.itemText(r)).strip().casefold()
+                        if raw_str == clean:
+                            match = r
+                            break
+                    if match >= 0:
+                        super().setCurrentIndex(match)
+                        if hasattr(self, "table_view") and hasattr(self, "_table_model"):
+                            idx = self._table_model.index(match, 0)
+                            self.table_view.setCurrentIndex(idx)
+                            self.table_view.selectRow(match)
+                    else:
+                        super().setCurrentIndex(-1)
+                        line.setText(text)
+                        if hasattr(self, "table_view"):
+                            self.table_view.clearSelection()
+                            self.table_view.setCurrentIndex(QModelIndex())
+            finally:
+                self._block_filter = False
+
+    def show_popup(self):
+        """Compatibility alias for showPopup()."""
+        self.showPopup()
 
     def show_all_completions_on_click(self):
         """Compatibility hook with CounterSale combo interface."""
@@ -1481,6 +1765,17 @@ class TableComboBox(SearchableComboBox):
     def _show_completion_popup(self):
         """Compatibility hook with CounterSale combo interface."""
         self.showPopup()
+
+    def _show_popup_if_still_closed(self):
+        """Show popup only if it is not already visible.
+
+        Called via QTimer.singleShot from the FocusIn handler to avoid
+        resetting the highlighted row when showPopup() was already called
+        explicitly (e.g. from _focus_batch) before the timer fires.
+        """
+        popup = getattr(self, "_popup_frame", None)
+        if popup is not None and not popup.isVisible() and self.count() > 0:
+            self.showPopup()
 
     def close_popup(self):
         """Compatibility hook with CounterSale combo interface."""
@@ -1501,7 +1796,7 @@ class TableComboBox(SearchableComboBox):
         self.table_view.verticalHeader().setVisible(False)
         self.table_view.horizontalHeader().setVisible(True)
         self.table_view.horizontalHeader().setHighlightSections(False)
-        self.table_view.horizontalHeader().setStretchLastSection(True)
+        self.table_view.horizontalHeader().setStretchLastSection(False)
         self.table_view.setShowGrid(True)
         self.table_view.setAlternatingRowColors(True)
         self.table_view.setFocusPolicy(Qt.NoFocus)
@@ -1512,6 +1807,13 @@ class TableComboBox(SearchableComboBox):
         self.table_view.clicked.connect(self._on_table_row_clicked)
         self.table_view.doubleClicked.connect(self._on_table_row_clicked)
         layout.addWidget(self.table_view, 1)
+
+        # Empty state message overlay
+        self._empty_label = QLabel(self._popup_frame)
+        self._empty_label.setAlignment(Qt.AlignCenter)
+        self._empty_label.setWordWrap(True)
+        self._empty_label.setVisible(False)
+        layout.addWidget(self._empty_label, 1)
 
         # Status / footer bar
         self._footer_bar = QFrame(self._popup_frame)
@@ -1544,10 +1846,18 @@ class TableComboBox(SearchableComboBox):
         headers = [c.get("header", c.get("key", "")) for c in self._columns]
         self._table_model.setHorizontalHeaderLabels(headers)
         header = self.table_view.horizontalHeader()
+        header.setStretchLastSection(False)
         for idx, col in enumerate(self._columns):
+            header_item = self._table_model.horizontalHeaderItem(idx)
+            if header_item is not None:
+                header_item.setTextAlignment(col.get("align", Qt.AlignLeft | Qt.AlignVCenter))
             w = col.get("width")
             if w:
                 header.resizeSection(idx, w)
+            if idx == 0 and len(self._columns) > 1:
+                header.setSectionResizeMode(idx, QHeaderView.Stretch)
+            else:
+                header.setSectionResizeMode(idx, QHeaderView.Interactive)
 
     def set_columns(self, columns: list[dict] | list[str]):
         """Configure table columns."""
@@ -1679,7 +1989,20 @@ class TableComboBox(SearchableComboBox):
 
             # Populate column value
             if k == "batch_no":
-                item.setText(str(r_info.get("batch_no") or primary_text))
+                b_name = str(r_info.get("batch_no") or primary_text)
+                if getattr(self, "_include_exp_in_batch_col", False):
+                    exp_disp = _format_date_display(r_info.get("expiry"))
+                    if exp_disp:
+                        if is_exp:
+                            item.setText(f"{b_name}  (Exp: {exp_disp} - Expired)")
+                        else:
+                            item.setText(f"{b_name}  (Exp: {exp_disp})")
+                    else:
+                        item.setText(b_name)
+                else:
+                    item.setText(b_name)
+                item.setData(b_name, Qt.UserRole + 1)
+                item.setData(r_info if r_info else data, Qt.UserRole)
                 font = item.font()
                 font.setBold(True)
                 item.setFont(font)
@@ -1695,14 +2018,14 @@ class TableComboBox(SearchableComboBox):
                 item.setText(_format_num_display(mrp_val, 2))
                 if is_exp:
                     item.setForeground(QColor(danger_color))
-            elif k == "rate":
+            elif k in ("rate", "purchase_rate"):
                 rate_val = r_info.get("purchase_rate")
                 if rate_val is None:
                     rate_val = r_info.get("rate", r_info.get("sale_rate"))
                 item.setText(_format_num_display(rate_val, 2))
                 if is_exp:
                     item.setForeground(QColor(danger_color))
-            elif k in ("stock_qty", "balance", "available"):
+            elif k in ("stock_qty", "balance", "available", "available_balance"):
                 item.setText(_format_num_display(stock_val, 0))
                 if is_zero_stock:
                     item.setForeground(QColor(dim_color))
@@ -1728,15 +2051,38 @@ class TableComboBox(SearchableComboBox):
 
         self._table_model.appendRow(row_items)
 
-    def set_batches(self, batches: list[dict[str, Any]], expired_only: bool = False):
+    def set_batches(
+        self,
+        batches: list[dict[str, Any]],
+        expired_only: bool = False,
+        invoice_date: date | None = None,
+    ):
         """High-level batch loader displaying full table information."""
         self.blockSignals(True)
         try:
             self.clear()
-            self.addItem("-- Select Batch --", None)
+            if not getattr(self, "_allow_free_text", False):
+                self.addItem("-- Select Batch --", None)
             for b in batches:
                 if expired_only and not b.get("is_expired"):
                     continue
+                if invoice_date and b.get("expiry"):
+                    exp_raw = str(b.get("expiry") or "").strip()
+                    try:
+                        if len(exp_raw) >= 10 and "-" in exp_raw:
+                            d_exp = datetime.strptime(exp_raw[:10], "%Y-%m-%d").date()
+                        elif "/" in exp_raw:
+                            parts = exp_raw.split("/")
+                            m, y = int(parts[0]), int(parts[1])
+                            if y < 100:
+                                y += 2000
+                            d_exp = date(y, m, 1)
+                        else:
+                            d_exp = None
+                        if d_exp and d_exp < invoice_date:
+                            b["is_expired"] = True
+                    except Exception:
+                        pass
                 b_no = str(b.get("batch_no") or "").strip()
                 self.addItem(b_no, b, raw_name=b_no, row_data=b)
             self.setCurrentIndex(0)
@@ -1808,10 +2154,76 @@ class TableComboBox(SearchableComboBox):
                     line.setCursorPosition(0)
                     line.setToolTip(self._build_tooltip(index))
             else:
-                line.clear()
-                line.setToolTip("")
+                if not getattr(self, "_allow_free_text", False):
+                    line.clear()
+                    line.setToolTip("")
 
-    def _commit_row(self, row: int):
+    def _resolve_current_text(self):
+        if getattr(self, "_block_filter", False):
+            return
+        line = self.lineEdit()
+        if not line:
+            return
+        text = line.text().strip()
+        if not text or text == getattr(self, "_placeholder", "") or text.startswith("--"):
+            self.setCurrentIndex(-1)
+            return
+
+        # 1. Exact match with display or raw name
+        match_idx = self._find_matching_index(text)
+        if match_idx >= 0 and self.itemData(match_idx) is not None:
+            if self.currentIndex() != match_idx:
+                self.setCurrentIndex(match_idx)
+            raw = self.itemData(match_idx, Qt.UserRole + 1)
+            line.setText(str(raw) if raw is not None else self.itemText(match_idx))
+            data = self.itemData(match_idx)
+            if isinstance(data, dict):
+                self.batch_selected.emit(data)
+            return
+
+        # 2. Check if text matches raw_name of any row
+        clean_text = text.strip().casefold()
+        for idx in range(self.count()):
+            raw = self.itemData(idx, Qt.UserRole + 1)
+            raw_str = (str(raw) if raw is not None else self.itemText(idx)).strip().casefold()
+            if raw_str == clean_text and self.itemData(idx) is not None:
+                if self.currentIndex() != idx:
+                    self.setCurrentIndex(idx)
+                line.setText(str(raw) if raw is not None else self.itemText(idx))
+                data = self.itemData(idx)
+                if isinstance(data, dict):
+                    self.batch_selected.emit(data)
+                return
+
+        # If allow_free_text is True and user typed text that does not match any existing item,
+        # preserve their typed text!
+        if getattr(self, "_allow_free_text", False):
+            self._block_filter = True
+            try:
+                super().setCurrentIndex(-1)
+                line.setText(text)
+            finally:
+                self._block_filter = False
+            return
+
+        # 3. If currently selected item is valid and text matches its raw name, keep it
+        cur = self.currentIndex()
+        if cur >= 0 and self.itemData(cur) is not None:
+            raw = self.itemData(cur, Qt.UserRole + 1)
+            raw_str = (str(raw) if raw is not None else self.itemText(cur)).strip().casefold()
+            if raw_str.startswith(clean_text) or clean_text in raw_str:
+                line.setText(str(raw) if raw is not None else self.itemText(cur))
+                return
+
+        # 4. Otherwise, if current index is valid, keep current index clean text
+        if cur >= 0 and self.itemData(cur) is not None:
+            raw = self.itemData(cur, Qt.UserRole + 1)
+            line.setText(str(raw) if raw is not None else self.itemText(cur))
+            return
+
+        self.setCurrentIndex(-1)
+
+    def _commit_row(self, row: int, emit_completion: bool = True):
         if not (0 <= row < self.count()):
             return
         self._block_filter = True
@@ -1819,16 +2231,46 @@ class TableComboBox(SearchableComboBox):
             self.setCurrentIndex(row)
         finally:
             self._block_filter = False
-        self.selection_changed.emit(self.currentData())
+        cur_data = self.currentData()
+        self.selection_changed.emit(cur_data)
         self.activated.emit(row)
-        self.completionAccepted.emit()
+        self.textActivated.emit(self.currentText())
+        if isinstance(cur_data, dict):
+            self.batch_selected.emit(cur_data)
+        elif 0 <= row < len(self._row_dicts):
+            self.batch_selected.emit(self._row_dicts[row])
+        if emit_completion:
+            self.completionAccepted.emit()
 
     def _on_table_row_clicked(self, index: QModelIndex):
         if not index.isValid():
             return
         row = index.row()
-        self._commit_row(row)
+        self._commit_row(row, emit_completion=True)
         self.hidePopup()
+
+    def _update_empty_state(self):
+        total = self._table_model.rowCount()
+        visible = sum(1 for r in range(total) if not self.table_view.isRowHidden(r)) if total > 0 else 0
+        if not hasattr(self, "_empty_label") or self._empty_label is None:
+            return
+        if total == 0:
+            self.table_view.setVisible(False)
+            self._empty_label.setVisible(True)
+            self._empty_label.setText("No batches available" if not getattr(self, "_placeholder", "") else "No records available")
+        elif visible == 0:
+            self.table_view.setVisible(False)
+            self._empty_label.setVisible(True)
+            line = self.lineEdit()
+            q = line.text().strip() if line is not None else ""
+            short_q = (q[:25] + "...") if len(q) > 25 else q
+            if short_q:
+                self._empty_label.setText(f"No matching records found for '{short_q}'")
+            else:
+                self._empty_label.setText("No matching records found")
+        else:
+            self.table_view.setVisible(True)
+            self._empty_label.setVisible(False)
 
     def _update_footer(self):
         if self.signalsBlocked():
@@ -1840,6 +2282,14 @@ class TableComboBox(SearchableComboBox):
         visible = sum(1 for r in range(total) if not self.table_view.isRowHidden(r))
         if total == 0:
             self._status_label.setText("No batches available")
+        elif visible == 0:
+            line = self.lineEdit()
+            q = line.text().strip() if line is not None else ""
+            short_q = (q[:30] + "...") if len(q) > 30 else q
+            if short_q:
+                self._status_label.setText(f"No matching records found for '{short_q}'")
+            else:
+                self._status_label.setText("No matching records found")
         elif visible < total:
             self._status_label.setText(f"Showing {visible} of {total} batches ({expired_count} expired)")
         else:
@@ -1875,13 +2325,15 @@ class TableComboBox(SearchableComboBox):
                     if q in item_text:
                         matched = True
                         break
+
             self.table_view.setRowHidden(r, not matched)
             if matched and first_match < 0:
                 first_match = r
 
+        self._update_empty_state()
         self._update_footer()
 
-        if hasattr(self, "_popup_frame") and not self._popup_frame.isVisible() and total > 0:
+        if hasattr(self, "_popup_frame") and not self._popup_frame.isVisible():
             self.showPopup()
 
         if first_match >= 0:
@@ -1889,6 +2341,9 @@ class TableComboBox(SearchableComboBox):
             self.table_view.setCurrentIndex(idx)
             self.table_view.selectRow(first_match)
             self.table_view.scrollTo(idx, QAbstractItemView.PositionAtCenter)
+        else:
+            self.table_view.clearSelection()
+            self.table_view.setCurrentIndex(QModelIndex())
 
     def mousePressEvent(self, event):
         if hasattr(self, "_popup_frame") and self._popup_frame.isVisible():
@@ -1898,8 +2353,7 @@ class TableComboBox(SearchableComboBox):
 
     def showPopup(self):
         total = self._table_model.rowCount()
-        if total == 0:
-            return
+        self._update_empty_state()
         self._update_footer()
 
         # Position and size popup
@@ -1909,19 +2363,25 @@ class TableComboBox(SearchableComboBox):
         screen = QApplication.screenAt(pos) or QApplication.primaryScreen()
         avail = screen.availableGeometry() if screen else QRect(0, 0, 1920, 1080)
 
+        visible_rows = sum(1 for r in range(total) if not self.table_view.isRowHidden(r)) if total > 0 else 0
+
         # Calculate width from columns
         cols_width = sum(self._columns[i].get("width", 90) for i in range(len(self._columns)))
-        target_w = max(combo_w, self._min_popup_width, cols_width + 28)
+        scrollbar_w = 16 if visible_rows > 5 else 0
+        target_w = max(combo_w, self._min_popup_width, cols_width + scrollbar_w + 4)
         target_w = min(target_w, avail.width() - 20)
 
         # Calculate height: show up to 5 batches without scrollbar; scroll on 5+ batches
-        visible_rows = sum(1 for r in range(total) if not self.table_view.isRowHidden(r))
         row_h = max(28, self.table_view.rowHeight(0) if total > 0 else 30)
         header_h = max(26, self.table_view.horizontalHeader().height())
         footer_h = max(24, self._footer_bar.height() if hasattr(self, "_footer_bar") else 24)
-        rows_to_show = min(visible_rows, 5)
-        target_h = rows_to_show * row_h + header_h + footer_h + 12
-        target_h = max(self._min_popup_height, target_h)
+
+        if visible_rows == 0 or total == 0:
+            target_h = max(self._min_popup_height, 100)
+        else:
+            rows_to_show = min(visible_rows, 5)
+            target_h = rows_to_show * row_h + header_h + footer_h + 12
+            target_h = max(self._min_popup_height, target_h)
 
         # Boundary X
         x = pos.x()
@@ -1942,15 +2402,47 @@ class TableComboBox(SearchableComboBox):
 
         self._popup_frame.setGeometry(QRect(x, y, target_w, h))
 
-        # Select current index and highlight full row
-        cur = self.currentIndex()
-        if not (0 <= cur < total and not self.table_view.isRowHidden(cur)):
-            cur = 1 if (total > 1 and self.itemData(0) is None and self.itemText(0).startswith("--")) else 0
-        if 0 <= cur < total and not self.table_view.isRowHidden(cur):
-            idx = self._table_model.index(cur, 0)
-            self.table_view.setCurrentIndex(idx)
-            self.table_view.selectRow(cur)
-            self.table_view.scrollTo(idx, QAbstractItemView.PositionAtCenter)
+        if visible_rows > 0:
+            # Select current index and highlight full row
+            cur = self.currentIndex()
+            is_free_text = getattr(self, "_allow_free_text", False)
+            typed_free_text = False
+            if is_free_text:
+                line = self.lineEdit()
+                t = line.text().strip().casefold() if line is not None else ""
+                if t:
+                    matched = False
+                    for r in range(total):
+                        raw = self.itemData(r, Qt.UserRole + 1)
+                        raw_str = (str(raw) if raw is not None else self.itemText(r)).strip().casefold()
+                        if raw_str == t:
+                            cur = r
+                            matched = True
+                            break
+                    if not matched:
+                        cur = -1
+                        typed_free_text = True
+            if not typed_free_text:
+                start = 1 if (total > 1 and self.itemData(0) is None and self.itemText(0).startswith("--")) else 0
+                if not (0 <= cur < total and not self.table_view.isRowHidden(cur)):
+                    cur = -1
+                    for r in range(start, total):
+                        if not self.table_view.isRowHidden(r):
+                            cur = r
+                            break
+                    if cur < 0:
+                        for r in range(total):
+                            if not self.table_view.isRowHidden(r):
+                                cur = r
+                                break
+            if 0 <= cur < total and not self.table_view.isRowHidden(cur):
+                idx = self._table_model.index(cur, 0)
+                self.table_view.setCurrentIndex(idx)
+                self.table_view.selectRow(cur)
+                self.table_view.scrollTo(idx, QAbstractItemView.PositionAtCenter)
+            else:
+                self.table_view.clearSelection()
+                self.table_view.setCurrentIndex(QModelIndex())
 
         self._popup_frame.show()
         self._popup_frame.raise_()
@@ -1965,17 +2457,27 @@ class TableComboBox(SearchableComboBox):
         except (RuntimeError, ReferenceError):
             pass
 
-    def eventFilter(self, obj, event):
+    def selectAll(self):
         line = self.lineEdit()
-        popup = getattr(self, "_popup_frame", None)
-        table = getattr(self, "table_view", None)
+        if line is not None and hasattr(line, "selectAll"):
+            line.selectAll()
 
-        if obj == line:
+    def eventFilter(self, obj, event):
+        try:
+            line = self.lineEdit()
+            popup = getattr(self, "_popup_frame", None)
+            table = getattr(self, "table_view", None)
+        except (RuntimeError, ReferenceError):
+            return False
+
+        if obj == line or obj == self:
             if event.type() in (QEvent.MouseButtonPress, QEvent.FocusIn):
                 if popup is not None and not popup.isVisible() and self.count() > 0:
-                    QTimer.singleShot(0, self.showPopup)
+                    # Only queue showPopup via timer if the popup is not already open
+                    # and no explicit showPopup is in flight (avoid resetting row selection).
+                    QTimer.singleShot(0, self._show_popup_if_still_closed)
 
-        if event.type() == QEvent.KeyPress and obj in (line, popup, table):
+        if event.type() == QEvent.KeyPress and obj in (self, line, popup, table):
             key = event.key()
             if key in (Qt.Key_Down, Qt.Key_Up, Qt.Key_PageDown, Qt.Key_PageUp):
                 if popup is None or not popup.isVisible():
@@ -1995,43 +2497,101 @@ class TableComboBox(SearchableComboBox):
                         next_row = 0 if cur_row < 0 and step > 0 else (count - 1 if cur_row < 0 else cur_row + step)
                         while 0 <= next_row < count:
                             if not self.table_view.isRowHidden(next_row):
-                                idx = self._table_model.index(next_row, 0)
-                                self.table_view.setCurrentIndex(idx)
-                                self.table_view.selectRow(next_row)
-                                self.table_view.scrollTo(idx, QAbstractItemView.PositionAtCenter)
-                                return True
+                                if not (next_row == 0 and self.itemData(0) is None and self.itemText(0).startswith("--") and count > 1):
+                                    idx = self._table_model.index(next_row, 0)
+                                    self.table_view.setCurrentIndex(idx)
+                                    self.table_view.selectRow(next_row)
+                                    self.table_view.scrollTo(idx, QAbstractItemView.PositionAtCenter)
+                                    return True
                             next_row += (1 if step > 0 else -1)
                         return True
             elif key in (Qt.Key_Return, Qt.Key_Enter):
                 if popup is not None and popup.isVisible():
                     idx = self.table_view.currentIndex()
-                    if not idx.isValid():
-                        for r in range(self._table_model.rowCount()):
+                    if getattr(self, "_allow_free_text", False):
+                        typed_text = line.text().strip().casefold() if line is not None else ""
+                        if idx.isValid():
+                            row_txt = self.itemText(idx.row()).strip().casefold()
+                            raw = self.itemData(idx.row(), Qt.UserRole + 1)
+                            raw_txt = str(raw).strip().casefold() if raw is not None else ""
+                            if typed_text and typed_text != row_txt and typed_text != raw_txt:
+                                idx = QModelIndex()
+                    elif not idx.isValid() or self.table_view.isRowHidden(idx.row()):
+                        idx = QModelIndex()
+                        start = 1 if (self._table_model.rowCount() > 1 and self.itemData(0) is None and self.itemText(0).startswith("--")) else 0
+                        for r in range(start, self._table_model.rowCount()):
                             if not self.table_view.isRowHidden(r):
                                 idx = self._table_model.index(r, 0)
                                 break
-                    if idx.isValid():
-                        self._commit_row(idx.row())
+                    if idx.isValid() and not self.table_view.isRowHidden(idx.row()):
+                        self._commit_row(idx.row(), emit_completion=True)
+                    else:
+                        if getattr(self, "_allow_free_text", False):
+                            self._resolve_current_text()
+                            self.completionAccepted.emit()
                     self.hidePopup()
+                    self.returnPressed.emit()
                     return True
                 else:
+                    if getattr(self, "_allow_free_text", False):
+                        self._resolve_current_text()
                     self.completionAccepted.emit()
+                    self.returnPressed.emit()
                     return True
-            elif key in (Qt.Key_Tab, Qt.Key_Backtab):
+            elif key == Qt.Key_Backtab:
+                if popup is not None and popup.isVisible():
+                    self.hidePopup()
+                    cur = self.currentIndex()
+                    if cur >= 0 and self.itemData(cur) is not None:
+                        raw = self.itemData(cur, Qt.UserRole + 1)
+                        line.setText(str(raw) if raw is not None else self.itemText(cur))
+                    else:
+                        line.clear()
+                    for r in range(self._table_model.rowCount()):
+                        self.table_view.setRowHidden(r, False)
+                    self._update_empty_state()
+                    self._update_footer()
+                return False
+            elif key == Qt.Key_Tab:
                 if popup is not None and popup.isVisible():
                     idx = self.table_view.currentIndex()
-                    if not idx.isValid():
-                        for r in range(self._table_model.rowCount()):
+                    if getattr(self, "_allow_free_text", False):
+                        typed_text = line.text().strip().casefold() if line is not None else ""
+                        if idx.isValid():
+                            row_txt = self.itemText(idx.row()).strip().casefold()
+                            raw = self.itemData(idx.row(), Qt.UserRole + 1)
+                            raw_txt = str(raw).strip().casefold() if raw is not None else ""
+                            if typed_text and typed_text != row_txt and typed_text != raw_txt:
+                                idx = QModelIndex()
+                    elif not idx.isValid() or self.table_view.isRowHidden(idx.row()):
+                        idx = QModelIndex()
+                        start = 1 if (self._table_model.rowCount() > 1 and self.itemData(0) is None and self.itemText(0).startswith("--")) else 0
+                        for r in range(start, self._table_model.rowCount()):
                             if not self.table_view.isRowHidden(r):
                                 idx = self._table_model.index(r, 0)
                                 break
-                    if idx.isValid():
-                        self._commit_row(idx.row())
+                    if idx.isValid() and not self.table_view.isRowHidden(idx.row()):
+                        self._commit_row(idx.row(), emit_completion=True)
+                    else:
+                        if getattr(self, "_allow_free_text", False):
+                            self._resolve_current_text()
+                            self.completionAccepted.emit()
                     self.hidePopup()
-                return False
+                else:
+                    if getattr(self, "_allow_free_text", False):
+                        self._resolve_current_text()
+                    self.completionAccepted.emit()
+
+                if self.hasFocus() or (line is not None and line.hasFocus()) or (table is not None and table.hasFocus()):
+                    self.focusNextChild()
+                return True
             elif key == Qt.Key_Escape:
                 if popup is not None and popup.isVisible():
                     self.hidePopup()
+                    for r in range(self._table_model.rowCount()):
+                        self.table_view.setRowHidden(r, False)
+                    self._update_empty_state()
+                    self._update_footer()
                     return True
             elif obj in (popup, table) and event.text() and event.text().isprintable():
                 if line is not None:
@@ -2040,6 +2600,12 @@ class TableComboBox(SearchableComboBox):
                     return True
 
         return super().eventFilter(obj, event)
+
+    def keyPressEvent(self, event):
+        if self.eventFilter(self, event):
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
     def refresh_theme(self, p: dict | None = None):
         super().refresh_theme(p)
@@ -2109,6 +2675,147 @@ class TableComboBox(SearchableComboBox):
             f"  color: {danger_color};"
             f"}}"
         )
+        if hasattr(self, "_empty_label") and self._empty_label is not None:
+            self._empty_label.setStyleSheet(
+                f"QLabel {{"
+                f"  color: {text_dim};"
+                f"  font-size: 13px; font-style: italic; font-family: 'Segoe UI';"
+                f"  padding: 18px;"
+                f"  background-color: {surface};"
+                f"}}"
+            )
+
+
+class BatchTableComboBox(TableComboBox):
+    """Specialized TableComboBox for batch selection with preconfigured columns and formatting."""
+
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        *,
+        placeholder: str = "-- Select Batch --",
+        min_width: int = 150,
+        min_popup_width: int = 475,
+        allow_free_text: bool = False,
+        **kwargs,
+    ):
+        kwargs.setdefault("columns", DEFAULT_BATCH_COLUMNS)
+        kwargs.setdefault("min_popup_width", min_popup_width)
+        kwargs.setdefault("allow_free_text", allow_free_text)
+        super().__init__(parent, placeholder=placeholder, min_width=min_width, **kwargs)
+
+
+class ItemTableComboBox(TableComboBox):
+    """Specialized TableComboBox for medicine/item selection."""
+
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        *,
+        placeholder: str = "-- Select Item --",
+        min_width: int = 240,
+        min_popup_width: int = 545,
+        allow_free_text: bool = False,
+        **kwargs,
+    ):
+        kwargs.setdefault("columns", DEFAULT_ITEM_COLUMNS)
+        kwargs.setdefault("min_popup_width", min_popup_width)
+        kwargs.setdefault("allow_free_text", allow_free_text)
+        super().__init__(parent, placeholder=placeholder, min_width=min_width, **kwargs)
+
+
+class SupplierTableComboBox(TableComboBox):
+    """Specialized TableComboBox for supplier selection."""
+
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        *,
+        placeholder: str = "-- Select Supplier --",
+        min_width: int = 200,
+        min_popup_width: int = 500,
+        allow_free_text: bool = False,
+        **kwargs,
+    ):
+        kwargs.setdefault("columns", DEFAULT_SUPPLIER_COLUMNS)
+        kwargs.setdefault("min_popup_width", min_popup_width)
+        kwargs.setdefault("allow_free_text", allow_free_text)
+        super().__init__(parent, placeholder=placeholder, min_width=min_width, **kwargs)
+
+
+class CustomerTableComboBox(TableComboBox):
+    """Specialized TableComboBox for customer selection."""
+
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        *,
+        placeholder: str = "-- Select Customer --",
+        min_width: int = 180,
+        min_popup_width: int = 495,
+        allow_free_text: bool = False,
+        **kwargs,
+    ):
+        kwargs.setdefault("columns", DEFAULT_CUSTOMER_COLUMNS)
+        kwargs.setdefault("min_popup_width", min_popup_width)
+        kwargs.setdefault("allow_free_text", allow_free_text)
+        super().__init__(parent, placeholder=placeholder, min_width=min_width, **kwargs)
+
+
+class DoctorTableComboBox(TableComboBox):
+    """Specialized TableComboBox for doctor selection."""
+
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        *,
+        placeholder: str = "-- Select Doctor --",
+        min_width: int = 180,
+        min_popup_width: int = 455,
+        allow_free_text: bool = False,
+        **kwargs,
+    ):
+        kwargs.setdefault("columns", DEFAULT_DOCTOR_COLUMNS)
+        kwargs.setdefault("min_popup_width", min_popup_width)
+        kwargs.setdefault("allow_free_text", allow_free_text)
+        super().__init__(parent, placeholder=placeholder, min_width=min_width, **kwargs)
+
+
+
+class PurchaseBatchComboBox(TableComboBox):
+    """Professional multi-column table batch selector for Purchase Invoices.
+
+    Displays 5 columns:
+      - Batch No
+      - Expiry Date
+      - MRP
+      - Purchase Rate
+      - Available Balance
+
+    Supports both selection of existing batches and free-form entry of new batches.
+    """
+
+    def __init__(
+        self,
+        placeholder: str = "Batch",
+        parent: QWidget | None = None,
+        *,
+        min_width: int = 95,
+        min_popup_width: int = 540,
+        max_popup_height: int = 280,
+        columns: list[dict] | list[str] | None = None,
+    ):
+        cols = columns or DEFAULT_PURCHASE_BATCH_COLUMNS
+        super().__init__(
+            parent,
+            placeholder=placeholder,
+            min_width=min_width,
+            min_popup_width=min_popup_width,
+            max_popup_height=max_popup_height,
+            columns=cols,
+            allow_free_text=True,
+        )
+
 
 
 class ReportFilterSearchCombo(SearchableComboBox):
@@ -2121,8 +2828,8 @@ class ReportFilterSearchCombo(SearchableComboBox):
     - Restores placeholder / index 0 on blur if left blank.
     """
 
-    def __init__(self, parent: QWidget | None = None, min_width: int = 280):
-        super().__init__(parent=parent, placeholder="", max_visible=14, min_width=min_width)
+    def __init__(self, parent: QWidget | None = None, min_width: int = 280, prefix_only: bool = True):
+        super().__init__(parent=parent, placeholder="", max_visible=14, min_width=min_width, prefix_only=prefix_only)
 
     def eventFilter(self, obj, event):
         line = self.lineEdit()
@@ -2195,7 +2902,10 @@ class ReportFilterSearchCombo(SearchableComboBox):
         tier2_word_start.sort(key=lambda x: x[0].casefold())
         tier3_contains.sort(key=lambda x: x[0].casefold())
 
-        matches = tier1_prefix + tier2_word_start + tier3_contains
+        if getattr(self, "_prefix_only", True):
+            matches = tier1_prefix + tier2_word_start
+        else:
+            matches = tier1_prefix + tier2_word_start + tier3_contains
 
         self._completer_model.clear()
         if matches:
@@ -3179,10 +3889,102 @@ def refresh_containers(root: QWidget) -> int:
     return updated
 
 
+class _EnterNavigationFilter(QObject):
+    def __init__(self, advancer_fn, parent=None):
+        super().__init__(parent)
+        self._advancer = advancer_fn
+
+    def eventFilter(self, watched, event):
+        if event.type() == QEvent.KeyPress and event.key() in (Qt.Key_Return, Qt.Key_Enter):
+            if callable(self._advancer):
+                self._advancer()
+            return True
+        return super().eventFilter(watched, event)
+
+
+class _ButtonEnterFilter(QObject):
+    def eventFilter(self, watched, event):
+        if event.type() == QEvent.KeyPress and event.key() in (Qt.Key_Return, Qt.Key_Enter):
+            if isinstance(watched, QPushButton) and watched.isEnabled():
+                watched.click()
+                return True
+        return super().eventFilter(watched, event)
+
+
+def setup_form_navigation(
+    fields: list[QWidget],
+    save_btn: QPushButton | None = None,
+    cancel_btn: QPushButton | None = None,
+) -> None:
+    """Wire up professional keyboard navigation across a sequence of form widgets.
+
+    - TAB & SHIFT+TAB move logically between widgets.
+    - ENTER advances focus to the next input field without closing the parent dialog.
+    - On the final field, ENTER focuses the save button.
+    - Auto-default is cleared from save/cancel buttons to prevent premature dialog submission.
+    """
+    if cancel_btn is not None:
+        cancel_btn.setAutoDefault(False)
+        cancel_btn.setDefault(False)
+        cancel_btn.installEventFilter(_ButtonEnterFilter(cancel_btn))
+
+    if save_btn is not None:
+        save_btn.setAutoDefault(False)
+        save_btn.setDefault(False)
+        save_btn.installEventFilter(_ButtonEnterFilter(save_btn))
+
+    valid_fields = [f for f in fields if f is not None]
+    if not valid_fields:
+        return
+
+    # Set explicit Tab order
+    for i in range(len(valid_fields) - 1):
+        QWidget.setTabOrder(valid_fields[i], valid_fields[i + 1])
+    if save_btn is not None:
+        QWidget.setTabOrder(valid_fields[-1], save_btn)
+        if cancel_btn is not None:
+            QWidget.setTabOrder(save_btn, cancel_btn)
+
+    # Wire ENTER navigation
+    for i, widget in enumerate(valid_fields):
+        is_last = (i == len(valid_fields) - 1)
+        next_target = save_btn if is_last else valid_fields[i + 1]
+
+        def _make_advance_handler(target):
+            def _advance():
+                if target is None:
+                    return
+                if isinstance(target, QPushButton):
+                    target.setFocus()
+                else:
+                    if hasattr(target, "lineEdit") and target.lineEdit() is not None:
+                        target.lineEdit().setFocus()
+                        if hasattr(target.lineEdit(), "selectAll"):
+                            target.lineEdit().selectAll()
+                    else:
+                        target.setFocus()
+                        if hasattr(target, "selectAll"):
+                            target.selectAll()
+            return _advance
+
+        advancer = _make_advance_handler(next_target)
+
+        if hasattr(widget, "returnPressed") and hasattr(widget.returnPressed, "connect"):
+            widget.returnPressed.connect(advancer)
+        else:
+            filt = _EnterNavigationFilter(advancer, widget)
+            widget.installEventFilter(filt)
+            if hasattr(widget, "lineEdit") and widget.lineEdit() is not None:
+                widget.lineEdit().installEventFilter(filt)
+
+
 __all__ = [
+    "PurchaseBatchComboBox",
+    "DEFAULT_PURCHASE_BATCH_COLUMNS",
     "FONT_FAMILY", "FONT_NAME", "CONTROL_HEIGHT", "ROW_HEIGHT", "HEADER_HEIGHT",
     "ActionButton", "PageHeader", "SummaryPanel", "StatusLabel",
     "FormSection", "FilterBar", "SearchBar", "ConstrainedComboBox",
+    "SearchableComboBox", "TableComboBox", "setup_form_navigation",
     "label_style", "title_style", "section_title_style", "edit_style",
     "combo_style", "date_style", "spin_style", "checkbox_style",
     "group_box_style", "btn_primary_style", "btn_secondary_style",

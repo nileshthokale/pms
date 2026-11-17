@@ -1272,19 +1272,19 @@ class _KeyboardCombo(QComboBox):
         self.setEditable(True)
         self.setInsertPolicy(QComboBox.NoInsert)
         self.setFocusPolicy(Qt.StrongFocus)
-        self.setCompleter(QCompleter(self.model(), self))
         completer = self.completer()
-        completer.setCaseSensitivity(Qt.CaseInsensitive)
-        completer.setFilterMode(filter_mode)
-        completer.setCompletionMode(QCompleter.PopupCompletion)
-        completer.setMaxVisibleItems(10)
-        completer.popup().setFocusPolicy(Qt.NoFocus)
-        completer.popup().setSelectionMode(QAbstractItemView.SingleSelection)
-        # QCompleter owns a separate popup window; style it explicitly from
-        # the active Day/Night palette so it never falls back to the
-        # platform's own colours and never ends up as unreadable text (a
-        # white popup with white names was the Night Mode blank-list bug).
-        completer.popup().setStyleSheet(_fresh_completer_popup_style())
+        if not isinstance(completer, QCompleter):
+            completer = QCompleter(self.model(), self)
+            self.setCompleter(completer)
+        if isinstance(completer, QCompleter):
+            completer.setCaseSensitivity(Qt.CaseInsensitive)
+            completer.setFilterMode(filter_mode)
+            completer.setCompletionMode(QCompleter.PopupCompletion)
+            completer.setMaxVisibleItems(10)
+            if completer.popup():
+                completer.popup().setFocusPolicy(Qt.NoFocus)
+                completer.popup().setSelectionMode(QAbstractItemView.SingleSelection)
+                completer.popup().setStyleSheet(_fresh_completer_popup_style())
         _mark_cs(self, "combo")
         self.setFocusPolicy(Qt.StrongFocus)
         self._show_all_on_click = False
@@ -1451,10 +1451,10 @@ class _KeyboardCombo(QComboBox):
                         if text.upper() in (b_no.upper(), item_text.upper(), base.upper()):
                             self.setCurrentIndex(idx)
                             break
-                if self.currentData() is not None:
+                if text and self.currentData() is not None:
                     self.completionAccepted.emit()
-                    return True
-                self.focusNextChild()
+                if self.hasFocus() or (self.lineEdit() and self.lineEdit().hasFocus()):
+                    self.focusNextChild()
                 return True
 
         return super().eventFilter(watched, event)
@@ -2294,28 +2294,43 @@ class _ItemEntryBar(QWidget):
         # one pixel taller than a styled line edit).
         self._unify_control_heights()
 
-        # Read-only fields must never steal the keyboard chain.
-        for widget in (self.cno_label, self.pack_edit, self.location_edit,
-                       self.expiry_edit, self.mrp_edit, self.stock_edit,
-                       self.amount_edit):
-            widget.setFocusPolicy(Qt.NoFocus)
+        # Read-only fields must never steal the keyboard chain, but they need
+        # Qt.StrongFocus so the user can TAB through:
+        # Pack -> Loc -> Exp -> MRP -> Avail -> Qty -> Disc -> Amt -> Add
+        self.cno_label.setFocusPolicy(Qt.NoFocus)
+
+        for widget in (self.pack_edit, self.location_edit, self.expiry_edit,
+                       self.mrp_edit, self.stock_edit, self.qty_edit,
+                       self.discount_edit, self.amount_edit):
+            widget.setFocusPolicy(Qt.StrongFocus)
 
         self.item_combo.completionAccepted.connect(self._focus_batch)
-        self.batch_combo.completionAccepted.connect(self._focus_quantity)
+        self.batch_combo.completionAccepted.connect(self._focus_pack)
+        for w in (self.pack_edit, self.location_edit, self.expiry_edit,
+                  self.mrp_edit, self.stock_edit):
+            w.returnPressed.connect(self.focusNextChild)
         self.qty_edit.returnPressed.connect(self._activate_add)
         self.discount_edit.returnPressed.connect(self._activate_add)
+        self.amount_edit.returnPressed.connect(self._activate_add)
         self._focus_order = (
-            self.item_combo, self.batch_combo, self.qty_edit,
-            self.discount_edit, self.add_btn,
+            self.item_combo, self.batch_combo, self.pack_edit, self.location_edit,
+            self.expiry_edit, self.mrp_edit, self.stock_edit, self.qty_edit,
+            self.discount_edit, self.amount_edit, self.add_btn,
         )
         # Tab order is declared on the combo widgets (the real focus
         # targets).  Their line edits are focus proxies and are skipped by
         # focus traversal, so naming them here would drop the batch combo
         # out of the chain entirely.
         self.setTabOrder(self.item_combo, self.batch_combo)
-        self.setTabOrder(self.batch_combo, self.qty_edit)
+        self.setTabOrder(self.batch_combo, self.pack_edit)
+        self.setTabOrder(self.pack_edit, self.location_edit)
+        self.setTabOrder(self.location_edit, self.expiry_edit)
+        self.setTabOrder(self.expiry_edit, self.mrp_edit)
+        self.setTabOrder(self.mrp_edit, self.stock_edit)
+        self.setTabOrder(self.stock_edit, self.qty_edit)
         self.setTabOrder(self.qty_edit, self.discount_edit)
-        self.setTabOrder(self.discount_edit, self.add_btn)
+        self.setTabOrder(self.discount_edit, self.amount_edit)
+        self.setTabOrder(self.amount_edit, self.add_btn)
 
         # Wire signals
         self.item_combo.currentIndexChanged.connect(self._on_item_changed)
@@ -2939,6 +2954,10 @@ class _ItemEntryBar(QWidget):
         self.batch_combo.lineEdit().setFocus()
         if self.batch_combo.count() >= 1:
             self.batch_combo._show_completion_popup()
+
+    def _focus_pack(self):
+        self.pack_edit.setFocus()
+        self.pack_edit.selectAll()
 
     def _focus_quantity(self):
         self.qty_edit.selectAll()
@@ -5110,7 +5129,10 @@ class _SalePanel(QWidget):
         self._refresh_draft_availability()
         self._entry_bar.clear()
         self._entry_bar.reset_batch()
-        self._entry_bar.item_combo.setFocus()
+        if hasattr(self._entry_bar.item_combo, "lineEdit") and self._entry_bar.item_combo.lineEdit():
+            self._entry_bar.item_combo.lineEdit().setFocus()
+        else:
+            self._entry_bar.item_combo.setFocus()
 
     def _refresh_table(self):
         self._table.setRowCount(len(self._item_rows))

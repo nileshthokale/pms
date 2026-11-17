@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 from database.ledger_dao import LedgerDAO
 from database.account_group_dao import AccountGroupDAO
 
+from ui.components import ConstrainedComboBox
 from ui.theme import combo_subcontrols, palette
 _p = palette()
 _DARK_BG = _p["bg"]
@@ -122,8 +123,8 @@ def _make_edit(placeholder: str = "", width: int | None = None) -> QLineEdit:
     return e
 
 
-def _make_combo() -> QComboBox:
-    c = QComboBox()
+def _make_combo() -> ConstrainedComboBox:
+    c = ConstrainedComboBox()
     c.setStyleSheet(_COMBO_STYLE)
     return c
 
