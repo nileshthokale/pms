@@ -36,10 +36,11 @@ class ScheduleReportsDAO:
         """Return all item records matching the specified schedule type."""
         sched_sql, _ = cls._schedule_clause(schedule_type, "i")
         sql = f"""
-            SELECT id, item_name, pack_size, scheduled
+            SELECT i.id, i.item_name, i.pack_size, i.scheduled, COALESCE(u.unit_name, '') AS unit_name
             FROM items i
+            LEFT JOIN units u ON i.unit_id = u.id
             WHERE {sched_sql}
-            ORDER BY UPPER(TRIM(item_name)) ASC
+            ORDER BY UPPER(TRIM(i.item_name)) ASC
         """
         conn = get_connection()
         try:
@@ -52,9 +53,10 @@ class ScheduleReportsDAO:
     def get_all_items(cls) -> List[Dict[str, Any]]:
         """Return all item records from items table for search/filter."""
         sql = """
-            SELECT id, item_name, pack_size, scheduled
-            FROM items
-            ORDER BY UPPER(TRIM(item_name)) ASC
+            SELECT i.id, i.item_name, i.pack_size, i.scheduled, COALESCE(u.unit_name, '') AS unit_name
+            FROM items i
+            LEFT JOIN units u ON i.unit_id = u.id
+            ORDER BY UPPER(TRIM(i.item_name)) ASC
         """
         conn = get_connection()
         try:

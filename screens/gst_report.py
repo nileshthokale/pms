@@ -410,7 +410,11 @@ class GSTReportPage(QWidget):
             combo.clear()
             combo.addItem("All", None)
             for row in rows:
-                combo.addItem(row[name_key], row[id_key])
+                if name_key == "item_name" and row.get("unit_name"):
+                    disp = f"{row['item_name']} ({row['unit_name']})"
+                else:
+                    disp = row[name_key]
+                combo.addItem(disp, row[id_key])
             combo.setCurrentIndex(0)
             combo.blockSignals(False)
 

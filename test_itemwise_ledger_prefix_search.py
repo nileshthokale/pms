@@ -47,9 +47,13 @@ class TestItemwiseLedgerPrefixSearch(unittest.TestCase):
             self.assertNotIn("]", text, f"Found closing bracket in suggestion: {text}")
 
         # Specifically check ENDOFLAM SP
-        idx = self.combo.findText("ENDOFLAM SP")
+        idx = -1
+        for i in range(self.combo.count()):
+            if self.combo.itemText(i).startswith("ENDOFLAM SP"):
+                idx = i
+                break
         self.assertGreaterEqual(idx, 0)
-        self.assertEqual(self.combo.itemText(idx), "ENDOFLAM SP")
+        self.assertTrue(self.combo.itemText(idx).startswith("ENDOFLAM SP"))
         self.assertEqual(self.combo.itemData(idx), 1739)
 
     def test_02_prefix_search_end_matches_only_beginning(self):
@@ -62,7 +66,7 @@ class TestItemwiseLedgerPrefixSearch(unittest.TestCase):
         matched_texts = [model.item(r).text() for r in range(model.rowCount())]
 
         # ENDOFLAM SP starts with END
-        self.assertIn("ENDOFLAM SP", matched_texts)
+        self.assertTrue(any(t.startswith("ENDOFLAM SP") for t in matched_texts))
 
         # SCAREND (ends with END) and TENDOMAC (middle END) must NOT match
         self.assertNotIn("SCAREND", matched_texts)
@@ -97,7 +101,7 @@ class TestItemwiseLedgerPrefixSearch(unittest.TestCase):
 
             model = self.combo._completer_model
             matched_texts = [model.item(r).text() for r in range(model.rowCount())]
-            self.assertIn("ENDOFLAM SP", matched_texts, f"Failed to match for variant '{variant}'")
+            self.assertTrue(any(t.startswith("ENDOFLAM SP") for t in matched_texts), f"Failed to match for variant '{variant}'")
             self.assertNotIn("SCAREND", matched_texts)
 
     def test_05_prefix_search_ignores_leading_and_trailing_spaces(self):
@@ -110,7 +114,7 @@ class TestItemwiseLedgerPrefixSearch(unittest.TestCase):
 
             model = self.combo._completer_model
             matched_texts = [model.item(r).text() for r in range(model.rowCount())]
-            self.assertIn("ENDOFLAM SP", matched_texts, f"Failed for input '{inp}'")
+            self.assertTrue(any(t.startswith("ENDOFLAM SP") for t in matched_texts), f"Failed for input '{inp}'")
             self.assertNotIn("SCAREND", matched_texts)
             self.assertNotIn("TENDOMAC", matched_texts)
 
@@ -142,13 +146,17 @@ class TestItemwiseLedgerPrefixSearch(unittest.TestCase):
 
     def test_07_selecting_medicine_loads_correct_id_and_ledger(self):
         """Selecting a medicine by ID or by typing resolves correct item ID and populates ledger."""
-        idx = self.combo.findText("ENDOFLAM SP")
+        idx = -1
+        for i in range(self.combo.count()):
+            if self.combo.itemText(i).startswith("ENDOFLAM SP"):
+                idx = i
+                break
         self.assertGreaterEqual(idx, 0)
 
         # Select ENDOFLAM SP
         self.combo.setCurrentIndex(idx)
         self.assertEqual(self.combo.selected_id, 1739)
-        self.assertEqual(self.combo.currentText(), "ENDOFLAM SP")
+        self.assertTrue(self.combo.currentText().startswith("ENDOFLAM SP"))
 
         # Generate report
         self.page._on_generate()

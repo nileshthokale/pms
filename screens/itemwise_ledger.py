@@ -262,8 +262,11 @@ class ItemwiseLedgerPage(QWidget):
 
     def _load_options(self):
         items = LedgerReportDAO.get_item_options()
+        for it in items:
+            u = (it.get("unit_name") or "").strip()
+            it["display_name"] = f"{it['item_name']} ({u})" if u else it["item_name"]
         self._item_selector.set_options(
-            items, id_key="id", name_key="item_name"
+            items, id_key="id", name_key="display_name"
         )
 
     def _set_default_dates(self):

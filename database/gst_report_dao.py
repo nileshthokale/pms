@@ -236,8 +236,9 @@ class GSTReportDAO:
             ]
             items = [
                 dict(r) for r in conn.execute(
-                    "SELECT id, item_name FROM items "
-                    "ORDER BY item_name COLLATE NOCASE"
+                    "SELECT i.id, i.item_name, COALESCE(u.unit_name, '') AS unit_name "
+                    "FROM items i LEFT JOIN units u ON u.id = i.unit_id "
+                    "ORDER BY i.item_name COLLATE NOCASE"
                 ).fetchall()
             ]
             companies = [
